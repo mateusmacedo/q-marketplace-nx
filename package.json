@@ -34,6 +34,7 @@
     "@angular/compiler-cli": "22.2.5",
     "@angular/language-service": "22.2.5",
     "@eslint/js": "9.39.5",
+    "@hey-api/openapi-ts": "0.99.0",
     "@nx/angular": "24.0.4",
     "@nx/devkit": "24.0.4",
     "@nx/eslint": "24.0.4",
@@ -73,6 +74,7 @@
     "@coreui/coreui": "5.9.1",
     "@coreui/icons": "3.1.0",
     "@coreui/icons-angular": "5.7.42",
+    "angular-oauth2-oidc": "22.0.2",
     "ngx-scrollbar": "19.1.5",
     "rxjs": "7.8.2"
   }

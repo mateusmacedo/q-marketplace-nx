@@ -7,7 +7,12 @@ export default [
     {
         ignores: [
             "**/dist",
-            "**/out-tsc"
+            "**/out-tsc",
+            "**/build",
+            "**/test-output",
+            "**/coverage",
+            "**/playwright-report",
+            "**/src/generated"
         ]
     },
     {
