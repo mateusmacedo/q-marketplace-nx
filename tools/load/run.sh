@@ -101,7 +101,7 @@ kyb_rounds() {
 
 echo "== Execução $TESTID contra $BASE_URL"
 cli plan
-for HEALTH in "$API_MANAGEMENT_URL" "$WORKER_MANAGEMENT_URL"; do
+for HEALTH in "$API_MANAGEMENT_URL" "$API_2_MANAGEMENT_URL" "$WORKER_MANAGEMENT_URL"; do
   if ! curl -sf -o /dev/null "$HEALTH/q/health/ready"; then
     echo "Catálogo indisponível em $HEALTH; suba o compose (docker compose -f infra/local/docker-compose.yml --profile catalog up -d --wait)." >&2
     exit 2
@@ -207,7 +207,7 @@ LOG_FAILED=0
   else
     echo "Contêiner postgres não encontrado; verificação do log do banco pulada."
   fi
-  for SERVICE in catalog-api catalog-worker; do
+  for SERVICE in catalog-api-1 catalog-api-2 catalog-worker; do
     APP_CID=$("${COMPOSE[@]}" ps -q "$SERVICE" 2>/dev/null || true)
     if [ -z "$APP_CID" ]; then
       echo "Contêiner $SERVICE não encontrado; verificação do log pulada."

@@ -39,8 +39,9 @@ export const K6_SCENARIOS = [...RATED_SCENARIOS, 'last_unit'];
 
 export const DEFAULTS = Object.freeze({
   BASE_URL: 'http://localhost:8083',
-  API_MANAGEMENT_URL: 'http://localhost:9083',
-  WORKER_MANAGEMENT_URL: 'http://localhost:9084',
+  API_MANAGEMENT_URL: 'http://localhost:9301',
+  API_2_MANAGEMENT_URL: 'http://localhost:9302',
+  WORKER_MANAGEMENT_URL: 'http://localhost:9311',
   KEYCLOAK_URL: 'http://localhost:8180',
   KEYCLOAK_REALM: 'marketplace',
   KEYCLOAK_CLIENT_ID: 'marketplace-cli',
@@ -189,7 +190,7 @@ export function parseParams(source) {
     testid,
     allowRemote,
     baseUrl: target('BASE_URL'),
-    managementUrls: [target('API_MANAGEMENT_URL'), target('WORKER_MANAGEMENT_URL')],
+    managementUrls: [target('API_MANAGEMENT_URL'), target('API_2_MANAGEMENT_URL'), target('WORKER_MANAGEMENT_URL')],
     keycloakUrl: target('KEYCLOAK_URL'),
     keycloakRealm: formatted('KEYCLOAK_REALM', NAME_FORMAT, 'deve casar ^[A-Za-z0-9._-]{1,64}$'),
     keycloakClientId: formatted('KEYCLOAK_CLIENT_ID', NAME_FORMAT, 'deve casar ^[A-Za-z0-9._-]{1,64}$'),

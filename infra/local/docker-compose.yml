@@ -9,7 +9,7 @@ include:
   - compose/redis.yml
   - compose/postgres.yml
   - compose/catalog.yml
-  - compose/admin-web.yml
+  - compose/gateway.yml
   - compose/otel-collector.yml
   - compose/prometheus.yml
   - compose/tempo.yml
