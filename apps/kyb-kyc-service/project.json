@@ -1,0 +1,32 @@
+{
+  "name": "kyb-kyc-service",
+  "projectType": "application",
+  "tags": [
+    "scope:kyb-kyc",
+    "layer:service",
+    "lang:java"
+  ],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/gradle.mjs :kyb-kyc-service:quarkusDev"
+      }
+    },
+    "native": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/gradle.mjs :kyb-kyc-service:assemble -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true"
+      }
+    },
+    "container": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "native"
+      ],
+      "options": {
+        "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=kyb-kyc-service -t marketplace/kyb-kyc:local ."
+      }
+    }
+  }
+}
