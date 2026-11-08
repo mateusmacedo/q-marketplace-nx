@@ -1,0 +1,9 @@
+{
+  "name": "order-management-domain",
+  "projectType": "library",
+  "tags": [
+    "scope:order-management",
+    "layer:domain",
+    "lang:java"
+  ]
+}
