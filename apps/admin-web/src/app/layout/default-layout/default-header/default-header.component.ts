@@ -1,6 +1,6 @@
 /**
- * Cabeçalho do painel: alterna o menu lateral, escolhe o tema (claro, escuro ou automático), abre o menu do usuário
- * e mostra o breadcrumb da rota.
+ * Cabeçalho do painel: alterna o menu lateral, escolhe o tema (claro, escuro ou automático), mostra o usuário logado
+ * com a saída e o breadcrumb da rota.
  */
 
 import { NgTemplateOutlet } from '@angular/common';
@@ -23,6 +23,8 @@ import {
 } from '@coreui/angular';
 
 import { IconDirective } from '@coreui/icons-angular';
+
+import { AuthSession } from '../../../core/auth/auth-session';
 
 @Component({
   selector: 'app-default-header',
@@ -60,5 +62,12 @@ export class DefaultHeaderComponent extends HeaderComponent {
   });
 
   readonly sidebarId = input('sidebar1');
+
+  readonly #session = inject(AuthSession);
+  readonly username = this.#session.username();
+
+  logout(): void {
+    this.#session.logout();
+  }
 
 }

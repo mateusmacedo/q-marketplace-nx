@@ -37,11 +37,11 @@
     <ul cDropdownMenu class="pt-0 w-auto">
       <li>
         <h6 cDropdownHeader class="bg-body-secondary text-body-secondary fw-semibold py-2 rounded-top">
-          Conta
+          {{ username || 'Conta' }}
         </h6>
       </li>
       <li>
-        <button cDropdownItem type="button">
+        <button (click)="logout()" cDropdownItem type="button">
           <svg cIcon class="me-2" name="cilAccountLogout"></svg>
           Sair
         </button>

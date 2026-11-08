@@ -81,6 +81,10 @@
         "development": {
           "buildTarget": "admin-web:build:development"
         }
+      },
+      "options": {
+        "proxyConfig": "apps/admin-web/proxy.conf.json",
+        "port": 4200
       }
     },
     "test": {

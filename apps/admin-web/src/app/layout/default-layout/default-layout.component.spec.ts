@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideOAuthClient } from 'angular-oauth2-oidc';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
@@ -13,7 +15,7 @@ describe('DefaultLayoutComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DefaultLayoutComponent],
-      providers: [IconSetService, provideRouter([])]
+      providers: [IconSetService, provideRouter([]), provideHttpClient(), provideOAuthClient()]
     }).compileComponents();
 
     TestBed.inject(IconSetService).icons = { ...iconSubset };
