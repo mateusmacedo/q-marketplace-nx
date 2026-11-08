@@ -45,3 +45,7 @@ Thumbs.db
 
 # Planos de trabalho, temporários e locais
 plans/
+
+.angular
+
+__screenshots__/

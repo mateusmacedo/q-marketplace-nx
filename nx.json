@@ -9,6 +9,18 @@
         "buildTargetName": "gradle-build",
         "ciTestTargetName": "test-ci"
       }
+    },
+    {
+      "plugin": "@nx/eslint/plugin",
+      "options": {
+        "targetName": "lint"
+      }
+    },
+    {
+      "plugin": "@nx/playwright/plugin",
+      "options": {
+        "targetName": "e2e"
+      }
     }
   ],
   "namedInputs": {
@@ -63,6 +75,23 @@
     },
     "quarkusRun": {
       "cache": false
+    },
+    "@angular/build:application": {
+      "cache": true,
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "@angular/build:unit-test": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
     }
   },
   "release": {
@@ -70,15 +99,22 @@
     "groups": {
       "apps": {
         "projectsRelationship": "independent",
-        "projects": ["tag:layer:service"]
+        "projects": [
+          "tag:layer:service"
+        ]
       },
       "libs": {
         "projectsRelationship": "independent",
-        "projects": ["tag:layer:domain", "tag:layer:application"]
+        "projects": [
+          "tag:layer:domain",
+          "tag:layer:application"
+        ]
       },
       "contracts": {
         "projectsRelationship": "independent",
-        "projects": ["tag:layer:contract"]
+        "projects": [
+          "tag:layer:contract"
+        ]
       }
     },
     "releaseTag": {
@@ -103,5 +139,19 @@
     }
   },
   "analytics": true,
-  "nxCloudId": "6aefee2a5c73bb897c69723c"
+  "nxCloudId": "6aefee2a5c73bb897c69723c",
+  "generators": {
+    "@nx/angular:application": {
+      "e2eTestRunner": "playwright",
+      "linter": "eslint",
+      "style": "scss",
+      "unitTestRunner": "vitest-angular"
+    },
+    "@nx/angular:library": {
+      "linter": "eslint"
+    },
+    "@nx/angular:component": {
+      "style": "scss"
+    }
+  }
 }
