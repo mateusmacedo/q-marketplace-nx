@@ -1,0 +1,9 @@
+{
+  "name": "identity-organization-domain",
+  "projectType": "library",
+  "tags": [
+    "scope:identity-organization",
+    "layer:domain",
+    "lang:java"
+  ]
+}
