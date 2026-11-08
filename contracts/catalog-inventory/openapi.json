@@ -1,0 +1,3454 @@
+{
+  "openapi" : "3.1.0",
+  "tags" : [ {
+    "name" : "Categories",
+    "description" : "Árvore de categorias e atributos do tenant"
+  }, {
+    "name" : "Inventory",
+    "description" : "Saldo por SKU e reservas de estoque"
+  }, {
+    "name" : "Moderation",
+    "description" : "Trust & Safety: fila, aprovação, rejeição e bloqueio de produtos"
+  }, {
+    "name" : "Offers",
+    "description" : "Preço de/por e promoções de cada SKU da loja autenticada"
+  }, {
+    "name" : "Products",
+    "description" : "Conteúdo, SKUs e publicação dos produtos da loja autenticada"
+  }, {
+    "name" : "Storefront",
+    "description" : "Consulta pública e autoritativa de produtos, com preço vigente e disponibilidade"
+  }, {
+    "name" : "Stores",
+    "description" : "Situação KYB/KYC da loja, recebida do contexto KYB/KYC"
+  } ],
+  "components" : {
+    "schemas" : {
+      "AdjustStockRequest" : {
+        "type" : "object",
+        "required" : [ "onHand" ],
+        "properties" : {
+          "onHand" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Estoque físico vendável contado pelo seller",
+            "maximum" : 1000000,
+            "minimum" : 0
+          }
+        }
+      },
+      "AttributeDto" : {
+        "type" : "object",
+        "required" : [ "code", "label", "type" ],
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "pattern" : "\\S"
+          },
+          "label" : {
+            "type" : "string",
+            "pattern" : "\\S"
+          },
+          "type" : {
+            "$ref" : "#/components/schemas/AttributeType"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "variant" : {
+            "type" : "boolean",
+            "description" : "Valor pertence a cada SKU (ex.: cor, tamanho)"
+          },
+          "options" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "pattern" : "\\S"
+            },
+            "maxItems" : 100
+          }
+        }
+      },
+      "AttributeType" : {
+        "type" : "string",
+        "enum" : [ "TEXT", "INTEGER", "DECIMAL", "BOOLEAN", "OPTION" ]
+      },
+      "CategoryPage" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategorySummary"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Cursor opaco da próxima página; ausente na última"
+          }
+        }
+      },
+      "CategoryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "parentId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "usable" : {
+            "type" : "boolean",
+            "description" : "Falso quando a categoria ou um ancestral está inativo"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "attributes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AttributeDto"
+            }
+          },
+          "effectiveAttributes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AttributeDto"
+            },
+            "description" : "Atributos próprios mais os herdados dos ancestrais"
+          }
+        }
+      },
+      "CategorySummary" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "parentId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "CreateCategoryRequest" : {
+        "type" : "object",
+        "properties" : {
+          "parentId" : {
+            "description" : "Categoria pai; ausente para categoria raiz",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/UUID"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "code" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 60
+          },
+          "name" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 120
+          },
+          "attributes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AttributeDto"
+            },
+            "maxItems" : 50
+          }
+        },
+        "required" : [ "code", "name" ]
+      },
+      "CreateProductRequest" : {
+        "type" : "object",
+        "required" : [ "categoryId", "currency", "title" ],
+        "properties" : {
+          "categoryId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "currency" : {
+            "type" : "string",
+            "description" : "Moeda ISO 4217 de todas as ofertas do produto",
+            "pattern" : "[A-Z]{3}"
+          },
+          "title" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 200
+          },
+          "description" : {
+            "type" : "string",
+            "maxLength" : 5000
+          },
+          "attributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "skus" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SkuRequest"
+            },
+            "maxItems" : 100
+          }
+        }
+      },
+      "CreateReservationRequest" : {
+        "type" : "object",
+        "properties" : {
+          "orderRef" : {
+            "type" : [ "string", "null" ],
+            "description" : "Referência do pedido no OMS",
+            "maxLength" : 100
+          },
+          "ttlSeconds" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Prazo em segundos; ausente usa o padrão do serviço",
+            "exclusiveMinimum" : 0
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ItemRequest"
+            },
+            "maxItems" : 100,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "DimensionsDto" : {
+        "type" : "object",
+        "required" : [ "heightCm", "widthCm", "lengthCm", "weightGrams" ],
+        "properties" : {
+          "heightCm" : {
+            "type" : "number",
+            "exclusiveMinimum" : 0
+          },
+          "widthCm" : {
+            "type" : "number",
+            "exclusiveMinimum" : 0
+          },
+          "lengthCm" : {
+            "type" : "number",
+            "exclusiveMinimum" : 0
+          },
+          "weightGrams" : {
+            "type" : "integer",
+            "format" : "int32",
+            "exclusiveMinimum" : 0
+          }
+        }
+      },
+      "EffectivePriceDto" : {
+        "type" : "object",
+        "properties" : {
+          "listPrice" : {
+            "$ref" : "#/components/schemas/MoneyDto"
+          },
+          "salePrice" : {
+            "$ref" : "#/components/schemas/MoneyDto"
+          },
+          "promotionId" : {
+            "description" : "Promoção vigente, se houver",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/UUID"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "priceVersion" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Versão da definição de preço, para o snapshot do checkout"
+          }
+        }
+      },
+      "EligibilityResponse" : {
+        "type" : "object",
+        "properties" : {
+          "storeId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/SellerStatus"
+          }
+        }
+      },
+      "ExtendReservationRequest" : {
+        "type" : "object",
+        "required" : [ "ttlSeconds" ],
+        "properties" : {
+          "ttlSeconds" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0
+          }
+        }
+      },
+      "FieldError" : {
+        "type" : "object",
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ImportCounts" : {
+        "type" : "object",
+        "properties" : {
+          "created" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "updated" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "unchanged" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "failed" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "ImportLineResponse" : {
+        "type" : "object",
+        "properties" : {
+          "lineNumber" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Linha do arquivo onde o registro começa; o cabeçalho é a linha 1"
+          },
+          "sellerSku" : {
+            "type" : [ "string", "null" ],
+            "description" : "SKU do seller lido da linha; ausente se a coluna veio vazia"
+          },
+          "outcome" : {
+            "$ref" : "#/components/schemas/ImportOutcome"
+          },
+          "code" : {
+            "type" : [ "string", "null" ],
+            "description" : "Motivo estável da recusa; só em FAILED"
+          },
+          "message" : {
+            "type" : [ "string", "null" ],
+            "description" : "Descrição da recusa; só em FAILED"
+          },
+          "productId" : {
+            "description" : "Produto criado ou alterado pela linha, quando conhecido",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/UUID"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
+      },
+      "ImportOutcome" : {
+        "type" : "string",
+        "enum" : [ "CREATED", "UPDATED", "UNCHANGED", "FAILED" ]
+      },
+      "ImportResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ImportStatus"
+          },
+          "totalLines" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Linhas de dados do arquivo, sem o cabeçalho"
+          },
+          "processedLines" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Linhas que já têm resultado"
+          },
+          "counts" : {
+            "$ref" : "#/components/schemas/ImportCounts"
+          },
+          "createdAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "startedAt" : {
+            "description" : "Início ou último progresso do processamento",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Instant"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "finishedAt" : {
+            "description" : "Conclusão do processamento",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Instant"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ImportLineResponse"
+            },
+            "description" : "Resultados em ordem de linha"
+          }
+        }
+      },
+      "ImportStatus" : {
+        "type" : "string",
+        "enum" : [ "PENDING", "PROCESSING", "COMPLETED" ]
+      },
+      "Instant" : {
+        "type" : "string",
+        "format" : "date-time",
+        "examples" : [ "2022-03-10T16:15:50Z" ]
+      },
+      "ItemRequest" : {
+        "type" : "object",
+        "required" : [ "skuId", "quantity", "expectedUnitPrice" ],
+        "properties" : {
+          "skuId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 1000,
+            "minimum" : 1
+          },
+          "expectedUnitPrice" : {
+            "$ref" : "#/components/schemas/MoneyDto",
+            "description" : "Preço unitário aceito no checkout; divergência recusa com price-changed",
+            "type" : "object"
+          }
+        }
+      },
+      "MoneyDto" : {
+        "type" : "object",
+        "required" : [ "amount", "currency" ],
+        "properties" : {
+          "amount" : {
+            "type" : "number",
+            "minimum" : 0.0,
+            "multipleOf" : 0.01
+          },
+          "currency" : {
+            "type" : "string",
+            "pattern" : "[A-Z]{3}"
+          }
+        }
+      },
+      "MoveCategoryRequest" : {
+        "type" : "object",
+        "required" : [ "parentId" ],
+        "properties" : {
+          "parentId" : {
+            "description" : "Novo pai; nulo torna a categoria raiz",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/UUID"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
+      },
+      "OfferResponse" : {
+        "type" : "object",
+        "properties" : {
+          "skuId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "productId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "storeId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "price" : {
+            "$ref" : "#/components/schemas/PriceDto"
+          },
+          "effectivePrice" : {
+            "$ref" : "#/components/schemas/EffectivePriceDto"
+          },
+          "promotions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PromotionResponse"
+            }
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Versão da oferta, usada no If-Match"
+          }
+        }
+      },
+      "PriceDto" : {
+        "type" : "object",
+        "properties" : {
+          "listPrice" : {
+            "description" : "Preço \"de\" (riscado); opcional",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/MoneyDto"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "salePrice" : {
+            "$ref" : "#/components/schemas/MoneyDto",
+            "description" : "Preço \"por\" (de venda)",
+            "type" : "object"
+          }
+        },
+        "required" : [ "salePrice" ]
+      },
+      "Problem" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "instance" : {
+            "type" : "string"
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FieldError"
+            }
+          },
+          "reasons" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "ProductPage" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ProductResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Cursor opaco da próxima página; ausente na última"
+          }
+        }
+      },
+      "ProductResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "storeId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "categoryId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "attributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ProductStatus",
+            "description" : "ACTIVE sem saldo disponível aparece como OUT_OF_STOCK",
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "createdAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "updatedAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "skus" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SkuResponse"
+            }
+          }
+        }
+      },
+      "ProductStatus" : {
+        "type" : "string",
+        "enum" : [ "DRAFT", "PENDING_MODERATION", "ACTIVE", "PAUSED_BY_SELLER", "OUT_OF_STOCK", "BLOCKED", "ARCHIVED" ]
+      },
+      "ProductTransition" : {
+        "type" : "string",
+        "enum" : [ "CREATE", "SUBMIT", "APPROVE", "REJECT", "BLOCK", "UNBLOCK", "PAUSE", "RESUME", "ARCHIVE", "REVIEW_REQUIRED" ]
+      },
+      "PromotionRequest" : {
+        "type" : "object",
+        "required" : [ "salePrice", "startsAt", "endsAt" ],
+        "properties" : {
+          "salePrice" : {
+            "$ref" : "#/components/schemas/MoneyDto"
+          },
+          "startsAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "endsAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          }
+        }
+      },
+      "PromotionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "salePrice" : {
+            "$ref" : "#/components/schemas/MoneyDto"
+          },
+          "startsAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "endsAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          }
+        }
+      },
+      "ReasonRequest" : {
+        "type" : "object",
+        "required" : [ "reason" ],
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 500
+          }
+        }
+      },
+      "ReservationItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "skuId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "productId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "storeId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "quantity" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "unitPrice" : {
+            "$ref" : "#/components/schemas/MoneyDto"
+          },
+          "priceVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "ReservationResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "orderRef" : {
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ReservationStatus"
+          },
+          "createdAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "expiresAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "closedAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReservationItemResponse"
+            }
+          }
+        }
+      },
+      "ReservationStatus" : {
+        "type" : "string",
+        "enum" : [ "ACTIVE", "COMMITTED", "RELEASED", "EXPIRED" ]
+      },
+      "ReviseCategoryRequest" : {
+        "type" : "object",
+        "required" : [ "name", "active" ],
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 120
+          },
+          "attributes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AttributeDto"
+            },
+            "maxItems" : 50
+          },
+          "active" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "ReviseProductRequest" : {
+        "type" : "object",
+        "required" : [ "categoryId", "title" ],
+        "properties" : {
+          "categoryId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "title" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 200
+          },
+          "description" : {
+            "type" : "string",
+            "maxLength" : 5000
+          },
+          "attributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "ReviseSkuRequest" : {
+        "type" : "object",
+        "properties" : {
+          "variantAttributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "physical" : {
+            "type" : "boolean"
+          },
+          "dimensions" : {
+            "$ref" : "#/components/schemas/DimensionsDto"
+          }
+        }
+      },
+      "SellerStatus" : {
+        "type" : "string",
+        "enum" : [ "PENDING", "APPROVED", "REJECTED" ]
+      },
+      "SkuRequest" : {
+        "type" : "object",
+        "required" : [ "sellerSku" ],
+        "properties" : {
+          "sellerSku" : {
+            "type" : "string",
+            "pattern" : "[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+          },
+          "variantAttributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "physical" : {
+            "type" : "boolean"
+          },
+          "dimensions" : {
+            "description" : "Obrigatório para SKU físico",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DimensionsDto"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
+      },
+      "SkuResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "sellerSku" : {
+            "type" : "string"
+          },
+          "variantAttributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "physical" : {
+            "type" : "boolean"
+          },
+          "dimensions" : {
+            "$ref" : "#/components/schemas/DimensionsDto"
+          }
+        }
+      },
+      "StatusChangeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "transition" : {
+            "$ref" : "#/components/schemas/ProductTransition"
+          },
+          "from" : {
+            "$ref" : "#/components/schemas/ProductStatus"
+          },
+          "to" : {
+            "$ref" : "#/components/schemas/ProductStatus"
+          },
+          "actor" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "at" : {
+            "$ref" : "#/components/schemas/Instant"
+          }
+        }
+      },
+      "StockResponse" : {
+        "type" : "object",
+        "properties" : {
+          "skuId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "onHand" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "reserved" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "available" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sold" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Versão do saldo, usada no If-Match do ajuste"
+          }
+        }
+      },
+      "StorefrontProductResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "storeId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "categoryId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "attributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ProductStatus",
+            "description" : "ACTIVE ou OUT_OF_STOCK (visível, mas não vendável)",
+            "type" : "string"
+          },
+          "skus" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StorefrontSkuResponse"
+            }
+          }
+        }
+      },
+      "StorefrontSkuResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "sellerSku" : {
+            "type" : "string"
+          },
+          "variantAttributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "physical" : {
+            "type" : "boolean"
+          },
+          "dimensions" : {
+            "$ref" : "#/components/schemas/DimensionsDto"
+          },
+          "price" : {
+            "$ref" : "#/components/schemas/EffectivePriceDto"
+          },
+          "inStock" : {
+            "type" : "boolean",
+            "description" : "Há saldo disponível; a quantidade exata não é exposta"
+          }
+        }
+      },
+      "UUID" : {
+        "type" : "string",
+        "format" : "uuid",
+        "pattern" : "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+      }
+    },
+    "securitySchemes" : {
+      "SecurityScheme" : {
+        "description" : "Token JWT do provedor OIDC; o tenant e a loja vêm das claims tenant_id e store_id",
+        "type" : "http",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  },
+  "paths" : {
+    "/categories" : {
+      "get" : {
+        "summary" : "Lista filhos de uma categoria (ou as raízes) em ordem de código",
+        "operationId" : "listCategories",
+        "tags" : [ "Categories" ],
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "default" : 50
+          }
+        }, {
+          "name" : "parentId",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Página de categorias",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryPage"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      },
+      "post" : {
+        "summary" : "Cria categoria raiz ou subcategoria",
+        "operationId" : "createCategory",
+        "tags" : [ "Categories" ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Categoria criada"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-admin" ]
+        } ]
+      }
+    },
+    "/categories/{id}" : {
+      "put" : {
+        "summary" : "Atualiza nome, atributos próprios e ativação (exige If-Match)",
+        "operationId" : "reviseCategory",
+        "tags" : [ "Categories" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReviseCategoryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Categoria atualizada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-admin" ]
+        } ]
+      },
+      "get" : {
+        "summary" : "Consulta categoria com atributos efetivos (herdados)",
+        "operationId" : "getCategory",
+        "tags" : [ "Categories" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Categoria",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/categories/{id}/parent" : {
+      "put" : {
+        "summary" : "Move a categoria e suas subcategorias para outro pai ou para a raiz (exige If-Match)",
+        "description" : "Recusa com 422 `category-cycle` (novo pai é a própria categoria ou uma subcategoria dela), `category-too-deep` (a subárvore passaria do limite de níveis) e `attribute-conflict` (atributo da subárvore já existe no novo caminho). Pai inativo é aceito. Os produtos não mudam: atributo obrigatório herdado só é cobrado na próxima edição ou envio de cada produto.",
+        "operationId" : "moveCategory",
+        "tags" : [ "Categories" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveCategoryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Categoria na nova posição, com os atributos efetivos recalculados",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-admin" ]
+        } ]
+      }
+    },
+    "/inventory/reservations" : {
+      "post" : {
+        "summary" : "Reserva todos os itens ou nenhum; repetir a chave devolve a mesma reserva",
+        "operationId" : "createReservation",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "description" : "Chave única por tentativa de reserva",
+          "required" : true,
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Reserva criada"
+          },
+          "200" : {
+            "description" : "Repetição idempotente (cabeçalho Idempotent-Replayed)",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-reservations" ]
+        } ]
+      }
+    },
+    "/inventory/reservations/{id}" : {
+      "get" : {
+        "summary" : "Consulta reserva",
+        "operationId" : "getReservation",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Reserva",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-reservations" ]
+        } ]
+      }
+    },
+    "/inventory/reservations/{id}/commit" : {
+      "post" : {
+        "summary" : "Baixa definitiva após pagamento confirmado; idempotente",
+        "operationId" : "commitReservation",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Reserva confirmada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-reservations" ]
+        } ]
+      }
+    },
+    "/inventory/reservations/{id}/extend" : {
+      "post" : {
+        "summary" : "Estende o prazo de reserva ativa (ex.: antes de captura do cartão)",
+        "operationId" : "extendReservation",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ExtendReservationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Reserva com novo prazo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-reservations" ]
+        } ]
+      }
+    },
+    "/inventory/reservations/{id}/release" : {
+      "post" : {
+        "summary" : "Devolve o estoque (pagamento falhou, carrinho expirou); idempotente",
+        "operationId" : "releaseReservation",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Reserva liberada ou já encerrada sem baixa",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-reservations" ]
+        } ]
+      }
+    },
+    "/inventory/skus/{skuId}" : {
+      "get" : {
+        "summary" : "Saldo do SKU; ETag carrega a versão do saldo",
+        "operationId" : "getStock",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Saldo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StockResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      },
+      "put" : {
+        "summary" : "Define o estoque físico; nunca abaixo do reservado (If-Match opcional)",
+        "operationId" : "adjustStock",
+        "tags" : [ "Inventory" ],
+        "parameters" : [ {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdjustStockRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Saldo atualizado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StockResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/moderation/products" : {
+      "get" : {
+        "summary" : "Produtos aguardando moderação",
+        "operationId" : "moderationQueue",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Página da fila",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductPage"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/moderation/products/{id}/approve" : {
+      "post" : {
+        "summary" : "Aprova produto (exige oferta em todo SKU e seller com KYC aprovado)",
+        "operationId" : "approveProduct",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto ativo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/moderation/products/{id}/block" : {
+      "post" : {
+        "summary" : "Bloqueia produto; sai da vitrine imediatamente",
+        "operationId" : "blockProduct",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto bloqueado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/moderation/products/{id}/reject" : {
+      "post" : {
+        "summary" : "Rejeita e devolve ao rascunho com motivo",
+        "operationId" : "rejectProduct",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto em rascunho",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/moderation/products/{id}/unblock" : {
+      "post" : {
+        "summary" : "Desbloqueia e devolve à fila de moderação",
+        "operationId" : "unblockProduct",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto em moderação",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/offers/{skuId}" : {
+      "get" : {
+        "summary" : "Consulta a oferta do SKU com o preço vigente; ETag carrega a versão",
+        "operationId" : "getOffer",
+        "tags" : [ "Offers" ],
+        "parameters" : [ {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Oferta",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      },
+      "put" : {
+        "summary" : "Cria a oferta do SKU na moeda do produto, ou troca o preço da existente (troca exige If-Match)",
+        "operationId" : "defineOffer",
+        "tags" : [ "Offers" ],
+        "parameters" : [ {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PriceDto"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Preço trocado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Oferta criada"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/offers/{skuId}/promotions" : {
+      "post" : {
+        "summary" : "Agenda preço promocional [startsAt, endsAt)",
+        "operationId" : "schedulePromotion",
+        "tags" : [ "Offers" ],
+        "parameters" : [ {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PromotionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Promoção agendada"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/offers/{skuId}/promotions/{promotionId}" : {
+      "delete" : {
+        "summary" : "Cancela promoção ainda não encerrada",
+        "operationId" : "cancelPromotion",
+        "tags" : [ "Offers" ],
+        "parameters" : [ {
+          "name" : "promotionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Oferta atualizada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products" : {
+      "get" : {
+        "summary" : "Lista produtos; o seller vê só a própria loja",
+        "operationId" : "listProducts",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "default" : 50
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "storeId",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Página de produtos",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductPage"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      },
+      "post" : {
+        "summary" : "Cria produto em rascunho na loja do token",
+        "operationId" : "createProduct",
+        "tags" : [ "Products" ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateProductRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Produto criado"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/imports" : {
+      "post" : {
+        "summary" : "Envia planilha CSV de produtos para importação em segundo plano",
+        "operationId" : "importProducts",
+        "tags" : [ "Products" ],
+        "requestBody" : {
+          "description" : "CSV RFC 4180 em UTF-8 (BOM opcional) com o cabeçalho exato, nesta ordem: product_ref,category_code,title,description,attributes,seller_sku,variant_attributes,physical,height_cm,width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand. Atributos são pares chave=valor separados por ';'; números usam ponto decimal; physical é true ou false. SKU já existente na loja recebe só preço e estoque; SKUs novos com o mesmo product_ref formam um produto em rascunho.",
+          "required" : true,
+          "content" : {
+            "text/csv" : {
+              "schema" : {
+                "type" : "string",
+                "format" : "binary"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "202" : {
+            "description" : "Importação aceita; acompanhe pelo Location"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/imports/{id}" : {
+      "get" : {
+        "summary" : "Consulta a importação e o resultado de cada linha",
+        "operationId" : "getProductImport",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Importação",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ImportResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/{id}" : {
+      "put" : {
+        "summary" : "Atualiza conteúdo (exige If-Match); produto publicado volta à moderação",
+        "operationId" : "reviseProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReviseProductRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto atualizado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      },
+      "get" : {
+        "summary" : "Consulta produto; ETag carrega a versão",
+        "operationId" : "getProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      },
+      "delete" : {
+        "summary" : "Arquiva o produto (exclusão lógica; histórico preservado)",
+        "operationId" : "archiveProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto arquivado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/{id}/history" : {
+      "get" : {
+        "summary" : "Histórico de transições e decisões de moderação",
+        "operationId" : "productHistory",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Histórico em ordem cronológica",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/StatusChangeResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/products/{id}/pause" : {
+      "post" : {
+        "summary" : "Pausa produto ativo",
+        "operationId" : "pauseProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto pausado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/{id}/resume" : {
+      "post" : {
+        "summary" : "Reativa produto pausado (exige seller aprovado)",
+        "operationId" : "resumeProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto ativo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/{id}/skus" : {
+      "post" : {
+        "summary" : "Adiciona SKU; produto publicado volta à moderação",
+        "operationId" : "addSku",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SkuRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "SKU adicionado"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/products/{id}/skus/{skuId}" : {
+      "put" : {
+        "summary" : "Atualiza variação e dimensões do SKU (exige If-Match)",
+        "operationId" : "reviseSku",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReviseSkuRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto atualizado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      },
+      "delete" : {
+        "summary" : "Remove SKU de produto em rascunho, com a oferta dele",
+        "operationId" : "removeSku",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto atualizado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      },
+      "get" : {
+        "summary" : "Consulta a variação do SKU; ETag carrega a versão do produto",
+        "operationId" : "getSku",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "skuId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "SKU",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SkuResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+        } ]
+      }
+    },
+    "/products/{id}/submit" : {
+      "post" : {
+        "summary" : "Envia rascunho para moderação; recusa lista todos os motivos",
+        "operationId" : "submitProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto em moderação",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller" ]
+        } ]
+      }
+    },
+    "/storefront/{tenantId}/products/{productId}" : {
+      "get" : {
+        "summary" : "Produto público com o preço vigente de cada SKU",
+        "operationId" : "getStorefrontProduct",
+        "tags" : [ "Storefront" ],
+        "parameters" : [ {
+          "name" : "productId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "tenantId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Produto visível",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StorefrontProductResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stores/{storeId}/eligibility" : {
+      "get" : {
+        "summary" : "Consulta a situação da loja (seller: só a própria)",
+        "operationId" : "getStoreEligibility",
+        "tags" : [ "Stores" ],
+        "parameters" : [ {
+          "name" : "storeId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Situação atual",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EligibilityResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ "seller", "catalog-admin" ]
+        } ]
+      }
+    }
+  },
+  "info" : {
+    "title" : "Catalog & Inventory API",
+    "version" : "0.1.0",
+    "description" : "Categorias, produtos e SKUs, ofertas (preço e promoções), moderação, vitrine, estoque e reservas por tenant. Tenant e loja são derivados do token JWT."
+  }
+}
