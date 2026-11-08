@@ -1,0 +1,8 @@
+{
+  "name": "order-management-contracts",
+  "projectType": "library",
+  "tags": [
+    "scope:order-management",
+    "layer:contract"
+  ]
+}
