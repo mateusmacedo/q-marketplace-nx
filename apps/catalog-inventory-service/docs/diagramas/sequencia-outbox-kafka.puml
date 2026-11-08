@@ -1,14 +1,25 @@
 @startuml sequencia-outbox-kafka
-title Outbox transacional até o Kafka
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_OUTBOX Outbox transacional até o Kafka
 autonumber
 
-participant "Repositório Pg*\n(api ou worker)" as repo
-participant "PgOutbox" as outbox
-database "PostgreSQL" as pg
-participant "OutboxRelay\n(worker, a cada 1 s)" as relay
-participant "Canal catalog-events\n(SmallRye Kafka)" as canal
-queue "Kafka" as kafka
-participant "MessagingHousekeeping\n(worker, a cada 1 h)" as purge
+box "Saída (transação da mudança)" #FBF6FC
+  participant "$I_REPOSITORIO\nRepositório Pg*\n(api ou worker)" as repo <<saida>>
+  participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
+box "Entrada (workers)" #FFFAF3
+  participant "$I_LIMPEZA\nMessagingHousekeeping\n(worker, a cada 1 min)" as purge <<entrada>>
+  participant "$I_AGENDADOR\nOutboxRelay\n(worker, a cada 1 s)" as relay <<entrada>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_KAFKA\nCanal catalog-events\n(SmallRye Kafka)" as canal <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  queue "$I_KAFKA\nKafka" as kafka
+end box
 
 == Gravação na transação da mudança ==
 repo -> pg : BEGIN; UPDATE/INSERT do agregado
@@ -17,35 +28,35 @@ outbox -> pg : INSERT outbox_event (topic, message_key = id do agregado,\nevent_
 repo -> pg : COMMIT
 
 == Relay ==
-relay -> relay : em backoff? (pausedUntil) -> não faz nada
 loop até 20 lotes, enquanto o lote vem cheio e sem falha
   relay -> outbox : relay(lote = 100)
   outbox -> pg : BEGIN
   outbox -> pg : SELECT pg_try_advisory_xact_lock(\nhashtextextended('catalog-inventory.outbox-relay', 0))
-  alt outro pod tem a trava
+  alt #ECEFF1 outro pod tem a trava
     outbox -> pg : COMMIT (nada a fazer)
-  else trava obtida
-    outbox -> pg : SELECT ... WHERE published_at IS NULL\nORDER BY seq LIMIT 100 FOR UPDATE
+  else #E8F5E9 trava obtida
+    outbox -> pg : SELECT ... WHERE published_at IS NULL AND parked_at IS NULL\nAND next_attempt_at vencido ou nulo, sem anterior da chave\nem espera ou estacionado, ORDER BY seq LIMIT 100 FOR UPDATE
     par grupos de tópico+chave em paralelo
       loop eventos do grupo, em ordem
         relay -> canal : mensagem (tópico, chave, cabeçalhos event-type, event-id;\ntraceparent gravado como pai)
         canal -> kafka : produce (acks=all, idempotente), timeout 10 s
-        alt confirmado
-          kafka --> relay : ack
-        else falha
-          kafka --> relay : erro
+        alt #E8F5E9 confirmado
+          kafka --> relay : <color:#2E7D32>ack</color>
+        else #FFEBEE falha
+          kafka --> relay : <color:#C62828>erro</color>
           relay -> relay : seguintes do grupo ficam retidos (held)
         end
       end
     end
-    outbox -> pg : UPDATE published_at dos confirmados;\nattempts += 1 e last_error nas falhas
+    outbox -> pg : UPDATE published_at dos confirmados; nas falhas, attempts += 1,\nlast_error, next_attempt_at = agora + 2^n s (máx. 60 s)\ne parked_at na 20ª tentativa
     outbox -> pg : COMMIT (libera a trava)
   end
 end
-relay -> relay : falha no ciclo: pausa 2^n s (máx. 60 s);\nsem falha: zera o backoff
-relay -> pg : backlog (catalog.outbox.pending, catalog.outbox.oldest.age)
+relay -> relay : <color:#C62828>falha no ciclo</color>: só o aviso no log, sem pausar o relay
+relay -> pg : backlog (catalog.outbox.pending e .oldest.age sem os estacionados,\ncatalog.outbox.parked)
 
 == Limpeza ==
-purge -> pg : DELETE outbox_event publicada há mais de 7 dias (lotes de 10000, até 10)
-purge -> pg : DELETE inbox_message processada há mais de 30 dias
+purge -> pg : DELETE outbox_event publicada há mais de 7 dias\n(lotes de 10000 enquanto vêm cheios, por até 50 s nas duas tabelas)
+purge -> pg : DELETE inbox_message processada há mais de 30 dias\n(pelo menos um lote, no mesmo prazo)
+$legenda_camadas()
 @enduml

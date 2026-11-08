@@ -1,0 +1,117 @@
+@startuml sequencias-estoque
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!procedure $legenda_sequencia()
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Ator externo
+  <back:#EF6C00>    </back> Entrada (REST)
+  <back:#1565C0>    </back> Aplicação (caso de uso)
+  <back:#6A1B9A>    </back> Saída (repositórios, outbox, cache)
+  <back:#455A64>    </back> Infraestrutura
+  <b>Respostas</b>
+  <back:#66BB6A>    </back> Sucesso (2xx) e caminho feliz
+  <back:#E57373>    </back> Recusa (4xx/5xx, problem+json)
+endlegend
+!endprocedure
+title InventoryService.stockOf: saldo dos SKUs nas respostas de produto e da vitrine (sem endpoint próprio)
+autonumber
+
+participant "$I_SELLER\nSeller" as seller <<ator>>
+participant "$I_ADMIN\nSeller, Admin ou\nModerador" as reader <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_VITRINE\nProductResponses /\nStorefrontResource" as cons <<entrada>>
+  participant "$I_API\nInventoryResource" as ir <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_ESTOQUE\nInventoryService" as svc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_REPOSITORIO\nPgProductRepository" as prod <<saida>>
+  participant "$I_REPOSITORIO\nPgInventoryRepository" as repo <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+cons -> svc : stockOf(produtos já autorizados para o chamador)\n(ProductResource, ModerationResource e vitrine pública)
+svc -> svc : junta os ids de todos os SKUs dos produtos
+alt nenhum SKU (página vazia ou produto sem SKUs)
+  svc --> cons : mapa vazio (nenhuma consulta ao banco)
+else há SKUs
+  svc -> repo : levels(tenant do primeiro produto, skuIds)
+  repo -> pg : SELECT sku_id, on_hand, reserved, sold, version FROM inventory_level\nWHERE tenant_id AND sku_id = ANY ({skuIds}) (um statement para todos os produtos da página)
+  repo --> svc : Map de skuId para StockLevel (SKU sem saldo fica fora do mapa)
+  svc --> cons : saldos atuais
+end
+cons -> cons : ProductResponse.of: Product.effectiveStatus: ACTIVE sem saldo disponível\nvira OUT_OF_STOCK (derivado na leitura, nunca gravado, ADR 012);\nvitrine: inStock por SKU = available > 0 (onHand - reserved)
+note over cons, pg
+  O saldo vem sempre do banco: não há cache de estoque nem decorator de invalidação para ele,
+  e a vitrine com cache lê o saldo fora do retrato guardado.
+  Comum às páginas: 401 token ausente ou inválido; 403 papel fora do @RolesAllowed
+  ou claim de tenant ausente (tenant-not-authorized); 400 malformed-body;
+  503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+end note
+$legenda_sequencia()
+
+newpage GET /inventory/skus/{skuId}: consultar saldo do SKU (InventoryService.get)
+autonumber 1
+reader -> ir : GET /inventory/skus/{skuId}
+ir -> ir : @RolesAllowed (seller, catalog-admin, catalog-moderator); CallerContext.actor()
+== Aplicação e regras de domínio ==
+ir -> svc : get(actor, skuId)
+svc -> prod : ProductAccess.visibleBySku: findBySku(tenant, skuId)
+prod -> pg : SELECT product LEFT JOIN sku WHERE tenant_id\nAND id = (SELECT product_id FROM sku WHERE tenant_id AND id = {skuId})
+svc -> svc : requireVisible: READ_TENANT_CATALOG ou MODERATE_PRODUCTS vê qualquer loja;\nMANAGE_OWN_PRODUCTS só a própria
+alt #FFEBEE SKU desconhecido ou produto fora do alcance do chamador
+  ir -[#C62828]-> reader : <color:#C62828>404 not-found (Produto)</color>
+else #FAFAFA visível
+  svc -> repo : levels(tenant, [skuId])
+  repo -> pg : SELECT sku_id, on_hand, reserved, sold, version FROM inventory_level\nWHERE tenant_id AND sku_id = ANY ({skuId})
+  alt #FFEBEE SKU sem linha de saldo
+    ir -[#C62828]-> reader : <color:#C62828>404 not-found (Estoque)</color>
+  else #E8F5E9 ok
+    ir -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> {onHand, reserved, available, sold, version} + ETag (versão do saldo)\n(o ETag vai no If-Match do ajuste; a leitura não passa por InventoryLatency)
+  end
+end
+$legenda_sequencia()
+
+newpage PUT /inventory/skus/{skuId}: ajustar estoque físico (InventoryService.adjust)
+autonumber 1
+seller -> ir : PUT /inventory/skus/{skuId} {onHand} + If-Match opcional
+note over ir, pg : Fluxo detalhado em sequencia-ajuste-estoque.puml
+ir -> ir : @RolesAllowed(seller); @Valid AdjustStockRequest (onHand de 0 a 1.000.000); ETags.optional(If-Match)
+opt #FFEBEE onHand ausente ou fora de 0 a 1.000.000
+  ir -[#C62828]-> seller : <color:#C62828>400 validation-failed</color>
+end
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  ir -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+ir -> svc : adjust(actor, skuId, ifMatch, onHand) (InventoryLatency.timed adjust_stock)
+svc -> svc : ProductAccess.ownedBySku: requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  ir -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> prod : findBySku(tenant, skuId)
+prod -> pg : SELECT product LEFT JOIN sku WHERE tenant_id\nAND id = (SELECT product_id FROM sku WHERE tenant_id AND id = {skuId})
+opt #FFEBEE SKU desconhecido ou produto de outra loja
+  ir -[#C62828]-> seller : <color:#C62828>404 not-found (Produto)</color>
+end
+svc -> svc : StockLevel.requireOnHand; Product.requireNotArchived("ADJUST_STOCK")
+opt #FFEBEE produto ARCHIVED (estoque congelado)
+  ir -[#C62828]-> seller : <color:#C62828>409 invalid-transition (ADJUST_STOCK)</color>
+end
+== Persistência transacional ==
+svc -> repo : adjust(tenant, loja, produto, skuId, onHand, versão?, ator, agora)
+repo -> pg : transação: SELECT ... FOR UPDATE; UPDATE inventory_level; INSERT inventory_adjustment;\nINSERT outbox_event InventoryUpdated (catalog-inventory.inventory.v1, chave skuId)
+alt #FFEBEE SKU sem linha de saldo
+  ir -[#C62828]-> seller : <color:#C62828>404 not-found (Estoque)</color>
+else #FFEBEE versão do If-Match diferente da atual
+  ir -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+else #FFEBEE onHand menor que o reservado
+  ir -[#C62828]-> seller : <color:#C62828>409 stock-below-reserved</color>
+else #E8F5E9 ok
+  ir -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (nova versão do saldo)
+end
+$legenda_sequencia()
+@enduml

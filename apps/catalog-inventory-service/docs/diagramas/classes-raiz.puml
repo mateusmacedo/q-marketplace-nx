@@ -1,0 +1,142 @@
+@startuml classes-raiz
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/sliders_h>
+title $I_QUARKUS Raiz do serviço e pacote config: configuração tipada, produtores CDI dos casos de uso, varredor de reservas e info
+
+hide empty members
+hide <<entrada>> stereotype
+hide <<saida>> stereotype
+hide <<serviço>> stereotype
+hide <<infra>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+
+package "<$sliders_h,scale=0.55,color=#455A64> config (dev.marketplace.cataloginventory.config)" as pkg_config <<infra>> {
+  interface "<$sliders_h,scale=0.55,color=#455A64> CatalogConfig" as CatalogConfig <<@ConfigMapping(prefix = "catalog")>> {
+    security() : Security
+    persistence() : Persistence
+    reservations() : Reservations
+    events() : Events
+    imports() : Imports
+    metrics() : Metrics
+    cache() : Cache
+  }
+  interface "CatalogConfig.Security" as CfgSecurity {
+    tenantClaim() : String = tenant_id
+    storeClaim() : String = store_id
+  }
+  interface "CatalogConfig.Persistence" as CfgPersistence {
+    timeout() : Duration = 2s
+  }
+  interface "CatalogConfig.Reservations" as CfgReservations {
+    defaultTtl() : Duration = 15m
+    maxTtl() : Duration = 2h
+    maxLifetime() : Duration = 24h
+    sweepBatch() : int = 200
+    sweepInterval() : String
+  }
+  interface "CatalogConfig.Events" as CfgEvents {
+    productTopic() : String
+    offerTopic() : String
+    inventoryTopic() : String
+    storeTopic() : String
+    relayBatch() : int = 100
+    relayMaxBatches() : int = 20
+    relayInterval() : String
+    publishTimeout() : Duration = 10s
+    maxBackoff() : Duration = 60s
+    maxAttempts() : int = 20
+    outboxRetention() : Duration = 7d
+    inboxRetention() : Duration = 30d
+    purgeInterval() : String
+    purgeBatch() : int = 10000
+    purgeMaxDuration() : Duration = 50s
+    consumerRetries() : int = 10
+  }
+  interface "CatalogConfig.Imports" as CfgImports {
+    interval() : String
+    maxRows() : int = 5000
+    lease() : Duration = 5m
+  }
+  interface "CatalogConfig.Metrics" as CfgMetrics {
+    refreshInterval() : String
+  }
+  interface "CatalogConfig.Cache" as CfgCache {
+    enabled() : boolean = true
+    ttl() : Duration = 60s
+    generationTtl() : Duration = 24h
+    timeout() : Duration = 100ms
+    invalidationTimeout() : Duration = 1s
+  }
+}
+
+package "<$server,scale=0.55,color=#455A64> raiz (dev.marketplace.cataloginventory)" as raiz <<infra>> {
+  class "<$cogs,scale=0.55,color=#1565C0> CatalogBeans" as CatalogBeans <<produtores CDI>> <<serviço>> {
+    <<@Produces @Singleton>> clock() : Clock
+    <<@Produces @Singleton>> categoryService(categories, taxonomy) : CategoryService
+    <<@Produces @Singleton>> productService(products, categories, sellers, offers, taxonomy, clock)
+    <<@Produces @Singleton>> moderationService(products, categories, sellers, offers, taxonomy, clock)
+    <<@Produces @Singleton>> offerService(products, offers, clock)
+    <<@Produces @Singleton>> inventoryService(inventory, products, clock)
+    <<@Produces @Singleton>> productImportService(imports, products, categories, offers, ...)
+    <<@Produces @Singleton>> storefrontService(products, sellers, offers)
+    <<@Produces @Singleton>> sellerEligibilityService(sellers)
+    <<@Produces @Singleton>> reservationService(reservations, inventory, config, clock)
+  }
+  class "<$clock,scale=0.55,color=#EF6C00> ReservationSweeper" as ReservationSweeper <<@ApplicationScoped>> <<entrada>> {
+    -reservations : ReservationService
+    -config : CatalogConfig
+    -lifecycle : Lifecycle
+    -expired : Counter
+    --
+    <<@Scheduled reservation-sweeper, SKIP>> sweep() : Uni<Void>
+  }
+  class "<$plug,scale=0.55,color=#EF6C00> ServiceInfoResource" as ServiceInfoResource <<@Path("/internal/info"), @PermitAll>> <<entrada>> {
+    GET / : info() : Map<String, String>
+  }
+}
+
+class "application.ReservationService" as ReservationService <<serviço>> #line.dashed
+class "application: demais casos de uso (8)" as UseCases <<serviço>> #line.dashed
+class "cache.TaxonomyCache" as TaxonomyCache <<saida>> #line.dashed
+class "observability.Lifecycle" as Lifecycle <<infra>> #line.dashed
+
+CatalogConfig +-- CfgSecurity
+CatalogConfig +-- CfgPersistence
+CatalogConfig +-- CfgReservations
+CatalogConfig +-- CfgEvents
+CatalogConfig +-- CfgImports
+CatalogConfig +-- CfgMetrics
+CatalogConfig +-- CfgCache
+CatalogBeans ..> CatalogConfig : reservationService
+CatalogBeans ..> TaxonomyCache : over()
+CatalogBeans ..> ReservationService : produz
+CatalogBeans ..> UseCases : produz
+ReservationSweeper --> ReservationService : expireDue(sweepBatch)
+ReservationSweeper --> CatalogConfig
+ReservationSweeper --> Lifecycle : job
+
+CatalogBeans -[hidden]right- ReservationSweeper
+ReservationSweeper -[hidden]right- ServiceInfoResource
+CatalogBeans -[hidden]down- CatalogConfig
+
+note bottom of CatalogBeans
+  Monta os nove casos de uso da aplicação (Java puro) e injeta nos que usam taxonomia
+  o CategoryRepository devolvido por TaxonomyCache.over(). Todos os pacotes do serviço
+  dependem do pacote config por CatalogConfig; nenhum pacote importa a raiz.
+end note
+
+note right of ReservationSweeper
+  Expira as reservas vencidas em lotes de sweepBatch e devolve o estoque;
+  concurrentExecution = SKIP impede sobreposição no mesmo pod.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#90A4AE>    </back> Configuração tipada (prefixo catalog, com padrões)
+  <back:$BORDA_APLICACAO>    </back> Montagem e casos de uso da aplicação
+  <back:$BORDA_ENTRADA>    </back> Entrada: agendador e resource interno
+  <back:$BORDA_SAIDA>    </back> Saída / <back:$BORDA_INFRA>    </back> Infraestrutura
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

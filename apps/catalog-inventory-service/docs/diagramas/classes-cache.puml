@@ -1,0 +1,207 @@
+@startuml classes-cache
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_REDIS Pacote cache: Redis com gerações, decorators de invalidação das portas, vitrine e taxonomia em cache
+
+hide empty members
+hide <<entrada>> stereotype
+hide <<saida>> stereotype
+hide <<serviço>> stereotype
+hide <<infra>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+
+interface "application.ProductRepository" as ProductRepository <<porta>> #line.dashed
+interface "application.OfferRepository" as OfferRepository <<porta>> #line.dashed
+interface "application.CategoryRepository" as CategoryRepository <<porta>> #line.dashed
+interface "application.SellerEligibilityRepository" as SellerEligibilityRepository <<porta>> #line.dashed
+class "application.StorefrontService.StorefrontProduct" as StorefrontProduct <<record>> <<serviço>> #line.dashed
+class "CatalogBeans" as CatalogBeans <<infra>> #line.dashed
+class "api.StorefrontResource" as StorefrontResource <<entrada>> #line.dashed
+interface "config.CatalogConfig" as CatalogConfig <<@ConfigMapping>> <<infra>> #line.dashed
+interface "<$redis,scale=0.4,color=#D82C20> io.vertx.mutiny.redis.client.Redis" as Redis <<infra>> #line.dashed
+
+class "<$broom,scale=0.55,color=#6A1B9A> ProductCacheInvalidation" as ProductCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
+  @Inject @Delegate delegate : ProductRepository
+  @Inject cache : CatalogCache
+  --
+  insert(product) : invalida a vitrine do produto
+  update(product, expectedVersion) : invalida a vitrine do produto
+  <<demais operações delegam>>
+}
+class "<$broom,scale=0.55,color=#6A1B9A> OfferCacheInvalidation" as OfferCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
+  @Inject @Delegate delegate : OfferRepository
+  @Inject cache : CatalogCache
+  --
+  insert(offer) : invalida a vitrine do produto
+  update(offer, expectedVersion) : invalida a vitrine do produto
+  <<leituras delegam>>
+}
+class "<$broom,scale=0.55,color=#6A1B9A> CategoryCacheInvalidation" as CategoryCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
+  @Inject @Delegate delegate : CategoryRepository
+  @Inject cache : CatalogCache
+  --
+  insert(category) : invalida a taxonomia do tenant
+  update(category, expectedVersion) : invalida a taxonomia do tenant
+  move(category, previousAncestry, expectedVersion) : invalida a taxonomia do tenant
+  <<leituras delegam>>
+}
+class "<$broom,scale=0.55,color=#6A1B9A> SellerCacheInvalidation" as SellerCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
+  @Inject @Delegate delegate : SellerEligibilityRepository
+  @Inject cache : CatalogCache
+  --
+  apply(consumer, verdict) : invalida a loja se o veredito for APPLIED ou a escrita falhar
+  <<statusOf delega>>
+}
+
+class CacheInvalidation <<utilitário>> {
+  {static} PRIORITY = 100
+  {static} after(cache, write, invalidate) : Uni<T>
+  {static} when(cache, write, needed, invalidate) : Uni<T>
+}
+
+class "<$redis,scale=0.4,color=#D82C20> CatalogCache" as CatalogCache <<@ApplicationScoped, @Traced>> <<saida>> {
+  {static} STOREFRONT = "storefront"
+  {static} TAXONOMY = "taxonomy"
+  {static} REQUESTS, INVALIDATIONS, WRITES : métricas catalog.cache.*
+  {static} READ, INVALIDATE : Script
+  -enabled : boolean
+  -redis : Redis
+  -timeout, invalidationTimeout : Duration
+  -ttl, generationTtl : String
+  -registry : MeterRegistry
+  --
+  enabled() : boolean
+  read(cache, valueKey, generationKey, ownerKey, ...) : Uni<Lookup>
+  write(cache, valueKey, stamp, content) : Uni<Void>
+  remember(tenantId, productId, storeId) : Uni<Void>
+  productChanged(tenantId, productId, storeId) : Uni<Void>
+  storeChanged(tenantId, storeId) : Uni<Void>
+  taxonomyChanged(tenantId) : Uni<Void>
+  {static} detach(write)
+}
+class "CatalogCache.Lookup" as Lookup <<record>> {
+  result : Result
+  content : String
+  --
+  {static} UNMAPPED
+  {static} BYPASS
+}
+enum "CatalogCache.Lookup.Result" as Result {
+  HIT
+  MISS
+  UNMAPPED
+  BYPASS
+}
+class "CatalogCache.Script" as Script <<record>> {
+  source : String
+  sha : String
+}
+class CacheKeys <<utilitário>> {
+  {static} PREFIX = "catalog:"
+  {static} productGeneration(tenantId, productId) : String
+  {static} storeGenerationPrefix(tenantId) : String
+  {static} storeGeneration(tenantId, storeId) : String
+  {static} taxonomyGeneration(tenantId) : String
+  {static} productStore(tenantId, productId) : String
+  {static} storefront(tenantId, productId) : String
+  {static} chain(tenantId, categoryId) : String
+  {static} children(tenantId, parentId, limit, afterCode) : String
+}
+
+class "<$store,scale=0.55,color=#6A1B9A> StorefrontCache" as StorefrontCache <<@ApplicationScoped>> <<saida>> {
+  -cache : CatalogCache
+  -json : ObjectMapper
+  --
+  get(tenantId, productId, load) : Uni<StorefrontProduct>
+}
+class "<$sitemap,scale=0.55,color=#6A1B9A> TaxonomyCache" as TaxonomyCache <<@ApplicationScoped>> <<saida>> {
+  -cache : CatalogCache
+  -json : ObjectMapper
+  --
+  over(categories) : CategoryRepository
+}
+class "TaxonomyCache.Cached" as Cached <<privada>> <<saida>> {
+  -categories : CategoryRepository
+  --
+  chain(tenantId, categoryId) : cache da cadeia até a raiz
+  children(tenantId, parentId, afterCode, limit) : cache da página
+  <<idByCode, descendantAttributeCodes, subtreeHeight, insert, update e move delegam>>
+}
+class Snapshots <<final, @RegisterForReflection>> {
+  Storefront(product : ProductSnapshot, offers : List<OfferSnapshot>)
+  ProductSnapshot(id, tenantId, storeId, categoryId, currency, title, description, attributes, status, version, createdAt, updatedAt, skus : List<SkuSnapshot>)
+  SkuSnapshot(id, sellerSku, variantAttributes, physical, dimensions : DimensionsSnapshot)
+  DimensionsSnapshot(heightCm, widthCm, lengthCm : String, weightGrams : int)
+  OfferSnapshot(skuId, productId, tenantId, storeId, currency, listPrice, salePrice : String, priceVersion, promotions : List<PromotionSnapshot>, version, createdAt, updatedAt)
+  PromotionSnapshot(id, salePrice : String, startsAt, endsAt)
+  Categories(items : List<CategorySnapshot>)
+  CategorySnapshot(id, tenantId, ancestry, code, name, attributes : List<AttributeSnapshot>, active, version)
+  AttributeSnapshot(code, label, type, required, variant, options)
+  --
+  <<cada record tem of(...) e restore()>>
+}
+
+ProductRepository <|.. ProductCacheInvalidation
+OfferRepository <|.. OfferCacheInvalidation
+CategoryRepository <|.. CategoryCacheInvalidation
+SellerEligibilityRepository <|.. SellerCacheInvalidation
+CategoryRepository <|.. Cached
+
+ProductCacheInvalidation ..> CacheInvalidation : after
+OfferCacheInvalidation ..> CacheInvalidation : after
+CategoryCacheInvalidation ..> CacheInvalidation : after
+SellerCacheInvalidation ..> CacheInvalidation : when
+ProductCacheInvalidation --> CatalogCache
+OfferCacheInvalidation --> CatalogCache
+CategoryCacheInvalidation --> CatalogCache
+SellerCacheInvalidation --> CatalogCache
+CacheInvalidation ..> CatalogCache : enabled()
+
+StorefrontCache --> CatalogCache
+TaxonomyCache --> CatalogCache
+StorefrontCache ..> CacheKeys
+TaxonomyCache ..> CacheKeys
+StorefrontCache ..> Snapshots : serializa Storefront
+TaxonomyCache ..> Snapshots : serializa Categories
+TaxonomyCache +-- Cached
+TaxonomyCache ..> Cached : over() cria
+StorefrontCache ..> StorefrontProduct
+CatalogCache --> Redis
+CatalogCache ..> CatalogConfig : cache()
+CatalogCache +-- Lookup
+CatalogCache +-- Script
+Lookup --> Result
+CatalogCache ..> CacheKeys
+
+StorefrontResource ..> StorefrontCache : get(load)
+CatalogBeans ..> TaxonomyCache : over(CategoryRepository)
+
+ProductRepository -[hidden]right- OfferRepository
+OfferRepository -[hidden]right- CategoryRepository
+CategoryRepository -[hidden]right- SellerEligibilityRepository
+
+note bottom of CatalogCache
+  Conteúdo carimbado com as gerações lidas antes da carga do banco; cada escrita confirmada
+  incrementa a geração. Leitura fora do prazo vira BYPASS, gravação sem espera (detach) que
+  falha é ignorada, e a invalidação tem prazo e nova tentativa próprios. Nenhuma falha propaga.
+end note
+
+note right of CatalogBeans
+  Passa o resultado de TaxonomyCache.over() para CategoryService, ProductService,
+  ModerationService e ProductImportService. Com o cache desligado, over() devolve a própria porta.
+end note
+
+note bottom of SellerCacheInvalidation
+  Os decorators invalidam depois da escrita, também na falha: um prazo estourado
+  não prova que o commit não aconteceu. Com o cache desligado, after e when devolvem a escrita.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#3949AB>    </back> Porta da aplicação decorada
+  <back:$BORDA_SAIDA>    </back> Cache: decorators, gerações e caches de leitura
+  <back:#90A4AE>    </back> Apoio: chaves, scripts e snapshots
+  <back:$BORDA_ENTRADA>    </back> Entrada / <back:$BORDA_APLICACAO>    </back> Aplicação / <back:$BORDA_INFRA>    </back> Infraestrutura
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

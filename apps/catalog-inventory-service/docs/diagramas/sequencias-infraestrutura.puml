@@ -1,0 +1,221 @@
+@startuml sequencias-infraestrutura
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title purge: MessagingHousekeeping (a cada catalog.events.purge-interval)
+autonumber
+
+participant "$I_ANONIMO\nCliente HTTP" as cli <<ator>>
+box "Entrada" #FFFAF3
+participant "$I_API\nServiceInfoResource /\nStorefrontResource" as res <<entrada>>
+participant "$I_AGENDADOR\nAgendador Quarkus\n(@Scheduled, papel worker)" as sched <<infra>>
+participant "$I_LIMPEZA\nMessagingHousekeeping" as hk <<entrada>>
+participant "$I_SISTEMA\nOutboxRelay" as relay <<entrada>>
+participant "$I_METRICA\nSkuGauges" as gauges <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+participant "$I_SERVICO\nServiço de aplicação\n(ProductService, OfferService,\nCategoryService, ...)" as svc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+participant "$I_CACHE\n{Product,Offer,Category,\nSeller}CacheInvalidation\n(decorator da porta)" as dec <<saida>>
+participant "$I_CACHE\nStorefrontCache /\nTaxonomyCache" as reader <<saida>>
+participant "$I_REPOSITORIO\nPg*Repository" as repo <<saida>>
+participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
+participant "$I_METRICA\nPgCatalogMetrics" as counts <<saida>>
+database "\n$I_POSTGRES\nPostgreSQL" as pg
+participant "$I_CACHE\nCatalogCache" as cc <<saida>>
+database "\n$I_REDIS\nRedis" as redis
+end box
+participant "$I_METRICA\nMeterRegistry\n(Micrometer)" as registry <<infra>>
+
+sched -> hk : purge() a cada 1 h\n(identity messaging-purge,\nconcurrentExecution = SKIP);\npurge-interval=off no papel\napi e nos testes
+hk -> hk : Lifecycle.job; cortes:\noutbox = now - 7 d (outbox-retention),\ninbox = now - 30 d (inbox-retention)
+hk -> outbox : purge(corte da outbox, corte da inbox,\npurge-batch = 10000, purge-max-batches = 10)
+loop outbox: até 10 lotes, enquanto o lote vem cheio
+  outbox -> pg : DELETE FROM outbox_event\nWHERE seq IN (SELECT seq FROM outbox_event\nWHERE published_at < corte LIMIT 10000)
+end
+loop inbox: até 10 lotes, enquanto o lote vem cheio
+  outbox -> pg : DELETE FROM inbox_message\nWHERE (consumer, event_id) IN (\nSELECT consumer, event_id FROM inbox_message\nWHERE processed_at < corte LIMIT 10000)
+end
+outbox --> hk : total removido das duas tabelas
+hk -> hk : span marketplace.purge.removed = total;\ntotal > 0: log INFO
+opt #FFEBEE falha na limpeza
+  hk -> hk : log WARN "Falha na limpeza de outbox e inbox;\nnova tentativa no próximo ciclo"\n(a falha é recuperada: a execução termina sem erro)
+end
+note over hk, pg
+  Cada lote é uma instrução própria, sem transação nem trava entre lotes.
+  Evento ainda não publicado (published_at IS NULL) nunca é removido.
+  A retenção da inbox deve superar a janela de reentrega do produtor:
+  passado o prazo, o mesmo eventId voltaria a ser processado.
+end note
+
+newpage relay: OutboxRelay (a cada catalog.events.relay-interval)
+autonumber 1
+
+sched -> relay : relay() a cada 1 s, com atraso\ninicial de 3 s (identity outbox-relay,\nconcurrentExecution = SKIP);\nrelay-interval=off no papel api
+note over sched, outbox
+  Fluxo detalhado em sequencia-outbox-kafka.puml (seção Relay: trava consultiva,
+  lotes de 100, publicação no Kafka por tópico e chave, marcação dos publicados,
+  backoff e métricas de pendência).
+end note
+
+newpage invalidação de cache: decorators *CacheInvalidation sobre as portas de escrita
+autonumber 1
+
+svc -> dec : escrita na porta decorada:\nProductRepository.insert | update,\nOfferRepository.insert | update,\nCategoryRepository.insert | update | move,\nSellerEligibilityRepository.apply
+dec -> dec : CacheInvalidation.after(cache, escrita, invalidação)\n(Seller usa CacheInvalidation.when)
+alt cache desligado (catalog.cache.enabled=false, padrão em prod e dev)
+  dec -> repo : escrita
+  repo -> pg : transação da mudança\n(e outbox_event, quando há evento)
+  repo --> svc : resultado intacto (nenhum comando ao Redis)
+else cache ligado
+  dec -> repo : escrita (delegate)
+  repo -> pg : transação da mudança\n(e outbox_event, quando há evento)
+  repo --> dec : item ou falha
+  alt Seller com resultado DUPLICATE ou STALE, sem falha
+    dec --> svc : resultado, sem invalidar
+  else invalida (também na falha: um prazo estourado não prova que o commit não ocorreu)
+    dec -> cc : productChanged(tenant, produto, loja)\n| storeChanged(tenant, loja)\n| taxonomyChanged(tenant)
+    cc -> redis : EVALSHA INVALIDATE (EVAL se NOSCRIPT),\nprazo catalog.cache.invalidation-timeout (1 s)
+    note over cc, redis
+      Script: INCR da chave de geração se ela existir.
+      productChanged renova também
+      catalog:product-store:{t}:{p} = id da loja, PX 24 h.
+    end note
+    alt #E8F5E9 confirmado
+      redis --> cc : ok
+      cc -> cc : catalog.cache.invalidations{result=ok}++
+    else #FFFFFF primeira tentativa falhou ou estourou o prazo
+      cc -> redis : segunda tentativa do mesmo script\n(só incrementa: repetir apenas invalida de novo)
+      alt #E8F5E9 confirmado
+        cc -> cc : catalog.cache.invalidations{result=ok}++
+      else #FFEBEE falhou de novo
+        cc -> cc : log WARN;\ncatalog.cache.invalidations{result=failed}++;\no conteúdo anterior vale até\ncatalog.cache.ttl (60 s)
+      end
+    end
+    cc --> dec : void (a invalidação nunca falha)
+    dec --> svc : resultado da escrita, ou a falha original, intactos
+  end
+end
+note over dec, redis
+  ProductCacheInvalidation e OfferCacheInvalidation: productChanged => INCR catalog:gen:product:{t}:{p}
+  SellerCacheInvalidation (só APPLIED ou falha): storeChanged => INCR catalog:gen:store:{t}:{loja}
+  CategoryCacheInvalidation: taxonomyChanged => INCR catalog:gen:taxonomy:{t}
+  Geração ausente não é incrementada: a próxima leitura a recria pelo relógio do Redis.
+end note
+
+newpage leitura em cache: CatalogCache.read, write e remember (StorefrontCache e TaxonomyCache)
+autonumber 1
+
+reader -> cc : read(cache, valueKey, generationKey,\nownerKey?, ownerGenerationPrefix?)
+alt cache desligado (catalog.cache.enabled=false)
+  cc --> reader : BYPASS (sem Redis e sem contar)
+else cache ligado
+  cc -> redis : EVALSHA READ: chaves [conteúdo, geração,\nmapa produto-loja?], args [generation-ttl = 24 h,\nprefixo da geração da loja?],\nprazo catalog.cache.timeout (100 ms)
+  opt NOSCRIPT (o Redis reiniciou e esqueceu o script)
+    redis --> cc : erro NOSCRIPT
+    cc -> redis : EVAL com o código-fonte\n(devolve o script ao cache do Redis)
+  end
+  note over cc, redis
+    Script Lua atômico (no-cluster):
+    1. geração = GET da chave; ausente: cria pelo relógio do Redis (TIME), PX generation-ttl
+    2. com mapa produto-loja: ausente => unmapped; senão carimbo = geração do produto:geração da loja
+    3. GET do conteúdo: começa com o carimbo seguido de barra vertical => hit; senão miss com o carimbo
+  end note
+  alt #FFEBEE falha ou estouro de 100 ms
+    cc --> reader : BYPASS (log debug; exceção no span)
+  else #FFFFFF hit
+    redis --> cc : hit + conteúdo
+    cc --> reader : HIT(conteúdo)
+    reader -> reader : Snapshots.Storefront | Snapshots.Categories\n.restore() (mesmas validações da leitura do banco)
+    opt retrato ilegível
+      reader -> repo : carga do banco
+    end
+  else #FFFFFF miss
+    redis --> cc : miss + carimbo das gerações lidas antes da carga
+    cc --> reader : MISS(carimbo)
+    reader -> repo : carga do banco\n(StorefrontService.get ou\nCategoryRepository.chain | children)
+    repo -> pg : consulta
+    reader -> cc : write(cache, valueKey, carimbo, retrato em JSON)\n(CatalogCache.detach: a resposta não espera)
+    cc -> redis : SET valueKey carimbo + retrato\nPX catalog.cache.ttl (60 s), prazo 100 ms
+    opt #FFEBEE falha ou estouro
+      cc -> cc : ignorada: catalog.cache.writes{result=failed};\na próxima leitura volta ao banco
+    end
+  else #FFFFFF unmapped (só a vitrine: mapa produto-loja ausente)
+    cc --> reader : UNMAPPED
+    reader -> repo : carga do banco (StorefrontService.get)
+    repo -> pg : consulta
+    reader -> cc : remember(tenant, produto, loja), sem esperar
+    cc -> redis : SET catalog:product-store:{t}:{p}\n<U+003D> id da loja, PX 24 h
+  end
+  cc -> cc : catalog.cache.requests{cache, result=hit|miss|bypass}\n(UNMAPPED conta como miss)
+end
+note over reader, redis
+  O carimbo é lido antes da carga do banco: se uma invalidação ocorrer entre a leitura e o SET,
+  o retrato gravado tarde carrega um carimbo velho e nunca vale.
+  Fluxo da vitrine em sequencia-vitrine-cache.puml; da taxonomia em sequencias-categoria.puml.
+end note
+
+newpage vitrine: GET /storefront/{tenantId}/products/{productId} (StorefrontService.get)
+autonumber 1
+
+cli -> res : GET /storefront/{tenantId}/products/{productId}\n(@PermitAll, sem token)
+note over cli, res
+  Fluxo detalhado em sequencia-vitrine-cache.puml (StorefrontCache, StorefrontService.get,
+  estoque sempre do banco, 404 sem distinguir os casos e Cache-Control: no-cache).
+end note
+
+newpage info: GET /internal/info (ServiceInfoResource)
+autonumber 1
+
+cli -> res : GET /internal/info (@PermitAll, sem token)
+res --> cli : 200 {"context": "catalog-inventory"}
+note over res
+  Rota interna, aberta a qualquer chamador e fora do contrato público.
+  Não consulta banco, Redis nem Kafka.
+end note
+newpage métricas: SkuGauges (a cada catalog.metrics.refresh-interval)
+autonumber 1
+
+note over gauges, registry
+  Na criação do bean, Gauge.builder registra catalog.skus.active ("SKUs de produtos ativos")
+  e catalog.skus.sellable ("SKUs ativos de lojas aprovadas e com saldo disponível") sobre
+  dois AtomicLong, sem tag de tenant para não multiplicar séries (ADR 017).
+end note
+sched -> gauges : refresh() a cada 60 s\n(identity sku-gauges, concurrentExecution = SKIP,\nskipExecutionIf = ApplicationNotRunning);\nrefresh-interval=off no papel api e nos testes
+gauges -> gauges : Lifecycle.job: o span da execução agendada\nfica ativo como operação até o Uni terminar
+gauges -> counts : skuCounts()
+counts -> pg : SELECT count(*) AS active,\ncount(*) FILTER (WHERE coalesce(e.status, 'PENDING') = 'APPROVED'\nAND i.on_hand - i.reserved > 0) AS sellable\nFROM sku s JOIN product p ON p.id = s.product_id\nLEFT JOIN seller_eligibility e ON e.tenant_id = p.tenant_id AND e.store_id = p.store_id\nLEFT JOIN inventory_level i ON i.sku_id = s.id\nWHERE p.status = 'ACTIVE'
+note right of pg
+  Consulta única, agregada,
+  de todos os tenants. Loja sem
+  linha em seller_eligibility
+  conta como PENDING.
+end note
+alt #E8F5E9 contagem obtida
+  pg --> counts : uma linha {active, sellable}
+  counts --> gauges : SkuCounts(active, sellable)
+  gauges -> gauges : span: marketplace.skus.active = active,\nmarketplace.skus.sellable = sellable
+  gauges -> registry : active.set(active); sellable.set(sellable)\n(os gauges passam a ler os novos totais)
+else #FFEBEE falha da consulta
+  gauges -> gauges : <color:#C62828>log WARN "Falha ao contar SKUs; os gauges mantêm o último valor até o</color>\n<color:#C62828>próximo ciclo"</color> (recoverWithNull: a execução termina sem erro)
+end
+note over gauges, registry
+  $I_SERVIDOR Prometheus coleta GET /q/metrics na porta de gestão 9000 (job catalog-inventory, alvos catalog-api:9000
+  e catalog-worker:9000): catalog_skus_active, catalog_skus_sellable e o timer scheduled.methods da execução agendada.
+  Só o papel worker recalcula os gauges (ADR 020). Cada pod worker publica o mesmo total:
+  agregue com max, não com sum (o painel de negócio usa max(catalog_skus_active) e max(catalog_skus_sellable)).
+  Em falha, os gauges mantêm o último valor até o próximo ciclo.
+end note
+
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Cliente HTTP
+  <back:#EF6C00>    </back> Entrada (REST, tarefas agendadas)
+  <back:#455A64>    </back> Agendador Quarkus e observabilidade
+  <back:#1565C0>    </back> Aplicação
+  <back:#6A1B9A>    </back> Saída (decorators, cache, repositórios, outbox)
+  <b>Blocos</b>
+  <back:#66BB6A>    </back> Sucesso ou confirmação
+  <back:#E57373>    </back> Falha ou recusa
+  <color:#C62828>vermelho</color>: falha registrada em log
+endlegend
+@enduml

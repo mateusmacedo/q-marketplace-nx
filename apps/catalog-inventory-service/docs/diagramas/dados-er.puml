@@ -1,11 +1,22 @@
 @startuml dados-er
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+!include <tupadr3/font-awesome-5/barcode>
+!include <tupadr3/font-awesome-5/history>
+!include <tupadr3/font-awesome-5/percent>
+!include <tupadr3/font-awesome-5/bookmark>
+!include <tupadr3/font-awesome-5/list>
+!include <tupadr3/font-awesome-5/list_ol>
+!include <tupadr3/font-awesome-5/sliders_h>
+!include <tupadr3/font-awesome-5/inbox>
 hide circle
+hide stereotype
 skinparam linetype ortho
 
-title Catálogo-inventário — modelo de dados (schema catalog_inventory, V1 a V5)
+title $I_POSTGRES Catálogo-inventário — modelo de dados (schema catalog_inventory, V1 a V6)
 
-package "V1 — catálogo" {
-  entity category {
+package "V1 — catálogo" #F6FBF6 {
+  entity "<$sitemap,scale=0.8,color=#2E7D32> <b>category</b>" as category <<dominio>> {
     * id : uuid <<PK>>
     --
     * tenant_id : uuid
@@ -17,7 +28,7 @@ package "V1 — catálogo" {
     * active : boolean
     * version : bigint
   }
-  entity product {
+  entity "<$box,scale=0.8,color=#2E7D32> <b>product</b>" as product <<dominio>> {
     * id : uuid <<PK>>
     --
     * tenant_id : uuid
@@ -30,7 +41,7 @@ package "V1 — catálogo" {
     * status : varchar(30) <<CHECK sem OUT_OF_STOCK>>
     * version : bigint
   }
-  entity sku {
+  entity "<$barcode,scale=0.8,color=#2E7D32> <b>sku</b>" as sku <<dominio>> {
     * id : uuid <<PK>>
     --
     * product_id : uuid <<FK product>>
@@ -42,7 +53,7 @@ package "V1 — catálogo" {
     height_cm, width_cm, length_cm : numeric(6,2)
     weight_g : integer
   }
-  entity product_status_change {
+  entity "<$history,scale=0.8,color=#2E7D32> <b>product_status_change</b>" as product_status_change <<dominio>> {
     * id : uuid <<PK>>
     --
     * product_id : uuid <<FK product>>
@@ -51,7 +62,7 @@ package "V1 — catálogo" {
     reason : varchar(500)
     * occurred_at : timestamptz
   }
-  entity seller_eligibility {
+  entity "<$id_card,scale=0.8,color=#2E7D32> <b>seller_eligibility</b>" as seller_eligibility <<dominio>> {
     * tenant_id : uuid <<PK>>
     * store_id : uuid <<PK>>
     --
@@ -60,8 +71,8 @@ package "V1 — catálogo" {
   }
 }
 
-package "V2 — oferta" {
-  entity offer {
+package "V2 — oferta" #FFFCF2 {
+  entity "<$tag,scale=0.8,color=#FFA000> <b>offer</b>" as offer <<evento>> {
     * sku_id : uuid <<PK, FK sku CASCADE>>
     --
     * product_id : uuid <<FK product>>
@@ -72,7 +83,7 @@ package "V2 — oferta" {
     * price_version : bigint
     * version : bigint
   }
-  entity offer_promotion {
+  entity "<$percent,scale=0.8,color=#FFA000> <b>offer_promotion</b>" as offer_promotion <<evento>> {
     * id : uuid <<PK>>
     --
     * sku_id : uuid <<FK offer CASCADE>>
@@ -81,8 +92,8 @@ package "V2 — oferta" {
   }
 }
 
-package "V3 — estoque e reservas" {
-  entity inventory_level {
+package "V3 — estoque e reservas" #F5FAFF {
+  entity "<$warehouse,scale=0.8,color=#1565C0> <b>inventory_level</b>" as inventory_level <<serviço>> {
     * sku_id : uuid <<PK, FK sku>>
     --
     * product_id : uuid <<FK product>>
@@ -92,7 +103,7 @@ package "V3 — estoque e reservas" {
     * sold : bigint
     * version : bigint
   }
-  entity inventory_adjustment {
+  entity "<$sliders_h,scale=0.8,color=#1565C0> <b>inventory_adjustment</b>" as inventory_adjustment <<serviço>> {
     * id : uuid <<PK>>
     --
     * sku_id : uuid <<sem FK>>
@@ -100,7 +111,7 @@ package "V3 — estoque e reservas" {
     * actor : varchar(255)
     * occurred_at : timestamptz
   }
-  entity inventory_reservation {
+  entity "<$bookmark,scale=0.8,color=#1565C0> <b>inventory_reservation</b>" as inventory_reservation <<serviço>> {
     * id : uuid <<PK>>
     --
     * tenant_id : uuid
@@ -111,7 +122,7 @@ package "V3 — estoque e reservas" {
     * created_at, expires_at : timestamptz
     closed_at : timestamptz
   }
-  entity inventory_reservation_item {
+  entity "<$list,scale=0.8,color=#1565C0> <b>inventory_reservation_item</b>" as inventory_reservation_item <<serviço>> {
     * reservation_id : uuid <<PK, FK inventory_reservation>>
     * sku_id : uuid <<PK, sem FK>>
     --
@@ -123,8 +134,8 @@ package "V3 — estoque e reservas" {
   }
 }
 
-package "V4 — mensageria" {
-  entity outbox_event {
+package "V4 — mensageria" #FBF6FC {
+  entity "<$envelope,scale=0.8,color=#6A1B9A> <b>outbox_event</b>" as outbox_event <<saida>> {
     * seq : bigint identity <<PK>>
     --
     * id : uuid <<UK>>
@@ -138,8 +149,10 @@ package "V4 — mensageria" {
     published_at : timestamptz
     * attempts : integer
     last_error : varchar(500)
+    next_attempt_at : timestamptz <<V6>>
+    parked_at : timestamptz <<V6>>
   }
-  entity inbox_message {
+  entity "<$inbox,scale=0.8,color=#6A1B9A> <b>inbox_message</b>" as inbox_message <<saida>> {
     * consumer : varchar(100) <<PK>>
     * event_id : uuid <<PK>>
     --
@@ -147,8 +160,8 @@ package "V4 — mensageria" {
   }
 }
 
-package "V5 — importação" {
-  entity product_import {
+package "V5 — importação" #F7F9FA {
+  entity "<$file_csv,scale=0.8,color=#455A64> <b>product_import</b>" as product_import <<infra>> {
     * id : uuid <<PK>>
     --
     * tenant_id, store_id : uuid
@@ -159,7 +172,7 @@ package "V5 — importação" {
     * created_at : timestamptz
     started_at, finished_at : timestamptz
   }
-  entity product_import_line {
+  entity "<$list_ol,scale=0.8,color=#455A64> <b>product_import_line</b>" as product_import_line <<infra>> {
     * import_id : uuid <<PK, FK product_import CASCADE>>
     * line_number : integer <<PK>>
     --
@@ -181,4 +194,11 @@ sku ||--|| inventory_level : "sku_id"
 product ||--o{ inventory_level : "product_id"
 inventory_reservation ||--|{ inventory_reservation_item : "reservation_id"
 product_import ||--o{ product_import_line : "import_id"
+
+legend right
+  <b>Leitura</b>
+  <back:#2E7D32>    </back> V1 catálogo   <back:#FFA000>    </back> V2 oferta   <back:#1565C0>    </back> V3 estoque e reservas
+  <back:#6A1B9A>    </back> V4 mensageria   <back:#455A64>    </back> V5 importação
+  <U+002A> campo obrigatório (NOT NULL); PK, FK e UK entre « »; «V6» coluna da migração V6
+endlegend
 @enduml

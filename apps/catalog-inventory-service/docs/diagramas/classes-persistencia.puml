@@ -1,0 +1,243 @@
+@startuml classes-persistencia
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_POSTGRES Pacote persistence: repositórios PostgreSQL reativos (adaptadores das portas), outbox e métricas
+
+hide empty members
+hide <<saida>> stereotype
+hide <<exceção>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+
+interface "application.ProductRepository" as ProductRepository <<porta>> #line.dashed {
+  findById(tenantId, productId) : Uni<Optional<Product>>
+  findBySku(tenantId, skuId) : Uni<Optional<Product>>
+  skuIdsBySellerSku(tenantId, storeId, sellerSkus) : Uni<Map<String, UUID>>
+  find(tenantId, storeId, status, afterId, limit) : Uni<List<Product>>
+  insert(product) : Uni<Void>
+  update(product, expectedVersion) : Uni<Void>
+  history(tenantId, productId) : Uni<List<StatusChange>>
+}
+interface "application.OfferRepository" as OfferRepository <<porta>> #line.dashed {
+  ofSku(tenantId, skuId) : Uni<Optional<Offer>>
+  ofProduct(tenantId, productId) : Uni<List<Offer>>
+  insert(offer) : Uni<Void>
+  update(offer, expectedVersion) : Uni<Void>
+}
+interface "application.CategoryRepository" as CategoryRepository <<porta>> #line.dashed {
+  chain(tenantId, categoryId) : Uni<List<Category>>
+  idByCode(tenantId, code) : Uni<Optional<UUID>>
+  descendantAttributeCodes(tenantId, categoryId) : Uni<Set<String>>
+  subtreeHeight(tenantId, categoryId) : Uni<Integer>
+  children(tenantId, parentId, afterCode, limit) : Uni<List<Category>>
+  insert(category) : Uni<Void>
+  update(category, expectedVersion) : Uni<Void>
+  move(category, previousAncestry, expectedVersion) : Uni<Void>
+}
+interface "application.InventoryRepository" as InventoryRepository <<porta>> #line.dashed {
+  levels(tenantId, skuIds) : Uni<Map<UUID, StockLevel>>
+  adjust(tenantId, storeId, productId, skuId, onHand, expectedVersion, actor, at) : Uni<StockLevel>
+  candidates(tenantId, skuIds) : Uni<Map<UUID, SkuCandidate>>
+}
+interface "application.ReservationRepository" as ReservationRepository <<porta>> #line.dashed {
+  find(tenantId, id) : Uni<Optional<Reservation>>
+  findByIdempotencyKey(tenantId, key) : Uni<Optional<Reservation>>
+  insert(reservation) : Uni<Void>
+  release(tenantId, id, at) : Uni<Optional<Reservation>>
+  commit(tenantId, id, at) : Uni<Optional<Reservation>>
+  extend(tenantId, id, newExpiry, at) : Uni<Optional<Reservation>>
+  expireDue(at, batch) : Uni<Integer>
+}
+interface "application.SellerEligibilityRepository" as SellerEligibilityRepository <<porta>> #line.dashed {
+  statusOf(tenantId, storeId) : Uni<SellerStatus>
+  apply(consumer, verdict) : Uni<SellerVerdict.Outcome>
+}
+interface "application.ProductImportRepository" as ProductImportRepository <<porta>> #line.dashed {
+  insert(job, content) : Uni<Void>
+  findImport(tenantId, storeId, id) : Uni<Optional<ProductImport>>
+  results(importId) : Uni<List<ImportResult>>
+  claimNext(now, staleBefore) : Uni<Optional<Claimed>>
+  recordResults(importId, results, at) : Uni<Void>
+  complete(importId, at) : Uni<Void>
+}
+
+class PgProductRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+  -outbox : PgOutbox
+  -events : IntegrationEvents
+}
+class PgOfferRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+  -outbox : PgOutbox
+  -events : IntegrationEvents
+}
+class PgCategoryRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+}
+class PgInventoryRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+  -outbox : PgOutbox
+  -events : IntegrationEvents
+}
+class PgReservationRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+  -outbox : PgOutbox
+  -events : IntegrationEvents
+  -lifecycle : Lifecycle
+}
+class PgSellerEligibilityRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+  -clock : Clock
+  -outbox : PgOutbox
+  -events : IntegrationEvents
+}
+class PgProductImportRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+}
+
+class PgSupport <<@ApplicationScoped>> <<saida>> {
+  -timeout : Duration
+  --
+  bounded(operation) : Uni<T>
+  {static} unique(failure, constraint, code, message) : Throwable
+  {static} batch(conn, sql, rows) : Uni<Void>
+  {static} requireOneRow(result)
+  {static} utc(instant) : OffsetDateTime
+  {static} instant(value) : Instant
+  {static} json(values) : JsonObject
+  {static} strings(json) : Map<String, String>
+}
+class "<$envelope,scale=0.55,color=#6A1B9A> PgOutbox" as PgOutbox <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -clock : Clock
+  --
+  append(conn, messages) : Uni<Void>
+  relay(batch, now, maxBackoff, maxAttempts, publish) : Uni<RelayRun>
+  backlog() : Uni<Backlog>
+  purge(publishedBefore, processedBefore, batch, maxDuration) : Uni<Integer>
+}
+class "PgOutbox.Pending" as Pending <<record>> {
+  seq : long
+  id : UUID
+  topic : String
+  key : String
+  eventType : String
+  payload : String
+  createdAt : Instant
+  traceParent : String
+}
+class "PgOutbox.Delivery" as Delivery <<record>> {
+  seq : long
+  error : Optional<String>
+  held : boolean
+  --
+  {static} acked(seq)
+  {static} held(seq)
+  {static} failed(seq, cause)
+}
+class "PgOutbox.RelayRun" as RelayRun <<record>> {
+  published : int
+  failed : int
+  --
+  {static} NONE
+  plus(other) : RelayRun
+  handled() : int
+}
+class "PgOutbox.Backlog" as Backlog <<record>> {
+  pending : long
+  parked : long
+  oldest : Optional<Instant>
+}
+class "<$chart_line,scale=0.55,color=#6A1B9A> PgCatalogMetrics" as PgCatalogMetrics <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  --
+  skuCounts() : Uni<SkuCounts>
+}
+
+class "outbox.OutboxMessage" as OutboxMessage <<record>> <<saida>> #line.dashed
+class "outbox.IntegrationEvents" as IntegrationEvents <<saida>> #line.dashed
+interface "observability.SkuCountsSource" as SkuCountsSource <<porta>> #line.dashed
+class "observability.SkuCountsSource.SkuCounts" as SkuCounts <<record>> #line.dashed {
+  active : long
+  sellable : long
+}
+class "application.DuplicateException" as DuplicateException <<exceção>> #line.dashed
+class "application.ConcurrentUpdateException" as ConcurrentUpdateException <<exceção>> #line.dashed
+
+ProductRepository <|.. PgProductRepository
+OfferRepository <|.. PgOfferRepository
+CategoryRepository <|.. PgCategoryRepository
+InventoryRepository <|.. PgInventoryRepository
+ReservationRepository <|.. PgReservationRepository
+SellerEligibilityRepository <|.. PgSellerEligibilityRepository
+ProductImportRepository <|.. PgProductImportRepository
+
+PgProductRepository --> PgOutbox
+PgOfferRepository --> PgOutbox
+PgInventoryRepository --> PgOutbox
+PgReservationRepository --> PgOutbox
+PgSellerEligibilityRepository --> PgOutbox
+PgProductRepository --> IntegrationEvents
+PgOfferRepository --> IntegrationEvents
+PgInventoryRepository --> IntegrationEvents
+PgReservationRepository --> IntegrationEvents
+PgSellerEligibilityRepository --> IntegrationEvents
+
+PgProductRepository ..> PgSupport
+PgOfferRepository ..> PgSupport
+PgCategoryRepository ..> PgSupport
+PgInventoryRepository ..> PgSupport
+PgReservationRepository ..> PgSupport
+PgSellerEligibilityRepository ..> PgSupport
+PgProductImportRepository ..> PgSupport
+
+PgOutbox +-- Pending
+PgOutbox +-- Delivery
+PgOutbox +-- RelayRun
+PgOutbox +-- Backlog
+SkuCountsSource <|.. PgCatalogMetrics
+SkuCountsSource +-- SkuCounts
+PgOutbox ..> OutboxMessage : append
+PgSupport ..> DuplicateException : unique
+PgSupport ..> ConcurrentUpdateException : requireOneRow
+IntegrationEvents ..> OutboxMessage : cria
+
+ProductRepository -[hidden]right- OfferRepository
+OfferRepository -[hidden]right- CategoryRepository
+CategoryRepository -[hidden]right- InventoryRepository
+ReservationRepository -[hidden]right- SellerEligibilityRepository
+SellerEligibilityRepository -[hidden]right- ProductImportRepository
+InventoryRepository -[hidden]down- ReservationRepository
+
+note right of PgSupport
+  As escritas de agregado rodam em transação, com UPDATE condicional pela versão
+  (requireOneRow vira ConcurrentUpdateException) e os eventos de domínio gravados
+  na outbox na mesma transação; reservas mudam de estado por compare-and-set sobre
+  o status. Os cinco repositórios que gravam na outbox capturam outbox.EventOrigin
+  antes da transação, porque o relay publica depois, fora da requisição. bounded
+  aplica o prazo de catalog.persistence.timeout; TimeoutException vira 503.
+end note
+
+note bottom of PgOutbox
+  Uma trava consultiva do PostgreSQL mantém um único relay ativo entre os pods. Cada evento
+  que falha ganha a própria espera, gravada na outbox, e é estacionado depois de maxAttempts
+  tentativas; evento em espera ou estacionado retém os seguintes da mesma chave, o que
+  preserva a ordem por chave. PgCatalogMetrics implementa a porta observability.SkuCountsSource,
+  que SkuGauges consome.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#3949AB>    </back> Porta da aplicação ou da observabilidade (interface implementada)
+  <back:$BORDA_SAIDA>    </back> Adaptador de saída PostgreSQL e contratos do pacote outbox
+  <back:$BORDA_ERRO>    </back> Exceção lançada pelo apoio
+  <back:#90A4AE>    </back> Record interno da outbox ou da porta de métricas
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

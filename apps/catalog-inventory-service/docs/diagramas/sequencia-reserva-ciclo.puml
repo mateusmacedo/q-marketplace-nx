@@ -1,36 +1,45 @@
 @startuml sequencia-reserva-ciclo
-title Ciclo da reserva: reserve, commit, release, extend e expiração
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_ESTOQUE Ciclo da reserva: reserve, commit, release, extend e expiração
 autonumber
 
-actor "Checkout / OMS\n(catalog-reservations)" as cli
-participant "ReservationResource" as rr
-participant "ReservationService" as svc
-participant "PgInventoryRepository" as inv
-participant "PgReservationRepository" as repo
-participant "ReservationSweeper\n(worker)" as sweep
-database "PostgreSQL" as pg
+participant "$I_COMPRADOR\nCheckout / OMS\n(catalog-reservations)" as cli <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_API\nReservationResource" as rr <<entrada>>
+  participant "$I_AGENDADOR\nReservationSweeper\n(worker)" as sweep <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_SERVICO\nReservationService" as svc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_REPOSITORIO\nPgInventoryRepository" as inv <<saida>>
+  participant "$I_REPOSITORIO\nPgReservationRepository" as repo <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
 
 == reserve ==
 cli -> rr : POST /inventory/reservations\nIdempotency-Key + itens + ttlSeconds?
 rr -> svc : reserve
 svc -> svc : MANAGE_RESERVATIONS; chave [\x21-\x7E]{1,255};\nrequestHash = SHA-256 canônico
 svc -> repo : busca por (tenant, Idempotency-Key)
-alt chave já usada com o mesmo hash
-  rr --> cli : 200 + Idempotent-Replayed: true
-else chave já usada com outro hash
-  rr --> cli : 422 idempotency-key-reused
-else nova
+alt #E8F5E9 chave já usada com o mesmo hash
+  rr --> cli : <color:#2E7D32>200 + Idempotent-Replayed: true</color>
+else #FFEBEE chave já usada com outro hash
+  rr --> cli : <color:#C62828>422 idempotency-key-reused</color>
+else #F5FAFF nova
   svc -> inv : candidates (um SELECT: SKU, produto, loja, oferta, promoções)
   svc -> svc : ReservationPolicy.open -> ACTIVE,\nexpiresAt = now + ttl (padrão 15 min, máx. 2 h)
   svc -> repo : insert
   repo -> pg : BEGIN; INSERT inventory_reservation + itens
   repo -> pg : UPDATE inventory_level SET reserved = reserved + n\nWHERE on_hand - reserved >= n (ordem canônica dos SKUs)
-  alt algum SKU sem saldo
+  alt #FFEBEE algum SKU sem saldo
     repo -> pg : ROLLBACK
-    rr --> cli : 409 insufficient-stock
-  else ok
+    rr --> cli : <color:#C62828>409 insufficient-stock</color>
+  else #E8F5E9 ok
     repo -> pg : INSERT outbox_event (InventoryReserved,\nInventoryDepleted dos SKUs zerados); COMMIT
-    rr --> cli : 201 + Location
+    rr --> cli : <color:#2E7D32>201 + Location</color>
   end
 end
 
@@ -41,21 +50,21 @@ svc -> repo : commit
 repo -> pg : BEGIN; UPDATE inventory_reservation SET status='COMMITTED'\nWHERE status='ACTIVE' AND expires_at > now
 repo -> pg : por item, na ordem canônica: on_hand -= n,\nreserved -= n, sold += n
 repo -> pg : INSERT outbox_event InventoryUpdated(COMMITTED); COMMIT
-rr --> cli : 200 (repetição: idempotente; vencida: 409 reservation-expired)
+rr --> cli : <color:#2E7D32>200</color> (repetição: idempotente; vencida: <color:#C62828>409 reservation-expired</color>)
 
 == release ==
 cli -> rr : POST /{id}/release
 rr -> svc : release
 svc -> repo : release
 repo -> pg : UPDATE ... SET status='RELEASED' WHERE status='ACTIVE';\nreserved -= n; InventoryUpdated(RELEASED)
-rr --> cli : 200 (sobre RELEASED/EXPIRED devolve a atual;\nsobre COMMITTED: 409 invalid-transition)
+rr --> cli : <color:#2E7D32>200</color> (sobre RELEASED/EXPIRED devolve a atual;\nsobre COMMITTED: <color:#C62828>409 invalid-transition</color>)
 
 == extend ==
 cli -> rr : POST /{id}/extend {ttlSeconds}
 rr -> svc : extend (ttl <= 2 h; vida total <= 24 h)
 svc -> repo : UPDATE expires_at\nWHERE status='ACTIVE' AND expires_at > now
 note right : Sem evento e sem mudança de saldo
-rr --> cli : 200
+rr --> cli : <color:#2E7D32>200</color>
 
 == expiração (a cada 5 s, papel worker) ==
 sweep -> svc : expireDue(200)
@@ -66,4 +75,5 @@ loop cada reserva vencida, transação própria
   repo -> pg : reserved -= n; INSERT outbox_event InventoryUpdated(EXPIRED)
 end
 sweep -> sweep : catalog.reservations.expired += n
+$legenda_camadas()
 @enduml

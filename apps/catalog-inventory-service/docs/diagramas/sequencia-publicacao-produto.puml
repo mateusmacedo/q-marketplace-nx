@@ -1,17 +1,26 @@
 @startuml sequencia-publicacao-produto
-title Criar e publicar produto: criar, oferta, estoque, submit, approve
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_VITRINE Criar e publicar produto: criar, oferta, estoque, submit, approve
 autonumber
 
-actor Seller as seller
-actor Moderador as mod
-participant "ProductResource" as pr
-participant "OfferResource" as or
-participant "InventoryResource" as ir
-participant "ModerationResource" as mr
-participant "ProductService /\nOfferService /\nInventoryService /\nModerationService" as uc
-participant "Decorators de\ncache" as dec
-participant "PgProductRepository /\nPgOfferRepository /\nPgInventoryRepository" as repo
-database "PostgreSQL" as pg
+participant "$I_SELLER\nSeller" as seller <<ator>>
+participant "$I_MODERADOR\nModerador" as mod <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_API\nProductResource" as pr <<entrada>>
+  participant "$I_OFERTA\nOfferResource" as or <<entrada>>
+  participant "$I_ESTOQUE\nInventoryResource" as ir <<entrada>>
+  participant "$I_MODERACAO\nModerationResource" as mr <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_SERVICO\nProductService /\nOfferService /\nInventoryService /\nModerationService" as uc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_CACHE\nDecorators de\ncache" as dec <<saida>>
+  participant "$I_REPOSITORIO\nPgProductRepository /\nPgOfferRepository /\nPgInventoryRepository" as repo <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
 
 == Criar rascunho ==
 seller -> pr : POST /products
@@ -21,21 +30,21 @@ uc -> dec : insert(product)
 dec -> repo : insert
 repo -> pg : BEGIN; INSERT product, sku,\nproduct_status_change, inventory_level (zerado),\noutbox_event; COMMIT
 dec -> dec : productChanged (se cache ligado)
-pr --> seller : 201 Created + ETag + Location
+pr --> seller : <color:#2E7D32>201 Created + ETag + Location</color>
 
 == Oferta por SKU ==
 seller -> or : PUT /offers/{skuId} (sem If-Match)
 or -> uc : OfferService.define
 uc -> repo : insert(offer) via OfferCacheInvalidation
 repo -> pg : BEGIN; INSERT offer, offer_promotion,\noutbox_event (PriceChanged); COMMIT
-or --> seller : 201 Created + ETag
+or --> seller : <color:#2E7D32>201 Created + ETag</color>
 
 == Estoque ==
 seller -> ir : PUT /inventory/skus/{skuId} {onHand}
 ir -> uc : InventoryService.adjust
 uc -> repo : adjust
 repo -> pg : SELECT ... FOR UPDATE; UPDATE on_hand;\nINSERT inventory_adjustment, outbox_event
-ir --> seller : 200 + ETag
+ir --> seller : <color:#2E7D32>200 + ETag</color>
 
 == Envio para moderação ==
 seller -> pr : POST /products/{id}/submit (If-Match opcional)
@@ -43,22 +52,23 @@ pr -> uc : ProductService.submit
 uc -> uc : publicationOf (categoria + ofertas);\nProduct.submit -> PENDING_MODERATION
 uc -> repo : update(product, versão lida)
 repo -> pg : UPDATE product ... WHERE version = $lida;\nINSERT product_status_change, outbox_event
-alt nenhuma linha atualizada
-  repo --> pr : ConcurrentUpdateException
-  pr --> seller : 409 concurrent-update
-else ok
-  pr --> seller : 200 + ETag
+alt #FFEBEE nenhuma linha atualizada
+  repo --> pr : <color:#C62828>ConcurrentUpdateException</color>
+  pr --> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  pr --> seller : <color:#2E7D32>200 + ETag</color>
 end
 
 == Aprovação ==
 mod -> mr : POST /moderation/products/{id}/approve
 mr -> uc : ModerationService.approve
 uc -> pg : situação da loja (seller_eligibility)
-alt loja não APPROVED ou produto não publicável
-  mr --> mod : 422 seller-not-eligible / product-not-publishable
-else ok
+alt #FFEBEE loja não APPROVED ou produto não publicável
+  mr --> mod : <color:#C62828>422 seller-not-eligible / product-not-publishable</color>
+else #E8F5E9 ok
   uc -> repo : update -> ACTIVE + ProductStatusChanged(visible=true)
   repo -> pg : UPDATE condicional + outbox_event
-  mr --> mod : 200 + ETag (catalog.moderation.decisions++)
+  mr --> mod : <color:#2E7D32>200 + ETag</color> (catalog.moderation.decisions++)
 end
+$legenda_camadas()
 @enduml

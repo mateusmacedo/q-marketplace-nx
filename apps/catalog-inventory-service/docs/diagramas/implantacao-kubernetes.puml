@@ -1,45 +1,69 @@
 @startuml implantacao-kubernetes
+!include ../../../../docs/diagramas/tema-catalogo.iuml
 !include <C4/C4_Deployment>
+!include <tupadr3/font-awesome-5/dharmachakra>
+!include <tupadr3/font-awesome-5/layer_group>
+!include <tupadr3/font-awesome-5/network_wired>
+!include <tupadr3/font-awesome-5/expand_arrows_alt>
+!include <tupadr3/font-awesome-5/shield_alt>
+!include <tupadr3/font-awesome-5/sliders_h>
+!include <tupadr3/font-awesome-5/terminal>
+!include <tupadr3/font-awesome-5/user_secret>
+!include <tupadr3/font-awesome-5/key>
+!include <logos/kubernetes>
 
-title Catálogo-inventário — implantação no Kubernetes (Helm chart catalog-inventory)
+UpdateElementStyle("external_system", $legendText="Dependência externa ao chart")
+UpdateElementStyle("node", $legendText="Nó de implantação")
+AddElementTag("pod", $bgColor="#1565C0", $fontColor="#FFFFFF", $borderColor="#0D47A1", $legendText="Pod do catálogo")
+AddElementTag("rede", $bgColor="#FFF3E0", $fontColor="#263238", $borderColor="#EF6C00", $legendText="Service (rede)")
+AddElementTag("politica", $bgColor="#E8EAF6", $fontColor="#263238", $borderColor="#3949AB", $legendText="Escala e disponibilidade")
+AddElementTag("config", $bgColor="#ECEFF1", $fontColor="#263238", $borderColor="#455A64", $legendText="Configuração e segredos")
+AddElementTag("hook", $bgColor="#FFF8E1", $fontColor="#263238", $borderColor="#FFA000", $borderStyle=DashedLine(), $legendText="Hook do Helm")
+AddElementTag("dados", $bgColor="#6A1B9A", $fontColor="#FFFFFF", $borderColor="#4A148C", $legendText="Armazenamento externo")
+AddElementTag("opcional", $bgColor="#B39DDB", $fontColor="#263238", $borderColor="#6A1B9A", $borderStyle=DashedLine(), $legendText="Opcional (cache.enabled)")
+AddRelTag("assincrono", $textColor="#455A64", $lineColor="#455A64", $lineStyle=DashedLine(), $legendText="Assíncrono (Kafka)")
+AddRelTag("opcional", $textColor="#6A1B9A", $lineColor="#9575CD", $lineStyle=DottedLine(), $legendText="Opcional (cache)")
+AddRelTag("config", $textColor="#546E7A", $lineColor="#90A4AE", $lineStyle=DashedLine(), $legendText="Injeção de configuração")
 
-Deployment_Node(cluster, "Cluster Kubernetes", "kubeVersion >= 1.30") {
-  Deployment_Node(ns, "Namespace da release", "helm upgrade --install") {
+title <$kubernetes,scale=0.6> Catálogo-inventário — implantação no Kubernetes (Helm chart catalog-inventory)
+
+Deployment_Node(cluster, "Cluster Kubernetes", "kubeVersion >= 1.30", $sprite="dharmachakra") {
+  Deployment_Node(ns, "Namespace da release", "helm upgrade --install", $sprite="layer_group") {
     Deployment_Node(dapi, "Deployment <fullname>-api", "2 réplicas; RollingUpdate maxSurge 1, maxUnavailable 0") {
-      Container(podapi, "Pod api", "QUARKUS_PROFILE=prod,api", "http 8080, management 9000; probes /q/health/started|ready|live na 9000; usuário 10001, rootfs só leitura")
+      Container(podapi, "Pod api", "QUARKUS_PROFILE=prod,api", "http 8080, management 9000; probes /q/health/started|ready|live na 9000; usuário 10001, rootfs só leitura", $sprite="quarkus-icon,scale=0.6", $tags="pod")
     }
     Deployment_Node(dworker, "Deployment <fullname>-worker", "1 réplica") {
-      Container(podworker, "Pod worker", "QUARKUS_PROFILE=prod,worker", "Só management 9000; mesmas probes")
+      Container(podworker, "Pod worker", "QUARKUS_PROFILE=prod,worker", "Só management 9000; mesmas probes", $sprite="robot", $tags="pod")
     }
-    Container(svc, "Service <fullname>", "ClusterIP 80 -> http", "Só os pods da api")
-    Container(svcmetrics, "Service <fullname>-metrics", "porta 9000", "Scrape dos dois papéis; ServiceMonitor opcional")
-    Container(hpa, "HorizontalPodAutoscaler", "só api; desligado por padrão", "2 a 6 réplicas, 70% de CPU")
-    Container(pdb, "PodDisruptionBudget por papel", "api minAvailable 1; worker maxUnavailable 1", "")
-    Container(cm, "ConfigMap", "URLs, tópicos, JWT, cache, OTel", "Variáveis comuns aos dois papéis")
-    Container(job, "Job <fullname>-topics", "contêiner kafka-topics; hook pre-install, pre-upgrade", "Cria product, offer, inventory, store e a DLQ: 6 partições, RF 3, min.insync.replicas 2")
-    Container(secrets, "Secrets existentes", "criados fora do chart", "Banco (runtime e migrator), cliente Kafka, senha do Redis")
+    Container(svc, "Service <fullname>", "ClusterIP 80 -> http", "Só os pods da api", $sprite="network_wired", $tags="rede")
+    Container(svcmetrics, "Service <fullname>-metrics", "porta 9000", "Scrape dos dois papéis; ServiceMonitor opcional", $sprite="chart_line", $tags="rede")
+    Container(hpa, "HorizontalPodAutoscaler", "só api; desligado por padrão", "2 a 6 réplicas, 70% de CPU", $sprite="expand_arrows_alt", $tags="politica")
+    Container(pdb, "PodDisruptionBudget por papel", "api minAvailable 1; worker maxUnavailable 1", "", $sprite="shield_alt", $tags="politica")
+    Container(cm, "ConfigMap", "URLs, tópicos, JWT, cache, OTel", "Variáveis comuns aos dois papéis", $sprite="sliders_h", $tags="config")
+    Container(job, "Job <fullname>-topics", "contêiner kafka-topics; hook pre-install, pre-upgrade", "Cria product, offer, inventory, store e a DLQ: 6 partições, RF 3, min.insync.replicas 2", $sprite="terminal", $tags="hook")
+    Container(secrets, "Secrets existentes", "criados fora do chart", "Banco (runtime e migrator), cliente Kafka, senha do Redis", $sprite="user_secret", $tags="config")
   }
 }
 
-System_Ext(pg, "PostgreSQL", "Schema catalog_inventory e roles provisionados antes")
-System_Ext(kafka, "Kafka", "kyb-kyc.seller.v1 não é criado pelo chart")
-System_Ext(redis, "Redis standalone", "Só com cache.enabled")
-System_Ext(idp, "Provedor OIDC", "Issuer e JWKS")
+System_Ext(pg, "PostgreSQL", "Schema catalog_inventory e roles provisionados antes", $sprite="postgresql,scale=0.6", $tags="dados")
+System_Ext(kafka, "Kafka", "kyb-kyc.seller.v1 não é criado pelo chart", $sprite="kafka-icon,scale=0.6")
+System_Ext(redis, "Redis standalone", "Só com cache.enabled", $sprite="redis,scale=0.6", $tags="opcional")
+System_Ext(idp, "Provedor OIDC", "Issuer e JWKS", $sprite="key")
 
 Rel(svc, podapi, "Encaminha HTTP")
 Rel(svcmetrics, podapi, "9000")
 Rel(svcmetrics, podworker, "9000")
 Rel(hpa, dapi, "Escala")
-Rel(cm, podapi, "envFrom")
-Rel(cm, podworker, "envFrom")
-Rel(secrets, podapi, "secretKeyRef")
-Rel(secrets, podworker, "secretKeyRef")
+Rel(cm, podapi, "envFrom", $tags="config")
+Rel(cm, podworker, "envFrom", $tags="config")
+Rel(secrets, podapi, "secretKeyRef", $tags="config")
+Rel(secrets, podworker, "secretKeyRef", $tags="config")
 Rel(podapi, pg, "SQL; Flyway na partida")
 Rel(podworker, pg, "SQL; Flyway na partida")
-Rel(podworker, kafka, "Publica e consome")
-Rel(job, kafka, "kafka-topics.sh --create")
-Rel(podapi, redis, "Opcional")
-Rel(podworker, redis, "Opcional")
+Rel(podworker, kafka, "Publica e consome", $tags="assincrono")
+Rel(job, kafka, "kafka-topics.sh --create", $tags="assincrono")
+Rel(podapi, redis, "Opcional", $tags="opcional")
+Rel(podworker, redis, "Opcional", $tags="opcional")
 Rel(podapi, idp, "JWKS")
 
 SHOW_LEGEND()

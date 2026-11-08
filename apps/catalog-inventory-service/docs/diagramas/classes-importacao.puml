@@ -1,0 +1,118 @@
+@startuml classes-importacao
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_CSV Pacote imports: leitura de CSV, validação da planilha e processamento em segundo plano
+
+hide empty members
+hide <<entrada>> stereotype
+hide <<serviço>> stereotype
+hide <<infra>> stereotype
+hide <<exceção>> stereotype
+skinparam nodesep 25
+skinparam ranksep 45
+
+class "<$robot,scale=0.55,color=#EF6C00> ProductImportWorker" as ProductImportWorker <<@ApplicationScoped>> <<entrada>> {
+  -imports : ProductImportService
+  -lifecycle : Lifecycle
+  -config : CatalogConfig
+  -lines : Map<ImportOutcome, Counter>
+  --
+  <<@Scheduled product-import, SKIP>> run() : Uni<Void>
+  -process(claimed) : Uni<Void>
+  -count(claimed, results)
+}
+class "<$file_csv,scale=0.55,color=#455A64> ProductCsv" as ProductCsv <<final>> {
+  {static} COLUMNS : List<String>
+  --
+  {static} validate(body, maxRows) : Validated
+  {static} rows(content) : List<ImportRow>
+}
+class "ProductCsv.Validated" as Validated <<record>> {
+  content : String
+  totalLines : int
+}
+class "ProductCsv.Fields" as Fields <<privada>> {
+  -values : List<String>
+  -errors : List<String>
+  -failed : Set<String>
+}
+class CsvParser <<final>> {
+  -text : String
+  --
+  {static} parse(text) : List<Record>
+}
+class "CsvParser.Record" as CsvRecord <<record>> {
+  line : int
+  fields : List<String>
+}
+class "CsvParser.SyntaxException" as SyntaxException <<final>> <<exceção>> {
+  -line : int
+  --
+  line() : int
+}
+class InvalidImportFileException <<exceção>> {
+  -reasons : List<String>
+  --
+  InvalidImportFileException(message, reasons)
+  reasons() : List<String>
+}
+class Offload <<final>> {
+  {static} cpu(work) : Uni<T>
+}
+
+class RuntimeException <<infra>> #line.dashed
+class "application.ImportRow" as ImportRow <<record>> <<serviço>> #line.dashed
+class "application.ImportResult" as ImportResult <<record>> <<serviço>> #line.dashed
+class "application.ProductImportService" as ProductImportService <<serviço>> #line.dashed
+class "application.ProductImportRepository.Claimed" as Claimed <<record>> <<serviço>> #line.dashed
+class "api.ProductImportResource" as ProductImportResource <<entrada>> #line.dashed
+class "api.ProblemMappers" as ProblemMappers <<entrada>> #line.dashed
+class "observability.Lifecycle" as Lifecycle <<infra>> #line.dashed
+interface "observability.Refusal" as Refusal <<infra>> #line.dashed
+
+RuntimeException <|-- InvalidImportFileException
+Refusal <|.. InvalidImportFileException
+RuntimeException <|-- SyntaxException
+
+ProductImportWorker --> ProductImportService : claimNext(lease), process(job, rows)
+ProductImportWorker ..> ProductCsv : rows(content)
+ProductImportWorker ..> Offload : cpu
+ProductImportWorker ..> Claimed
+ProductImportWorker ..> ImportResult : conta por resultado
+ProductImportWorker ..> Lifecycle : job, step, nested
+
+ProductCsv ..> CsvParser : parse
+ProductCsv ..> ImportRow : converte cada registro
+ProductCsv ..> InvalidImportFileException : arquivo recusado
+ProductCsv +-- Validated
+ProductCsv +-- Fields
+CsvParser +-- CsvRecord
+CsvParser +-- SyntaxException
+CsvParser ..> SyntaxException : lança
+
+ProductImportResource ..> ProductCsv : validate(body, maxRows)
+ProductImportResource ..> Offload : cpu
+ProblemMappers ..> InvalidImportFileException : 400 invalid-import-file
+Lifecycle ..> Refusal : classifica como recusa
+
+note bottom of ProductCsv
+  CSV RFC 4180 em UTF-8 (BOM opcional) com o cabeçalho COLUMNS, exato e nesta ordem.
+  Valida codificação, sintaxe, cabeçalho e quantidade de linhas e converte cada registro
+  de dados em ImportRow; o arquivo recusado leva os motivos estáveis em reasons.
+end note
+
+note bottom of ProductImportWorker
+  Um lote por execução. Vários pods trabalham juntos sem repetir lote porque a
+  reivindicação usa FOR UPDATE SKIP LOCKED; lote interrompido é retomado depois do
+  lease, a partir das linhas ainda sem resultado. A conversão do CSV roda no pool de CPU
+  (Offload), fora do event loop.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:$BORDA_ENTRADA>    </back> Entrada: agendador, resource e mapeador de erros
+  <back:#90A4AE>    </back> Leitura e validação do CSV
+  <back:$BORDA_ERRO>    </back> Recusa do arquivo ou erro de sintaxe
+  <back:$BORDA_APLICACAO>    </back> Aplicação / <back:$BORDA_INFRA>    </back> Infraestrutura
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

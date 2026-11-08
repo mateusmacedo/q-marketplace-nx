@@ -1,36 +1,50 @@
 @startuml implantacao-local
+!include ../../../../docs/diagramas/tema-catalogo.iuml
 !include <C4/C4_Deployment>
+!include <tupadr3/font-awesome-5/laptop_code>
+!include <tupadr3/font-awesome-5/docker>
+!include <tupadr3/font-awesome-5/key>
+!include <logos/grafana>
 
-title Catálogo-inventário — ambiente local (docker compose, perfil catalog)
+UpdateElementStyle("node", $legendText="Nó de implantação")
+AddElementTag("quarkus", $bgColor="#1565C0", $fontColor="#FFFFFF", $borderColor="#0D47A1", $legendText="Contêiner do catálogo (imagem nativa)")
+AddElementTag("dados", $bgColor="#6A1B9A", $fontColor="#FFFFFF", $borderColor="#4A148C", $legendText="Armazenamento")
+AddElementTag("dependencia", $bgColor="#ECEFF1", $fontColor="#263238", $borderColor="#455A64", $legendText="Dependência de infraestrutura")
+AddElementTag("opcional", $bgColor="#FFF8E1", $fontColor="#263238", $borderColor="#FFA000", $borderStyle=DashedLine(), $legendText="Opcional")
+AddRelTag("assincrono", $textColor="#455A64", $lineColor="#455A64", $lineStyle=DashedLine(), $legendText="Assíncrono (Kafka)")
+AddRelTag("opcional", $textColor="#6A1B9A", $lineColor="#9575CD", $lineStyle=DottedLine(), $legendText="Opcional (cache)")
+AddRelTag("observabilidade", $textColor="#546E7A", $lineColor="#90A4AE", $lineStyle=DashedLine(), $legendText="Telemetria e scrape")
 
-Deployment_Node(host, "Máquina do desenvolvedor", "Docker Compose; portas publicadas só em 127.0.0.1") {
-  Deployment_Node(cat, "Serviços do catálogo", "imagem marketplace-nx/catalog-inventory:local (Dockerfile.native)") {
-    Container(api, "catalog-api", "QUARKUS_PROFILE=prod,api", "8083 -> 8080 (HTTP), 9083 -> 9000 (gestão)")
-    Container(worker, "catalog-worker", "QUARKUS_PROFILE=prod,worker", "9084 -> 9000 (gestão)")
+title <$docker,scale=0.8,color=#1565C0> Catálogo-inventário — ambiente local (docker compose, perfil catalog)
+
+Deployment_Node(host, "Máquina do desenvolvedor", "Docker Compose; portas publicadas só em 127.0.0.1", $sprite="laptop_code") {
+  Deployment_Node(cat, "Serviços do catálogo", "imagem marketplace-nx/catalog-inventory:local (Dockerfile.native)", $sprite="docker") {
+    Container(api, "catalog-api", "QUARKUS_PROFILE=prod,api", "8083 -> 8080 (HTTP), 9083 -> 9000 (gestão)", $sprite="quarkus-icon,scale=0.6", $tags="quarkus")
+    Container(worker, "catalog-worker", "QUARKUS_PROFILE=prod,worker", "9084 -> 9000 (gestão)", $sprite="robot", $tags="quarkus")
   }
-  Deployment_Node(deps, "Dependências") {
-    ContainerDb(pg, "postgres", "PostgreSQL 16.15", "Banco marketplace; postgres-init roda infra/postgres/provision.sh")
-    Container(kafka, "kafka", "Apache Kafka 4.2.0", "kafka-init cria os tópicos")
-    ContainerDb(redis, "redis", "Redis 7.4.11 com ACL", "Usuário catalog; cache desligado por padrão")
-    Container(kc, "keycloak", "Keycloak 26.8.1", "--import-realm do marketplace-realm.json")
-    Container(otel, "otel-collector", "OTel Collector contrib 0.160.0", "OTLP 4317")
+  Deployment_Node(deps, "Dependências", $sprite="cubes") {
+    ContainerDb(pg, "postgres", "PostgreSQL 16.15", "Banco marketplace; postgres-init roda infra/postgres/provision.sh", $sprite="postgresql,scale=0.6", $tags="dados")
+    Container(kafka, "kafka", "Apache Kafka 4.2.0", "kafka-init cria os tópicos", $sprite="kafka-icon,scale=0.6", $tags="dependencia")
+    ContainerDb(redis, "redis", "Redis 7.4.11 com ACL", "Usuário catalog; cache desligado por padrão", $sprite="redis,scale=0.6", $tags="opcional")
+    Container(kc, "keycloak", "Keycloak 26.8.1", "--import-realm do marketplace-realm.json", $sprite="key", $tags="dependencia")
+    Container(otel, "otel-collector", "OTel Collector contrib 0.160.0", "OTLP 4317", $sprite="chart_line", $tags="dependencia")
   }
-  Deployment_Node(obs, "Perfil observability (opcional)") {
-    Container(stack, "Prometheus, Tempo, Loki, Alloy, Grafana", "", "Mais postgres-exporter, redis-exporter e cAdvisor")
+  Deployment_Node(obs, "Perfil observability (opcional)", $sprite="chart_line") {
+    Container(stack, "Prometheus, Tempo, Loki, Alloy, Grafana", "", "Mais postgres-exporter, redis-exporter e cAdvisor", $sprite="grafana,scale=0.5", $tags="opcional")
   }
 }
 
 Rel(api, pg, "SQL")
 Rel(worker, pg, "SQL")
-Rel(worker, kafka, "Publica e consome", "kafka:9092")
-Rel(api, redis, "Opcional")
-Rel(worker, redis, "Opcional")
+Rel(worker, kafka, "Publica e consome", "kafka:9092", $tags="assincrono")
+Rel(api, redis, "Opcional", $tags="opcional")
+Rel(worker, redis, "Opcional", $tags="opcional")
 Rel(api, kc, "JWKS", "keycloak:8080")
-Rel(api, otel, "Traces e logs", "OTLP")
-Rel(worker, otel, "Traces e logs", "OTLP")
-Rel(otel, stack, "Exporta")
-Rel(stack, api, "Scrape /q/metrics", "9000")
-Rel(stack, worker, "Scrape /q/metrics", "9000")
+Rel(api, otel, "Traces e logs", "OTLP", $tags="observabilidade")
+Rel(worker, otel, "Traces e logs", "OTLP", $tags="observabilidade")
+Rel(otel, stack, "Exporta", $tags="observabilidade")
+Rel(stack, api, "Scrape /q/metrics", "9000", $tags="observabilidade")
+Rel(stack, worker, "Scrape /q/metrics", "9000", $tags="observabilidade")
 
 SHOW_LEGEND()
 @enduml

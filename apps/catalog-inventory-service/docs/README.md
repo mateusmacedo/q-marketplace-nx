@@ -27,12 +27,13 @@ O serviço mantém, por tenant, a taxonomia, os produtos e SKUs, as ofertas, a m
 | API REST, ETag/If-Match, cursor, erros RFC 9457 | [`api`](../src/main/java/dev/marketplace/cataloginventory/api) |
 | Identidade do chamador e papéis | [`security`](../src/main/java/dev/marketplace/cataloginventory/security) |
 | Repositórios PostgreSQL e outbox | [`persistence`](../src/main/java/dev/marketplace/cataloginventory/persistence) |
-| Relay da outbox, consumo do KYB/KYC, contratos de evento | [`messaging`](../src/main/java/dev/marketplace/cataloginventory/messaging) |
+| Relay da outbox, limpeza da mensageria, consumo do KYB/KYC | [`messaging`](../src/main/java/dev/marketplace/cataloginventory/messaging) |
+| Contratos de evento, tradução dos eventos de domínio e mensagem da outbox | [`outbox`](../src/main/java/dev/marketplace/cataloginventory/outbox) |
 | Cache Redis da vitrine e da taxonomia | [`cache`](../src/main/java/dev/marketplace/cataloginventory/cache) |
 | Importação CSV em segundo plano | [`imports`](../src/main/java/dev/marketplace/cataloginventory/imports) |
-| Métricas, spans e interceptores | [`observability`](../src/main/java/dev/marketplace/cataloginventory/observability) |
+| Métricas, spans, interceptores e correlação | [`observability`](../src/main/java/dev/marketplace/cataloginventory/observability) |
 | Montagem dos casos de uso | [`CatalogBeans`](../src/main/java/dev/marketplace/cataloginventory/CatalogBeans.java) |
-| Configuração tipada (`catalog.*`) | [`CatalogConfig`](../src/main/java/dev/marketplace/cataloginventory/CatalogConfig.java) |
+| Configuração tipada (`catalog.*`) | [`config`](../src/main/java/dev/marketplace/cataloginventory/config) ([`CatalogConfig`](../src/main/java/dev/marketplace/cataloginventory/config/CatalogConfig.java)) |
 | Varredor de reservas vencidas | [`ReservationSweeper`](../src/main/java/dev/marketplace/cataloginventory/ReservationSweeper.java) |
 
 Os casos de uso (`ProductService`, `ModerationService`, `OfferService`, `InventoryService`, `ReservationService`, `CategoryService`, `StorefrontService`, `SellerEligibilityService`, `ProductImportService`) são classes Java puras instanciadas em `CatalogBeans`. As portas e suas implementações:
@@ -71,11 +72,11 @@ Agendadores do worker. Todos usam `concurrentExecution = SKIP` e `skipExecutionI
 |---|---|---|---|---|
 | `reservation-sweeper` | 5 s | `catalog.reservations.sweep-interval` | [`ReservationSweeper`](../src/main/java/dev/marketplace/cataloginventory/ReservationSweeper.java) | Expira até 200 reservas vencidas por execução |
 | `outbox-relay` | 1 s, início após 3 s | `catalog.events.relay-interval` | [`OutboxRelay`](../src/main/java/dev/marketplace/cataloginventory/messaging/OutboxRelay.java) | Publica a outbox no Kafka |
-| `messaging-purge` | 1 h | `catalog.events.purge-interval` | [`MessagingHousekeeping`](../src/main/java/dev/marketplace/cataloginventory/messaging/MessagingHousekeeping.java) | Apaga outbox publicada e inbox antigas |
+| `messaging-purge` | 1 min | `catalog.events.purge-interval` | [`MessagingHousekeeping`](../src/main/java/dev/marketplace/cataloginventory/messaging/MessagingHousekeeping.java) | Apaga outbox publicada e inbox antigas, por até 50 s |
 | `product-import` | 1 s | `catalog.imports.interval` | [`ProductImportWorker`](../src/main/java/dev/marketplace/cataloginventory/imports/ProductImportWorker.java) | Processa lotes de importação |
 | `sku-gauges` | 60 s | `catalog.metrics.refresh-interval` | [`SkuGauges`](../src/main/java/dev/marketplace/cataloginventory/observability/SkuGauges.java) | Atualiza os gauges de SKUs |
 
-Relay (trava consultiva), varredor (UPDATE condicional) e importação (`SKIP LOCKED`) aceitam várias réplicas do worker.
+Relay (trava consultiva), varredor e importação (`SKIP LOCKED`) aceitam várias réplicas do worker.
 
 ## API HTTP
 
@@ -177,7 +178,8 @@ Na elegibilidade, o seller lê a própria loja; para ler outra, precisa de `READ
 Implementação em [`ETags`](../src/main/java/dev/marketplace/cataloginventory/api/ETags.java).
 
 - O ETag é forte e carrega a versão do agregado (`"42"`).
-- If-Match ausente, em branco ou `*` dispensa a checagem (no modo obrigatório, ausente ou em branco dá 428).
+- No modo opcional, If-Match ausente, em branco ou `*` dispensa a checagem.
+- No modo obrigatório, If-Match ausente, em branco ou `*` dá 428 `precondition-required`. O `*` não serve de atalho, porque gravaria sem conferir a versão.
 - ETag fraco (`W/`) ou sem aspas dá 400 `invalid-request`.
 - Versão diferente da atual dá 412 `version-mismatch`.
 - Perda de atualização detectada na gravação (UPDATE condicional sem linha afetada) dá 409 `concurrent-update`.
@@ -251,6 +253,7 @@ PostgreSQL pelo Reactive SQL Client nas requisições; o JDBC existe só para o 
 | V4 | `inbox_message` | PK (`consumer`, `event_id`), `processed_at` | — |
 | [V5](../src/main/resources/db/migration/V5__product_import.sql) | `product_import` | `id`, `status`, `content text`, `total_lines`, `started_at` | índice parcial dos lotes `PENDING`/`PROCESSING` |
 | V5 | `product_import_line` | PK (`import_id`, `line_number`), `outcome`, `code`, `message`, `product_id` | `import_id` → `product_import` (CASCADE) |
+| [V6](../src/main/resources/db/migration/V6__outbox_retry.sql) | `outbox_event` | `next_attempt_at`, `parked_at` | índice parcial dos pendentes não estacionados por `seq`; índice parcial dos pendentes por (`topic`, `message_key`, `seq`) |
 
 O diagrama [dados-er.puml](diagramas/dados-er.puml) mostra as mesmas tabelas com PK e FK.
 
@@ -259,7 +262,7 @@ O diagrama [dados-er.puml](diagramas/dados-er.puml) mostra as mesmas tabelas com
 - Cada escrita de agregado é uma transação que grava o agregado, o histórico e a outbox juntos.
 - **UPDATE condicional por versão:** `product`, `offer` e `category` são atualizados com `WHERE ... AND version = $lida`. Sem linha afetada, o repositório lança `ConcurrentUpdateException` (409).
 - **Estoque:** o ajuste usa `SELECT ... FOR UPDATE` em `inventory_level`; a reserva usa `UPDATE ... WHERE on_hand - reserved >= n`, sem trava prévia. Os CHECKs da tabela são a última barreira.
-- **Transições de reserva:** compare-and-set em SQL (`WHERE status = 'ACTIVE'`, mais `expires_at > now` no commit e no extend, e `expires_at <= now` na expiração).
+- **Transições de reserva:** compare-and-set em SQL (`WHERE status = 'ACTIVE'`, mais `expires_at > now` no commit e no extend, e `expires_at <= now` na expiração). A expiração trava a reserva com `FOR UPDATE SKIP LOCKED`: a réplica pula a reserva que outra está fechando, e ela volta no ciclo seguinte se ainda estiver ativa.
 - **Ordem canônica:** os itens de uma reserva são aplicados na ordem `ReservationPolicy.LOCK_ORDER` (UUID do SKU), em reserva, commit, release e expiração, para evitar deadlock entre reservas concorrentes.
 - **Taxonomia:** criação e mudança de pai tomam `pg_advisory_xact_lock` por tenant; o `move` confere também o `ancestry` lido.
 
@@ -269,19 +272,45 @@ ADR 013. Eventos saem do banco pela outbox; vereditos do KYB/KYC entram por inbo
 
 ### Outbox e relay
 
-1. O repositório traduz os eventos de domínio com [`IntegrationEvents`](../src/main/java/dev/marketplace/cataloginventory/messaging/IntegrationEvents.java) e grava em `outbox_event` na mesma transação ([`PgOutbox`](../src/main/java/dev/marketplace/cataloginventory/persistence/PgOutbox.java)).
+1. O repositório traduz os eventos de domínio com [`IntegrationEvents`](../src/main/java/dev/marketplace/cataloginventory/outbox/IntegrationEvents.java) e grava em `outbox_event` na mesma transação ([`PgOutbox`](../src/main/java/dev/marketplace/cataloginventory/persistence/PgOutbox.java)).
 2. O [`OutboxRelay`](../src/main/java/dev/marketplace/cataloginventory/messaging/OutboxRelay.java) roda a cada 1 s e drena até 20 lotes de 100. Passa ao próximo lote só se o atual veio cheio e sem falha.
 3. Cada lote é uma transação: `pg_try_advisory_xact_lock(hashtextextended('catalog-inventory.outbox-relay', 0))`; sem a trava, não faz nada. Com ela, lê os pendentes por `seq` com `FOR UPDATE`.
-4. Eventos de chaves diferentes saem em paralelo; os de mesmo tópico e chave saem em ordem. Depois da primeira falha num grupo, os seguintes ficam retidos para a próxima execução.
-5. Envio pelo canal `catalog-events` (`acks=all`, `enable.idempotence=true`), com cabeçalhos `event-type` e `event-id`, o `traceparent` gravado como pai do span e prazo de 10 s.
-6. Confirmados recebem `published_at`. Falhas incrementam `attempts` e gravam `last_error`; o relay pausa 2^n s, no máximo 60 s (`catalog.events.max-backoff`).
-7. `MessagingHousekeeping` apaga, a cada hora, outbox publicada há mais de 7 dias e inbox com mais de 30 dias.
+4. A leitura pula o evento estacionado (`parked_at`) e o que espera a própria nova tentativa (`next_attempt_at` no futuro). Pula também o evento cuja chave tem um anterior pendente nessas condições, para manter a ordem por chave.
+5. Eventos de chaves diferentes saem em paralelo; os de mesmo tópico e chave saem em ordem. Depois da primeira falha num grupo, os seguintes ficam retidos, sem contar tentativa.
+6. Envio pelo canal `catalog-events` (`acks=all`, `enable.idempotence=true`), com cabeçalhos `event-type` e `event-id`, o `traceparent` gravado como pai do span e prazo de 10 s.
+7. Confirmados recebem `published_at`. A falha incrementa `attempts`, grava `last_error` e adia só aquele evento: `next_attempt_at` = agora + 2^n s (n = tentativas anteriores), no máximo 60 s (`catalog.events.max-backoff`). O relay segue com as outras chaves, sem pausa.
+8. Na 20ª falha (`catalog.events.max-attempts`), o evento é estacionado (`parked_at`): sai da fila até o reenvio manual e retém os seguintes da sua chave. O gauge `catalog.outbox.parked` conta esses eventos, e o alerta `CatalogOutboxParked` dispara com algum por 5 min.
+9. `MessagingHousekeeping` apaga, a cada minuto, outbox publicada há mais de 7 dias e inbox com mais de 30 dias. Repete lotes de 10 000 enquanto vêm cheios, por até 50 s (`catalog.events.purge-max-duration`) somando as duas tabelas; cada tabela remove pelo menos um lote por execução.
 
 A entrega é pelo menos uma vez: evento publicado e não marcado (queda no meio) sai de novo, e o consumidor deduplica pelo `eventId`.
 
+### Reenviar eventos estacionados
+
+1. Veja o motivo em `last_error` e corrija a causa (tópico, tamanho da mensagem, ACL etc.):
+
+   ```sql
+   SELECT seq, topic, message_key, attempts, last_error, parked_at
+   FROM outbox_event
+   WHERE parked_at IS NOT NULL ORDER BY seq;
+   ```
+
+2. Devolva o evento à fila, por `seq` ou por chave. O relay o publica no ciclo seguinte, antes dos retidos da mesma chave:
+
+   ```sql
+   UPDATE outbox_event SET parked_at = NULL, next_attempt_at = NULL
+   WHERE seq = 123 AND published_at IS NULL;
+
+   UPDATE outbox_event SET parked_at = NULL, next_attempt_at = NULL
+   WHERE topic = 'catalog-inventory.product.v1' AND message_key = '<id do agregado>' AND published_at IS NULL;
+   ```
+
+3. `attempts` continua no teto, então uma nova falha estaciona o evento de novo na hora. Para dar todas as tentativas outra vez, inclua `attempts = 0` no `SET`.
+
+O role de runtime basta: tem DML na tabela e o `search_path` no schema do catálogo (`infra/postgres/provision.sh`).
+
 ### Tópicos, chaves e eventos
 
-Envelope v1 ([`EventContracts`](../src/main/java/dev/marketplace/cataloginventory/messaging/EventContracts.java), schema em [`catalog-inventory-events.v1.schema.json`](../../../contracts/catalog-inventory/events/catalog-inventory-events.v1.schema.json)):
+Envelope v1 ([`EventContracts`](../src/main/java/dev/marketplace/cataloginventory/outbox/EventContracts.java), schema em [`catalog-inventory-events.v1.schema.json`](../../../contracts/catalog-inventory/events/catalog-inventory-events.v1.schema.json)):
 
 ```json
 {
@@ -359,7 +388,7 @@ Métricas de negócio e de operação (nomes Micrometer; no Prometheus, pontos v
 | `catalog.inventory.update.latency` | `operation` (`adjust_stock`, `define_offer`, `schedule_promotion`, `cancel_promotion`, `reserve` ...), `outcome` | [`InventoryLatency`](../src/main/java/dev/marketplace/cataloginventory/observability/InventoryLatency.java) |
 | `catalog.skus.active`, `catalog.skus.sellable` | — | `SkuGauges` |
 | `catalog.imports.lines` | `outcome` | `ProductImportWorker` |
-| `catalog.outbox.published`, `.failures`, `.publish.lag`, `.pending`, `.oldest.age` | — | `OutboxRelay` |
+| `catalog.outbox.published`, `.failures`, `.publish.lag`, `.pending`, `.oldest.age`, `.parked` | — | `OutboxRelay` |
 | `catalog.kyb.verdicts` | `outcome` | `SellerVerdictConsumer` |
 | `catalog.cache.requests`, `.writes`, `.invalidations` | `cache`, `result` | `CatalogCache` |
 
@@ -380,11 +409,11 @@ Onde ficam:
 | Dashboards Grafana | [`infra/observability/grafana/dashboards/catalogo`](../../../infra/observability/grafana/dashboards/catalogo) (`servico`, `negocio`, `fluxo`, `carga`) |
 | Collector, Prometheus, Tempo, Loki, Alloy | [`infra/observability`](../../../infra/observability) |
 
-Alertas de [`catalog-inventory.yaml`](../../../infra/observability/prometheus/rules/catalog-inventory.yaml): `CatalogInventoryDown`, `CatalogOutboxBacklog`, `CatalogOutboxPublishFailures`, `CatalogKybDeadLetters`, `CatalogKybConsumerLag`, `CatalogSqlPoolSaturated`, `PostgresDown`, `RedisDown`, `ObservabilityTargetDown`.
+Alertas de [`catalog-inventory.yaml`](../../../infra/observability/prometheus/rules/catalog-inventory.yaml): `CatalogInventoryDown`, `CatalogOutboxBacklog`, `CatalogOutboxPublishFailures`, `CatalogOutboxParked`, `CatalogKybDeadLetters`, `CatalogKybConsumerLag`, `CatalogSqlPoolSaturated`, `PostgresDown`, `RedisDown`, `ObservabilityTargetDown`.
 
 ## Configuração
 
-Propriedades `catalog.*` têm default em [`CatalogConfig`](../src/main/java/dev/marketplace/cataloginventory/CatalogConfig.java) e aceitam a variável de ambiente correspondente.
+Propriedades `catalog.*` têm default em [`CatalogConfig`](../src/main/java/dev/marketplace/cataloginventory/config/CatalogConfig.java) e aceitam a variável de ambiente correspondente.
 
 | Variável ou propriedade | Default | Uso |
 |---|---|---|
@@ -405,7 +434,8 @@ Propriedades `catalog.*` têm default em [`CatalogConfig`](../src/main/java/dev/
 | `catalog.cache.ttl` / `timeout` / `invalidation-timeout` / `generation-ttl` | 60 s / 100 ms / 1 s / 24 h | Cache |
 | `catalog.persistence.timeout` | 2 s | Prazo do banco (503 acima dele) |
 | `catalog.reservations.default-ttl` / `max-ttl` / `max-lifetime` / `sweep-batch` | 15 min / 2 h / 24 h / 200 | Reservas |
-| `catalog.events.relay-batch` / `relay-max-batches` / `publish-timeout` / `max-backoff` | 100 / 20 / 10 s / 60 s | Relay |
+| `catalog.events.relay-batch` / `relay-max-batches` / `publish-timeout` / `max-backoff` / `max-attempts` | 100 / 20 / 10 s / 60 s / 20 | Relay; `max-backoff` limita a espera de cada evento e `max-attempts` o estaciona |
+| `catalog.events.purge-interval` / `purge-batch` / `purge-max-duration` | 1 min / 10 000 / 50 s | Limpeza contínua; o prazo vale para as duas tabelas |
 | `catalog.events.outbox-retention` / `inbox-retention` | 7 d / 30 d | Limpeza |
 | `catalog.events.consumer-retries` | 10 | Retry do consumidor KYB |
 | `catalog.imports.max-rows` / `lease` | 5000 / 5 min | Importação |
@@ -455,20 +485,40 @@ Arquivos PlantUML em [`diagramas/`](diagramas). Os C4 usam a biblioteca embutida
 
 | Diagrama | O que mostra e como ler |
 |---|---|
+| [pacotes.puml](diagramas/pacotes.puml) | Os 3 módulos, os 16 pacotes Java e as dependências reais entre eles (derivadas dos imports), sem ciclos, com a regra de camadas. |
 | [c4-conteiner.puml](diagramas/c4-conteiner.puml) | C4 nível 2: api e worker, PostgreSQL, Redis, Kafka, Keycloak, OTel Collector, atores e sistemas externos. Setas indicam quem chama quem e por qual protocolo. |
 | [c4-componente-api.puml](diagramas/c4-componente-api.puml) | C4 nível 3 da api: filtros, resources, casos de uso, cache, decorators, repositórios `Pg*` e outbox. Siga da esquerda (cliente) até o banco. |
 | [c4-componente-worker.puml](diagramas/c4-componente-worker.puml) | C4 nível 3 do worker: os cinco agendadores, `SellerVerdictConsumer`, `OutboxRelay` e o canal Kafka. |
 | [implantacao-kubernetes.puml](diagramas/implantacao-kubernetes.puml) | Recursos do Helm chart: Deployments, Services, HPA, PDB, ConfigMap, Job de tópicos e Secrets externos. |
 | [implantacao-local.puml](diagramas/implantacao-local.puml) | Compose local: contêineres, portas publicadas e o perfil `observability`. |
-| [dados-er.puml](diagramas/dados-er.puml) | Modelo de dados V1 a V5 agrupado por migration, com PK, FK e restrições únicas. |
-| [estados-outbox.puml](diagramas/estados-outbox.puml) | Estados implícitos de uma linha de `outbox_event`: pendente, publicada e removida. |
+| [dados-er.puml](diagramas/dados-er.puml) | Modelo de dados V1 a V6 agrupado por migration, com PK, FK e restrições únicas. |
+| [estados-outbox.puml](diagramas/estados-outbox.puml) | Estados implícitos de uma linha de `outbox_event`: pendente, em espera, estacionada, publicada e removida, com o reenvio manual. |
 | [sequencia-publicacao-produto.puml](diagramas/sequencia-publicacao-produto.puml) | Criar produto, definir oferta, ajustar estoque, enviar e aprovar, com o UPDATE condicional. |
 | [sequencia-ajuste-estoque.puml](diagramas/sequencia-ajuste-estoque.puml) | `PUT /inventory/skus/{skuId}` com `FOR UPDATE`, auditoria e eventos. |
 | [sequencia-reserva-ciclo.puml](diagramas/sequencia-reserva-ciclo.puml) | Reserva idempotente, commit, release, extend e expiração pelo `ReservationSweeper`. |
 | [sequencia-importacao-csv.puml](diagramas/sequencia-importacao-csv.puml) | Envio do CSV pela api e processamento pelo worker com `SKIP LOCKED` e retomada. |
-| [sequencia-outbox-kafka.puml](diagramas/sequencia-outbox-kafka.puml) | Gravação transacional, relay com trava consultiva, publicação por tópico e chave, backoff e limpeza. |
+| [sequencia-outbox-kafka.puml](diagramas/sequencia-outbox-kafka.puml) | Gravação transacional, relay com trava consultiva, publicação por tópico e chave, espera por evento, estacionamento e limpeza. |
 | [sequencia-veredito-kyb.puml](diagramas/sequencia-veredito-kyb.puml) | Consumo do veredito: inbox, `DUPLICATE`/`STALE`/`APPLIED`, `StoreEligibilityChanged`, invalidação e DLQ. |
 | [sequencia-vitrine-cache.puml](diagramas/sequencia-vitrine-cache.puml) | Leitura da vitrine com gerações (`HIT`, `MISS`, `UNMAPPED`, `BYPASS`) e estoque sempre do banco. |
+| [sequencias-produto.puml](diagramas/sequencias-produto.puml) | Uma página por operação de `ProductService` (12): criar, ler, listar, histórico, revisar conteúdo, adicionar/revisar/remover SKU, enviar, pausar, retomar e arquivar, com as recusas reais. |
+| [sequencias-moderacao.puml](diagramas/sequencias-moderacao.puml) | `ModerationService` (5 páginas): fila, aprovar, rejeitar, bloquear e desbloquear. |
+| [sequencias-oferta.puml](diagramas/sequencias-oferta.puml) | `OfferService` (4 páginas): ler, definir ou trocar preço, agendar e cancelar promoção. |
+| [sequencias-estoque.puml](diagramas/sequencias-estoque.puml) | `InventoryService` (3 páginas): `stockOf` (sem endpoint próprio), `get` e `adjust`. |
+| [sequencias-importacao.puml](diagramas/sequencias-importacao.puml) | `ProductImportService` (4 páginas): enviar, acompanhar, reivindicar e processar por unidade. |
+| [sequencias-categoria.puml](diagramas/sequencias-categoria.puml) | `CategoryService` (5 páginas): criar, ler, revisar, mover e listar filhos, com `TaxonomyCache`, trava consultiva da árvore e `If-Match`. |
+| [sequencias-reserva.puml](diagramas/sequencias-reserva.puml) | `ReservationService` (6 páginas): reservar, ler, confirmar, liberar, estender e expirar pelo `ReservationSweeper` com `SKIP LOCKED`. |
+| [sequencias-elegibilidade.puml](diagramas/sequencias-elegibilidade.puml) | `SellerEligibilityService`: consulta da situação KYB (403 para outra loja, `PENDING` sem veredito) e registro do veredito. |
+| [sequencias-infraestrutura.puml](diagramas/sequencias-infraestrutura.puml) | Fluxos sem caso de uso de negócio: limpeza da mensageria, invalidação pelos decorators, `CatalogCache` com `Snapshots`, `SkuGauges` e `GET /internal/info`. |
+| [classes-api.puml](diagramas/classes-api.puml) | Resources, filtros, `ProblemMappers` (com a tabela de status HTTP) e classes de apoio do pacote `api`. |
+| [classes-api-modelos.puml](diagramas/classes-api-modelos.puml) | DTOs de produto, categoria e vitrine. |
+| [classes-api-modelos-operacao.puml](diagramas/classes-api-modelos-operacao.puml) | DTOs de oferta, estoque, reserva e importação. |
+| [classes-persistencia.puml](diagramas/classes-persistencia.puml) | Os 7 repositórios `Pg*`, `PgOutbox`, `PgSupport`, `PgCatalogMetrics` e as portas que implementam. |
+| [classes-mensageria.puml](diagramas/classes-mensageria.puml) | `IntegrationEvents`, `OutboxRelay`, `MessagingHousekeeping`, `SellerVerdictConsumer`, `Correlation` e `EventOrigin`. |
+| [classes-mensageria-contrato.puml](diagramas/classes-mensageria-contrato.puml) | `EventContracts` v1 e os 13 records publicados. |
+| [classes-cache.puml](diagramas/classes-cache.puml) | `CatalogCache`, os 4 decorators de invalidação, `StorefrontCache`, `TaxonomyCache` e `Snapshots`. |
+| [classes-importacao.puml](diagramas/classes-importacao.puml) | `CsvParser`, `ProductCsv`, `Offload`, `InvalidImportFileException` e `ProductImportWorker`. |
+| [classes-seguranca-observabilidade.puml](diagramas/classes-seguranca-observabilidade.puml) | Pacotes `security` e `observability`. |
+| [classes-raiz.puml](diagramas/classes-raiz.puml) | `CatalogConfig` (com as interfaces aninhadas), `CatalogBeans`, `ReservationSweeper` e `ServiceInfoResource`. |
 
 Os diagramas de classes e de estados do domínio ficam na documentação de [`libs/catalog-inventory/domain`](../../../libs/catalog-inventory/domain/docs/README.md).
 
