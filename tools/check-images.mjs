@@ -15,7 +15,7 @@ const SOURCES = [
 const SKIP_DIRS = new Set(['node_modules', 'build', 'bin', 'results', '.nx', 'src/test']);
 
 /** Imagens construídas neste repositório: não vêm de registro, então não têm digest a fixar. */
-export const isOwnImage = name => /(^|\/)marketplace(-nx)?\/catalog-inventory$/.test(name);
+export const isOwnImage = name => /(^|\/)marketplace(-nx)?\/(catalog-inventory|admin-web)$/.test(name);
 
 export function parseRef(text) {
   const match = REF.exec(text.trim().replace(/^["']|["']$/g, ''));

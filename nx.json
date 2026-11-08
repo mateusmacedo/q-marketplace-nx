@@ -9,21 +9,28 @@
         "buildTargetName": "gradle-build",
         "ciTestTargetName": "test-ci"
       }
+    },
+    {
+      "plugin": "@nx/eslint/plugin",
+      "include": [
+        "apps/**/*",
+        "libs/**/*"
+      ],
+      "options": {
+        "targetName": "lint"
+      }
+    },
+    {
+      "plugin": "@nx/playwright/plugin",
+      "options": {
+        "targetName": "e2e"
+      }
     }
   ],
   "namedInputs": {
     "sharedGlobals": [
-      "{workspaceRoot}/build.gradle",
-      "{workspaceRoot}/settings.gradle",
-      "{workspaceRoot}/gradle.properties",
-      "{workspaceRoot}/gradle/**/*",
-      "{workspaceRoot}/gradlew",
-      "{workspaceRoot}/gradlew.bat",
-      "{workspaceRoot}/tools/**/*",
       "{workspaceRoot}/package-lock.json",
-      {
-        "runtime": "java -version"
-      },
+      "{workspaceRoot}/tsconfig.base.json",
       {
         "runtime": "node --version"
       }
@@ -33,6 +40,13 @@
       "!{projectRoot}/build/**/*",
       "!{projectRoot}/docs/**/*",
       "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/tsconfig.spec.json",
+      "!{projectRoot}/eslint.config.mjs",
+      "!{projectRoot}/README.md"
     ]
   },
   "targetDefaults": {
@@ -63,6 +77,46 @@
     },
     "quarkusRun": {
       "cache": false
+    },
+    "@angular/build:application": {
+      "cache": true,
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "production",
+        "^production"
+      ]
+    },
+    "@angular/build:unit-test": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ]
+    },
+    "e2e": {
+      "cache": false
+    },
+    "e2e-ci": {
+      "cache": false
+    },
+    "e2e-ci--**/*": {
+      "cache": false
+    },
+    "lint": {
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{projectRoot}/eslint.config.mjs",
+        "{workspaceRoot}/tools/contexts.json",
+        {
+          "externalDependencies": [
+            "eslint"
+          ]
+        }
+      ]
     }
   },
   "release": {
@@ -70,15 +124,23 @@
     "groups": {
       "apps": {
         "projectsRelationship": "independent",
-        "projects": ["tag:layer:service"]
+        "projects": [
+          "tag:layer:service",
+          "tag:layer:web-app"
+        ]
       },
       "libs": {
         "projectsRelationship": "independent",
-        "projects": ["tag:layer:domain", "tag:layer:application"]
+        "projects": [
+          "tag:layer:domain",
+          "tag:layer:application"
+        ]
       },
       "contracts": {
         "projectsRelationship": "independent",
-        "projects": ["tag:layer:contract"]
+        "projects": [
+          "tag:layer:contract"
+        ]
       }
     },
     "releaseTag": {
@@ -103,5 +165,19 @@
     }
   },
   "analytics": true,
-  "nxCloudId": "6aefee2a5c73bb897c69723c"
+  "nxCloudId": "6aefee2a5c73bb897c69723c",
+  "generators": {
+    "@nx/angular:application": {
+      "e2eTestRunner": "playwright",
+      "linter": "eslint",
+      "style": "scss",
+      "unitTestRunner": "vitest-angular"
+    },
+    "@nx/angular:library": {
+      "linter": "eslint"
+    },
+    "@nx/angular:component": {
+      "style": "scss"
+    }
+  }
 }

@@ -4,7 +4,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.30", memory: 1280M}
-        reservations: {cpus: "0.05", memory: 256M}
+        reservations: {memory: 256M}
     profiles: [observability, all]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "false"

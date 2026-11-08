@@ -1,6 +1,6 @@
 # Teste de carga do catálogo e inventário
 
-Suíte de carga em [k6](https://grafana.com/docs/k6/) contra o compose local do catálogo (api em `http://localhost:8083`, gestão em `9083` e worker com gestão em `9084`, ADR 020). Ela exercita o catálogo inteiro pela borda: navegação e vitrine, ciclo de vida do produto, moderação, categorias (ADRs 011 e 014), preço e promoções, reservas com confirmação, prorrogação e expiração pelo varredor (ADRs 012 e 017), importação por CSV (ADR 016), o consumo dos vereditos do KYB/KYC e a outbox (ADR 013), em seis perfis de carga sobre os mesmos cenários. A execução reprova quando um limite do perfil falha, quando uma invariante do `teardown` não fecha ou quando os logs do período registram erro. A decisão está na ADR 022 (`docs/decisoes.md`).
+Suíte de carga em [k6](https://grafana.com/docs/k6/) contra o compose local do catálogo (api em `http://localhost:8083`, pelo gateway que balanceia as duas instâncias, com gestão em `9301` e `9302`, e worker com gestão em `9311`; ADRs 019 e 020). Ela exercita o catálogo inteiro pela borda: navegação e vitrine, ciclo de vida do produto, moderação, categorias (ADRs 011 e 014), preço e promoções, reservas com confirmação, prorrogação e expiração pelo varredor (ADRs 012 e 017), importação por CSV (ADR 016), o consumo dos vereditos do KYB/KYC e a outbox (ADR 013), em seis perfis de carga sobre os mesmos cenários. A execução reprova quando um limite do perfil falha, quando uma invariante do `teardown` não fecha ou quando os logs do período registram erro. A decisão está na ADR 022 (`docs/decisoes.md`).
 
 O k6 roda no contêiner `grafana/k6:2.3.0`, fixado por digest em `run.sh` (`K6_IMAGE`), com `--network host`; nada é instalado no host além do Node, que valida os parâmetros.
 
@@ -26,7 +26,7 @@ Cada target chama `tools/load/run.sh <perfil>`, que:
 4. liga o remote write ao Prometheus local quando ele responde (ver [Painel](#painel-e-remote-write)) e imprime o link do painel da execução;
 5. roda o k6 (fora de um terminal, como no npm sem TTY, no Nx e no `load.yml`, com `--quiet`, sem as linhas de progresso; o resumo sai igual), com a saída copiada em `k6.log`;
 6. quando o `setup` termina a massa (a linha `massa pronta` no log do k6), envia em segundo plano as rodadas de vereditos do KYB ([cenário `kyb_verdicts`](#o-que-mede)), uma por `KYB_INTERVAL_S`, por um único `kafka-console-producer.sh` aberto no contêiner `kafka` durante a execução inteira, com o registro em `kyb.log`;
-7. no fim, procura erros nos logs do PostgreSQL e dos contêineres `catalog-api` e `catalog-worker` só no período da execução.
+7. no fim, procura erros nos logs do PostgreSQL e dos contêineres `catalog-api-1`, `catalog-api-2` e `catalog-worker` só no período da execução.
 
 Cada execução deixa no tenant de desenvolvimento a massa inteira (categorias, produtos em todos os estados e lojas sintéticas com veredito), os produtos e categorias criados pelos cenários e reservas ativas no último item (e, no modo `exhaust`, no SKU disputado), que expiram em `RESERVATION_TTL_S`. Use num banco local descartável.
 
@@ -107,14 +107,14 @@ Os sorteios (quantos SKUs tem cada produto da população, quais SKUs entram em 
 
 ## Guarda do alvo
 
-`BASE_URL`, `API_MANAGEMENT_URL`, `WORKER_MANAGEMENT_URL`, `KEYCLOAK_URL` e `K6_PROMETHEUS_RW_SERVER_URL` só aceitam `http://localhost` e `http://127.0.0.1` (`src/lib/guard.js`), no `--check` e no `init` do k6: a suíte cria dados, entra com as senhas do realm de demonstração e satura o alvo. Para outro alvo, é preciso `ALLOW_REMOTE_TARGET=true`, explícito. A aprovação da loja e os vereditos do KYB continuam indo pelo Kafka do compose local.
+`BASE_URL`, `API_MANAGEMENT_URL`, `API_2_MANAGEMENT_URL`, `WORKER_MANAGEMENT_URL`, `KEYCLOAK_URL` e `K6_PROMETHEUS_RW_SERVER_URL` só aceitam `http://localhost` e `http://127.0.0.1` (`src/lib/guard.js`), no `--check` e no `init` do k6: a suíte cria dados, entra com as senhas do realm de demonstração e satura o alvo. Para outro alvo, é preciso `ALLOW_REMOTE_TARGET=true`, explícito. A aprovação da loja e os vereditos do KYB continuam indo pelo Kafka do compose local.
 
 ## Parâmetros
 
 | Variável | Padrão | Regra e uso |
 |---|---|---|
 | `BASE_URL` | `http://localhost:8083` | Catálogo; guarda do alvo |
-| `API_MANAGEMENT_URL`, `WORKER_MANAGEMENT_URL` | `http://localhost:9083`, `http://localhost:9084` | Saúde e `/q/metrics` de cada papel |
+| `API_MANAGEMENT_URL`, `API_2_MANAGEMENT_URL`, `WORKER_MANAGEMENT_URL` | `http://localhost:9301`, `http://localhost:9302`, `http://localhost:9311` | Saúde e `/q/metrics` de cada instância |
 | `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID` | `http://localhost:8180`, `marketplace`, `marketplace-cli` | Tokens reais por `grant_type=password`; cada VU renova o seu antes de expirar (5 min no realm local) |
 | `TENANT_ID`, `STORE_ID` | tenant e loja fixos do realm local | Tenant da vitrine e dos vereditos; loja aprovada pelo veredito |
 | `ALLOW_REMOTE_TARGET` | `false` | `true` libera alvo fora de localhost |

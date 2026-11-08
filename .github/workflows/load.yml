@@ -60,6 +60,9 @@ jobs:
       - name: Executável nativo
         run: npx nx run catalog-inventory-service:native
 
+      - name: Build do painel (imagem do gateway)
+        run: npx nx run admin-web:build
+
       - name: Subir o compose
         run: $COMPOSE up -d --build --wait
 

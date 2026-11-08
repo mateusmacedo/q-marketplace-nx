@@ -1,0 +1,126 @@
+{
+  "name": "admin-web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "app",
+  "sourceRoot": "apps/admin-web/src",
+  "tags": [
+    "layer:web-app",
+    "framework:angular",
+    "lang:ts"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/admin-web",
+        "index": "apps/admin-web/src/index.html",
+        "browser": "apps/admin-web/src/main.ts",
+        "tsConfig": "apps/admin-web/tsconfig.app.json",
+        "inlineStyleLanguage": "scss",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/admin-web/src/assets/",
+            "output": "/assets/"
+          },
+          {
+            "glob": "favicon.ico",
+            "input": "apps/admin-web/src/assets/",
+            "output": "/"
+          },
+          {
+            "glob": "*.svg",
+            "input": "node_modules/@coreui/icons/sprites/",
+            "output": "/assets/icons/"
+          }
+        ],
+        "styles": [
+          "apps/admin-web/src/scss/styles.scss"
+        ],
+        "scripts": []
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "1.5mb",
+              "maximumError": "2mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "2kb",
+              "maximumError": "4kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "readyWhen": {
+        "signal": true
+      },
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "configurations": {
+        "production": {
+          "buildTarget": "admin-web:build:production"
+        },
+        "development": {
+          "buildTarget": "admin-web:build:development"
+        }
+      },
+      "options": {
+        "proxyConfig": "apps/admin-web/proxy.conf.json",
+        "port": 4200
+      }
+    },
+    "test": {
+      "executor": "@angular/build:unit-test",
+      "options": {
+        "tsConfig": "apps/admin-web/tsconfig.spec.json",
+        "browsers": [
+          "ChromiumHeadless"
+        ],
+        "watch": false
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "readyWhen": {
+        "signal": true
+      },
+      "dependsOn": [
+        "build"
+      ],
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "admin-web:build",
+        "port": 4200,
+        "staticFilePath": "dist/apps/admin-web/browser",
+        "spa": true
+      }
+    },
+    "container": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "command": "docker build -f infra/docker/Dockerfile.admin-web -t marketplace-nx/admin-web:local ."
+      }
+    }
+  }
+}

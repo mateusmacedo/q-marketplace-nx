@@ -5,5 +5,5 @@ end_of_line = lf
 insert_final_newline = true
 indent_style = space
 indent_size = 4
-[*.{json,yml,yaml,mjs}]
+[*.{json,yml,yaml,mjs,js,cjs,mts,cts,ts,html,scss,css}]
 indent_size = 2

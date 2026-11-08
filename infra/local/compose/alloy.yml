@@ -5,7 +5,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.15", memory: 384M}
-        reservations: {cpus: "0.02", memory: 64M}
+        reservations: {memory: 64M}
     profiles: [observability, all]
     command:
       - run

@@ -4,7 +4,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.35", memory: 1G}
-        reservations: {cpus: "0.10", memory: 256M}
+        reservations: {memory: 256M}
     profiles: [observability, all]
     # OTLP para as séries que o Collector deriva dos spans; remote write para o k6; exemplars para ir da métrica ao
     # trace.

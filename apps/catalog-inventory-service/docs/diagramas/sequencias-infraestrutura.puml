@@ -199,8 +199,8 @@ else #FFEBEE falha da consulta
   gauges -> gauges : <color:#C62828>log WARN "Falha ao contar SKUs; os gauges mantêm o último valor até o</color>\n<color:#C62828>próximo ciclo"</color> (recoverWithNull: a execução termina sem erro)
 end
 note over gauges, registry
-  $I_SERVIDOR Prometheus coleta GET /q/metrics na porta de gestão 9000 (job catalog-inventory, alvos catalog-api:9000
-  e catalog-worker:9000): catalog_skus_active, catalog_skus_sellable e o timer scheduled.methods da execução agendada.
+  $I_SERVIDOR Prometheus coleta GET /q/metrics na porta de gestão 9000 (job catalog-inventory, alvos catalog-api-1:9000,
+  catalog-api-2:9000 e catalog-worker:9000): catalog_skus_active, catalog_skus_sellable e o timer scheduled.methods da execução agendada.
   Só o papel worker recalcula os gauges (ADR 020). Cada pod worker publica o mesmo total:
   agregue com max, não com sum (o painel de negócio usa max(catalog_skus_active) e max(catalog_skus_sellable)).
   Em falha, os gauges mantêm o último valor até o próximo ciclo.

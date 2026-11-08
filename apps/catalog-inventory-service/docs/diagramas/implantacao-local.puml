@@ -19,8 +19,12 @@ title <$docker,scale=0.8,color=#1565C0> Catálogo-inventário — ambiente local
 
 Deployment_Node(host, "Máquina do desenvolvedor", "Docker Compose; portas publicadas só em 127.0.0.1", $sprite="laptop_code") {
   Deployment_Node(cat, "Serviços do catálogo", "imagem marketplace-nx/catalog-inventory:local (Dockerfile.native)", $sprite="docker") {
-    Container(api, "catalog-api", "QUARKUS_PROFILE=prod,api", "8083 -> 8080 (HTTP), 9083 -> 9000 (gestão)", $sprite="quarkus-icon,scale=0.6", $tags="quarkus")
-    Container(worker, "catalog-worker", "QUARKUS_PROFILE=prod,worker", "9084 -> 9000 (gestão)", $sprite="robot", $tags="quarkus")
+    Container(api, "catalog-api-1", "QUARKUS_PROFILE=prod,api", "9301 -> 9000 (gestão)", $sprite="quarkus-icon,scale=0.6", $tags="quarkus")
+    Container(api2, "catalog-api-2", "QUARKUS_PROFILE=prod,api", "9302 -> 9000 (gestão)", $sprite="quarkus-icon,scale=0.6", $tags="quarkus")
+    Container(worker, "catalog-worker", "QUARKUS_PROFILE=prod,worker", "9311 -> 9000 (gestão)", $sprite="robot", $tags="quarkus")
+  }
+  Deployment_Node(gwn, "Gateway", "imagem marketplace-nx/admin-web:local com infra/local/gateway/nginx.conf", $sprite="docker") {
+    Container(gw, "gateway", "nginx 1.31.7", "8080: painel e /api/catalog-inventory; 8083: API do catálogo (round-robin com failover)", $tags="dependencia")
   }
   Deployment_Node(deps, "Dependências", $sprite="cubes") {
     ContainerDb(pg, "postgres", "PostgreSQL 16.15", "Banco marketplace; postgres-init roda infra/postgres/provision.sh", $sprite="postgresql,scale=0.6", $tags="dados")
@@ -34,16 +38,21 @@ Deployment_Node(host, "Máquina do desenvolvedor", "Docker Compose; portas publi
   }
 }
 
+Rel(gw, api, "HTTP", "catalog-api-1:8080")
+Rel(gw, api2, "HTTP", "catalog-api-2:8080")
 Rel(api, pg, "SQL")
+Rel(api2, pg, "SQL")
 Rel(worker, pg, "SQL")
 Rel(worker, kafka, "Publica e consome", "kafka:9092", $tags="assincrono")
 Rel(api, redis, "Opcional", $tags="opcional")
 Rel(worker, redis, "Opcional", $tags="opcional")
 Rel(api, kc, "JWKS", "keycloak:8080")
+Rel(api2, kc, "JWKS", "keycloak:8080")
 Rel(api, otel, "Traces e logs", "OTLP", $tags="observabilidade")
 Rel(worker, otel, "Traces e logs", "OTLP", $tags="observabilidade")
 Rel(otel, stack, "Exporta", $tags="observabilidade")
 Rel(stack, api, "Scrape /q/metrics", "9000", $tags="observabilidade")
+Rel(stack, api2, "Scrape /q/metrics", "9000", $tags="observabilidade")
 Rel(stack, worker, "Scrape /q/metrics", "9000", $tags="observabilidade")
 
 SHOW_LEGEND()

@@ -21,6 +21,7 @@ describe('isOwnImage', () => {
   test('reconhece a imagem construída aqui, com ou sem registro', () => {
     assert.ok(isOwnImage('marketplace-nx/catalog-inventory'));
     assert.ok(isOwnImage('registry.example.com/marketplace/catalog-inventory'));
+    assert.ok(isOwnImage('marketplace-nx/admin-web'));
     assert.ok(!isOwnImage('postgres'));
   });
 });

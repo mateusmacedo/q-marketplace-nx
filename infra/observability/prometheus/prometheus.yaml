@@ -28,7 +28,7 @@ scrape_configs:
     # WHY: sem text/plain no Accept, o Quarkus responde OpenMetrics, o único formato que leva os exemplars.
     scrape_protocols: [OpenMetricsText1.0.0]
     static_configs:
-      - targets: ['catalog-api:9000']
+      - targets: ['catalog-api-1:9000', 'catalog-api-2:9000']
         labels:
           service_name: catalog-inventory-api
           role: api

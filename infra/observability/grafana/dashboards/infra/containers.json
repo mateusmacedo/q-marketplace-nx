@@ -97,7 +97,7 @@
           },
           "options": {
             "mode": "markdown",
-            "content": "**Para que serve:** ver CPU, memória, rede e disco de cada contêiner do Compose local, reinícios e falta de memória, e os logs dos serviços de infraestrutura.\n\n**De onde vêm os dados:** cAdvisor (só contêineres do Docker, housekeeping a cada 30 s), raspado pelo Prometheus a cada 15 s; logs pelo Alloy, do socket do Docker, no Loki. O compose só define limite de CPU e de memória no postgres (2 núcleos e 1 GiB), no Redis (1 núcleo e 128 MiB) e no Redpanda Console (0,10 núcleo e 256 MiB).\n\n**Variáveis:** `container` (Container) filtra os gráficos pelo nome do contêiner, `marketplace-nx-<serviço>-1` (o k6 roda com o nome aleatório do `docker run`); `infra_service` (Serviço de infraestrutura) filtra os logs pelo serviço do Compose.\n\n**Triagem rápida:**\n1. Início do container recente num só contêiner: reinício; veja OOM na janela e os logs dele.\n2. CPU colada no teto num contêiner ou soma perto dos núcleos do host: a latência da carga deixa de ser comparável.\n3. Memória crescendo sem parar: vazamento; acompanhe num perfil `soak`.\n4. Logs de catalog-api e catalog-worker não aparecem aqui: chegam por OTLP; use os dashboards Serviço ou Ponta a ponta."
+            "content": "**Para que serve:** ver CPU, memória, rede e disco de cada contêiner do Compose local, reinícios e falta de memória, e os logs dos serviços de infraestrutura.\n\n**De onde vêm os dados:** cAdvisor (só contêineres do Docker, housekeeping a cada 30 s), raspado pelo Prometheus a cada 15 s; logs pelo Alloy, do socket do Docker, no Loki. O compose só define limite de CPU e de memória no postgres (2 núcleos e 1 GiB), no Redis (1 núcleo e 128 MiB) e no Redpanda Console (0,10 núcleo e 256 MiB).\n\n**Variáveis:** `container` (Container) filtra os gráficos pelo nome do contêiner, `marketplace-nx-<serviço>-1` (o k6 roda com o nome aleatório do `docker run`); `infra_service` (Serviço de infraestrutura) filtra os logs pelo serviço do Compose.\n\n**Triagem rápida:**\n1. Início do container recente num só contêiner: reinício; veja OOM na janela e os logs dele.\n2. CPU colada no teto num contêiner ou soma perto dos núcleos do host: a latência da carga deixa de ser comparável.\n3. Memória crescendo sem parar: vazamento; acompanhe num perfil `soak`.\n4. Logs de catalog-api-1, catalog-api-2 e catalog-worker não aparecem aqui: chegam por OTLP; use os dashboards Serviço ou Ponta a ponta."
           }
         }
       ]
@@ -118,7 +118,7 @@
     {
       "type": "timeseries",
       "title": "CPU por contêiner",
-      "description": "**O que mostra:** Núcleos de CPU em uso por contêiner (rate de `container_cpu_usage_seconds_total` do cAdvisor), filtrados pela variável Container.\n\n**Normal:** Sem carga, quase tudo perto de 0; só o postgres (2 núcleos), o Redis (1) e o Redpanda Console (0,10) têm teto no compose. Na carga, sobem catalog-api, catalog-worker, postgres e o contêiner do k6.\n\n**Sinais de anomalia:** Contêiner colado no teto ou soma perto dos núcleos do host indica saturação, que distorce a latência; cruze com Latência por cenário no dashboard Carga.",
+      "description": "**O que mostra:** Núcleos de CPU em uso por contêiner (rate de `container_cpu_usage_seconds_total` do cAdvisor), filtrados pela variável Container.\n\n**Normal:** Sem carga, quase tudo perto de 0. Todo serviço tem teto de CPU no compose, como disjuntor (ADR 019), e a soma passa dos núcleos do host. Na carga, sobem catalog-api-1, catalog-api-2, catalog-worker, postgres e o contêiner do k6.\n\n**Sinais de anomalia:** Contêiner colado no teto ou soma perto dos núcleos do host indica saturação, que distorce a latência; cruze com Latência por cenário no dashboard Carga.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -267,7 +267,7 @@
     {
       "type": "timeseries",
       "title": "Rede recebida e enviada",
-      "description": "**O que mostra:** Bytes por segundo recebidos (rx) e enviados (tx) por contêiner (`container_network_*_bytes_total` do cAdvisor).\n\n**Normal:** Acompanha o tráfego: na carga, catalog-api, postgres, o Collector (spans e logs) e o Prometheus (séries OTLP e remote write) recebem mais.\n\n**Sinais de anomalia:** Rx zerado num serviço ativo indica contêiner parado ou isolado; tx alto do Collector sem tráfego novo sugere reenvio. Cruze com o dashboard Pipeline de telemetria.",
+      "description": "**O que mostra:** Bytes por segundo recebidos (rx) e enviados (tx) por contêiner (`container_network_*_bytes_total` do cAdvisor).\n\n**Normal:** Acompanha o tráfego: na carga, catalog-api-1, catalog-api-2, postgres, o Collector (spans e logs) e o Prometheus (séries OTLP e remote write) recebem mais.\n\n**Sinais de anomalia:** Rx zerado num serviço ativo indica contêiner parado ou isolado; tx alto do Collector sem tráfego novo sugere reenvio. Cruze com o dashboard Pipeline de telemetria.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -434,7 +434,7 @@
     {
       "type": "logs",
       "title": "Logs dos contêineres",
-      "description": "**O que mostra:** Logs dos contêineres lidos pelo Alloy do socket do Docker, filtrados pela variável Serviço de infraestrutura (label `compose_service`, que só existe no Compose).\n\n**Normal:** Kafka, Keycloak, banco, Redis e componentes de observabilidade; catalog-api e catalog-worker ficam fora, porque mandam logs por OTLP (rótulo `dev.marketplace.telemetry=otlp`).\n\n**Sinais de anomalia:** ERROR, FATAL ou panic num serviço; cruze o horário com Início do container e OOM na janela. Logs do catálogo: dashboards Serviço e Ponta a ponta.",
+      "description": "**O que mostra:** Logs dos contêineres lidos pelo Alloy do socket do Docker, filtrados pela variável Serviço de infraestrutura (label `compose_service`, que só existe no Compose).\n\n**Normal:** Kafka, Keycloak, banco, Redis e componentes de observabilidade; catalog-api-1, catalog-api-2 e catalog-worker ficam fora, porque mandam logs por OTLP (rótulo `dev.marketplace.telemetry=otlp`).\n\n**Sinais de anomalia:** ERROR, FATAL ou panic num serviço; cruze o horário com Início do container e OOM na janela. Logs do catálogo: dashboards Serviço e Ponta a ponta.",
       "datasource": {
         "type": "loki",
         "uid": "loki"

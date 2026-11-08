@@ -48,37 +48,45 @@ x-catalog: &catalog
   cap_drop: ["ALL"]
   security_opt: ["no-new-privileges:true"]
 
+# HTTP de negócio e gravação na outbox, sem tarefas agendadas nem Kafka. Duas instâncias atrás do gateway
+# (gateway.yml), para simular redundância: `docker compose stop catalog-api-2` derruba uma, e o nginx segue na outra.
+x-catalog-api: &catalog-api
+  <<: *catalog
+  deploy:
+    resources:
+      limits: {cpus: "1", memory: 512M}
+      reservations: {memory: 128M}
+  depends_on:
+    postgres-init: {condition: service_completed_successfully}
+    redis: {condition: service_healthy}
+    keycloak: {condition: service_healthy}
+    otel-collector: {condition: service_started}
+  environment:
+    <<: *catalog-env
+    QUARKUS_PROFILE: prod,api
+    # Swagger UI só no ambiente local, na porta de gestão de cada instância: http://localhost:9301/q/swagger-ui
+    CATALOG_SWAGGER_UI_ENABLED: ${CATALOG_SWAGGER_UI_ENABLED:-true}
+
 services:
-  # HTTP de negócio e gravação na outbox, sem tarefas agendadas nem Kafka.
-  catalog-api:
-    <<: *catalog
-    deploy:
-      resources:
-        limits: {cpus: "1", memory: 512M}
-        reservations: {cpus: "0.10", memory: 128M}
-    ports:
-      - "127.0.0.1:${CATALOG_PORT:-8083}:8080"
-      - "127.0.0.1:${CATALOG_API_MANAGEMENT_PORT:-9083}:9000"
-    depends_on:
-      postgres-init: {condition: service_completed_successfully}
-      redis: {condition: service_healthy}
-      keycloak: {condition: service_healthy}
-      otel-collector: {condition: service_started}
-    environment:
-      <<: *catalog-env
-      QUARKUS_PROFILE: prod,api
-      # Swagger UI só no ambiente local: http://localhost:8083/q/swagger-ui
-      CATALOG_SWAGGER_UI_ENABLED: ${CATALOG_SWAGGER_UI_ENABLED:-true}
+  # Portas de gestão no esquema 9c0n (ADR 019): contexto 3, instância n.
+  catalog-api-1:
+    <<: *catalog-api
+    ports: ["127.0.0.1:${CATALOG_API_1_MANAGEMENT_PORT:-9301}:9000"]
+
+  catalog-api-2:
+    <<: *catalog-api
+    ports: ["127.0.0.1:${CATALOG_API_2_MANAGEMENT_PORT:-9302}:9000"]
 
   # Relay da outbox, varredor de reservas, importação, contagem de SKUs, limpeza e consumo dos vereditos do KYB/KYC.
+  # Gestão no esquema 9c1n (ADR 019).
   catalog-worker:
     <<: *catalog
     deploy:
       resources:
         limits: {cpus: "0.50", memory: 256M}
-        reservations: {cpus: "0.05", memory: 64M}
+        reservations: {memory: 64M}
     ports:
-      - "127.0.0.1:${CATALOG_WORKER_MANAGEMENT_PORT:-9084}:9000"
+      - "127.0.0.1:${CATALOG_WORKER_MANAGEMENT_PORT:-9311}:9000"
     depends_on:
       postgres-init: {condition: service_completed_successfully}
       redis: {condition: service_healthy}

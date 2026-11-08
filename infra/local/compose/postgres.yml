@@ -23,7 +23,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "1.25", memory: 1G}
-        reservations: {cpus: "0.25", memory: 256M}
+        reservations: {memory: 256M}
 
   # Idempotente, como o kafka-init: um contexto por item de command; cada um precisa das duas senhas abaixo.
   postgres-init:
@@ -31,7 +31,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.05", memory: 64M}
-        reservations: {cpus: "0.01", memory: 16M}
+        reservations: {memory: 16M}
     profiles: [infra, catalog, all]
     depends_on:
       postgres: {condition: service_healthy}

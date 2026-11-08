@@ -69,10 +69,30 @@
       "groupName": "Quarkus"
     },
     {
+      "description": "Dependências de npm saem como chore: no nx release, um fix que toca o package-lock.json da raiz versionaria todos os projetos (ADR 027)",
+      "matchManagers": [
+        "npm"
+      ],
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "O CoreUI acompanha o Angular versão a versão (ADR 028), e a lib de login também segue a versão principal do Angular",
+      "matchPackageNames": [
+        "@angular/**",
+        "@angular-devkit/**",
+        "@schematics/angular",
+        "angular-eslint",
+        "@coreui/**",
+        "angular-oauth2-oidc"
+      ],
+      "groupName": "Angular e CoreUI"
+    },
+    {
       "description": "Imagem construída neste repositório, sem registro de origem",
       "matchPackageNames": [
         "marketplace-nx/catalog-inventory",
-        "marketplace/catalog-inventory"
+        "marketplace/catalog-inventory",
+        "marketplace-nx/admin-web"
       ],
       "enabled": false
     },

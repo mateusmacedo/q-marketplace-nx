@@ -6,7 +6,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.30", memory: 768M}
-        reservations: {cpus: "0.05", memory: 128M}
+        reservations: {memory: 128M}
     profiles: [observability, all]
     command: ["-config.file=/etc/loki/loki.yaml"]
     volumes:

@@ -1,0 +1,9 @@
+# Painel (ADR 027): arquivos estáticos gerados por `nx run admin-web:build`, servidos pelo nginx sem root.
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+# WHY: com auto, o nginx sobe um worker por núcleo do host (8 aqui), mesmo sob um teto de CPU pequeno.
+USER root
+RUN sed -i -e 's/^worker_processes .*/worker_processes  2;/' -e 's/worker_connections .*/worker_connections  4096;/' /etc/nginx/nginx.conf
+USER 101
+COPY infra/docker/admin-web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY dist/apps/admin-web/browser /usr/share/nginx/html
+EXPOSE 8080

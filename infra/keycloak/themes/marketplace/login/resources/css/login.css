@@ -1,0 +1,45 @@
+/* Página de login no padrão do template CoreUI: card centralizado sobre o fundo terciário, título no tamanho h5. */
+.kc-card {
+  width: 100%;
+  max-width: 28rem;
+}
+
+#kc-page-title {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+#kc-form-options .checkbox label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* WHY: a fonte grátis do CoreUI não tem o olho aberto; o template usa o SVG próprio de src/app/icons/eye.ts. */
+.kc-icon-eye {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M256 144.927a103.309 103.309 0 1 0 103.309 103.309A103.426 103.426 0 0 0 256 144.927m0 174.618a71.309 71.309 0 1 1 71.309-71.309A71.39 71.39 0 0 1 256 319.545'/%3E%3Cpath d='m397.222 131.1-.218-.223c-77.75-77.749-204.258-77.749-282.008 0L16 233.79v28.893l98.778 102.689.218.222a199.41 199.41 0 0 0 282.008 0l99-102.911V233.79ZM464 249.79l-89.732 93.285a167.41 167.41 0 0 1-236.536 0L48 249.79v-3.107l89.729-93.283c65.247-65.13 171.3-65.13 236.542 0L464 246.683Z'/%3E%3Cpath d='M240 232h32v32h-32z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M256 144.927a103.309 103.309 0 1 0 103.309 103.309A103.426 103.426 0 0 0 256 144.927m0 174.618a71.309 71.309 0 1 1 71.309-71.309A71.39 71.39 0 0 1 256 319.545'/%3E%3Cpath d='m397.222 131.1-.218-.223c-77.75-77.749-204.258-77.749-282.008 0L16 233.79v28.893l98.778 102.689.218.222a199.41 199.41 0 0 0 282.008 0l99-102.911V233.79ZM464 249.79l-89.732 93.285a167.41 167.41 0 0 1-236.536 0L48 249.79v-3.107l89.729-93.283c65.247-65.13 171.3-65.13 236.542 0L464 246.683Z'/%3E%3Cpath d='M240 232h32v32h-32z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* O Keycloak marca o erro como alert-error; o CoreUI chama o mesmo aviso de alert-danger. */
+.alert-error {
+  --cui-alert-color: var(--cui-danger-text-emphasis);
+  --cui-alert-bg: var(--cui-danger-bg-subtle);
+  --cui-alert-border-color: var(--cui-danger-border-subtle);
+  --cui-alert-link-color: var(--cui-danger-text-emphasis);
+}
+
+/* O grupo do botão recebe o mb-3 dos campos; no fim do card, a margem ficaria duplicada com o padding. */
+#kc-form-buttons.mb-3 {
+  margin-bottom: 0 !important;
+}
+
+/* O Keycloak marca o campo inválido com aria-invalid, não com a classe is-invalid do CoreUI. */
+.form-control[aria-invalid="true"] {
+  border-color: var(--cui-form-invalid-border-color);
+}

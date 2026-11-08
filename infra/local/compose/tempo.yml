@@ -6,7 +6,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.60", memory: 2G}
-        reservations: {cpus: "0.10", memory: 256M}
+        reservations: {memory: 256M}
     profiles: [observability, all]
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     user: root

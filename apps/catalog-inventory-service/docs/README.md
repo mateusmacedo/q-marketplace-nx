@@ -457,8 +457,10 @@ docker compose -f infra/local/docker-compose.yml --profile catalog up --build
 
 | Serviço | Porta no host | Depende de |
 |---|---|---|
-| `catalog-api` | 8083 → 8080 (HTTP), 9083 → 9000 (gestão) | `postgres-init`, `redis`, `keycloak`, `otel-collector` |
-| `catalog-worker` | 9084 → 9000 (gestão) | `postgres-init`, `redis`, `kafka-init`, `otel-collector` |
+| `catalog-api-1` | 9301 → 9000 (gestão); HTTP pelo `gateway` | `postgres-init`, `redis`, `keycloak`, `otel-collector` |
+| `catalog-api-2` | 9302 → 9000 (gestão); HTTP pelo `gateway` | `postgres-init`, `redis`, `keycloak`, `otel-collector` |
+| `gateway` | 8080 (painel e `/api/catalog-inventory`), 8083 → API balanceada entre as duas instâncias | `catalog-api-1`, `catalog-api-2` |
+| `catalog-worker` | 9311 → 9000 (gestão) | `postgres-init`, `redis`, `kafka-init`, `otel-collector` |
 
 - As portas são publicadas só em `127.0.0.1`.
 - `postgres-init` roda `infra/postgres/provision.sh` (schema e roles); `kafka-init` cria os tópicos; o Keycloak importa o realm.
