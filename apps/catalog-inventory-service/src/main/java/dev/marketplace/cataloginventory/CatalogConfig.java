@@ -102,9 +102,19 @@ public interface CatalogConfig {
         @WithDefault("10s")
         Duration publishTimeout();
 
-        /** Maior espera entre tentativas quando o Kafka recusa publicações seguidas. */
+        /**
+         * Maior espera entre as tentativas de um mesmo evento; a espera dobra a cada
+         * falha, a partir de 1 s, e não pausa os eventos de outras chaves.
+         */
         @WithDefault("60s")
         Duration maxBackoff();
+
+        /**
+         * Tentativas de publicar um evento antes de estacioná-lo; o estacionado sai da
+         * fila até o reenvio manual e retém os seguintes da sua chave.
+         */
+        @WithDefault("20")
+        int maxAttempts();
 
         /** Por quanto tempo eventos já publicados ficam na outbox. */
         @WithDefault("7d")
@@ -128,11 +138,12 @@ public interface CatalogConfig {
         int purgeBatch();
 
         /**
-         * Máximo de lotes removidos por tabela numa execução da limpeza enquanto os
-         * lotes vêm cheios; a execução remove pelo menos um.
+         * Prazo de uma execução da limpeza, somado nas duas tabelas: repete lotes
+         * enquanto vêm cheios e o prazo não passou; cada tabela remove pelo menos um
+         * lote. Fica abaixo do {@code purgeInterval} para a limpeza ser contínua.
          */
-        @WithDefault("10")
-        int purgeMaxBatches();
+        @WithDefault("50s")
+        Duration purgeMaxDuration();
 
         /**
          * Novas tentativas de um veredito KYB com falha técnica antes de enviá-lo à

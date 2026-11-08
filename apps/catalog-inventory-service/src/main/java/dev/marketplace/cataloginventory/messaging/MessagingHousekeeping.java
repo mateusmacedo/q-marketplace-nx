@@ -36,8 +36,8 @@ public class MessagingHousekeeping {
 
     /**
      * Remove os eventos publicados e as entregas consumidas fora da retenção, em
-     * lotes repetidos enquanto vêm cheios, até {@code purgeMaxBatches} por tabela.
-     * O total removido das duas tabelas vai no atributo {@code marketplace.purge.removed}
+     * lotes repetidos enquanto vêm cheios, até {@code purgeMaxDuration} somando as
+     * duas tabelas. O total removido vai no atributo {@code marketplace.purge.removed}
      * do span da execução. Falha é registrada e a execução seguinte tenta de novo.
      */
     @Scheduled(identity = "messaging-purge", every = "${catalog.events.purge-interval}", concurrentExecution = SKIP,
@@ -46,7 +46,7 @@ public class MessagingHousekeeping {
         Instant now = clock.instant();
         Span job = Span.current();
         return lifecycle.job(() -> outbox.purge(now.minus(config.outboxRetention()), now.minus(config.inboxRetention()),
-                config.purgeBatch(), config.purgeMaxBatches())
+                config.purgeBatch(), config.purgeMaxDuration())
                 .invoke(removed -> {
                     job.setAttribute("marketplace.purge.removed", removed);
                     if (removed > 0)

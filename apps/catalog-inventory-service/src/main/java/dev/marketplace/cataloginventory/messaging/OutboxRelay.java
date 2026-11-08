@@ -25,7 +25,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +40,9 @@ import static io.quarkus.scheduler.Scheduled.ConcurrentExecution.SKIP;
 
 /**
  * Publica a outbox no Kafka. Só marca o evento como publicado depois da
- * confirmação do broker; falha mantém o evento
- * pendente e espaça as tentativas seguintes, até
- * {@code catalog.events.max-backoff}.
+ * confirmação do broker; falha adia só aquele evento, até
+ * {@code catalog.events.max-backoff}, e o estaciona depois de
+ * {@code catalog.events.max-attempts} tentativas, sem pausar as outras chaves.
  */
 @ApplicationScoped
 public class OutboxRelay {
@@ -62,9 +61,8 @@ public class OutboxRelay {
         private final Counter failures;
         private final Timer lag;
         private final AtomicLong pending = new AtomicLong();
+        private final AtomicLong parked = new AtomicLong();
         private final AtomicLong oldestAgeSeconds = new AtomicLong();
-        private volatile int consecutiveFailures;
-        private volatile Instant pausedUntil = Instant.MIN;
 
         OutboxRelay(@Channel("catalog-events") MutinyEmitter<String> emitter, PgOutbox outbox, CatalogConfig config,
                         Clock clock,
@@ -86,22 +84,22 @@ public class OutboxRelay {
                 Gauge.builder("catalog.outbox.pending", pending, AtomicLong::get)
                                 .description("Eventos aguardando publicação")
                                 .register(registry);
+                Gauge.builder("catalog.outbox.parked", parked, AtomicLong::get)
+                                .description("Eventos estacionados depois de esgotar as tentativas")
+                                .register(registry);
                 Gauge.builder("catalog.outbox.oldest.age", oldestAgeSeconds, AtomicLong::get).baseUnit("seconds")
                                 .description("Idade do evento pendente mais antigo").register(registry);
         }
 
         /**
          * Publica lotes cheios, até {@code relayMaxBatches} por execução, e atualiza as métricas de pendência; o span
-         * recebe {@code marketplace.outbox.published} e {@code .failed}. No backoff não faz nada; falha fica no log.
+         * recebe {@code marketplace.outbox.published} e {@code .failed}. Falha fica no log.
          */
         // WHY: o primeiro disparo espera o Reactive Messaging ligar o canal; antes
         // disso, criar o emissor falha (SRMSG00019).
         @Scheduled(identity = "outbox-relay", every = "${catalog.events.relay-interval}", delayed = "3s", concurrentExecution = SKIP,
                 skipExecutionIf = ApplicationNotRunning.class)
         public Uni<Void> relay() {
-                Instant now = clock.instant();
-                if (now.isBefore(pausedUntil))
-                        return Uni.createFrom().voidItem();
                 Span job = Span.current();
                 return lifecycle.job(() -> drain(config.relayMaxBatches(), RelayRun.NONE)
                                 .invoke(run -> {
@@ -112,6 +110,7 @@ public class OutboxRelay {
                                 .flatMap(ignored -> outbox.backlog())
                                 .invoke(backlog -> {
                                         pending.set(backlog.pending());
+                                        parked.set(backlog.parked());
                                         oldestAgeSeconds.set(
                                                         backlog.oldest().map(o -> Duration.between(o, clock.instant())
                                                                         .toSeconds()).orElse(0L));
@@ -129,7 +128,8 @@ public class OutboxRelay {
         // WHY: a trava sai no commit de cada lote, e o lote seguinte só lê depois dele;
         // outro pod que tome a vez no intervalo continua do ponto já confirmado, na ordem.
         private Uni<RelayRun> drain(int remaining, RelayRun total) {
-                return outbox.relay(config.relayBatch(), clock.instant(), this::publish).flatMap(run -> {
+                return outbox.relay(config.relayBatch(), clock.instant(), config.maxBackoff(), config.maxAttempts(),
+                                this::publish).flatMap(run -> {
                         count(run);
                         RelayRun sum = total.plus(run);
                         if (run.handled() < config.relayBatch() || run.failed() > 0 || remaining <= 1)
@@ -199,20 +199,10 @@ public class OutboxRelay {
                 failures.increment(run.failed());
         }
 
-        /**
-         * Atualiza o backoff da execução: sem falhas, libera o relay; com falhas,
-         * pausa por {@code 2^n} segundos (n = ciclos seguidos com falha), limitado a
-         * {@code maxBackoff}.
-         */
+        /** Registra no log as falhas da execução; a espera é de cada evento, gravada na outbox. */
         private void afterRun(RelayRun run) {
-                if (run.failed() == 0) {
-                        consecutiveFailures = 0;
-                        pausedUntil = Instant.MIN;
-                        return;
-                }
-                consecutiveFailures++;
-                long seconds = Math.min(config.maxBackoff().toSeconds(), 1L << Math.min(consecutiveFailures, 16));
-                pausedUntil = clock.instant().plusSeconds(seconds);
-                LOG.warnf("%d evento(s) sem confirmação do Kafka; nova tentativa em %ds", run.failed(), seconds);
+                if (run.failed() > 0)
+                        LOG.warnf("%d evento(s) sem confirmação do Kafka; cada um espera a própria nova tentativa, até %ds",
+                                        run.failed(), config.maxBackoff().toSeconds());
         }
 }
