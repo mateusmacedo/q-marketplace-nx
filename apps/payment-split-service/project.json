@@ -1,0 +1,32 @@
+{
+  "name": "payment-split-service",
+  "projectType": "application",
+  "tags": [
+    "scope:payment-split",
+    "layer:service",
+    "lang:java"
+  ],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/gradle.mjs :payment-split-service:quarkusDev"
+      }
+    },
+    "native": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/gradle.mjs :payment-split-service:assemble -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true"
+      }
+    },
+    "container": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "native"
+      ],
+      "options": {
+        "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=payment-split-service -t marketplace/payment-split:local ."
+      }
+    }
+  }
+}
