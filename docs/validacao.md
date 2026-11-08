@@ -6,7 +6,7 @@
 |---|---|
 | `npm run check` | 20 testes do verificador aprovados; 24 módulos Java em 8 contextos conformes (ADR 010) |
 | `npm test` (Nx, `nx run-many -t test`) | 242 testes, 0 falhas: 220 s sem cache, 171 s com `--batch` e 10 s vindo do cache (ADR 025) |
-| Testes do catálogo | 253 executados, 0 falhas, 0 pulados: domínio 90, aplicação 55, serviço 108 (9 do cache, ADR 024), contando os limites dos números de atributo e do CSV; as únicas linhas de log `ERROR` são as 2 do teste que força `RecordTooLargeException` |
+| Testes do catálogo | 257 executados, 0 falhas, 0 pulados: domínio 90, aplicação 55, serviço 112 (9 do cache, ADR 024), contando os limites dos números de atributo e do CSV, o `If-Match: *`, o varredor com `SKIP LOCKED` e a espera e o estacionamento da outbox; as únicas linhas de log `ERROR` são as 8 do produtor Kafka (SRMSG18206 e SRMSG18212) nos testes do `OutboxBatchesTest` que forçam a falha de publicação |
 | `npm run build` (Nx, `nx run-many -t assemble`) | concluído em 65 s, sem cache (ADR 025) |
 | Projetos inferidos do Gradle (ADR 025) | as mesmas 24 dependências entre módulos de antes, agora tiradas do Gradle, mais o projeto raiz `marketplace`, só com tarefas utilitárias; `npm run check` aprovado com os 20 testes do verificador; `npm run smoke` em 22 s, com os 8 serviços OK |
 | `npm run smoke` | 8 serviços com saúde UP e contexto identificado; o catálogo sobe com PostgreSQL e Kafka efêmeros em contêiner, sem Redis e com o cache desligado, o padrão de produção |
