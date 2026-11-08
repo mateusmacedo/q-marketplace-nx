@@ -8,9 +8,8 @@ describe('DefaultFooterComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-    imports: [DefaultFooterComponent]
-})
-    .compileComponents();
+      imports: [DefaultFooterComponent]
+    }).compileComponents();
   });
 
   beforeEach(() => {

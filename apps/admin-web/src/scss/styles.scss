@@ -1,12 +1,5 @@
-/* You can add global styles to this file, and also import other style files */
-
-// Import styles with default layout.
 @use "@coreui/coreui/scss/coreui" as * with (
   $enable-deprecation-messages: false
 );
-
-// Custom styles for this theme
 @use "theme";
-
-// If you want to add custom CSS you can put it here.
 @use "custom";

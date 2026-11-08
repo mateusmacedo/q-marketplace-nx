@@ -1,7 +1,7 @@
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { ActivatedRoute, RouterOutlet } from '@angular/router';
 import { delay, filter, map, tap } from 'rxjs/operators';
 
 import { ColorModeService } from '@coreui/angular';
@@ -18,7 +18,6 @@ export class AppComponent implements OnInit {
 
   readonly #destroyRef: DestroyRef = inject(DestroyRef);
   readonly #activatedRoute: ActivatedRoute = inject(ActivatedRoute);
-  readonly #router = inject(Router);
   readonly #titleService = inject(Title);
 
   readonly #colorModeService = inject(ColorModeService);
@@ -33,15 +32,6 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
-
-    this.#router.events.pipe(
-      takeUntilDestroyed(this.#destroyRef)
-    ).subscribe((evt) => {
-      if (!(evt instanceof NavigationEnd)) {
-        return;
-      }
-    });
-
     this.#activatedRoute.queryParams
       .pipe(
         delay(1),
