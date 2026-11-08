@@ -15,6 +15,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
+import org.jboss.logging.Logger;
 
 /**
  * Reservas como transações atômicas. Saldos são
@@ -25,6 +26,7 @@ import java.util.function.Function;
 @ApplicationScoped
 @Traced
 public class PgReservationRepository implements ReservationRepository {
+        private static final Logger LOG = Logger.getLogger(PgReservationRepository.class);
         private static final String COLUMNS = "id, tenant_id, idempotency_key, request_hash, order_ref, status, created_at, expires_at, closed_at";
         private static final String INSERT = """
                         INSERT INTO inventory_reservation (id, tenant_id, idempotency_key, request_hash, order_ref, status, created_at, expires_at)
@@ -53,7 +55,15 @@ public class PgReservationRepository implements ReservationRepository {
                         + COLUMNS;
         private static final String DUE = "SELECT tenant_id, id FROM inventory_reservation"
                         + " WHERE status = 'ACTIVE' AND expires_at <= $1 ORDER BY expires_at LIMIT $2";
-        private static final String EXPIRE = CLOSE + " AND expires_at <= $4 RETURNING " + COLUMNS;
+        // WHY: SKIP LOCKED faz a réplica pular a reserva que outra está expirando (ou que uma confirmação está
+        // fechando), em vez de esperar a trava; a reserva pulada volta no ciclo seguinte se ainda estiver ativa.
+        private static final String EXPIRE = """
+                        WITH due AS (
+                            SELECT id FROM inventory_reservation
+                            WHERE tenant_id = $1 AND id = $2 AND status = 'ACTIVE' AND expires_at <= $4
+                            FOR UPDATE SKIP LOCKED)
+                        UPDATE inventory_reservation SET status = $3, closed_at = $4
+                        WHERE tenant_id = $1 AND id IN (SELECT id FROM due)""" + " RETURNING " + COLUMNS;
         private static final String ITEMS = """
                         SELECT reservation_id, sku_id, product_id, store_id, quantity, currency, unit_price, price_version
                         FROM inventory_reservation_item WHERE reservation_id = ANY ($1::uuid[]) ORDER BY reservation_id, sku_id""";
@@ -139,10 +149,12 @@ public class PgReservationRepository implements ReservationRepository {
         @Override
         public Uni<Integer> expireDue(Instant at, int batch) {
                 // WHY: cada reserva expira na própria transação e trava o saldo na ordem canônica dos SKUs, como as
-                // demais operações, o que evita deadlock; o UPDATE condicional (status ACTIVE e prazo vencido)
-                // impede que dois pods expirem a mesma reserva.
+                // demais operações, o que evita deadlock; o UPDATE condicional (status ACTIVE e prazo vencido), com a
+                // linha travada por SKIP LOCKED, impede que dois pods expirem a mesma reserva sem que um espere o outro.
                 // WHY: EventOrigin.current() roda dentro da etapa para que o evento da expiração saia no trace dela; o
                 // tenant entra na etapa porque a consulta DUE cruza tenants.
+                // WHY: a falha de uma reserva não aborta as seguintes do lote; ela continua vencida e volta no
+                // próximo ciclo.
                 return pg.bounded(pool.preparedQuery(DUE).execute(Tuple.of(PgSupport.utc(at), batch)))
                                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                                 .onItem().transformToUniAndConcatenate(row -> lifecycle.step("reservation expire", () -> {
@@ -151,6 +163,11 @@ public class PgReservationRepository implements ReservationRepository {
                                                         return transition(row.getUUID("tenant_id"), row.getUUID("id"),
                                                                         EXPIRE, ReservationStatus.EXPIRED, at,
                                                                         RETURN_STOCK, EventOrigin.current());
+                                                })
+                                                .onFailure().recoverWithItem(e -> {
+                                                        LOG.warnf(e, "Falha ao expirar a reserva %s; nova tentativa no próximo ciclo",
+                                                                        row.getUUID("id"));
+                                                        return Optional.<Reservation>empty();
                                                 }))
                                 .filter(Optional::isPresent)
                                 .collect().asList().map(List::size);

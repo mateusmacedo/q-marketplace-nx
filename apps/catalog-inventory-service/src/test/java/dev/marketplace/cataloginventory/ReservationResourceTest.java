@@ -4,6 +4,8 @@ import dev.marketplace.cataloginventory.domain.inventory.ReservationPolicy;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.SqlConnection;
+import io.vertx.mutiny.sqlclient.Transaction;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
@@ -177,6 +179,38 @@ class ReservationResourceTest {
                                 "status",
                                 is("EXPIRED"));
                 s.inventory(s.m).body("available", is(3));
+        }
+
+        /**
+         * Outra réplica expirando a reserva trava a linha dela; o varredor pula essa
+         * reserva, sem esperar a trava, e expira as demais do lote.
+         */
+        @Test
+        void sweeperSkipsReservationLockedElsewhereAndExpiresItLater() throws Exception {
+                Scenario s = new Scenario();
+                String locked = s.reserve("{\"ttlSeconds\":1,\"items\":[" + s.item(s.p, 1, "50") + "]}")
+                                .statusCode(201).extract().path("id");
+                String free = s.reserve("{\"ttlSeconds\":1,\"items\":[" + s.item(s.m, 3, "60") + "]}")
+                                .statusCode(201).extract().path("id");
+                Thread.sleep(1200);
+                SqlConnection conn = pool.getConnection().await().atMost(Duration.ofSeconds(10));
+                try {
+                        Transaction tx = conn.begin().await().atMost(Duration.ofSeconds(10));
+                        conn.preparedQuery("SELECT id FROM inventory_reservation WHERE id = $1 FOR UPDATE")
+                                        .execute(Tuple.of(UUID.fromString(locked))).await()
+                                        .atMost(Duration.ofSeconds(10));
+                        sweeper.sweep().await().atMost(Duration.ofSeconds(10));
+                        as(s.api.checkout).get("/inventory/reservations/" + free).then().body("status", is("EXPIRED"));
+                        s.inventory(s.m).body("reserved", is(0)).body("available", is(3));
+                        as(s.api.checkout).get("/inventory/reservations/" + locked).then().body("status", is("ACTIVE"));
+                        s.inventory(s.p).body("reserved", is(1));
+                        tx.rollback().await().atMost(Duration.ofSeconds(10));
+                } finally {
+                        conn.close().await().atMost(Duration.ofSeconds(10));
+                }
+                sweeper.sweep().await().atMost(Duration.ofSeconds(10));
+                as(s.api.checkout).get("/inventory/reservations/" + locked).then().body("status", is("EXPIRED"));
+                s.inventory(s.p).body("reserved", is(0)).body("available", is(1));
         }
 
         @Test
