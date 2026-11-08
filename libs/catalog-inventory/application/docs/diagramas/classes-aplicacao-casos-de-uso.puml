@@ -1,0 +1,152 @@
+@startuml classes-aplicacao-casos-de-uso
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+title Aplicação: operações dos casos de uso e do apoio de acesso (as portas estão em portas-e-casos-de-uso)
+
+hide empty members
+skinparam nodesep 20
+skinparam ranksep 40
+skinparam ClassBackgroundColor<<final>> $COR_APLICACAO
+skinparam ClassBorderColor<<final>> $BORDA_APLICACAO
+
+class ProductService <<final>> {
+  ProductService(products, categories, sellers, offers, clock)
+  --
+  create(actor, categoryId, currency, title, description, attributes, skus) : Uni<Product>
+  get(actor, id) : Uni<Product>
+  list(actor, status, storeFilter, afterId, limit) : Uni<Page<Product>>
+  history(actor, id) : Uni<List<StatusChange>>
+  reviseContent(actor, id, ifMatch, categoryId, title, description, attributes) : Uni<Product>
+  addSku(actor, id, ifMatch, sku : NewSku) : Uni<Product>
+  reviseSku(actor, id, skuId, ifMatch, variantAttributes, physical, dimensions) : Uni<Product>
+  removeSku(actor, id, skuId, ifMatch) : Uni<Product>
+  submit(actor, id, ifMatch) : Uni<Product>
+  pause(actor, id, ifMatch) : Uni<Product>
+  resume(actor, id, ifMatch) : Uni<Product>
+  archive(actor, id, ifMatch) : Uni<Product>
+}
+class ModerationService <<final>> {
+  ModerationService(products, categories, sellers, offers, clock)
+  --
+  queue(actor, afterId, limit) : Uni<Page<Product>>
+  approve(actor, id, ifMatch) : Uni<Product>
+  reject(actor, id, ifMatch, reason) : Uni<Product>
+  block(actor, id, ifMatch, reason) : Uni<Product>
+  unblock(actor, id, ifMatch) : Uni<Product>
+}
+class ProductSupport <<final, pacote privado>> #FFFFFF;line:64B5F6;line.dashed {
+  ProductSupport(products, categories, sellers, offers, clock)
+  --
+  products() : ProductRepository
+  now() : Instant
+  category(tenantId, categoryId) : Uni<CategoryView>
+  categoryOf(product) : Uni<CategoryView>
+  publicationOf(product) : Uni<PublicationContext>
+  sellerOf(product) : Uni<SellerStatus>
+  mutateOwned(actor, id, ifMatch, change) : Uni<Product>
+  mutateAsModerator(actor, id, ifMatch, change) : Uni<Product>
+  {static} sync(mutation) : Function<Product, Uni<?>>
+}
+class ProductAccess <<final, pacote privado>> #FFFFFF;line:64B5F6;line.dashed {
+  ProductAccess(products)
+  --
+  visible(actor, productId) : Uni<Product>
+  visibleBySku(actor, skuId) : Uni<Product>
+  inTenant(tenantId, productId) : Uni<Product>
+  owned(actor, productId) : Uni<Product>
+  ownedBySku(actor, skuId) : Uni<Product>
+  ownedBySku(actor, skuId, operation) : Uni<Product>
+  {static} listScope(actor, storeFilter) : Optional<UUID>
+  {static} requireSeller(actor) : UUID
+}
+class OfferService <<final>> {
+  OfferService(products, offers, clock)
+  --
+  get(actor, skuId) : Uni<Offer>
+  define(actor, skuId, ifMatch, price) : Uni<Defined>
+  schedulePromotion(actor, skuId, ifMatch, promotionId, salePrice, startsAt, endsAt) : Uni<Offer>
+  cancelPromotion(actor, skuId, promotionId, ifMatch) : Uni<Offer>
+}
+class InventoryService <<final>> {
+  InventoryService(inventory, products, clock)
+  --
+  stockOf(products) : Uni<Map<UUID, StockLevel>>
+  get(actor, skuId) : Uni<StockLevel>
+  adjust(actor, skuId, ifMatch, onHand) : Uni<StockLevel>
+}
+class StorefrontService <<final>> {
+  StorefrontService(products, sellers, offers)
+  --
+  get(tenantId, productId) : Uni<StorefrontProduct>
+}
+class CategoryService <<final>> {
+  CategoryService(categories)
+  --
+  create(actor, parentId, code, name, attributes) : Uni<CategoryView>
+  get(actor, id) : Uni<CategoryView>
+  revise(actor, id, ifMatch, name, attributes, active) : Uni<CategoryView>
+  move(actor, id, ifMatch, parentId) : Uni<CategoryView>
+  children(actor, parentId, afterCode, limit) : Uni<Page<Category>>
+}
+class SellerEligibilityService <<final>> {
+  {static} CONSUMER = "catalog-inventory.seller-eligibility"
+  SellerEligibilityService(sellers)
+  --
+  get(actor, storeId) : Uni<SellerStatus>
+  record(verdict) : Uni<SellerVerdict.Outcome>
+}
+class ReservationService <<final>> {
+  ReservationService(reservations, inventory, settings, clock)
+  --
+  reserve(actor, request) : Uni<Result>
+  get(actor, id) : Uni<Reservation>
+  release(actor, id) : Uni<Reservation>
+  commit(actor, id) : Uni<Reservation>
+  extend(actor, id, ttl) : Uni<Reservation>
+  expireDue(batch) : Uni<Integer>
+  ~{static} hash(request) : String
+}
+class ProductImportService <<final>> {
+  ProductImportService(imports, products, categories, offers, productService, offerService, inventoryService, clock)
+  --
+  submit(actor, content, totalLines) : Uni<ProductImport>
+  get(actor, id) : Uni<Report>
+  claimNext(lease) : Uni<Optional<Claimed>>
+  process(job, rows) : Uni<List<ImportResult>>
+}
+
+ProductService --> ProductSupport
+ModerationService --> ProductSupport
+ProductSupport --> ProductAccess
+OfferService --> ProductAccess
+InventoryService --> ProductAccess
+StorefrontService --> ProductAccess
+ProductImportService --> ProductAccess
+ProductImportService --> ProductService : create
+ProductImportService --> OfferService : define
+ProductImportService --> InventoryService : get / adjust
+
+ProductService -[hidden]right- ModerationService
+ModerationService -[hidden]right- ProductSupport
+ProductSupport -[hidden]right- ProductAccess
+ProductService -[hidden]down- OfferService
+OfferService -[hidden]right- InventoryService
+InventoryService -[hidden]right- StorefrontService
+StorefrontService -[hidden]right- CategoryService
+OfferService -[hidden]down- ReservationService
+ReservationService -[hidden]right- SellerEligibilityService
+SellerEligibilityService -[hidden]right- ProductImportService
+
+note bottom of ProductAccess
+  Os casos de uso são Java puro com Mutiny: recebem as portas (repositórios) e o Clock
+  no construtor, montados em CatalogBeans. As operações de usuário recebem o Actor;
+  as operações de escrita com If-Match recebem a versão esperada como Optional<Long>.
+  As setas para as portas estão em portas-e-casos-de-uso.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#1565C0>    </back> Caso de uso público (final)
+  <back:#64B5F6>    </back> Apoio de acesso (pacote privado, tracejado)
+  Seta: dependência entre casos de uso e apoio
+endlegend
+@enduml

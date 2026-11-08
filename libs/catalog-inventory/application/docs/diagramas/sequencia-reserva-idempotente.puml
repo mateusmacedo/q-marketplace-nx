@@ -1,12 +1,19 @@
 @startuml sequencia-reserva-idempotente
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
 title Reserva idempotente em ReservationService.reserve
 autonumber
 
-participant "Checkout / OMS\n(via API)" as client
-participant ReservationService as svc
-participant "InventoryRepository" as inv <<interface>>
-participant "ReservationPolicy\n(domínio)" as policy
-participant "ReservationRepository" as repo <<interface>>
+participant "$I_SISTEMA\nCheckout / OMS\n(via API)" as client <<ator>>
+box "Aplicação" #F5FAFF
+  participant "$I_ESTOQUE\nReservationService" as svc <<aplicacao>>
+end box
+box "Domínio" #F6FBF6
+  participant "$I_DOMINIO\nReservationPolicy\n(domínio)" as policy <<dominio>>
+end box
+box "Saída (portas)" #FBF6FC
+  participant "$I_REPOSITORIO\nInventoryRepository\n<size:10><i>«interface»</i></size>" as inv <<saida>>
+  participant "$I_REPOSITORIO\nReservationRepository\n<size:10><i>«interface»</i></size>" as repo <<saida>>
+end box
 
 client -> svc : reserve(actor, request)
 svc -> svc : require(MANAGE_RESERVATIONS)\nvalida chave [\\x21-\\x7E]{1,255}\nhash = SHA-256 canônico
@@ -33,7 +40,7 @@ note right : sem nova checagem de saldo,\npreço ou status da reserva
 svc -> repo : findByIdempotencyKey(tenant, chave)
 repo --> svc : reserva existente
 svc -> svc : replay: requestHash != hash
-svc --> client : DomainRuleViolation\nidempotency-key-reused (422)
+svc -[#C62828]-> client : <color:#C62828>DomainRuleViolation\n<color:#C62828>idempotency-key-reused (422)
 
 == Corrida: duas chamadas com a mesma chave nova ==
 svc -> repo : findByIdempotencyKey(tenant, chave)
@@ -41,14 +48,24 @@ repo --> svc : vazio (a outra ainda não gravou)
 svc -> inv : candidates(tenant, skuIds)
 svc -> policy : open(...)
 svc -> repo : insert(reserva)
-repo --> svc : DuplicateException\n(a outra gravou primeiro)
+repo -[#C62828]-> svc : <color:#C62828>DuplicateException\n<color:#C62828>(a outra gravou primeiro)
 svc -> repo : findByIdempotencyKey(tenant, chave)
-alt reserva encontrada e mesmo hash
+alt #E8F5E9 reserva encontrada e mesmo hash
   repo --> svc : reserva da outra chamada
   svc --> client : Result(reserva, replayed = true)
-else reserva encontrada e hash diferente
-  svc --> client : idempotency-key-reused (422)
-else reserva não encontrada
-  svc --> client : ConcurrentUpdateException (409)
+else #FFEBEE reserva encontrada e hash diferente
+  svc -[#C62828]-> client : <color:#C62828>idempotency-key-reused (422)
+else #FFEBEE reserva não encontrada
+  svc -[#C62828]-> client : <color:#C62828>ConcurrentUpdateException (409)
 end
+
+legend right
+  <b>Leitura</b>
+  <back:#F9A825>    </back> Cliente externo
+  <back:#1565C0>    </back> Aplicação (caso de uso)
+  <back:#2E7D32>    </back> Domínio
+  <back:#6A1B9A>    </back> Saída (portas)
+  <back:#66BB6A>    </back> Caminho feliz
+  <back:#E57373>    </back> Falha ou recusa (status HTTP / problem)
+endlegend
 @enduml

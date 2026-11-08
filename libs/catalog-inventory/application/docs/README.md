@@ -39,7 +39,19 @@ Arquivos PlantUML em [`diagramas/`](diagramas). Para renderizar, veja o comando 
 
 | Diagrama | O que mostra e como ler |
 |---|---|
-| [casos-de-uso.puml](diagramas/casos-de-uso.puml) | Atores (seller, moderador, admin, comprador, checkout/OMS, worker, KYB/KYC) e as operações de cada serviço. `<<include>>` indica o que a importação reaproveita. |
+| [casos-de-uso.puml](diagramas/casos-de-uso.puml) | Visão geral: 7 atores e os 44 casos de uso (as 42 operações públicas, uma por caso, mais 2 extensões) em pacotes por serviço. Associações seguem os `@RolesAllowed`; `<<include>>` e `<<extend>>` só onde o código confirma. |
+| [casos-de-uso-produto.puml](diagramas/casos-de-uso-produto.puml) | `ProductService`: as 12 operações, o `<<include>>` de `stockOf` e a extensão que devolve o produto publicado à moderação (`REVIEW_REQUIRED`), com notas de papel, estado, `If-Match` e erros. |
+| [casos-de-uso-moderacao.puml](diagramas/casos-de-uso-moderacao.puml) | `ModerationService`: fila, aprovar, rejeitar, bloquear e desbloquear. Somente o papel `catalog-moderator`. |
+| [casos-de-uso-oferta.puml](diagramas/casos-de-uso-oferta.puml) | `OfferService`: consultar, definir ou trocar preço (`If-Match` só na troca), agendar e cancelar promoção. |
+| [casos-de-uso-estoque.puml](diagramas/casos-de-uso-estoque.puml) | `InventoryService`: `stockOf` (sem ator, chamado pelos adaptadores), `get`, `adjust` e os `<<include>>` vindos de `process`. |
+| [casos-de-uso-importacao.puml](diagramas/casos-de-uso-importacao.puml) | `ProductImportService`: seller envia e acompanha; o worker reivindica e processa, incluindo `create`, `define`, `get` e `adjust`. |
+| [casos-de-uso-categoria.puml](diagramas/casos-de-uso-categoria.puml) | `CategoryService`: escrita só para admin; leitura para seller, moderador e admin. |
+| [casos-de-uso-reserva.puml](diagramas/casos-de-uso-reserva.puml) | `ReservationService`: checkout/OMS e o worker (`expireDue`), com a extensão do replay idempotente. |
+| [casos-de-uso-elegibilidade.puml](diagramas/casos-de-uso-elegibilidade.puml) | `SellerEligibilityService`: `get` (seller e admin) e `record` (KYB/KYC via Kafka). |
+| [casos-de-uso-vitrine.puml](diagramas/casos-de-uso-vitrine.puml) | `StorefrontService`: comprador anônimo, com `<<include>>` de `stockOf`. |
+| [classes-aplicacao.puml](diagramas/classes-aplicacao.puml) | `Actor`, `Capability`, `Page`, `Versions`, `SellerVerdict`, as 7 exceções e os records aninhados nos casos de uso. |
+| [classes-aplicacao-importacao.puml](diagramas/classes-aplicacao-importacao.puml) | Tipos da importação: `ImportRow`, `ImportResult`, `ProductImport`, `Claimed`, `Report` e os tipos privados do plano por unidade. |
+| [classes-aplicacao-casos-de-uso.puml](diagramas/classes-aplicacao-casos-de-uso.puml) | Assinaturas das operações dos 9 casos de uso e de `ProductSupport`/`ProductAccess`. |
 | [portas-e-casos-de-uso.puml](diagramas/portas-e-casos-de-uso.puml) | Serviços → `ProductSupport`/`ProductAccess` → portas `<<interface>>`. O pacote tracejado é o serviço: `Pg*`, decorators de invalidação e `TaxonomyCache.over()`. |
 | [sequencia-reserva-idempotente.puml](diagramas/sequencia-reserva-idempotente.puml) | `reserve` em quatro casos: chave nova, replay idêntico, chave reutilizada com outro corpo e corrida entre duas chamadas. |
 | [estados-importacao.puml](diagramas/estados-importacao.puml) | `ImportStatus`: `PENDING`, `PROCESSING` (com renovação e retomada após o lease) e `COMPLETED`. |

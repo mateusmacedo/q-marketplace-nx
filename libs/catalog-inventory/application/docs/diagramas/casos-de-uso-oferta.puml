@@ -1,0 +1,79 @@
+@startuml casos-de-uso-oferta
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/clipboard_list>
+title Casos de uso de OfferService
+left to right direction
+hide stereotype
+
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+
+package "$I_OFERTA OfferService" as OfferService <<aplicacao>> {
+  usecase "Consultar oferta do SKU\n(get)" as UC_get <<leitura>>
+  usecase "Definir oferta ou trocar preço\n(define)" as UC_define
+  usecase "Agendar promoção\n(schedulePromotion)" as UC_schedulePromotion
+  usecase "Cancelar promoção\n(cancelPromotion)" as UC_cancelPromotion
+}
+
+seller --> UC_get
+seller --> UC_define
+seller --> UC_schedulePromotion
+seller --> UC_cancelPromotion
+
+moderator --> UC_get
+admin --> UC_get
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_get
+    **get**
+    Seller vê só a própria loja; moderador e admin,
+    qualquer loja do tenant (visibilidade de
+    ProductService.get). Fora do alcance: <color:#C62828>404</color>.
+    SKU desconhecido ou sem oferta: <color:#C62828>404</color>.
+    Devolve o preço vigente no instante da consulta;
+    ETag = versão da oferta.
+  end note
+  note as N_define
+    **define**
+    Só o seller dono. Produto arquivado congela a
+    oferta (<color:#C62828>invalid-transition</color>, <color:#C62828>409</color>).
+    Sem oferta: cria na moeda do produto (<color:#2E7D32>201</color>);
+    If-Match numa oferta que não existe: <color:#C62828>412</color>.
+    Com oferta: troca o preço (<color:#2E7D32>200</color>) e exige If-Match
+    (<color:#C62828>428</color> ausente, <color:#C62828>412</color> divergente); é a única operação
+    em que o próprio serviço, e não só a API, o exige.
+    Preço fora da moeda do produto: <color:#C62828>currency-mismatch</color>.
+    Não devolve o produto à moderação.
+  end note
+  note as N_schedulePromotion
+    **schedulePromotion**
+    Só o seller dono; produto não arquivado e SKU com
+    oferta (<color:#C62828>404</color>). If-Match opcional (<color:#C62828>412</color>).
+    <color:#C62828>promotion-overlap</color> (sobrepõe outra),
+    <color:#C62828>promotion-above-list-price</color>, <color:#C62828>invalid-value</color> (já
+    terminou, outra moeda ou mais de 20 pendentes).
+    Publica o evento de preço; API: <color:#2E7D32>201</color> com Location
+    da promoção.
+  end note
+  note as N_cancelPromotion
+    **cancelPromotion**
+    Só o seller dono; produto não arquivado e SKU com
+    oferta. If-Match opcional (<color:#C62828>412</color>).
+    <color:#C62828>promotion-not-found</color> (id fora da oferta) e
+    <color:#C62828>promotion-ended</color> (já encerrada), ambos <color:#C62828>422</color>.
+    Publica o evento de preço.
+  end note
+}
+
+N_get -[hidden]left-> N_define
+N_define -[hidden]left-> N_schedulePromotion
+N_schedulePromotion -[hidden]left-> N_cancelPromotion
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <color:#C62828>código</color> recusa (problem, 4xx); <color:#2E7D32>2xx</color> sucesso
+endlegend
+@enduml

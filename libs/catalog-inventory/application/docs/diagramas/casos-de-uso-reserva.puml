@@ -1,0 +1,117 @@
+@startuml casos-de-uso-reserva
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/cart_arrow_down>
+!include <tupadr3/font-awesome-5/clipboard_list>
+title Casos de uso de ReservationService
+left to right direction
+hide stereotype
+
+actor "$I_SISTEMA\nCheckout / OMS\n(catalog-reservations)" as checkout
+actor "$I_WORKER\nWorker" as worker <<sistema>>
+
+package "<$cart_arrow_down,scale=0.8,color=#1565C0> ReservationService" as ReservationService <<aplicacao>> {
+  usecase "Reservar estoque\n(reserve)" as UC_reserve
+  usecase "Reaproveitar reserva existente\n(replayed)" as UC_replay
+  usecase "Consultar reserva\n(get)" as UC_get <<leitura>>
+  usecase "Liberar reserva\n(release)" as UC_release
+  usecase "Confirmar reserva\n(commit)" as UC_commit
+  usecase "Estender reserva\n(extend)" as UC_extend
+  usecase "Expirar reservas vencidas\n(expireDue)" as UC_expireDue <<sistema>>
+}
+
+checkout --> UC_reserve
+checkout --> UC_get
+checkout --> UC_release
+checkout --> UC_commit
+checkout --> UC_extend
+UC_expireDue <-- worker
+
+UC_replay ..> UC_reserve : <<extend>>
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_reserve
+    **reserve**
+    Exige catalog-reservations (MANAGE_RESERVATIONS).
+    Idempotency-Key obrigatório, de 1 a 255 caracteres
+    visíveis (<color:#C62828>400</color>).
+    De 1 a 100 itens, orderRef de até 100 caracteres e
+    prazo positivo dentro do máximo: <color:#C62828>invalid-value</color>.
+    Tudo ou nada: <color:#C62828>ReservationRefusal</color> (<color:#C62828>409</color>) com reasons
+    <color:#C62828>duplicate-sku</color>, <color:#C62828>unknown-sku</color>, <color:#C62828>product-unavailable</color>
+    (produto fora de ACTIVE), <color:#C62828>seller-not-eligible</color>,
+    <color:#C62828>price-changed</color> (preço vigente difere do esperado) ou
+    <color:#C62828>insufficient-stock</color>; mais de um tipo de motivo dá o
+    código <color:#C62828>reservation-refused</color>.
+    Mesma chave com outra requisição:
+    <color:#C62828>idempotency-key-reused</color> (<color:#C62828>422</color>).
+    API: <color:#2E7D32>201</color> com Location.
+  end note
+  note as N_replay
+    **replayed**
+    Condição: já existe reserva do tenant com a mesma
+    Idempotency-Key e a mesma requisição (hash SHA-256
+    de orderRef, prazo e itens por SKU).
+    Devolve a reserva original sem reservar de novo;
+    API: <color:#2E7D32>200</color> com Idempotent-Replayed: true.
+    Vale também na corrida: se outra chamada com a
+    mesma chave gravou primeiro, devolve a dela.
+  end note
+  note as N_get
+    **get**
+    Exige catalog-reservations.
+    Reserva inexistente ou de outro tenant: <color:#C62828>404</color>.
+  end note
+  note as N_release
+    **release**
+    Exige catalog-reservations. Idempotente: liberar
+    de novo, ou reserva já EXPIRED, responde <color:#2E7D32>200</color> sem
+    devolver o estoque outra vez.
+    Reserva COMMITTED: <color:#C62828>invalid-transition</color> (<color:#C62828>409</color>).
+  end note
+  note as N_commit
+    **commit**
+    Exige catalog-reservations. Baixa definitiva após
+    o pagamento; idempotente para reserva já COMMITTED
+    (<color:#2E7D32>200</color>).
+    ACTIVE vencida: <color:#C62828>reservation-expired</color> (<color:#C62828>409</color>);
+    RELEASED ou EXPIRED: <color:#C62828>reservation-not-active</color> (<color:#C62828>409</color>).
+  end note
+  note as N_extend
+    **extend**
+    Exige catalog-reservations. Só reserva ACTIVE e não
+    vencida: <color:#C62828>reservation-not-active</color> e
+    <color:#C62828>reservation-expired</color> (<color:#C62828>409</color>).
+    Novo vencimento = agora + prazo (não soma ao atual);
+    prazo positivo e até o máximo: <color:#C62828>invalid-value</color> (<color:#C62828>422</color>).
+    Além do tempo de vida máximo desde a criação:
+    <color:#C62828>reservation-lifetime-exceeded</color> (<color:#C62828>409</color>).
+  end note
+  note as N_expireDue
+    **expireDue**
+    Sem chamador autenticado: ReservationSweeper,
+    agendado no papel worker.
+    Expira em lote (sweepBatch) as reservas vencidas e
+    devolve o estoque. Cada reserva expira por um UPDATE
+    condicional, então vários pods varrem juntos sem
+    expirar duas vezes. Falha é registrada e a execução
+    seguinte tenta de novo.
+  end note
+}
+
+N_reserve -[hidden]left-> N_replay
+N_replay -[hidden]left-> N_get
+N_get -[hidden]left-> N_release
+N_release -[hidden]left-> N_commit
+N_commit -[hidden]left-> N_extend
+N_extend -[hidden]left-> N_expireDue
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#455A64>    </back> Ator de sistema (sem chamador autenticado)
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <back:#B0BEC5>    </back> Caso de uso disparado por sistema
+  <color:#546E7A>╌╌▸</color> «extend» variante condicional do caso de destino
+  <color:#C62828>código</color> recusa (problem, 4xx); <color:#2E7D32>2xx</color> sucesso
+endlegend
+@enduml

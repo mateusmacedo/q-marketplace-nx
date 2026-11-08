@@ -1,0 +1,53 @@
+@startuml casos-de-uso-vitrine
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/clipboard_list>
+title Casos de uso de StorefrontService
+left to right direction
+hide stereotype
+
+actor "$I_COMPRADOR\nComprador anônimo\n(sem token)" as buyer
+
+package "<$store,scale=0.8,color=#1565C0> StorefrontService" as StorefrontService <<aplicacao>> {
+  usecase "Ver produto na vitrine\n(get)" as UC_get <<leitura>>
+}
+
+package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
+  usecase "Calcular saldo dos SKUs\n(stockOf)" as UC_stockOf <<leitura>>
+}
+
+buyer --> UC_get
+
+UC_get ..> UC_stockOf : <<include>>
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_get
+    **get**
+    Sem autenticação (PermitAll): tenantId e productId
+    vêm do caminho.
+    Reavalia a cada chamada o estado do produto e o
+    KYB/KYC da loja: um bloqueio tira o produto do ar
+    na hora.
+    Inexistente, fora de ACTIVE ou de loja que não
+    esteja APPROVED: <color:#C62828>404</color>, sem distinguir os casos.
+    Traz as ofertas dos SKUs, com o preço vigente.
+    Produto e ofertas vêm do cache invalidado a cada
+    escrita (ADR 024); Cache-Control: no-cache.
+  end note
+  note as N_stockOf
+    **stockOf**
+    Sem ator: StorefrontResource o chama depois do
+    cache, então o saldo sai sempre do banco.
+    ACTIVE sem saldo disponível aparece como
+    OUT_OF_STOCK (derivado, ADR 012).
+  end note
+}
+
+N_get -[hidden]left-> N_stockOf
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <color:#546E7A>╌╌▸</color> «include» sempre executado pelo caso de origem
+  <color:#C62828>código</color> recusa (problem, 4xx)
+endlegend
+@enduml

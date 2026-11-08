@@ -1,0 +1,127 @@
+@startuml casos-de-uso-estoque
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+!include <tupadr3/font-awesome-5/clipboard_list>
+!include <tupadr3/font-awesome-5/file_import>
+title Casos de uso de InventoryService
+left to right direction
+hide stereotype
+
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+actor "$I_WORKER\nWorker" as worker <<sistema>>
+
+package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
+  usecase "Calcular saldo dos SKUs\n(stockOf)" as UC_stockOf <<leitura>>
+  usecase "Consultar saldo do SKU\n(get)" as UC_get <<leitura>>
+  usecase "Ajustar estoque físico\n(adjust)" as UC_adjust
+}
+
+package "<$box,scale=0.8,color=#1565C0> ProductService" as ProductService <<aplicacao>> {
+  usecase "Criar produto em rascunho\n(ProductService.create)" as UC_prod_create
+  usecase "Consultar produto\n(ProductService.get)" as UC_prod_get <<leitura>>
+  usecase "Listar produtos\n(ProductService.list)" as UC_prod_list <<leitura>>
+  usecase "Revisar conteúdo do produto\n(ProductService.reviseContent)" as UC_prod_reviseContent
+  usecase "Adicionar SKU\n(ProductService.addSku)" as UC_prod_addSku
+  usecase "Revisar SKU\n(ProductService.reviseSku)" as UC_prod_reviseSku
+  usecase "Remover SKU\n(ProductService.removeSku)" as UC_prod_removeSku
+  usecase "Enviar produto à moderação\n(ProductService.submit)" as UC_prod_submit
+  usecase "Pausar produto\n(ProductService.pause)" as UC_prod_pause
+  usecase "Retomar produto\n(ProductService.resume)" as UC_prod_resume
+  usecase "Arquivar produto\n(ProductService.archive)" as UC_prod_archive
+}
+
+package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
+  usecase "Ver fila de moderação\n(ModerationService.queue)" as UC_mod_queue <<leitura>>
+  usecase "Aprovar produto\n(ModerationService.approve)" as UC_mod_approve
+  usecase "Rejeitar produto\n(ModerationService.reject)" as UC_mod_reject
+  usecase "Bloquear produto\n(ModerationService.block)" as UC_mod_block
+  usecase "Desbloquear produto\n(ModerationService.unblock)" as UC_mod_unblock
+}
+
+package "<$store,scale=0.8,color=#1565C0> StorefrontService" as StorefrontService <<aplicacao>> {
+  usecase "Ver produto na vitrine\n(StorefrontService.get)" as UC_store_get <<leitura>>
+}
+
+package "<$file_import,scale=0.8,color=#1565C0> ProductImportService" as ProductImportService <<aplicacao>> {
+  usecase "Processar lote de importação\n(ProductImportService.process)" as UC_imp_process <<sistema>>
+}
+
+seller --> UC_get
+seller --> UC_adjust
+moderator --> UC_get
+admin --> UC_get
+UC_imp_process <-- worker
+
+UC_prod_create ..> UC_stockOf : <<include>>
+UC_prod_get ..> UC_stockOf : <<include>>
+UC_prod_list ..> UC_stockOf : <<include>>
+UC_prod_reviseContent ..> UC_stockOf : <<include>>
+UC_prod_addSku ..> UC_stockOf : <<include>>
+UC_prod_reviseSku ..> UC_stockOf : <<include>>
+UC_prod_removeSku ..> UC_stockOf : <<include>>
+UC_prod_submit ..> UC_stockOf : <<include>>
+UC_prod_pause ..> UC_stockOf : <<include>>
+UC_prod_resume ..> UC_stockOf : <<include>>
+UC_prod_archive ..> UC_stockOf : <<include>>
+UC_mod_queue ..> UC_stockOf : <<include>>
+UC_mod_approve ..> UC_stockOf : <<include>>
+UC_mod_reject ..> UC_stockOf : <<include>>
+UC_mod_block ..> UC_stockOf : <<include>>
+UC_mod_unblock ..> UC_stockOf : <<include>>
+UC_store_get ..> UC_stockOf : <<include>>
+UC_imp_process ..> UC_get : <<include>>
+UC_imp_process ..> UC_adjust : <<include>>
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_stockOf
+    **stockOf**
+    Sem ator: ProductResponses (respostas de produto)
+    e StorefrontResource o chamam com produtos já
+    autorizados. Só ProductService.history não o inclui.
+    Sem SKUs, devolve mapa vazio.
+    Deriva OUT_OF_STOCK do saldo (ADR 012): o estado
+    nunca é gravado.
+  end note
+  note as N_get
+    **get**
+    Visibilidade do produto dono do SKU: seller só a
+    própria loja; moderador e admin, qualquer loja do
+    tenant. SKU desconhecido ou sem saldo: <color:#C62828>404</color>.
+    ETag = versão do saldo, usada no If-Match do ajuste.
+  end note
+  note as N_adjust
+    **adjust**
+    Só o seller dono. Define o estoque físico em valor
+    absoluto, de 0 a 1.000.000 (<color:#C62828>invalid-value</color>).
+    Produto arquivado: <color:#C62828>invalid-transition</color> (<color:#C62828>409</color>).
+    Abaixo do reservado: <color:#C62828>stock-below-reserved</color> (<color:#C62828>409</color>).
+    If-Match opcional, sobre a versão do saldo (<color:#C62828>412</color>).
+    Grava auditoria e evento na outbox.
+  end note
+  note as N_imp_process
+    **ProductImportService.process**
+    Ao atualizar SKU existente, get é lido sempre e
+    adjust só roda quando o estoque da linha difere do
+    saldo; em SKU novo, adjust roda se a linha informar
+    mais de zero. O ajuste da importação não usa
+    If-Match, porque reservas concorrentes também
+    mudam a versão do saldo.
+  end note
+}
+
+N_stockOf -[hidden]left-> N_get
+N_get -[hidden]left-> N_adjust
+N_adjust -[hidden]left-> N_imp_process
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#455A64>    </back> Ator de sistema (sem chamador autenticado)
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <back:#B0BEC5>    </back> Caso de uso disparado por sistema
+  <color:#546E7A>╌╌▸</color> «include» sempre executado pelo caso de origem
+  <color:#C62828>código</color> recusa (problem, 4xx)
+endlegend
+@enduml

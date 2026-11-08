@@ -1,10 +1,19 @@
 @startuml portas-e-casos-de-uso
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+set separator none
 title Casos de uso, apoio de acesso e portas (e quem as implementa no serviço)
-skinparam classAttributeIconSize 0
 hide empty members
+hide <<aplicacao>> stereotype
+hide <<saida>> stereotype
+skinparam ClassBackgroundColor<<final>> $COR_APLICACAO
+skinparam ClassBorderColor<<final>> $BORDA_APLICACAO
+skinparam ClassBackgroundColor<<decorator>> #FFF8E1
+skinparam ClassBorderColor<<decorator>> #FFA000
+skinparam ClassBackgroundColor<<wrapper>> #FFF8E1
+skinparam ClassBorderColor<<wrapper>> #FFA000
 
-package "catalog-inventory-application" {
-  package "Casos de uso" {
+package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplicacao>> {
+  package "$I_SERVICO Casos de uso" <<aplicacao>> {
     class ProductService <<final>>
     class ModerationService <<final>>
     class OfferService <<final>>
@@ -16,14 +25,14 @@ package "catalog-inventory-application" {
     class ProductImportService <<final>>
   }
 
-  package "Apoio (pacote privado)" {
-    class ProductSupport {
+  package "$I_SEGURANCA Apoio (pacote privado)" <<aplicacao>> {
+    class ProductSupport #FFFFFF;line:64B5F6;line.dashed {
       mutateOwned()
       mutateAsModerator()
       publicationOf()
       sellerOf()
     }
-    class ProductAccess {
+    class ProductAccess #FFFFFF;line:64B5F6;line.dashed {
       visible() / visibleBySku()
       owned() / ownedBySku()
       inTenant()
@@ -31,25 +40,25 @@ package "catalog-inventory-application" {
     }
   }
 
-  package "Portas" {
-    interface ProductRepository
-    interface CategoryRepository
-    interface OfferRepository
-    interface InventoryRepository
-    interface ReservationRepository
-    interface SellerEligibilityRepository
-    interface ProductImportRepository
+  package "<$plug,scale=0.8,color=#3949AB> Portas" <<aplicacao>> {
+    interface ProductRepository <<porta>>
+    interface CategoryRepository <<porta>>
+    interface OfferRepository <<porta>>
+    interface InventoryRepository <<porta>>
+    interface ReservationRepository <<porta>>
+    interface SellerEligibilityRepository <<porta>>
+    interface ProductImportRepository <<porta>>
   }
 }
 
-package "catalog-inventory-service (adaptadores)" #line.dashed {
-  class PgProductRepository
-  class PgCategoryRepository
-  class PgOfferRepository
-  class PgInventoryRepository
-  class PgReservationRepository
-  class PgSellerEligibilityRepository
-  class PgProductImportRepository
+package "$I_POSTGRES catalog-inventory-service (adaptadores)" <<saida>> #FBF6FC;line.dashed {
+  class PgProductRepository <<saida>>
+  class PgCategoryRepository <<saida>>
+  class PgOfferRepository <<saida>>
+  class PgInventoryRepository <<saida>>
+  class PgReservationRepository <<saida>>
+  class PgSellerEligibilityRepository <<saida>>
+  class PgProductImportRepository <<saida>>
   class ProductCacheInvalidation <<decorator>>
   class OfferCacheInvalidation <<decorator>>
   class CategoryCacheInvalidation <<decorator>>
@@ -107,4 +116,13 @@ note bottom of TaxonomyOver
   chain e children passam pelo Redis; com ele
   desligado, devolve a própria porta.
 end note
+
+legend right
+  <b>Leitura</b>
+  <back:#1565C0>    </back> Caso de uso (final)
+  <back:#64B5F6>    </back> Apoio de acesso (tracejado)
+  <back:#3949AB>    </back> Porta (interface)
+  <back:#6A1B9A>    </back> Adaptador Pg* no serviço
+  <back:#FFA000>    </back> Decorator ou wrapper de cache (Redis)
+endlegend
 @enduml

@@ -1,61 +1,64 @@
 @startuml atividade-importacao
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/list_ol>
+!include <tupadr3/font-awesome-5/play_circle>
 title ProductImportService.process: plano por unidade, gravação e retomada
 
 start
-:Lê os resultados já gravados (imports.results);
+$COR_SAIDA:$I_REPOSITORIO Lê os resultados já gravados (imports.results);
 note right: linhas com resultado ficam fora (retomada)
-:Busca os SKUs pendentes que já existem na loja\n(products.skuIdsBySellerSku);
+$COR_SAIDA:$I_REPOSITORIO Busca os SKUs pendentes que já existem na loja\n(products.skuIdsBySellerSku);
 
-partition "plan: linhas na ordem do arquivo" {
+partition #F5FAFF "<$list_ol,scale=0.6,color=#1565C0> plan: linhas na ordem do arquivo" {
   while (Há próxima linha?) is (sim)
     :Marca o sellerSku como visto\n(vale também para linhas já gravadas);
     if (Linha já tem resultado?) then (sim)
-      :Pula;
+      #ECEFF1:Pula;
     elseif (sellerSku já visto em linha anterior?) then (sim)
-      :Unidade Rejected\nduplicate-seller-sku;
+      #FFEBEE:Unidade Rejected\nduplicate-seller-sku;
     elseif (sellerSku existe na loja?) then (sim)
       :Unidade ExistingSku;
     elseif (productRef vazio?) then (sim)
-      :Unidade Rejected\ninvalid-row;
+      #FFEBEE:Unidade Rejected\ninvalid-row;
     else (não)
       :Acrescenta ao grupo NewProduct\ndo productRef;
     endif
   endwhile (não)
 }
 
-partition "Executa cada unidade em sequência" {
+partition #F5FAFF "<$play_circle,scale=0.6,color=#1565C0> Executa cada unidade em sequência" {
   while (Há próxima unidade?) is (sim)
     switch (Tipo da unidade)
     case (Rejected)
-      :Resultado FAILED já pronto;
+      #FFEBEE:Resultado FAILED já pronto;
     case (ExistingSku)
       if (Linha com error?) then (sim)
-        :FAILED invalid-row;
+        #FFEBEE:FAILED invalid-row;
       else (não)
         :ownedBySku + requireNotArchived(IMPORT);
         :Preço diferente? OfferService.define\n(versão lida como If-Match; sem oferta, cria);
         :Estoque diferente? InventoryService.adjust\n(sem If-Match);
-        :UPDATED se algo mudou, senão UNCHANGED\n(recusa de negócio: FAILED);
+        #E8F5E9:UPDATED se algo mudou, senão UNCHANGED\n(recusa de negócio: FAILED);
       endif
     case (NewProduct)
       :prepare de cada linha (sem gravar);
       if (Alguma linha inválida?) then (sim)
-        :invalid-row (ou código do domínio) nela,\ngroup-rejected nas demais;
+        #FFEBEE:invalid-row (ou código do domínio) nela,\ngroup-rejected nas demais;
       elseif (Campos de produto divergem da 1ª linha?) then (sim)
-        :inconsistent-product em todas;
+        #FFEBEE:inconsistent-product em todas;
       elseif (category_code inexistente no tenant?) then (sim)
-        :category-not-found em todas;
+        #FFEBEE:category-not-found em todas;
       else (não)
         :ProductService.create (rascunho com todos os SKUs);
         :Para cada SKU: OfferService.define\ne InventoryService.adjust se onHand > 0;
-        :CREATED com productId\n(falha após criar: FAILED com productId);
+        #E8F5E9:CREATED com productId\n(falha após criar: FAILED com productId);
       endif
     endswitch
-    :recordResults(lote, resultados da unidade)\nrenova startedAt; linha já gravada mantém o 1º resultado;
+    $COR_SAIDA:$I_REPOSITORIO recordResults(lote, resultados da unidade)\nrenova startedAt; linha já gravada mantém o 1º resultado;
   endwhile (não)
 }
 
-:complete(lote) → COMPLETED;
+#E8F5E9:complete(lote) → COMPLETED;
 :Devolve só os resultados desta execução;
 stop
 
@@ -64,4 +67,12 @@ note right
   interrompe process: o que foi gravado
   fica, e o lote volta após o lease.
 end note
+
+legend right
+  <b>Leitura</b>
+  <back:#66BB6A>    </back> Desfecho de sucesso (CREATED, UPDATED, COMPLETED)
+  <back:#E57373>    </back> Linha recusada (FAILED com código)
+  <back:#6A1B9A>    </back> Leitura ou gravação em porta (repositório)
+  <back:#B0BEC5>    </back> Linha já processada (retomada)
+endlegend
 @enduml

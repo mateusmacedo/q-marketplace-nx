@@ -1,99 +1,202 @@
 @startuml casos-de-uso
-title Casos de uso do catálogo-inventário (camada de aplicação)
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+!include <tupadr3/font-awesome-5/cart_arrow_down>
+!include <tupadr3/font-awesome-5/file_import>
+!include <tupadr3/font-awesome-5/user_check>
+title Casos de uso do catálogo-inventário (visão geral, um por operação pública)
 left to right direction
-skinparam packageStyle rectangle
-skinparam actorStyle awesome
+hide stereotype
+skinparam ranksep 40
+skinparam nodesep 12
 
-actor "Seller" as seller
-actor "Moderador" as moderator
-actor "Admin do catálogo" as admin
-actor "Comprador anônimo" as buyer
-actor "Checkout / OMS" as checkout <<sistema>>
-actor "Worker" as worker <<sistema>>
-actor "KYB/KYC" as kyb <<sistema>>
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+actor "$I_COMPRADOR\nComprador anônimo\n(sem token)" as buyer
+actor "$I_SISTEMA\nCheckout / OMS\n(catalog-reservations)" as checkout
+actor "$I_WORKER\nWorker" as worker <<sistema>>
+actor "$I_KYB\nKYB/KYC" as kyb <<sistema>>
 
-rectangle "catalog-inventory-application" {
-  package "ProductService" {
-    usecase "Criar rascunho\n(create)" as UC_create
-    usecase "Ler, listar e ver histórico\n(get, list, history)" as UC_read
-    usecase "Editar conteúdo e SKUs\n(reviseContent, addSku,\nreviseSku, removeSku)" as UC_edit
-    usecase "Enviar, pausar, retomar, arquivar\n(submit, pause, resume, archive)" as UC_lifecycle
-  }
-  package "ModerationService" {
-    usecase "Ver fila de moderação\n(queue)" as UC_queue
-    usecase "Aprovar, rejeitar,\nbloquear, desbloquear" as UC_moderate
-  }
-  package "OfferService" {
-    usecase "Ler oferta (get)" as UC_offer_get
-    usecase "Definir preço e promoções\n(define, schedulePromotion,\ncancelPromotion)" as UC_offer
-  }
-  package "InventoryService" {
-    usecase "Ler saldo (get)" as UC_stock_get
-    usecase "Ajustar estoque físico\n(adjust)" as UC_adjust
-  }
-  package "ProductImportService" {
-    usecase "Enviar e acompanhar lote CSV\n(submit, get)" as UC_import
-    usecase "Reivindicar e processar lote\n(claimNext, process)" as UC_import_run
-  }
-  package "CategoryService" {
-    usecase "Ler árvore\n(get, children)" as UC_cat_read
-    usecase "Criar, revisar e mover categoria\n(create, revise, move)" as UC_cat_write
-  }
-  package "StorefrontService" {
-    usecase "Ver produto na vitrine\n(get)" as UC_store
-  }
-  package "SellerEligibilityService" {
-    usecase "Consultar situação KYB da loja\n(get)" as UC_elig_get
-    usecase "Registrar veredito\n(record)" as UC_elig_record
-  }
-  package "ReservationService" {
-    usecase "Reservar, ler, confirmar,\nliberar, estender\n(reserve, get, commit,\nrelease, extend)" as UC_reserve
-    usecase "Expirar vencidas\n(expireDue)" as UC_expire
-  }
+package "<$box,scale=0.8,color=#1565C0> ProductService" as ProductService <<aplicacao>> {
+  usecase "Criar produto em rascunho\n(create)" as UC_prod_create
+  usecase "Consultar produto\n(get)" as UC_prod_get <<leitura>>
+  usecase "Listar produtos\n(list)" as UC_prod_list <<leitura>>
+  usecase "Consultar histórico do produto\n(history)" as UC_prod_history <<leitura>>
+  usecase "Revisar conteúdo do produto\n(reviseContent)" as UC_prod_revise
+  usecase "Adicionar SKU\n(addSku)" as UC_prod_addSku
+  usecase "Revisar SKU\n(reviseSku)" as UC_prod_reviseSku
+  usecase "Remover SKU\n(removeSku)" as UC_prod_removeSku
+  usecase "Enviar produto à moderação\n(submit)" as UC_prod_submit
+  usecase "Pausar produto\n(pause)" as UC_prod_pause
+  usecase "Retomar produto\n(resume)" as UC_prod_resume
+  usecase "Arquivar produto\n(archive)" as UC_prod_archive
+  usecase "Devolver produto publicado\nà moderação\n(REVIEW_REQUIRED)" as UC_prod_review
+}
+package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
+  usecase "Ver fila de moderação\n(queue)" as UC_mod_queue <<leitura>>
+  usecase "Aprovar produto\n(approve)" as UC_mod_approve
+  usecase "Rejeitar produto\n(reject)" as UC_mod_reject
+  usecase "Bloquear produto\n(block)" as UC_mod_block
+  usecase "Desbloquear produto\n(unblock)" as UC_mod_unblock
+}
+package "$I_OFERTA OfferService" as OfferService <<aplicacao>> {
+  usecase "Consultar oferta do SKU\n(get)" as UC_offer_get <<leitura>>
+  usecase "Definir oferta ou trocar preço\n(define)" as UC_offer_define
+  usecase "Agendar promoção\n(schedulePromotion)" as UC_offer_schedule
+  usecase "Cancelar promoção\n(cancelPromotion)" as UC_offer_cancel
+}
+package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
+  usecase "Calcular saldo dos SKUs\n(stockOf)" as UC_inv_stockOf <<leitura>>
+  usecase "Consultar saldo do SKU\n(get)" as UC_inv_get <<leitura>>
+  usecase "Ajustar estoque físico\n(adjust)" as UC_inv_adjust
+}
+package "<$file_import,scale=0.8,color=#1565C0> ProductImportService" as ProductImportService <<aplicacao>> {
+  usecase "Enviar lote de importação\n(submit)" as UC_imp_submit
+  usecase "Consultar lote de importação\n(get)" as UC_imp_get <<leitura>>
+  usecase "Reivindicar próximo lote\n(claimNext)" as UC_imp_claim <<sistema>>
+  usecase "Processar lote de importação\n(process)" as UC_imp_process <<sistema>>
+}
+package "$I_CATEGORIA CategoryService" as CategoryService <<aplicacao>> {
+  usecase "Criar categoria\n(create)" as UC_cat_create
+  usecase "Consultar categoria\n(get)" as UC_cat_get <<leitura>>
+  usecase "Revisar categoria\n(revise)" as UC_cat_revise
+  usecase "Mover categoria\n(move)" as UC_cat_move
+  usecase "Listar subcategorias\n(children)" as UC_cat_children <<leitura>>
+}
+package "<$cart_arrow_down,scale=0.8,color=#1565C0> ReservationService" as ReservationService <<aplicacao>> {
+  usecase "Reservar estoque\n(reserve)" as UC_res_reserve
+  usecase "Reaproveitar reserva existente\n(replayed)" as UC_res_replay
+  usecase "Consultar reserva\n(get)" as UC_res_get <<leitura>>
+  usecase "Liberar reserva\n(release)" as UC_res_release
+  usecase "Confirmar reserva\n(commit)" as UC_res_commit
+  usecase "Estender reserva\n(extend)" as UC_res_extend
+  usecase "Expirar reservas vencidas\n(expireDue)" as UC_res_expire <<sistema>>
+}
+package "<$user_check,scale=0.8,color=#1565C0> SellerEligibilityService" as SellerEligibilityService <<aplicacao>> {
+  usecase "Consultar situação KYB/KYC da loja\n(get)" as UC_elig_get <<leitura>>
+  usecase "Registrar veredito KYB/KYC\n(record)" as UC_elig_record <<sistema>>
+}
+package "<$store,scale=0.8,color=#1565C0> StorefrontService" as StorefrontService <<aplicacao>> {
+  usecase "Ver produto na vitrine\n(get)" as UC_store_get <<leitura>>
 }
 
-seller --> UC_create
-seller --> UC_read
-seller --> UC_edit
-seller --> UC_lifecycle
-seller --> UC_offer_get
-seller --> UC_offer
-seller --> UC_stock_get
-seller --> UC_adjust
-seller --> UC_import
-seller --> UC_cat_read
-seller --> UC_elig_get
+seller -[#E09B00]-> UC_prod_create
+seller -[#E09B00]-> UC_prod_get
+seller -[#E09B00]-> UC_prod_list
+seller -[#E09B00]-> UC_prod_history
+seller -[#E09B00]-> UC_prod_revise
+seller -[#E09B00]-> UC_prod_addSku
+seller -[#E09B00]-> UC_prod_reviseSku
+seller -[#E09B00]-> UC_prod_removeSku
+seller -[#E09B00]-> UC_prod_submit
+seller -[#E09B00]-> UC_prod_pause
+seller -[#E09B00]-> UC_prod_resume
+seller -[#E09B00]-> UC_prod_archive
+seller -[#E09B00]-> UC_offer_get
+seller -[#E09B00]-> UC_offer_define
+seller -[#E09B00]-> UC_offer_schedule
+seller -[#E09B00]-> UC_offer_cancel
+seller -[#E09B00]-> UC_inv_get
+seller -[#E09B00]-> UC_inv_adjust
+seller -[#E09B00]-> UC_imp_submit
+seller -[#E09B00]-> UC_imp_get
+seller -[#E09B00]-> UC_cat_get
+seller -[#E09B00]-> UC_cat_children
+seller -[#E09B00]-> UC_elig_get
 
-moderator --> UC_queue
-moderator --> UC_moderate
-moderator --> UC_read
-moderator --> UC_offer_get
-moderator --> UC_stock_get
-moderator --> UC_cat_read
+moderator -[#AD1457]-> UC_prod_get
+moderator -[#AD1457]-> UC_prod_list
+moderator -[#AD1457]-> UC_prod_history
+moderator -[#AD1457]-> UC_mod_queue
+moderator -[#AD1457]-> UC_mod_approve
+moderator -[#AD1457]-> UC_mod_reject
+moderator -[#AD1457]-> UC_mod_block
+moderator -[#AD1457]-> UC_mod_unblock
+moderator -[#AD1457]-> UC_offer_get
+moderator -[#AD1457]-> UC_inv_get
+moderator -[#AD1457]-> UC_cat_get
+moderator -[#AD1457]-> UC_cat_children
 
-admin --> UC_cat_write
-admin --> UC_cat_read
-admin --> UC_read
-admin --> UC_offer_get
-admin --> UC_stock_get
-admin --> UC_elig_get
+admin -[#00897B]-> UC_prod_get
+admin -[#00897B]-> UC_prod_list
+admin -[#00897B]-> UC_prod_history
+admin -[#00897B]-> UC_offer_get
+admin -[#00897B]-> UC_inv_get
+admin -[#00897B]-> UC_cat_create
+admin -[#00897B]-> UC_cat_get
+admin -[#00897B]-> UC_cat_revise
+admin -[#00897B]-> UC_cat_move
+admin -[#00897B]-> UC_cat_children
+admin -[#00897B]-> UC_elig_get
 
-buyer --> UC_store
-checkout --> UC_reserve
+buyer -[#EF6C00]-> UC_store_get
+checkout -[#6D4C41]-> UC_res_reserve
+checkout -[#6D4C41]-> UC_res_get
+checkout -[#6D4C41]-> UC_res_release
+checkout -[#6D4C41]-> UC_res_commit
+checkout -[#6D4C41]-> UC_res_extend
 
-UC_import_run <-- worker
-UC_expire <-- worker
-UC_elig_record <-- kyb
+UC_imp_claim <-[#455A64]- worker
+UC_imp_process <-[#455A64]- worker
+UC_res_expire <-[#455A64]- worker
+UC_elig_record <-[#455A64]- kyb
 
-UC_import_run ..> UC_create : <<include>>
-UC_import_run ..> UC_offer : <<include>>
-UC_import_run ..> UC_adjust : <<include>>
+UC_prod_create ..> UC_inv_stockOf : <<include>>
+UC_prod_get ..> UC_inv_stockOf : <<include>>
+UC_prod_list ..> UC_inv_stockOf : <<include>>
+UC_prod_revise ..> UC_inv_stockOf : <<include>>
+UC_prod_addSku ..> UC_inv_stockOf : <<include>>
+UC_prod_reviseSku ..> UC_inv_stockOf : <<include>>
+UC_prod_removeSku ..> UC_inv_stockOf : <<include>>
+UC_prod_submit ..> UC_inv_stockOf : <<include>>
+UC_prod_pause ..> UC_inv_stockOf : <<include>>
+UC_prod_resume ..> UC_inv_stockOf : <<include>>
+UC_prod_archive ..> UC_inv_stockOf : <<include>>
+UC_mod_queue ..> UC_inv_stockOf : <<include>>
+UC_mod_approve ..> UC_inv_stockOf : <<include>>
+UC_mod_reject ..> UC_inv_stockOf : <<include>>
+UC_mod_block ..> UC_inv_stockOf : <<include>>
+UC_mod_unblock ..> UC_inv_stockOf : <<include>>
+UC_store_get ..> UC_inv_stockOf : <<include>>
 
-note bottom of UC_elig_record
-  O veredito chega pelo Kafka e o consumidor
-  do papel worker chama record(); não há chamador
-  autenticado. Também sem chamador: expireDue,
-  claimNext e process (este age como o seller
-  que enviou o lote).
+UC_imp_process ..> UC_prod_create : <<include>>
+UC_imp_process ..> UC_offer_define : <<include>>
+UC_imp_process ..> UC_inv_get : <<include>>
+UC_imp_process ..> UC_inv_adjust : <<include>>
+
+UC_prod_review ..> UC_prod_revise : <<extend>>
+UC_prod_review ..> UC_prod_addSku : <<extend>>
+UC_prod_review ..> UC_prod_reviseSku : <<extend>>
+UC_res_replay ..> UC_res_reserve : <<extend>>
+
+note bottom of UC_inv_stockOf
+  Sem ator: os adaptadores REST (ProductResponses
+  e StorefrontResource) o chamam para montar a
+  resposta de todo caso de uso que devolve produto,
+  menos history. É ele que deriva OUT_OF_STOCK.
 end note
+
+note bottom of kyb
+  O veredito chega pelo Kafka (SellerVerdictConsumer),
+  sem chamador autenticado. Worker é o papel de
+  implantação que roda os agendadores e o Kafka
+  (ADR 020); process age como o seller do lote.
+end note
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#455A64>    </back> Ator de sistema (sem chamador autenticado)
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <back:#B0BEC5>    </back> Caso de uso disparado por sistema
+  <b>Linhas por ator</b>
+  <color:#E09B00>━━</color> Seller
+  <color:#AD1457>━━</color> Moderador
+  <color:#00897B>━━</color> Admin do catálogo
+  <color:#EF6C00>━━</color> Comprador anônimo
+  <color:#6D4C41>━━</color> Checkout / OMS
+  <color:#455A64>━━</color> Worker e KYB/KYC
+  <color:#546E7A>╌╌▸</color> «include» sempre executado; «extend» variante condicional
+endlegend
 @enduml

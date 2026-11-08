@@ -1,0 +1,103 @@
+@startuml casos-de-uso-importacao
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+!include <tupadr3/font-awesome-5/clipboard_list>
+!include <tupadr3/font-awesome-5/file_import>
+title Casos de uso de ProductImportService
+left to right direction
+hide stereotype
+
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_WORKER\nWorker" as worker <<sistema>>
+
+package "<$file_import,scale=0.8,color=#1565C0> ProductImportService" as ProductImportService <<aplicacao>> {
+  usecase "Enviar lote de importação\n(submit)" as UC_submit
+  usecase "Consultar lote de importação\n(get)" as UC_get <<leitura>>
+  usecase "Reivindicar próximo lote\n(claimNext)" as UC_claimNext <<sistema>>
+  usecase "Processar lote de importação\n(process)" as UC_process <<sistema>>
+}
+
+package "<$box,scale=0.8,color=#1565C0> ProductService" as ProductService <<aplicacao>> {
+  usecase "Criar produto em rascunho\n(ProductService.create)" as UC_prod_create
+}
+
+package "$I_OFERTA OfferService" as OfferService <<aplicacao>> {
+  usecase "Definir oferta ou trocar preço\n(OfferService.define)" as UC_offer_define
+}
+
+package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
+  usecase "Consultar saldo do SKU\n(InventoryService.get)" as UC_inv_get <<leitura>>
+  usecase "Ajustar estoque físico\n(InventoryService.adjust)" as UC_inv_adjust
+}
+
+seller --> UC_submit
+seller --> UC_get
+UC_claimNext <-- worker
+UC_process <-- worker
+
+UC_process ..> UC_prod_create : <<include>>
+UC_process ..> UC_offer_define : <<include>>
+UC_process ..> UC_inv_get : <<include>>
+UC_process ..> UC_inv_adjust : <<include>>
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_submit
+    **submit**
+    Exige papel seller e loja no token.
+    A API valida o CSV antes (codificação, sintaxe,
+    cabeçalho e limite de linhas): arquivo recusado
+    é <color:#C62828>400</color> <color:#C62828>invalid-import-file</color>, com reasons.
+    Registra o lote como PENDING da loja; API: <color:#2E7D32>202</color>
+    com Location.
+  end note
+  note as N_get
+    **get**
+    Só o seller da loja que enviou o lote; outra loja
+    ou outro tenant: <color:#C62828>404</color>.
+    Devolve o lote, as contagens por resultado e as
+    linhas já gravadas, em ordem de linha.
+  end note
+  note as N_claimNext
+    **claimNext**
+    Sem chamador autenticado: ProductImportWorker,
+    agendado no papel worker.
+    Reivindica o lote mais antigo pendente ou sem
+    progresso há mais que o lease. Vários pods não
+    repetem lote (FOR UPDATE SKIP LOCKED).
+  end note
+  note as N_process
+    **process**
+    Sem chamador autenticado: ProductImportWorker
+    processa o lote reivindicado, como o seller que
+    o enviou (MANAGE_OWN_PRODUCTS e a loja do lote).
+    SKU existente na loja recebe só preço e estoque,
+    cada um se mudou (UPDATED ou UNCHANGED).
+    SKUs novos com a mesma product_ref formam um
+    produto em DRAFT, com oferta e estoque por SKU
+    (CREATED).
+    Recusa de negócio vira linha FAILED (<color:#C62828>invalid-row</color>,
+    <color:#C62828>duplicate-seller-sku</color>, <color:#C62828>inconsistent-product</color>,
+    <color:#C62828>category-not-found</color>, <color:#C62828>group-rejected</color> e códigos dos
+    casos incluídos). Falha técnica interrompe; o lote
+    volta após o lease, só com as linhas sem resultado.
+    Os casos incluídos são condicionais ao tipo de
+    linha: create só em grupo novo; define em SKU novo
+    ou preço alterado; get em SKU existente; adjust
+    quando o estoque difere.
+  end note
+}
+
+N_submit -[hidden]left-> N_get
+N_get -[hidden]left-> N_claimNext
+N_claimNext -[hidden]left-> N_process
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#455A64>    </back> Ator de sistema (sem chamador autenticado)
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <back:#B0BEC5>    </back> Caso de uso disparado por sistema
+  <color:#546E7A>╌╌▸</color> «include» sempre executado pelo caso de origem
+  <color:#C62828>código</color> recusa (problem, 4xx); <color:#2E7D32>2xx</color> sucesso
+endlegend
+@enduml
