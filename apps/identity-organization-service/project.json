@@ -1,0 +1,32 @@
+{
+  "name": "identity-organization-service",
+  "projectType": "application",
+  "tags": [
+    "scope:identity-organization",
+    "layer:service",
+    "lang:java"
+  ],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/gradle.mjs :identity-organization-service:quarkusDev"
+      }
+    },
+    "native": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/gradle.mjs :identity-organization-service:assemble -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true"
+      }
+    },
+    "container": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "native"
+      ],
+      "options": {
+        "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=identity-organization-service -t marketplace/identity-organization:local ."
+      }
+    }
+  }
+}

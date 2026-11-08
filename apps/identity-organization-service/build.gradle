@@ -1,0 +1,9 @@
+plugins { id 'io.quarkus' }
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation project(':identity-organization-application')
+    implementation project(':identity-organization-domain')
+    implementation 'io.quarkus:quarkus-rest-jackson'
+    implementation 'io.quarkus:quarkus-smallrye-health'
+    implementation 'io.quarkus:quarkus-arc'
+}
