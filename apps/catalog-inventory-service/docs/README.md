@@ -207,7 +207,7 @@ Respostas de erro usam `application/problem+json` com `type = https://marketplac
 | 404 | `not-found` |
 | 409 | `concurrent-update`; duplicados (`duplicate-seller-sku`, `duplicate-category-code` e outros da `DuplicateException`); transição inválida (`invalid-transition`); recusas de reserva (`insufficient-stock`, `price-changed`, `seller-not-eligible`, `reservation-expired`, `reservation-not-active` e outros); conflitos de estoque (`stock-below-reserved`, `sku-has-stock`) |
 | 412 | `version-mismatch` |
-| 422 | demais regras de domínio (`DomainRuleViolation`), por exemplo `product-not-publishable`, `seller-not-eligible`, `category-cycle`, `sku-removal-requires-draft`, `idempotency-key-reused`. O mesmo `seller-not-eligible` sai como 422 em `approve` e `resume` e como 409 na reserva, porque na reserva é uma `ReservationRefusal` |
+| 422 | demais regras de domínio (`DomainRuleViolation`), por exemplo `product-not-publishable`, `seller-not-eligible`, `category-cycle`, `sku-removal-requires-draft`, `idempotency-key-reused`. O mesmo `seller-not-eligible` sai como 422 em `approve` e `resume` e como 409 na reserva, porque ali é uma `ReservationRefusal`: com esse código quando é o único motivo, ou como `reservation-refused`, com o motivo em `reasons[]`, quando há motivos de outros tipos |
 | 428 | `precondition-required` |
 | 503 | `service-unavailable`, quando o banco não responde em `catalog.persistence.timeout` (2 s); vem com `Retry-After: 1` |
 | 500 | `internal-error`, sem detalhe; a causa vai só para o log. Inclui a violação das invariantes de saldo e de reserva do domínio (`StockLevel`, `Reservation`), que lança `IllegalStateException` em vez de uma recusa |
