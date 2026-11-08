@@ -68,7 +68,7 @@ O `build.gradle` não declara dependência de produção. O verificador de limit
 | `childOf` exige pai direto ativo | `category-inactive` |
 | `moveUnder` não aceita a própria categoria nem descendente como novo pai; aceita pai inativo | `category-cycle` |
 
-[`AttributeDefinition`](../src/main/java/dev/marketplace/cataloginventory/domain/category/AttributeDefinition.java) (VO): `code` (`[a-z][a-z0-9_]{0,39}`), `label` (até 80), `type`, `required`, `variant`, `options`. `OPTION` exige de 1 a 100 opções distintas; os outros tipos não aceitam opções. `accepts(value)` valida o valor: `TEXT` até 500 caracteres, `INTEGER` e `DECIMAL` numéricos, `BOOLEAN` só `true` ou `false`, `OPTION` uma das opções.
+[`AttributeDefinition`](../src/main/java/dev/marketplace/cataloginventory/domain/category/AttributeDefinition.java) (VO): `code` (`[a-z][a-z0-9_]{0,39}`), `label` (até 80), `type`, `required`, `variant`, `options`. `OPTION` exige de 1 a 100 opções distintas; os outros tipos não aceitam opções. `accepts(value)` valida o valor: `TEXT` até 500 caracteres, `INTEGER` com até 18 dígitos, `DECIMAL` com até 18 dígitos inteiros e 6 decimais, os dois em notação simples, com ponto e sem expoente, `BOOLEAN` só `true` ou `false`, `OPTION` uma das opções.
 
 [`AttributeType`](../src/main/java/dev/marketplace/cataloginventory/domain/category/AttributeType.java): `TEXT`, `INTEGER`, `DECIMAL`, `BOOLEAN`, `OPTION`.
 

@@ -1,6 +1,5 @@
 package dev.marketplace.cataloginventory.domain.category;
 
-import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -18,6 +17,10 @@ public record AttributeDefinition(String code, String label, AttributeType type,
     public static final int MAX_TEXT_LENGTH = 500;
     public static final int MAX_LABEL_LENGTH = 80;
     private static final Pattern CODE = Pattern.compile("[a-z][a-z0-9_]{0,39}");
+    // WHY: os números são conferidos só por regex, sem conversão: new BigDecimal tem custo quadrático no tamanho
+    // da entrada e aceita expoente, como 1E999999999.
+    private static final Pattern INTEGER_FORMAT = Pattern.compile("-?\\d{1,18}");
+    private static final Pattern DECIMAL_FORMAT = Pattern.compile("-?\\d{1,18}(\\.\\d{1,6})?");
 
     /**
      * Copia {@code options} de forma imutável. Recusa com {@code invalid-value}
@@ -46,25 +49,20 @@ public record AttributeDefinition(String code, String label, AttributeType type,
         }
     }
 
-    /** Indica se o valor textual é aceito pelo tipo do atributo. */
+    /**
+     * Indica se o valor textual é aceito pelo tipo do atributo. Números ficam em
+     * notação simples, com ponto: {@code INTEGER} com até 18 dígitos e
+     * {@code DECIMAL} com até 18 dígitos inteiros e 6 decimais.
+     */
     public boolean accepts(String value) {
         if (value == null || value.isBlank())
             return false;
         return switch (type) {
             case TEXT -> value.length() <= MAX_TEXT_LENGTH;
-            case INTEGER -> parses(() -> Long.parseLong(value));
-            case DECIMAL -> parses(() -> new BigDecimal(value));
+            case INTEGER -> INTEGER_FORMAT.matcher(value).matches();
+            case DECIMAL -> DECIMAL_FORMAT.matcher(value).matches();
             case BOOLEAN -> value.equals("true") || value.equals("false");
             case OPTION -> options.contains(value);
         };
-    }
-
-    private static boolean parses(Runnable parser) {
-        try {
-            parser.run();
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
     }
 }

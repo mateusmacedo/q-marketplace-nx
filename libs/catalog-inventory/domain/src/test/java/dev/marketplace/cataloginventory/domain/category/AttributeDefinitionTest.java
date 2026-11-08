@@ -4,6 +4,7 @@ import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import java.time.Duration;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,5 +44,23 @@ class AttributeDefinitionTest {
     @Test
     void textHasLengthLimit() {
         assertFalse(of(AttributeType.TEXT).accepts("x".repeat(501)));
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "INTEGER,-123456789012345678,true", "INTEGER,1234567890123456789,false", "INTEGER,+5,false",
+            "DECIMAL,-123456789012345678.123456,true", "DECIMAL,1234567890123456789,false", "DECIMAL,1.1234567,false",
+            "DECIMAL,1E3,false", "DECIMAL,.5,false", "DECIMAL,5.,false" })
+    void numbersAreBoundedAndInPlainNotation(AttributeType type, String value, boolean accepted) {
+        assertEquals(accepted, of(type).accepts(value));
+    }
+
+    @Test
+    void rejectsHugeNumbersWithoutParsingThem() {
+        String huge = "9".repeat(1_000_000);
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> {
+            assertFalse(of(AttributeType.INTEGER).accepts(huge));
+            assertFalse(of(AttributeType.DECIMAL).accepts(huge));
+            assertFalse(of(AttributeType.DECIMAL).accepts(huge + ".5"));
+        });
     }
 }
