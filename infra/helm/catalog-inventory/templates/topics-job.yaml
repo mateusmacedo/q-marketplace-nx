@@ -1,0 +1,118 @@
+{{- if .Values.topicsJob.enabled }}
+{{- $topics := include "catalog-inventory.topics" . | fromJsonArray }}
+{{- $created := list }}
+{{- range $topics }}
+{{- if .create }}
+{{- $created = append $created . }}
+{{- end }}
+{{- end }}
+{{- if $created }}
+{{- $bootstrap := required "kafka.bootstrapServers é obrigatório" .Values.kafka.bootstrapServers }}
+{{- $names := list }}
+{{- range $created }}
+{{- $names = append $names (.name | replace "." "\\.") }}
+{{- end }}
+# WHY: o hook roda antes dos demais recursos da release existirem, então o Job recebe tudo inline, sem o ConfigMap.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "catalog-inventory.fullname" . }}-topics
+  labels:
+    {{- include "catalog-inventory.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka-topics
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.topicsJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.topicsJob.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        # Rótulos distintos dos do Deployment, para o pod do Job não entrar no Service nem no PodDisruptionBudget.
+        app.kubernetes.io/name: {{ include "catalog-inventory.name" . }}-topics
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: kafka-topics
+      {{- with .Values.topicsJob.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.topicsJob.serviceAccountName }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        # Usuário appuser da imagem apache/kafka; o fsGroup dá a ele leitura do Secret montado.
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-topics
+          image: "{{ .Values.topicsJob.image.repository }}:{{ .Values.topicsJob.image.tag }}"
+          imagePullPolicy: {{ .Values.topicsJob.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              command_config=()
+              if [ -d /etc/kafka-client ]; then
+                # Converte cada chave do Secret (KAFKA_SASL_JAAS_CONFIG) na propriedade do cliente (sasl.jaas.config).
+                for file in /etc/kafka-client/KAFKA_*; do
+                  [ -e "$file" ] || continue
+                  key=$(basename "$file")
+                  key=$(printf '%s' "${key#KAFKA_}" | tr 'A-Z_' 'a-z.')
+                  value=$(cat "$file")
+                  printf '%s=%s\n' "$key" "$value"
+                done > /tmp/client.properties
+                command_config=(--command-config /tmp/client.properties)
+              fi
+              topics() {
+                /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP_SERVERS" "${command_config[@]}" "$@"
+              }
+              {{- range $created }}
+              topics --create --if-not-exists --topic {{ .name | squote }} --partitions {{ .partitions }} --replication-factor {{ .replicationFactor }}{{ range $key, $value := .config }} --config {{ printf "%s=%v" $key $value | squote }}{{ end }}
+              {{- end }}
+              topics --describe --topic {{ printf "^(%s)$" (join "|" $names) | squote }}
+          env:
+            - name: BOOTSTRAP_SERVERS
+              value: {{ $bootstrap | quote }}
+            - name: LOG_DIR
+              value: /tmp/logs
+          resources:
+            {{- toYaml .Values.topicsJob.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.kafka.clientSecret }}
+            - name: kafka-client
+              mountPath: /etc/kafka-client
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- with .Values.kafka.clientSecret }}
+        - name: kafka-client
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0440
+        {{- end }}
+{{- end }}
+{{- end }}

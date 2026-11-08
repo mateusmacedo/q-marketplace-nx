@@ -1,0 +1,26 @@
+{{- $fullname := include "catalog-inventory.fullname" . -}}
+{{- $api := include "catalog-inventory.componentFullname" (dict "root" $ "component" "api") -}}
+{{- $worker := include "catalog-inventory.componentFullname" (dict "root" $ "component" "worker") -}}
+Catálogo e inventário {{ .Chart.AppVersion }} implantado como {{ $fullname }} no namespace {{ .Release.Namespace }}.
+A mesma imagem roda em dois Deployments:
+  {{ $api }}: HTTP de negócio (perfil prod,api)
+  {{ $worker }}: outbox, tarefas agendadas e consumidor KYB/KYC (perfil prod,worker)
+
+Acompanhe o rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ $api }}
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ $worker }}
+
+Saúde e métricas ficam na porta de gestão 9000 de cada papel (a porta 8080 da api não serve /q/*):
+  kubectl -n {{ .Release.Namespace }} port-forward deployment/{{ $api }} 9000:9000
+  curl -s http://localhost:9000/q/health/ready
+  curl -s http://localhost:9000/q/metrics
+Troque deployment/{{ $api }} por deployment/{{ $worker }} para conferir o worker.
+
+A API de negócio responde pelo Service {{ $fullname }}, na porta {{ .Values.service.port }}.
+{{- if .Values.topicsJob.enabled }}
+
+Os tópicos Kafka foram criados pelo Job {{ $fullname }}-topics antes do rollout; tópicos existentes não são alterados.
+{{- end }}
+{{- if not .Values.topics.kybSeller.create }}
+O tópico {{ .Values.topics.kybSeller.name }} pertence ao KYB/KYC e não é criado por este chart.
+{{- end }}

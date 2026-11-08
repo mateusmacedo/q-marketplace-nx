@@ -1,0 +1,12 @@
+apiVersion: v2
+name: catalog-inventory
+description: Serviço de catálogo e inventário do marketplace (executável nativo do Quarkus), com Job de criação dos tópicos Kafka.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.30.0-0"
+keywords:
+  - marketplace
+  - catalog
+  - inventory
+  - quarkus

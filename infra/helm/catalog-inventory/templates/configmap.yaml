@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "catalog-inventory.fullname" . }}
+  labels:
+    {{- include "catalog-inventory.labels" . | nindent 4 }}
+data:
+  QUARKUS_DATASOURCE_REACTIVE_URL: {{ required "database.reactiveUrl é obrigatório" .Values.database.reactiveUrl | quote }}
+  QUARKUS_DATASOURCE_JDBC_URL: {{ required "database.jdbcUrl é obrigatório" .Values.database.jdbcUrl | quote }}
+  QUARKUS_FLYWAY_SCHEMAS: {{ required "database.schema é obrigatório" .Values.database.schema | quote }}
+  KAFKA_BOOTSTRAP_SERVERS: {{ required "kafka.bootstrapServers é obrigatório" .Values.kafka.bootstrapServers | quote }}
+  CATALOG_JWT_ISSUER: {{ required "jwt.issuer é obrigatório" .Values.jwt.issuer | quote }}
+  CATALOG_JWT_JWKS_URL: {{ required "jwt.jwksUrl é obrigatório" .Values.jwt.jwksUrl | quote }}
+  CATALOG_JWT_AUDIENCE: {{ required "jwt.audience é obrigatório" .Values.jwt.audience | quote }}
+  CATALOG_JWT_GROUPS_PATH: {{ required "jwt.groupsPath é obrigatório" .Values.jwt.groupsPath | quote }}
+  CATALOG_CACHE_ENABLED: {{ .Values.cache.enabled | toString | quote }}
+  {{- if .Values.cache.enabled }}
+  QUARKUS_REDIS_HOSTS: {{ required "cache.hosts é obrigatório com cache.enabled" .Values.cache.hosts | quote }}
+  {{- with .Values.cache.ttl }}
+  CATALOG_CACHE_TTL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.cache.timeout }}
+  CATALOG_CACHE_TIMEOUT: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+  CATALOG_SWAGGER_UI_ENABLED: {{ .Values.swaggerUi.enabled | toString | quote }}
+  QUARKUS_OTEL_SDK_DISABLED: {{ not .Values.otel.enabled | toString | quote }}
+  {{- if .Values.otel.enabled }}
+  QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT: {{ required "otel.endpoint é obrigatório com otel.enabled" .Values.otel.endpoint | quote }}
+  {{- end }}
+  CATALOG_EVENTS_PRODUCT_TOPIC: {{ required "topics.product.name é obrigatório" .Values.topics.product.name | quote }}
+  CATALOG_EVENTS_OFFER_TOPIC: {{ required "topics.offer.name é obrigatório" .Values.topics.offer.name | quote }}
+  CATALOG_EVENTS_INVENTORY_TOPIC: {{ required "topics.inventory.name é obrigatório" .Values.topics.inventory.name | quote }}
+  CATALOG_EVENTS_STORE_TOPIC: {{ required "topics.store.name é obrigatório" .Values.topics.store.name | quote }}
+  CATALOG_KYB_SELLER_TOPIC: {{ required "topics.kybSeller.name é obrigatório" .Values.topics.kybSeller.name | quote }}
+  CATALOG_KYB_SELLER_DLQ: {{ required "topics.kybSellerDlq.name é obrigatório" .Values.topics.kybSellerDlq.name | quote }}

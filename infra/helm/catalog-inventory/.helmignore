@@ -1,0 +1,7 @@
+# Fora do pacote do chart: manifestos e roteiro do teste de fumaça em k3d.
+ci/
+.DS_Store
+*.swp
+*.bak
+*.tmp
+*~
