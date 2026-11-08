@@ -6,7 +6,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "1", memory: 1G}
-        reservations: {cpus: "0.10", memory: 512M}
+        reservations: {memory: 512M}
     profiles: [infra, catalog, all]
     command: ["start-dev", "--import-realm"]
     ports: ["127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"]

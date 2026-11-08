@@ -7,7 +7,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.05", memory: 64M}
-        reservations: {cpus: "0.01", memory: 16M}
+        reservations: {memory: 16M}
     profiles: [observability, all]
     environment:
       DATA_SOURCE_NAME: postgresql://exporter:${POSTGRES_EXPORTER_PASSWORD:-exporter-local-postgres}@postgres:5432/marketplace?sslmode=disable
@@ -18,7 +18,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.05", memory: 64M}
-        reservations: {cpus: "0.01", memory: 16M}
+        reservations: {memory: 16M}
     profiles: [observability, all]
     command: ["--redis.addr=redis://redis:6379", "--redis.user=exporter"]
     environment:
@@ -31,7 +31,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.15", memory: 256M}
-        reservations: {cpus: "0.02", memory: 64M}
+        reservations: {memory: 64M}
     profiles: [observability, all]
     privileged: true
     command:

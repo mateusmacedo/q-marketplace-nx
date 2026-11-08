@@ -8,7 +8,7 @@ services:
       resources:
         # Teto de CPU como disjuntor (ADR 019): com 0,75, o boot e a JVM do healthcheck eram estrangulados em 9% do tempo.
         limits: {cpus: "1.5", memory: 1536M}
-        reservations: {cpus: "0.10", memory: 512M}
+        reservations: {memory: 512M}
     profiles: [infra, catalog, all]
     ports: ["127.0.0.1:${KAFKA_PORT:-9094}:9094"]
     environment:
@@ -41,7 +41,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.20", memory: 384M}
-        reservations: {cpus: "0.01", memory: 64M}
+        reservations: {memory: 64M}
     profiles: [infra, catalog, all]
     depends_on:
       kafka: {condition: service_healthy}

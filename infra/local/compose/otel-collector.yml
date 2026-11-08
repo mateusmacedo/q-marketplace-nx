@@ -7,7 +7,7 @@ services:
     deploy:
       resources:
         limits: {cpus: "0.40", memory: 768M}
-        reservations: {cpus: "0.05", memory: 128M}
+        reservations: {memory: 128M}
     profiles: [observability, catalog, all]
     command: ["--config=/etc/otelcol/otel-collector.yaml"]
     environment:
