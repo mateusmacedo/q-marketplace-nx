@@ -1,0 +1,19 @@
+# A imagem não traz shell nem cliente HTTP, então não há healthcheck por CMD; o Alloy e o Collector repetem o envio
+# até o Loki aceitar.
+services:
+  loki:
+    image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
+    deploy:
+      resources:
+        limits: {cpus: "0.30", memory: 768M}
+        reservations: {cpus: "0.05", memory: 128M}
+    profiles: [observability, all]
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      # WHY: a pasta, e não o arquivo: o bind de arquivo único fica preso ao arquivo antigo quando um editor o troca
+      # inteiro, e o restart continuaria lendo a versão anterior.
+      - ../../observability/loki:/etc/loki:ro
+      - loki-data:/loki
+
+volumes:
+  loki-data: {}

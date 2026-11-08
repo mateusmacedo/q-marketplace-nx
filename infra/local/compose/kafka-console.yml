@@ -1,0 +1,20 @@
+# Redpanda Console, a interface do Kafka do DMPF: tópicos, mensagens, grupos de consumo e lag. Sobe junto com o broker
+# e fala com ele pelo listener interno; sem SASL, a configuração cabe numa variável.
+services:
+  kafka-console:
+    image: redpandadata/console:v3.11.0@sha256:bf5ed3ee83e5b2dd6d1c1f1c8095ba252f384ce9354e7a3d2f780f0b4a486c09
+    profiles: [infra, catalog, all]
+    depends_on:
+      kafka: {condition: service_healthy}
+    ports: ["127.0.0.1:${KAFKA_CONSOLE_PORT:-8090}:8080"]
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/admin/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits: {cpus: "0.10", memory: 256M}
+        reservations: {cpus: "0.05", memory: 64M}

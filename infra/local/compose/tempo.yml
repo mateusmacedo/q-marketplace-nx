@@ -1,0 +1,21 @@
+# Sem shell na imagem, então sem healthcheck por CMD. `user: root` porque o volume nomeado nasce do root e o Tempo
+# escreve WAL e blocos nele.
+services:
+  tempo:
+    image: grafana/tempo:3.0.0@sha256:78439f7f7cf3c97122846c13a832e060c6c7ef67dcc814dccf0a5f3f78393a93
+    deploy:
+      resources:
+        limits: {cpus: "0.60", memory: 2G}
+        reservations: {cpus: "0.10", memory: 256M}
+    profiles: [observability, all]
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    user: root
+    stop_grace_period: 45s
+    volumes:
+      # WHY: a pasta, e não o arquivo: o bind de arquivo único fica preso ao arquivo antigo quando um editor o troca
+      # inteiro, e o restart continuaria lendo a versão anterior.
+      - ../../observability/tempo:/etc/tempo:ro
+      - tempo-data:/var/tempo
+
+volumes:
+  tempo-data: {}
