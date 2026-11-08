@@ -1,0 +1,62 @@
+name: Release
+
+# Versão semver, CHANGELOG.md e GitHub release por projeto (apps, libs e contratos), a partir dos Conventional Commits
+# desde a última tag de cada um (`<projeto>@<versão>`). Configuração em `release` no nx.json.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Só mostrar as versões e os changelogs, sem commit, tag nem release
+        type: boolean
+        default: true
+      first-release:
+        description: Primeira release, sem tags anteriores dos projetos
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      # O commit de versão e as tags vão para a main antes das GitHub releases.
+      contents: write
+    env:
+      # Nenhuma tarefa roda aqui; o grafo dos projetos vem do Gradle local.
+      NX_NO_CLOUD: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Node, Java e Gradle
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Identidade do commit de versão
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Versão, changelog e GitHub releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          FIRST_RELEASE: ${{ inputs.first-release }}
+        run: |
+          set -euo pipefail
+          # Não há registry: --skip-publish responde "não" à publicação e dispensa o --yes, que o Nx recusa junto.
+          args=(--skip-publish)
+          if [ "$FIRST_RELEASE" = true ]; then args+=(--first-release); fi
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          npx nx release "${args[@]}"
