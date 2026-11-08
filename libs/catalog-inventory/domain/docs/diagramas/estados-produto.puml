@@ -1,0 +1,49 @@
+@startuml estados-produto
+title Ciclo de publicação do produto (ProductStatus / ProductTransition)
+
+hide empty description
+
+state "Editáveis (isEditable)" as Editaveis {
+  state DRAFT
+  state PENDING_MODERATION
+  state "Publicados (isPublished)" as Publicados {
+    state ACTIVE
+    state PAUSED_BY_SELLER
+  }
+}
+state BLOCKED
+state ARCHIVED
+state OUT_OF_STOCK <<derivado>>
+
+[*] --> DRAFT : CREATE\nProduct.draft\n[categoria ativa, atributos válidos]
+DRAFT --> PENDING_MODERATION : SUBMIT\n[sem motivos de PublishingPolicy]
+PENDING_MODERATION --> ACTIVE : APPROVE\n[publicável e loja APPROVED]
+PENDING_MODERATION --> DRAFT : REJECT\n[motivo obrigatório]
+ACTIVE --> PAUSED_BY_SELLER : PAUSE
+PAUSED_BY_SELLER --> ACTIVE : RESUME\n[loja APPROVED]
+Publicados --> PENDING_MODERATION : REVIEW_REQUIRED\n(automática ao editar\nconteúdo ou SKU)
+Editaveis --> BLOCKED : BLOCK\n[motivo obrigatório]
+BLOCKED --> PENDING_MODERATION : UNBLOCK
+Editaveis --> ARCHIVED : ARCHIVE
+BLOCKED --> ARCHIVED : ARCHIVE
+ARCHIVED --> [*]
+
+ACTIVE -[dashed]-> OUT_OF_STOCK : leitura: nenhum SKU\ncom saldo disponível
+
+note right of OUT_OF_STOCK
+  Nunca é gravado. É o ACTIVE sem saldo,
+  calculado por effectiveStatus(anyAvailable).
+  Nenhuma transição parte dele.
+end note
+
+note bottom of ARCHIVED
+  Estado final: nenhuma transição sai dele.
+  Oferta e estoque ficam congelados
+  (requireNotArchived).
+end note
+
+note bottom of BLOCKED
+  Não aceita edição. BLOCK emite
+  ProductStatusChanged e ProductBlocked.
+end note
+@enduml

@@ -1,0 +1,122 @@
+@startuml eventos-dominio
+title Eventos de domínio (interfaces seladas e records)
+
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "domain.product" {
+  interface ProductEvent <<sealed>> {
+    productId() : UUID
+    storeId() : UUID
+    occurredAt() : Instant
+  }
+  class ProductCreated <<record>> {
+    categoryId : UUID
+    currency : String
+    title : String
+    skus : List<SkuSummary>
+  }
+  class ProductStatusChanged <<record>> {
+    transition : ProductTransition
+    from : ProductStatus
+    to : ProductStatus
+    reason : String
+  }
+  class ProductBlocked <<record>> {
+    reason : String
+  }
+  class SkuSummary <<record>> {
+    skuId : UUID
+    sellerSku : String
+  }
+  ProductEvent <|.. ProductCreated
+  ProductEvent <|.. ProductStatusChanged
+  ProductEvent <|.. ProductBlocked
+  ProductCreated "1" *-- "0..100" SkuSummary
+}
+
+package "domain.offer" {
+  interface OfferEvent <<sealed>> {
+    skuId() : UUID
+    occurredAt() : Instant
+  }
+  class PriceChanged <<record>> {
+    productId : UUID
+    storeId : UUID
+    price : Price
+    promotions : List<Promotion>
+    priceVersion : long
+  }
+  OfferEvent <|.. PriceChanged
+}
+
+package "domain.inventory" {
+  interface InventoryEvent <<sealed>> {
+    occurredAt() : Instant
+  }
+  enum Cause {
+    ADJUSTED
+    RELEASED
+    EXPIRED
+    COMMITTED
+  }
+  class SkuStock <<record>> {
+    skuId : UUID
+    productId : UUID
+    storeId : UUID
+    onHand : int
+    reserved : int
+    version : long
+    --
+    available() : int
+  }
+  class ReservedSku <<record>> {
+    stock : SkuStock
+    quantity : int
+  }
+  class InventoryUpdated <<record>> {
+    stock : SkuStock
+    cause : Cause
+    reservationId : UUID [0..1]
+  }
+  class InventoryReserved <<record>> {
+    reservationId : UUID
+    orderRef : String
+    items : List<ReservedSku>
+    expiresAt : Instant
+  }
+  class InventoryDepleted <<record>> {
+    stock : SkuStock
+  }
+  class InventoryEvents <<fábrica>> {
+    {static} adjusted(before, after, ...)
+    {static} reserved(reservation, after)
+    {static} closed(reservation, outcome, after, at)
+  }
+  InventoryEvent <|.. InventoryUpdated
+  InventoryEvent <|.. InventoryReserved
+  InventoryEvent <|.. InventoryDepleted
+  InventoryUpdated --> Cause
+  InventoryUpdated --> SkuStock
+  InventoryDepleted --> SkuStock
+  InventoryReserved "1" *-- "1..100" ReservedSku
+  ReservedSku --> SkuStock
+  InventoryEvents ..> InventoryEvent : deriva
+}
+
+note bottom of ProductStatusChanged
+  Toda transição, exceto CREATE.
+  BLOCK emite também ProductBlocked.
+end note
+
+note bottom of PriceChanged
+  Criação da oferta e toda mudança de
+  preço ou de promoção (priceVersion sobe).
+end note
+
+note bottom of InventoryDepleted
+  Disponível passou a zero no ajuste
+  ou na reserva.
+end note
+@enduml

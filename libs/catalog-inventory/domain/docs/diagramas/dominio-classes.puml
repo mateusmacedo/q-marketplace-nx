@@ -1,0 +1,266 @@
+@startuml dominio-classes
+title Modelo de domínio do catálogo-inventário (agregados, entidades, VOs e enums)
+
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "domain (raiz)" as raiz {
+  class Money <<VO>> {
+    amount : BigDecimal
+    currency : String
+    --
+    MAX = 99999999999999999.99
+    compareAmount(other) : int
+  }
+  class Attributes <<utilitário>> {
+    {static} copy(values) : Map
+  }
+}
+
+package "domain.category" as category {
+  class Category <<agregado>> {
+    id : UUID
+    tenantId : UUID
+    ancestry : List<UUID>
+    code : String
+    name : String
+    active : boolean
+    version : long
+    --
+    {static} root(...)
+    {static} childOf(parent, ...)
+    revise(...)
+    moveUnder(chain, height, codes)
+    activate()
+    deactivate()
+    {static} effectiveAttributes(chain)
+  }
+  class AttributeDefinition <<VO>> {
+    code : String
+    label : String
+    required : boolean
+    variant : boolean
+    options : List<String>
+    --
+    accepts(value) : boolean
+  }
+  enum AttributeType {
+    TEXT
+    INTEGER
+    DECIMAL
+    BOOLEAN
+    OPTION
+  }
+}
+
+package "domain.product" as product {
+  class Product <<agregado raiz>> {
+    id : UUID
+    tenantId : UUID
+    storeId : UUID
+    currency : String
+    categoryId : UUID
+    title : String
+    description : String
+    attributes : Map<String, String>
+    status : ProductStatus
+    version : long
+    createdAt : Instant
+    updatedAt : Instant
+    --
+    {static} draft(...)
+    reviseContent(...)
+    addSku(...) / reviseSku(...) / removeSku(...)
+    submit / approve / reject / block / unblock
+    pause / resume / archive
+    effectiveStatus(anyAvailable)
+    isPubliclyVisible(seller)
+    drainChanges() / drainEvents()
+  }
+  class Sku <<entidade>> {
+    id : UUID
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : boolean
+  }
+  class Dimensions <<VO>> {
+    heightCm : BigDecimal
+    widthCm : BigDecimal
+    lengthCm : BigDecimal
+    weightGrams : int
+  }
+  class StatusChange <<VO>> {
+    id : UUID
+    transition : ProductTransition
+    from : ProductStatus
+    to : ProductStatus
+    actor : String
+    reason : String
+    at : Instant
+  }
+  class PublishingPolicy <<política>> {
+    {static} valueViolations(...)
+    {static} publishingViolations(...)
+  }
+  enum ProductStatus {
+    DRAFT
+    PENDING_MODERATION
+    ACTIVE
+    PAUSED_BY_SELLER
+    OUT_OF_STOCK
+    BLOCKED
+    ARCHIVED
+  }
+  enum ProductTransition {
+    CREATE
+    SUBMIT
+    APPROVE
+    REJECT
+    BLOCK
+    UNBLOCK
+    PAUSE
+    RESUME
+    ARCHIVE
+    REVIEW_REQUIRED
+  }
+  enum SellerStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+}
+
+package "domain.offer" as offer {
+  class Offer <<agregado>> {
+    skuId : UUID {chave}
+    productId : UUID
+    tenantId : UUID
+    storeId : UUID
+    currency : String
+    priceVersion : long
+    version : long
+    --
+    {static} create(...)
+    changePrice(price, now)
+    schedulePromotion(promotion, now)
+    cancelPromotion(id, now)
+    effectivePrice(now) : EffectivePrice
+  }
+  class Price <<VO>> {
+    listPrice : Money [0..1]
+    salePrice : Money
+  }
+  class Promotion <<VO>> {
+    id : UUID
+    salePrice : Money
+    startsAt : Instant
+    endsAt : Instant
+  }
+  class EffectivePrice <<VO>> {
+    listPrice : Money
+    salePrice : Money
+    promotionId : Optional<UUID>
+    priceVersion : long
+  }
+}
+
+package "domain.inventory" as inventory {
+  class StockLevel <<VO de estado>> {
+    skuId : UUID
+    onHand : int
+    reserved : int
+    sold : long
+    version : long
+    --
+    available() : int
+  }
+  class Reservation <<agregado>> {
+    id : UUID
+    tenantId : UUID
+    idempotencyKey : String
+    requestHash : String
+    orderRef : String
+    status : ReservationStatus
+    createdAt : Instant
+    expiresAt : Instant
+    closedAt : Instant
+    --
+    overdueAt(now) : boolean
+  }
+  class ReservationItem <<VO>> {
+    skuId : UUID
+    productId : UUID
+    storeId : UUID
+    quantity : int
+    unitPrice : Money
+    priceVersion : long
+  }
+  class RequestedItem <<VO>> {
+    skuId : UUID
+    quantity : int
+    expectedUnitPrice : Money
+  }
+  class SkuCandidate <<VO>> {
+    productId : UUID
+    storeId : UUID
+    productStatus : ProductStatus
+    seller : SellerStatus
+    offer : Offer
+  }
+  class ReservationPolicy <<política>> {
+    LOCK_ORDER : Comparator<UUID>
+    --
+    {static} open(...) : Reservation
+    {static} inLockOrder(items)
+    {static} insufficientStock(skuIds)
+  }
+  enum ReservationStatus {
+    ACTIVE
+    COMMITTED
+    RELEASED
+    EXPIRED
+  }
+}
+
+Category "1" *-- "0..50" AttributeDefinition : attributes
+AttributeDefinition --> "1" AttributeType : type
+Category "0..*" --> "0..1" Category : pai (último de ancestry)
+
+Product "1" *-- "0..100" Sku : skus
+Sku "1" *-- "0..1" Dimensions : dimensions
+Product "1" *-- "0..*" StatusChange : transições não persistidas
+Product --> ProductStatus : status
+StatusChange --> ProductTransition
+Product ..> PublishingPolicy : usa
+Product "0..*" ..> "1" Category : categoryId
+
+Offer "0..1" ..> "1" Sku : skuId
+Offer "1" *-- "1" Price : price
+Offer "1" *-- "0..20" Promotion : pendentes
+Offer ..> EffectivePrice : calcula
+Price --> Money
+Promotion --> Money
+
+StockLevel "1" ..> "1" Sku : skuId
+Reservation "1" *-- "1..100" ReservationItem : items
+Reservation --> ReservationStatus : status
+ReservationItem --> Money : unitPrice
+ReservationPolicy ..> RequestedItem : recebe
+ReservationPolicy ..> SkuCandidate : consulta
+ReservationPolicy ..> Reservation : cria ACTIVE
+SkuCandidate --> Offer
+SkuCandidate --> ProductStatus
+SkuCandidate --> SellerStatus
+
+note bottom of Offer
+  Uma oferta por SKU. Moeda fixa,
+  igual à do produto.
+end note
+
+note bottom of StockLevel
+  available = onHand - reserved
+  0 <= reserved <= onHand <= 1.000.000
+end note
+
+@enduml

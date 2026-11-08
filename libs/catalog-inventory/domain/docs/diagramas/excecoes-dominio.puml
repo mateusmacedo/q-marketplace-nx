@@ -1,0 +1,39 @@
+@startuml excecoes-dominio
+title Exceções de domínio e tradução HTTP no serviço
+
+hide empty members
+skinparam classAttributeIconSize 0
+
+class RuntimeException
+class DomainRuleViolation {
+  code : String
+  reasons : List<String>
+  --
+  {static} invalid(message)
+  {static} requireText(value, max, message)
+}
+class InvalidTransitionException {
+  code = invalid-transition
+}
+class ReservationRefusal
+class StockConflictException
+
+RuntimeException <|-- DomainRuleViolation
+DomainRuleViolation <|-- InvalidTransitionException
+DomainRuleViolation <|-- ReservationRefusal
+DomainRuleViolation <|-- StockConflictException
+
+note right of DomainRuleViolation
+  Recusa de negócio: 422 com code e reasons.
+  Nunca deve disparar retentativa.
+end note
+note right of InvalidTransitionException
+  409 (transição negada pelo estado)
+end note
+note right of ReservationRefusal
+  409 (reserva recusada; o cliente recota)
+end note
+note right of StockConflictException
+  409 (stock-below-reserved, sku-has-stock)
+end note
+@enduml

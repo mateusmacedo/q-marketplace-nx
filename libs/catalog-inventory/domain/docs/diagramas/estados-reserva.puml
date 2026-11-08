@@ -1,0 +1,32 @@
+@startuml estados-reserva
+title Ciclo de vida da reserva de estoque (ReservationStatus)
+
+hide empty description
+
+state ACTIVE : retém estoque (reserved += n)\nclosedAt nulo
+state COMMITTED : on_hand -= n, reserved -= n, sold += n
+state RELEASED : reserved -= n
+state EXPIRED : reserved -= n
+
+[*] --> ACTIVE : ReservationPolicy.open\n[1 a 100 itens, produto ACTIVE,\nloja APPROVED, preço vigente igual]\n+ saldo atômico: on_hand - reserved >= n
+ACTIVE --> ACTIVE : extend\n[ativa, não vencida,\nnovo prazo <= createdAt + 24 h]\nsem evento
+ACTIVE --> COMMITTED : commit\n[expires_at > agora]
+ACTIVE --> RELEASED : release
+ACTIVE --> EXPIRED : expiração pelo varredor\n[expires_at <= agora]
+COMMITTED --> [*]
+RELEASED --> [*]
+EXPIRED --> [*]
+
+note right of ACTIVE
+  overdueAt(now): ACTIVE com prazo vencido.
+  Não pode mais ser confirmada, mesmo
+  antes de o varredor expirá-la.
+end note
+
+note bottom of COMMITTED
+  COMMITTED, RELEASED e EXPIRED são finais
+  e mutuamente exclusivos. As transições são
+  aplicadas pelo armazenamento (compare-and-set),
+  em ReservationPolicy.LOCK_ORDER.
+end note
+@enduml

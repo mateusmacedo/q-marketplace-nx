@@ -1,0 +1,30 @@
+@startuml estados-elegibilidade-loja
+title Elegibilidade da loja no catálogo (SellerStatus)
+
+hide empty description
+
+state PENDING : isEligible() = false
+state APPROVED : isEligible() = true
+state REJECTED : isEligible() = false
+
+[*] --> PENDING : loja sem registro
+PENDING --> APPROVED : SellerApproved
+PENDING --> REJECTED : SellerRejected
+APPROVED --> REJECTED : SellerRejected
+APPROVED --> PENDING : ReviewRequired
+REJECTED --> APPROVED : SellerApproved
+REJECTED --> PENDING : ReviewRequired
+
+note right of APPROVED
+  Só APPROVED permite APPROVE e RESUME do
+  produto, visibilidade pública e reserva.
+end note
+
+note bottom of PENDING
+  Sem estado final. Guarda de toda transição:
+  decidedAt do veredito >= decidedAt registrado
+  (veredito mais antigo é ignorado).
+  O enum fica no domínio; quem aplica os
+  vereditos KYB/KYC é o serviço.
+end note
+@enduml

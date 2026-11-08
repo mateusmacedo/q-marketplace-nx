@@ -1,0 +1,28 @@
+@startuml estados-categoria
+title Situação da categoria (Category.active) e usabilidade pela cadeia
+
+hide empty description
+
+state "Ativa" as Ativa : active = true
+state "Inativa" as Inativa : active = false
+
+[*] --> Ativa : root / childOf\n[childOf: pai direto ativo]
+Ativa --> Inativa : deactivate()
+Inativa --> Ativa : activate()
+Ativa --> Ativa : activate() (sem efeito)
+Inativa --> Inativa : deactivate() (sem efeito)
+
+note right of Ativa
+  Usável para produto só quando ela e
+  todos os ancestrais estão ativos
+  (CategoryView.usable, na aplicação).
+end note
+
+note right of Inativa
+  Recusa childOf (category-inactive).
+  Product.draft e reviseContent recusam
+  categoria inativa (category-inactive).
+  moveUnder aceita pai inativo.
+  Não há estado final nem evento de domínio.
+end note
+@enduml
