@@ -1,7 +1,10 @@
 import {
   cilAccountLogout,
+  cilBell,
   cilContrast,
+  cilEnvelopeOpen,
   cilHome,
+  cilList,
   cilMenu,
   cilMoon,
   cilSun,
@@ -12,8 +15,11 @@ import { signet } from './signet';
 
 export const iconSubset = {
   cilAccountLogout,
+  cilBell,
   cilContrast,
+  cilEnvelopeOpen,
   cilHome,
+  cilList,
   cilMenu,
   cilMoon,
   cilSun,

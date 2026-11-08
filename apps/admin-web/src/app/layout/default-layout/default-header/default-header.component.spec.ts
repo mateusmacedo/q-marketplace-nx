@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideOAuthClient } from 'angular-oauth2-oidc';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import {
   AvatarModule,
   BadgeModule,
@@ -42,5 +42,29 @@ describe('DefaultHeaderComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('lista as telas do menu na busca', () => {
+    expect(component.searchResults()).toEqual([{ name: 'Início', url: '/inicio' }]);
+  });
+
+  it('filtra as telas pelo texto digitado, sem diferenciar maiúsculas', () => {
+    component.searchQuery.set('INÍ');
+    expect(component.searchResults().map(result => result.url)).toEqual(['/inicio']);
+
+    component.searchQuery.set('pedidos');
+    expect(component.searchResults()).toEqual([]);
+  });
+
+  it('fecha a busca, limpa o texto e navega ao escolher uma tela', () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    component.searchVisible.set(true);
+    component.searchQuery.set('iní');
+
+    component.openResult('/inicio');
+
+    expect(navigate).toHaveBeenCalledWith('/inicio');
+    expect(component.searchVisible()).toBe(false);
+    expect(component.searchQuery()).toBe('');
   });
 });
