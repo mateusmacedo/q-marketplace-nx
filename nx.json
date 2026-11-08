@@ -94,6 +94,29 @@
         "default",
         "^default"
       ]
+    },
+    "e2e": {
+      "cache": false
+    },
+    "e2e-ci": {
+      "cache": false
+    },
+    "e2e-ci--**/*": {
+      "cache": false
+    },
+    "lint": {
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{projectRoot}/eslint.config.mjs",
+        "{workspaceRoot}/tools/contexts.json",
+        {
+          "externalDependencies": [
+            "eslint"
+          ]
+        }
+      ]
     }
   },
   "release": {

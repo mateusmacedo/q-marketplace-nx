@@ -4,7 +4,7 @@ import nx from "@nx/eslint-plugin";
 // Fronteiras do front (ADR 027): cada dimensão de tag tem as próprias regras, e todas as que casam com o projeto
 // de origem valem juntas.
 const contexts = JSON.parse(readFileSync(new URL("./tools/contexts.json", import.meta.url), "utf8"));
-const NON_ANGULAR_BANNED = ["@angular/*", "@coreui/*", "angular-oauth2-oidc"];
+const NON_ANGULAR_BANNED = ["@angular/*", "@coreui/*", "angular-oauth2-oidc", "angular-oauth2-oidc/*"];
 
 const frameworkConstraints = [
     { sourceTag: "framework:angular", onlyDependOnLibsWithTags: ["framework:angular", "framework:none"] },
@@ -16,7 +16,7 @@ const frameworkConstraints = [
     {
         sourceTag: "framework:none",
         onlyDependOnLibsWithTags: ["framework:none"],
-        bannedExternalImports: [...NON_ANGULAR_BANNED, "react", "react-dom", "next", "next/*"]
+        bannedExternalImports: [...NON_ANGULAR_BANNED, "react", "react/*", "react-dom", "react-dom/*", "next", "next/*"]
     }
 ];
 
