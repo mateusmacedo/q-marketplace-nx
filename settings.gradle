@@ -1,0 +1,53 @@
+pluginManagement {
+    repositories { mavenCentral(); gradlePluginPortal() }
+    plugins { id 'io.quarkus' version "${quarkusPluginVersion}" }
+}
+rootProject.name = 'marketplace'
+include ':identity-organization-domain'
+project(':identity-organization-domain').projectDir = file('libs/identity-organization/domain')
+include ':identity-organization-application'
+project(':identity-organization-application').projectDir = file('libs/identity-organization/application')
+include ':identity-organization-service'
+project(':identity-organization-service').projectDir = file('apps/identity-organization-service')
+include ':kyb-kyc-domain'
+project(':kyb-kyc-domain').projectDir = file('libs/kyb-kyc/domain')
+include ':kyb-kyc-application'
+project(':kyb-kyc-application').projectDir = file('libs/kyb-kyc/application')
+include ':kyb-kyc-service'
+project(':kyb-kyc-service').projectDir = file('apps/kyb-kyc-service')
+include ':catalog-inventory-domain'
+project(':catalog-inventory-domain').projectDir = file('libs/catalog-inventory/domain')
+include ':catalog-inventory-application'
+project(':catalog-inventory-application').projectDir = file('libs/catalog-inventory/application')
+include ':catalog-inventory-service'
+project(':catalog-inventory-service').projectDir = file('apps/catalog-inventory-service')
+include ':cart-checkout-domain'
+project(':cart-checkout-domain').projectDir = file('libs/cart-checkout/domain')
+include ':cart-checkout-application'
+project(':cart-checkout-application').projectDir = file('libs/cart-checkout/application')
+include ':cart-checkout-service'
+project(':cart-checkout-service').projectDir = file('apps/cart-checkout-service')
+include ':order-management-domain'
+project(':order-management-domain').projectDir = file('libs/order-management/domain')
+include ':order-management-application'
+project(':order-management-application').projectDir = file('libs/order-management/application')
+include ':order-management-service'
+project(':order-management-service').projectDir = file('apps/order-management-service')
+include ':payment-split-domain'
+project(':payment-split-domain').projectDir = file('libs/payment-split/domain')
+include ':payment-split-application'
+project(':payment-split-application').projectDir = file('libs/payment-split/application')
+include ':payment-split-service'
+project(':payment-split-service').projectDir = file('apps/payment-split-service')
+include ':fulfillment-logistics-domain'
+project(':fulfillment-logistics-domain').projectDir = file('libs/fulfillment-logistics/domain')
+include ':fulfillment-logistics-application'
+project(':fulfillment-logistics-application').projectDir = file('libs/fulfillment-logistics/application')
+include ':fulfillment-logistics-service'
+project(':fulfillment-logistics-service').projectDir = file('apps/fulfillment-logistics-service')
+include ':settlement-payout-domain'
+project(':settlement-payout-domain').projectDir = file('libs/settlement-payout/domain')
+include ':settlement-payout-application'
+project(':settlement-payout-application').projectDir = file('libs/settlement-payout/application')
+include ':settlement-payout-service'
+project(':settlement-payout-service').projectDir = file('apps/settlement-payout-service')
