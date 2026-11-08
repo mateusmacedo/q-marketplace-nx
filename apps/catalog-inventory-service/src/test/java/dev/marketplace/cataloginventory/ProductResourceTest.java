@@ -99,6 +99,16 @@ class ProductResourceTest {
         }
 
         @Test
+        void contentRevisionRejectsWildcardIfMatch() {
+                Api api = new Api().withCategory().approvedStore();
+                String id = api.activeProduct(sku("CAM-P", "P", "50"));
+                String revision = "{\"categoryId\":\"" + api.categoryId
+                                + "\",\"title\":\"Camiseta premium\",\"attributes\":{\"marca\":\"Acme\"}}";
+                as(api.seller).header("If-Match", "*").body(revision).put("/products/" + id).then().statusCode(428)
+                                .body("type", endsWith("/precondition-required"));
+        }
+
+        @Test
         void sellerSkuIsUniqueInTheStoreAtDatabaseLevel() {
                 Api api = new Api().withCategory();
                 api.createProduct(sku("CAM-P", "P", "50"));

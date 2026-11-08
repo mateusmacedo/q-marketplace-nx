@@ -43,9 +43,13 @@ final class ETags {
         }
     }
 
-    /** Como {@link #optional}, mas cabeçalho ausente ou em branco responde 428. */
+    /**
+     * Como {@link #optional}, mas cabeçalho ausente, em branco ou {@code *}
+     * responde 428: a rota exige a versão do agregado, e {@code *} gravaria sem
+     * checá-la.
+     */
     static Optional<Long> required(String ifMatch) {
-        if (ifMatch == null || ifMatch.isBlank())
+        if (ifMatch == null || ifMatch.isBlank() || ifMatch.trim().equals("*"))
             throw new PreconditionRequiredException();
         return optional(ifMatch);
     }
