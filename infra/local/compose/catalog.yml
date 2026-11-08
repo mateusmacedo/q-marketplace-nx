@@ -64,7 +64,7 @@ x-catalog-api: &catalog-api
   environment:
     <<: *catalog-env
     QUARKUS_PROFILE: prod,api
-    # Swagger UI só no ambiente local, pelo gateway: http://localhost:8083/q/swagger-ui
+    # Swagger UI só no ambiente local, na porta de gestão de cada instância: http://localhost:9301/q/swagger-ui
     CATALOG_SWAGGER_UI_ENABLED: ${CATALOG_SWAGGER_UI_ENABLED:-true}
 
 services:

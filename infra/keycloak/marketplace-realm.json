@@ -99,8 +99,8 @@
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:4200/*",
-        "http://localhost:8080/*"
+        "http://localhost:4200/",
+        "http://localhost:8080/"
       ],
       "webOrigins": [
         "http://localhost:4200",
@@ -108,7 +108,7 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:4200/*##http://localhost:8080/*"
+        "post.logout.redirect.uris": "http://localhost:4200/##http://localhost:8080/"
       },
       "protocolMappers": [
         {
