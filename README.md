@@ -96,7 +96,7 @@ docker compose -f infra/local/docker-compose.yml --profile infra exec -T kafka /
 
 ### Painel (admin-web)
 
-O painel de operação ([ADR 027 e ADR 028](docs/decisoes.md)) é Angular 22 com o CoreUI. Para desenvolver com hot reload, suba a stack (`--profile catalog`) e rode `npm run dev:admin`: o painel abre em `http://localhost:4200`, o login vai para o Keycloak (por exemplo, `seller-demo`/`seller-demo`), e as chamadas a `/api/catalog-inventory` passam pelo proxy do dev server até o gateway, na `8083`. No compose, o mesmo build roda no gateway, em `http://localhost:8080`.
+O painel de operação ([ADRs 027, 028 e 029](docs/decisoes.md)) é Angular 22 com o CoreUI, e as telas do catálogo seguem a [proposta de design](docs/proposta-design-admin-web.md). Para desenvolver com hot reload, suba a stack (`--profile catalog`) e rode `npm run dev:admin`: o painel abre em `http://localhost:4200`, o login vai para o Keycloak (por exemplo, `seller-demo`/`seller-demo`), e as chamadas a `/api/catalog-inventory` passam pelo proxy do dev server até o gateway, na `8083`. No compose, o mesmo build roda no gateway, em `http://localhost:8080`.
 
 ```bash
 npm run dev:admin
