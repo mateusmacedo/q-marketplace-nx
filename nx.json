@@ -12,6 +12,10 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
+      "include": [
+        "apps/**/*",
+        "libs/**/*"
+      ],
       "options": {
         "targetName": "lint"
       }
@@ -25,17 +29,8 @@
   ],
   "namedInputs": {
     "sharedGlobals": [
-      "{workspaceRoot}/build.gradle",
-      "{workspaceRoot}/settings.gradle",
-      "{workspaceRoot}/gradle.properties",
-      "{workspaceRoot}/gradle/**/*",
-      "{workspaceRoot}/gradlew",
-      "{workspaceRoot}/gradlew.bat",
-      "{workspaceRoot}/tools/**/*",
       "{workspaceRoot}/package-lock.json",
-      {
-        "runtime": "java -version"
-      },
+      "{workspaceRoot}/tsconfig.base.json",
       {
         "runtime": "node --version"
       }
@@ -45,6 +40,13 @@
       "!{projectRoot}/build/**/*",
       "!{projectRoot}/docs/**/*",
       "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/tsconfig.spec.json",
+      "!{projectRoot}/eslint.config.mjs",
+      "!{projectRoot}/README.md"
     ]
   },
   "targetDefaults": {
@@ -82,8 +84,8 @@
         "^build"
       ],
       "inputs": [
-        "default",
-        "^default"
+        "production",
+        "^production"
       ]
     },
     "@angular/build:unit-test": {
@@ -100,7 +102,8 @@
       "apps": {
         "projectsRelationship": "independent",
         "projects": [
-          "tag:layer:service"
+          "tag:layer:service",
+          "tag:layer:web-app"
         ]
       },
       "libs": {
