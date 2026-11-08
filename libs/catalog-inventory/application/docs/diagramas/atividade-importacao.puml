@@ -1,0 +1,67 @@
+@startuml atividade-importacao
+title ProductImportService.process: plano por unidade, gravação e retomada
+
+start
+:Lê os resultados já gravados (imports.results);
+note right: linhas com resultado ficam fora (retomada)
+:Busca os SKUs pendentes que já existem na loja\n(products.skuIdsBySellerSku);
+
+partition "plan: linhas na ordem do arquivo" {
+  while (Há próxima linha?) is (sim)
+    :Marca o sellerSku como visto\n(vale também para linhas já gravadas);
+    if (Linha já tem resultado?) then (sim)
+      :Pula;
+    elseif (sellerSku já visto em linha anterior?) then (sim)
+      :Unidade Rejected\nduplicate-seller-sku;
+    elseif (sellerSku existe na loja?) then (sim)
+      :Unidade ExistingSku;
+    elseif (productRef vazio?) then (sim)
+      :Unidade Rejected\ninvalid-row;
+    else (não)
+      :Acrescenta ao grupo NewProduct\ndo productRef;
+    endif
+  endwhile (não)
+}
+
+partition "Executa cada unidade em sequência" {
+  while (Há próxima unidade?) is (sim)
+    switch (Tipo da unidade)
+    case (Rejected)
+      :Resultado FAILED já pronto;
+    case (ExistingSku)
+      if (Linha com error?) then (sim)
+        :FAILED invalid-row;
+      else (não)
+        :ownedBySku + requireNotArchived(IMPORT);
+        :Preço diferente? OfferService.define\n(versão lida como If-Match; sem oferta, cria);
+        :Estoque diferente? InventoryService.adjust\n(sem If-Match);
+        :UPDATED se algo mudou, senão UNCHANGED\n(recusa de negócio: FAILED);
+      endif
+    case (NewProduct)
+      :prepare de cada linha (sem gravar);
+      if (Alguma linha inválida?) then (sim)
+        :invalid-row (ou código do domínio) nela,\ngroup-rejected nas demais;
+      elseif (Campos de produto divergem da 1ª linha?) then (sim)
+        :inconsistent-product em todas;
+      elseif (category_code inexistente no tenant?) then (sim)
+        :category-not-found em todas;
+      else (não)
+        :ProductService.create (rascunho com todos os SKUs);
+        :Para cada SKU: OfferService.define\ne InventoryService.adjust se onHand > 0;
+        :CREATED com productId\n(falha após criar: FAILED com productId);
+      endif
+    endswitch
+    :recordResults(lote, resultados da unidade)\nrenova startedAt; linha já gravada mantém o 1º resultado;
+  endwhile (não)
+}
+
+:complete(lote) → COMPLETED;
+:Devolve só os resultados desta execução;
+stop
+
+note right
+  Falha técnica em qualquer passo
+  interrompe process: o que foi gravado
+  fica, e o lote volta após o lease.
+end note
+@enduml

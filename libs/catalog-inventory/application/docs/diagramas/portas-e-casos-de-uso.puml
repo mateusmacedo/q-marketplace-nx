@@ -1,0 +1,110 @@
+@startuml portas-e-casos-de-uso
+title Casos de uso, apoio de acesso e portas (e quem as implementa no serviço)
+skinparam classAttributeIconSize 0
+hide empty members
+
+package "catalog-inventory-application" {
+  package "Casos de uso" {
+    class ProductService <<final>>
+    class ModerationService <<final>>
+    class OfferService <<final>>
+    class InventoryService <<final>>
+    class ReservationService <<final>>
+    class CategoryService <<final>>
+    class StorefrontService <<final>>
+    class SellerEligibilityService <<final>>
+    class ProductImportService <<final>>
+  }
+
+  package "Apoio (pacote privado)" {
+    class ProductSupport {
+      mutateOwned()
+      mutateAsModerator()
+      publicationOf()
+      sellerOf()
+    }
+    class ProductAccess {
+      visible() / visibleBySku()
+      owned() / ownedBySku()
+      inTenant()
+      listScope() / requireSeller()
+    }
+  }
+
+  package "Portas" {
+    interface ProductRepository
+    interface CategoryRepository
+    interface OfferRepository
+    interface InventoryRepository
+    interface ReservationRepository
+    interface SellerEligibilityRepository
+    interface ProductImportRepository
+  }
+}
+
+package "catalog-inventory-service (adaptadores)" #line.dashed {
+  class PgProductRepository
+  class PgCategoryRepository
+  class PgOfferRepository
+  class PgInventoryRepository
+  class PgReservationRepository
+  class PgSellerEligibilityRepository
+  class PgProductImportRepository
+  class ProductCacheInvalidation <<decorator>>
+  class OfferCacheInvalidation <<decorator>>
+  class CategoryCacheInvalidation <<decorator>>
+  class SellerCacheInvalidation <<decorator>>
+  class "TaxonomyCache.over()" as TaxonomyOver <<wrapper>>
+}
+
+ProductService --> ProductSupport
+ModerationService --> ProductSupport
+ProductSupport --> ProductAccess
+ProductSupport --> CategoryRepository
+ProductSupport --> SellerEligibilityRepository
+ProductSupport --> OfferRepository
+ProductAccess --> ProductRepository
+
+OfferService --> ProductAccess
+OfferService --> OfferRepository
+InventoryService --> ProductAccess
+InventoryService --> InventoryRepository
+StorefrontService --> ProductAccess
+StorefrontService --> SellerEligibilityRepository
+StorefrontService --> OfferRepository
+ReservationService --> ReservationRepository
+ReservationService --> InventoryRepository
+CategoryService --> CategoryRepository
+SellerEligibilityService --> SellerEligibilityRepository
+
+ProductImportService --> ProductImportRepository
+ProductImportService --> ProductRepository : skuIdsBySellerSku
+ProductImportService --> ProductAccess
+ProductImportService --> CategoryRepository
+ProductImportService --> OfferRepository
+ProductImportService --> ProductService : create
+ProductImportService --> OfferService : define
+ProductImportService --> InventoryService : get / adjust
+
+ProductRepository <|.. PgProductRepository
+CategoryRepository <|.. PgCategoryRepository
+OfferRepository <|.. PgOfferRepository
+InventoryRepository <|.. PgInventoryRepository
+ReservationRepository <|.. PgReservationRepository
+SellerEligibilityRepository <|.. PgSellerEligibilityRepository
+ProductImportRepository <|.. PgProductImportRepository
+
+ProductRepository <|.. ProductCacheInvalidation
+OfferRepository <|.. OfferCacheInvalidation
+CategoryRepository <|.. CategoryCacheInvalidation
+SellerEligibilityRepository <|.. SellerCacheInvalidation
+CategoryRepository <|.. TaxonomyOver
+
+note bottom of TaxonomyOver
+  Montado em CatalogBeans para CategoryService,
+  ProductService, ModerationService e
+  ProductImportService. Com o cache ligado,
+  chain e children passam pelo Redis; com ele
+  desligado, devolve a própria porta.
+end note
+@enduml

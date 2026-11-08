@@ -1,0 +1,99 @@
+@startuml casos-de-uso
+title Casos de uso do catálogo-inventário (camada de aplicação)
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Seller" as seller
+actor "Moderador" as moderator
+actor "Admin do catálogo" as admin
+actor "Comprador anônimo" as buyer
+actor "Checkout / OMS" as checkout <<sistema>>
+actor "Worker" as worker <<sistema>>
+actor "KYB/KYC" as kyb <<sistema>>
+
+rectangle "catalog-inventory-application" {
+  package "ProductService" {
+    usecase "Criar rascunho\n(create)" as UC_create
+    usecase "Ler, listar e ver histórico\n(get, list, history)" as UC_read
+    usecase "Editar conteúdo e SKUs\n(reviseContent, addSku,\nreviseSku, removeSku)" as UC_edit
+    usecase "Enviar, pausar, retomar, arquivar\n(submit, pause, resume, archive)" as UC_lifecycle
+  }
+  package "ModerationService" {
+    usecase "Ver fila de moderação\n(queue)" as UC_queue
+    usecase "Aprovar, rejeitar,\nbloquear, desbloquear" as UC_moderate
+  }
+  package "OfferService" {
+    usecase "Ler oferta (get)" as UC_offer_get
+    usecase "Definir preço e promoções\n(define, schedulePromotion,\ncancelPromotion)" as UC_offer
+  }
+  package "InventoryService" {
+    usecase "Ler saldo (get)" as UC_stock_get
+    usecase "Ajustar estoque físico\n(adjust)" as UC_adjust
+  }
+  package "ProductImportService" {
+    usecase "Enviar e acompanhar lote CSV\n(submit, get)" as UC_import
+    usecase "Reivindicar e processar lote\n(claimNext, process)" as UC_import_run
+  }
+  package "CategoryService" {
+    usecase "Ler árvore\n(get, children)" as UC_cat_read
+    usecase "Criar, revisar e mover categoria\n(create, revise, move)" as UC_cat_write
+  }
+  package "StorefrontService" {
+    usecase "Ver produto na vitrine\n(get)" as UC_store
+  }
+  package "SellerEligibilityService" {
+    usecase "Consultar situação KYB da loja\n(get)" as UC_elig_get
+    usecase "Registrar veredito\n(record)" as UC_elig_record
+  }
+  package "ReservationService" {
+    usecase "Reservar, ler, confirmar,\nliberar, estender\n(reserve, get, commit,\nrelease, extend)" as UC_reserve
+    usecase "Expirar vencidas\n(expireDue)" as UC_expire
+  }
+}
+
+seller --> UC_create
+seller --> UC_read
+seller --> UC_edit
+seller --> UC_lifecycle
+seller --> UC_offer_get
+seller --> UC_offer
+seller --> UC_stock_get
+seller --> UC_adjust
+seller --> UC_import
+seller --> UC_cat_read
+seller --> UC_elig_get
+
+moderator --> UC_queue
+moderator --> UC_moderate
+moderator --> UC_read
+moderator --> UC_offer_get
+moderator --> UC_stock_get
+moderator --> UC_cat_read
+
+admin --> UC_cat_write
+admin --> UC_cat_read
+admin --> UC_read
+admin --> UC_offer_get
+admin --> UC_stock_get
+admin --> UC_elig_get
+
+buyer --> UC_store
+checkout --> UC_reserve
+
+UC_import_run <-- worker
+UC_expire <-- worker
+UC_elig_record <-- kyb
+
+UC_import_run ..> UC_create : <<include>>
+UC_import_run ..> UC_offer : <<include>>
+UC_import_run ..> UC_adjust : <<include>>
+
+note bottom of UC_elig_record
+  O veredito chega pelo Kafka e o consumidor
+  do papel worker chama record(); não há chamador
+  autenticado. Também sem chamador: expireDue,
+  claimNext e process (este age como o seller
+  que enviou o lote).
+end note
+@enduml

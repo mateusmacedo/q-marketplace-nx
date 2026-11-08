@@ -1,0 +1,29 @@
+@startuml estados-importacao
+title Estados do lote de importação (ProductImport.ImportStatus)
+hide empty description
+
+[*] --> PENDING : submit\n(createdAt = agora)
+
+PENDING --> PROCESSING : claimNext\n(startedAt = agora)
+
+PROCESSING --> PROCESSING : recordResults ao fim de cada unidade\n(renova startedAt)
+PROCESSING --> PROCESSING : claimNext após o lease\n(startedAt < agora - lease;\nretoma as linhas sem resultado)
+PROCESSING --> COMPLETED : complete\n(finishedAt = agora)
+
+COMPLETED --> [*]
+
+note right of PROCESSING
+  Falha técnica interrompe process sem
+  mudar o estado: o lote fica PROCESSING
+  e volta a ser reivindicável quando
+  startedAt fica mais antigo que o lease.
+  Recusa de negócio não interrompe:
+  vira linha FAILED.
+end note
+
+note left of PENDING
+  Dois chamadores nunca recebem o mesmo
+  lote (contrato de claimNext). A ordem
+  é do lote mais antigo para o mais novo.
+end note
+@enduml
