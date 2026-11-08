@@ -1,19 +1,23 @@
 @startuml estados-elegibilidade-loja
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/user_clock>
+!include <tupadr3/font-awesome-5/user_check>
+!include <tupadr3/font-awesome-5/user_times>
 title Elegibilidade da loja no catálogo (SellerStatus)
 
 hide empty description
 
-state PENDING : isEligible() = false
-state APPROVED : isEligible() = true
-state REJECTED : isEligible() = false
+state "<$user_clock,scale=0.5,color=#FFA000> PENDING" as PENDING <<espera>> : isEligible() = false
+state "<$user_check,scale=0.5,color=#2E7D32> APPROVED" as APPROVED <<ativo>> : isEligible() = true
+state "<$user_times,scale=0.5,color=#C62828> REJECTED" as REJECTED <<erro>> : isEligible() = false
 
 [*] --> PENDING : loja sem registro
-PENDING --> APPROVED : SellerApproved
-PENDING --> REJECTED : SellerRejected
-APPROVED --> REJECTED : SellerRejected
-APPROVED --> PENDING : ReviewRequired
-REJECTED --> APPROVED : SellerApproved
-REJECTED --> PENDING : ReviewRequired
+PENDING -[#2E7D32]-> APPROVED : <color:#2E7D32>SellerApproved</color>
+PENDING -[#C62828]-> REJECTED : <color:#C62828>SellerRejected</color>
+APPROVED -[#C62828]-> REJECTED : <color:#C62828>SellerRejected</color>
+APPROVED -[#FFA000]-> PENDING : ReviewRequired
+REJECTED -[#2E7D32]-> APPROVED : <color:#2E7D32>SellerApproved</color>
+REJECTED -[#FFA000]-> PENDING : ReviewRequired
 
 note right of APPROVED
   Só APPROVED permite APPROVE e RESUME do
@@ -27,4 +31,11 @@ note bottom of PENDING
   O enum fica no domínio; quem aplica os
   vereditos KYB/KYC é o serviço.
 end note
+
+legend right
+  <b>Veredito KYB/KYC</b>
+  <back:#66BB6A>    </back> Elegível (SellerApproved)
+  <back:#FFCA28>    </back> Em revisão (ReviewRequired)
+  <back:#E57373>    </back> Inelegível (SellerRejected)
+endlegend
 @enduml

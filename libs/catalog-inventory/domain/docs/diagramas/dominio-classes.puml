@@ -1,25 +1,36 @@
 @startuml dominio-classes
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
 title Modelo de domínio do catálogo-inventário (agregados, entidades, VOs e enums)
 
 hide empty members
-skinparam classAttributeIconSize 0
-skinparam packageStyle rectangle
+<style>
+spot { FontColor #FFFFFF }
+</style>
+skinparam ClassBackgroundColor<<VO>> #F1F8E9
+skinparam ClassBorderColor<<VO>> #7CB342
+skinparam ClassBackgroundColor<<entidade>> #FFFFFF
+skinparam ClassBorderColor<<entidade>> #43A047
+skinparam ClassBackgroundColor<<política>> #E0F2F1
+skinparam ClassBorderColor<<política>> #00897B
+skinparam ClassBackgroundColor<<utilitário>> $COR_INFRA
+skinparam ClassBorderColor<<utilitário>> $BORDA_INFRA
 
-package "domain (raiz)" as raiz {
-  class Money <<VO>> {
+package "<$cubes,scale=0.5,color=#2E7D32> domain (raiz)" as raiz #F6FBF6;line:2E7D32 {
+  class Money << (V,#7CB342) VO>> {
     amount : BigDecimal
     currency : String
     --
     MAX = 99999999999999999.99
     compareAmount(other) : int
   }
-  class Attributes <<utilitário>> {
+  class Attributes << (U,#78909C) utilitário>> {
     {static} copy(values) : Map
   }
 }
 
-package "domain.category" as category {
-  class Category <<agregado>> {
+package "<$sitemap,scale=0.5,color=#2E7D32> domain.category" as category #F6FBF6;line:2E7D32 {
+  class Category << (A,#2E7D32) agregado>> {
     id : UUID
     tenantId : UUID
     ancestry : List<UUID>
@@ -36,7 +47,7 @@ package "domain.category" as category {
     deactivate()
     {static} effectiveAttributes(chain)
   }
-  class AttributeDefinition <<VO>> {
+  class AttributeDefinition << (V,#7CB342) VO>> {
     code : String
     label : String
     required : boolean
@@ -54,8 +65,8 @@ package "domain.category" as category {
   }
 }
 
-package "domain.product" as product {
-  class Product <<agregado raiz>> {
+package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:2E7D32 {
+  class Product << (R,#1B5E20) agregado raiz>> #C8E6C9;line:1B5E20;line.bold {
     id : UUID
     tenantId : UUID
     storeId : UUID
@@ -78,19 +89,19 @@ package "domain.product" as product {
     isPubliclyVisible(seller)
     drainChanges() / drainEvents()
   }
-  class Sku <<entidade>> {
+  class Sku << (E,#43A047) entidade>> {
     id : UUID
     sellerSku : String
     variantAttributes : Map<String, String>
     physical : boolean
   }
-  class Dimensions <<VO>> {
+  class Dimensions << (V,#7CB342) VO>> {
     heightCm : BigDecimal
     widthCm : BigDecimal
     lengthCm : BigDecimal
     weightGrams : int
   }
-  class StatusChange <<VO>> {
+  class StatusChange << (V,#7CB342) VO>> {
     id : UUID
     transition : ProductTransition
     from : ProductStatus
@@ -99,7 +110,7 @@ package "domain.product" as product {
     reason : String
     at : Instant
   }
-  class PublishingPolicy <<política>> {
+  class PublishingPolicy << (P,#00897B) política>> {
     {static} valueViolations(...)
     {static} publishingViolations(...)
   }
@@ -131,8 +142,8 @@ package "domain.product" as product {
   }
 }
 
-package "domain.offer" as offer {
-  class Offer <<agregado>> {
+package "<$tag,scale=0.5,color=#2E7D32> domain.offer" as offer #F6FBF6;line:2E7D32 {
+  class Offer << (A,#2E7D32) agregado>> {
     skuId : UUID {chave}
     productId : UUID
     tenantId : UUID
@@ -147,17 +158,17 @@ package "domain.offer" as offer {
     cancelPromotion(id, now)
     effectivePrice(now) : EffectivePrice
   }
-  class Price <<VO>> {
+  class Price << (V,#7CB342) VO>> {
     listPrice : Money [0..1]
     salePrice : Money
   }
-  class Promotion <<VO>> {
+  class Promotion << (V,#7CB342) VO>> {
     id : UUID
     salePrice : Money
     startsAt : Instant
     endsAt : Instant
   }
-  class EffectivePrice <<VO>> {
+  class EffectivePrice << (V,#7CB342) VO>> {
     listPrice : Money
     salePrice : Money
     promotionId : Optional<UUID>
@@ -165,8 +176,8 @@ package "domain.offer" as offer {
   }
 }
 
-package "domain.inventory" as inventory {
-  class StockLevel <<VO de estado>> {
+package "<$warehouse,scale=0.5,color=#2E7D32> domain.inventory" as inventory #F6FBF6;line:2E7D32 {
+  class StockLevel << (V,#7CB342) VO de estado>> #F1F8E9;line:7CB342 {
     skuId : UUID
     onHand : int
     reserved : int
@@ -175,7 +186,7 @@ package "domain.inventory" as inventory {
     --
     available() : int
   }
-  class Reservation <<agregado>> {
+  class Reservation << (A,#2E7D32) agregado>> {
     id : UUID
     tenantId : UUID
     idempotencyKey : String
@@ -188,7 +199,7 @@ package "domain.inventory" as inventory {
     --
     overdueAt(now) : boolean
   }
-  class ReservationItem <<VO>> {
+  class ReservationItem << (V,#7CB342) VO>> {
     skuId : UUID
     productId : UUID
     storeId : UUID
@@ -196,19 +207,19 @@ package "domain.inventory" as inventory {
     unitPrice : Money
     priceVersion : long
   }
-  class RequestedItem <<VO>> {
+  class RequestedItem << (V,#7CB342) VO>> {
     skuId : UUID
     quantity : int
     expectedUnitPrice : Money
   }
-  class SkuCandidate <<VO>> {
+  class SkuCandidate << (V,#7CB342) VO>> {
     productId : UUID
     storeId : UUID
     productStatus : ProductStatus
     seller : SellerStatus
     offer : Offer
   }
-  class ReservationPolicy <<política>> {
+  class ReservationPolicy << (P,#00897B) política>> {
     LOCK_ORDER : Comparator<UUID>
     --
     {static} open(...) : Reservation
@@ -263,4 +274,14 @@ note bottom of StockLevel
   0 <= reserved <= onHand <= 1.000.000
 end note
 
+legend right
+  <b>Domínio</b>
+  <back:#1B5E20>    </back> Agregado raiz (R) e agregado (A)
+  <back:#43A047>    </back> Entidade (E)
+  <back:#7CB342>    </back> Objeto de valor (V)
+  <back:#00897B>    </back> Política (P)
+  <back:#78909C>    </back> Utilitário (U)
+  <back:#EB937F>    </back> Enum (E no círculo salmão)
+  ◆ composição    - - > referência por id ou uso
+endlegend
 @enduml

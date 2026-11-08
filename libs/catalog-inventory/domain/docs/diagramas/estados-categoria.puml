@@ -1,28 +1,38 @@
 @startuml estados-categoria
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/toggle_on>
+!include <tupadr3/font-awesome-5/toggle_off>
 title Situação da categoria (Category.active) e usabilidade pela cadeia
 
 hide empty description
 
-state "Ativa" as Ativa : active = true
-state "Inativa" as Inativa : active = false
+state "<$toggle_on,scale=0.5,color=#2E7D32> Ativa" as Ativa <<ativo>> : active = true
+state "<$toggle_off,scale=0.5,color=#455A64> Inativa" as Inativa <<terminal>> : active = false
 
 [*] --> Ativa : root / childOf\n[childOf: pai direto ativo]
-Ativa --> Inativa : deactivate()
-Inativa --> Ativa : activate()
-Ativa --> Ativa : activate() (sem efeito)
-Inativa --> Inativa : deactivate() (sem efeito)
+Ativa -[#455A64]-> Inativa : deactivate()
+Inativa -[#2E7D32]-> Ativa : <color:#2E7D32>activate()</color>
+Ativa -[dashed]-> Ativa : activate() (sem efeito)
+Inativa -[dashed]-> Inativa : deactivate() (sem efeito)
 
-note right of Ativa
+note left of Ativa
   Usável para produto só quando ela e
   todos os ancestrais estão ativos
   (CategoryView.usable, na aplicação).
 end note
 
-note right of Inativa
-  Recusa childOf (category-inactive).
-  Product.draft e reviseContent recusam
-  categoria inativa (category-inactive).
+note left of Inativa
+  <color:#C62828>Recusa childOf (category-inactive).</color>
+  <color:#C62828>Product.draft e reviseContent recusam</color>
+  <color:#C62828>categoria inativa (category-inactive).</color>
   moveUnder aceita pai inativo.
   Não há estado final nem evento de domínio.
 end note
+
+legend right
+  <b>Categoria</b>
+  <back:#66BB6A>    </back> Ativa (active = true)
+  <back:#90A4AE>    </back> Inativa (active = false)
+  - - → Chamada idempotente (sem efeito)
+endlegend
 @enduml
