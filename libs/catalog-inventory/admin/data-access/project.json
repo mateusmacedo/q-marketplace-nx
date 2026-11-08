@@ -1,0 +1,17 @@
+{
+  "name": "catalog-inventory-admin-data-access",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/catalog-inventory/admin/data-access/src",
+  "prefix": "app",
+  "projectType": "library",
+  "tags": [
+    "scope:catalog-inventory",
+    "layer:data-access",
+    "framework:angular",
+    "lang:ts"
+  ],
+  "targets": {},
+  "implicitDependencies": [
+    "catalog-inventory-contracts"
+  ]
+}
