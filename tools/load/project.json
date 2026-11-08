@@ -1,0 +1,59 @@
+{
+  "name": "load",
+  "projectType": "application",
+  "tags": [
+    "scope:catalog-inventory",
+    "type:load"
+  ],
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "for p in smoke average stress spike soak breakpoint; do bash tools/load/run.sh --check $p || exit 1; done"
+      }
+    },
+    "smoke": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/load/run.sh smoke"
+      }
+    },
+    "average": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/load/run.sh average"
+      }
+    },
+    "stress": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/load/run.sh stress"
+      }
+    },
+    "spike": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/load/run.sh spike"
+      }
+    },
+    "soak": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/load/run.sh soak"
+      }
+    },
+    "breakpoint": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/load/run.sh breakpoint"
+      }
+    }
+  }
+}
