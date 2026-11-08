@@ -31,6 +31,16 @@ groups:
           summary: Falhas repetidas ao publicar eventos no Kafka
           description: "{{ $value }} falha(s) de publicação nos últimos 10 minutos; os eventos continuam na outbox."
 
+      # WHY: crítico porque o evento estacionado só sai com o reenvio manual e retém os seguintes da sua chave.
+      - alert: CatalogOutboxParked
+        expr: max(catalog_outbox_parked{job="catalog-inventory"}) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Eventos da outbox estacionados
+          description: "{{ $value }} evento(s) esgotaram as tentativas de publicação e esperam o reenvio manual; os seguintes da mesma chave ficam retidos."
+
       - alert: CatalogKybDeadLetters
         expr: |
           sum(increase(kafka_producer_record_send_total{job="catalog-inventory",client_id=~"kafka-dead-letter-topic-producer-.*"}[15m])) > 0

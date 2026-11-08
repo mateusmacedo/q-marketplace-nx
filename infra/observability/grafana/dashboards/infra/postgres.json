@@ -697,7 +697,7 @@
     {
       "type": "timeseries",
       "title": "Tamanho do banco",
-      "description": "**O que mostra:** Tamanho em disco de cada banco (`pg_database_size_bytes`); o `marketplace` soma os schemas de todos os contextos.\n\n**Normal:** Cresce devagar: cada execução da carga deixa a massa e o que os cenários criam, e a limpeza do worker remove outbox e inbox antigas a cada 1 h.\n\n**Sinais de anomalia:** Salto grande numa execução ou crescimento sem carga indica tabela inchando (outbox sem limpeza, por exemplo); veja Tuplas escritas por banco.",
+      "description": "**O que mostra:** Tamanho em disco de cada banco (`pg_database_size_bytes`); o `marketplace` soma os schemas de todos os contextos.\n\n**Normal:** Cresce devagar: cada execução da carga deixa a massa e o que os cenários criam, e a limpeza do worker remove outbox e inbox antigas a cada 1 min.\n\n**Sinais de anomalia:** Salto grande numa execução ou crescimento sem carga indica tabela inchando (outbox sem limpeza, por exemplo); veja Tuplas escritas por banco.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
