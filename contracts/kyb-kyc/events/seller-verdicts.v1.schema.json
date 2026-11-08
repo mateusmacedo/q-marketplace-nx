@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketplace.dev/contracts/kyb-kyc/events/seller-verdicts.v1.schema.json",
+  "title": "Vereditos de loja publicados por kyb-kyc (v1)",
+  "description": "Vereditos de loja que o KYB/KYC publica no tópico kyb-kyc.seller.v1, com chave do registro = storeId. O catalog-inventory consome e ignora outros tipos de evento no mesmo tópico.",
+  "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "source", "tenantId", "occurredAt", "data"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid", "description": "Identifica o evento; o consumidor deduplica por ele." },
+    "eventType": {
+      "enum": ["SellerApproved", "SellerRejected", "ReviewRequired"],
+      "description": "No catálogo: SellerApproved = APPROVED, SellerRejected = REJECTED e ReviewRequired = PENDING."
+    },
+    "eventVersion": { "const": 1 },
+    "source": { "const": "kyb-kyc" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "aggregateType": { "const": "store" },
+    "aggregateId": { "type": "string", "format": "uuid" },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Instante da decisão; veredito mais antigo que o já aplicado à loja é descartado."
+    },
+    "correlationId": { "type": "string", "maxLength": 100 },
+    "data": {
+      "type": "object",
+      "required": ["storeId"],
+      "properties": { "storeId": { "type": "string", "format": "uuid" } }
+    }
+  }
+}

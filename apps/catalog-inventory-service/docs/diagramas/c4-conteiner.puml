@@ -1,0 +1,58 @@
+@startuml c4-conteiner
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <C4/C4_Container>
+!include <tupadr3/font-awesome-5/user_friends>
+!include <tupadr3/font-awesome-5/key>
+
+UpdateElementStyle("external_system", $legendText="Sistema externo")
+UpdateBoundaryStyle("system", $legendText="Fronteira do sistema (tracejada)")
+AddElementTag("ator", $bgColor="#FFF8D6", $fontColor="#263238", $borderColor="#F9A825", $legendText="Pessoa (papel no JWT)")
+AddElementTag("quarkus", $bgColor="#1565C0", $fontColor="#FFFFFF", $borderColor="#0D47A1", $legendText="Contêiner Quarkus do serviço")
+AddElementTag("dados", $bgColor="#6A1B9A", $fontColor="#FFFFFF", $borderColor="#4A148C", $legendText="Armazenamento do serviço")
+AddElementTag("opcional", $bgColor="#B39DDB", $fontColor="#263238", $borderColor="#6A1B9A", $borderStyle=DashedLine(), $legendText="Opcional (desligado por padrão)")
+AddElementTag("mensageria", $bgColor="#455A64", $fontColor="#FFFFFF", $borderColor="#263238", $legendText="Mensageria externa")
+AddRelTag("assincrono", $textColor="#455A64", $lineColor="#455A64", $lineStyle=DashedLine(), $legendText="Assíncrono (Kafka)")
+AddRelTag("opcional", $textColor="#6A1B9A", $lineColor="#9575CD", $lineStyle=DottedLine(), $legendText="Só com cache habilitado")
+
+title $I_QUARKUS Catálogo-inventário — contêineres (C4 nível 2)
+
+Person(seller, "Seller", "Papel seller", $sprite="user_tie", $tags="ator")
+Person(moderador, "Moderador", "Papel catalog-moderator", $sprite="user_shield", $tags="ator")
+Person(admin, "Admin do catálogo", "Papel catalog-admin", $sprite="user_cog", $tags="ator")
+Person(comprador, "Comprador", "Anônimo, só a vitrine", $sprite="shopping_cart", $tags="ator")
+
+System_Ext(checkout, "Checkout e OMS", "Contas de serviço com o papel catalog-reservations", $sprite="exchange_alt")
+System_Ext(kyb, "KYB/KYC", "Produz SellerApproved, SellerRejected e ReviewRequired", $sprite="id_card")
+System_Ext(consumidores, "Consumidores de eventos", "Nenhum implementado no repositório", $sprite="user_friends")
+
+System_Boundary(catalogo, "Catálogo-inventário") {
+  Container(api, "catalog-inventory-api", "Quarkus nativo, perfil prod,api", "HTTP de negócio (8080 no contêiner); grava no banco e na outbox; sem agendadores e sem Kafka", $sprite="quarkus-icon,scale=0.6", $tags="quarkus")
+  Container(worker, "catalog-inventory-worker", "Quarkus nativo, perfil prod,worker", "Agendadores e consumidor KYB; só a porta de gestão 9000", $sprite="robot", $tags="quarkus")
+  ContainerDb(pg, "PostgreSQL", "Schema catalog_inventory", "Catálogo, ofertas, estoque, reservas, outbox, inbox e importações", $sprite="postgresql,scale=0.6", $tags="dados")
+  ContainerDb(redis, "Redis", "Standalone, opcional", "Cache da vitrine e da taxonomia; desligado por padrão", $sprite="redis,scale=0.6", $tags="opcional")
+}
+
+System_Ext(kafka, "Kafka", "Tópicos catalog-inventory.*.v1, kyb-kyc.seller.v1 e DLQ", $sprite="kafka-icon,scale=0.6", $tags="mensageria")
+System_Ext(keycloak, "Keycloak", "Realm marketplace; JWT com tenant_id, store_id e papéis", $sprite="key")
+System_Ext(otel, "OTel Collector", "Recebe traces e logs por OTLP (4317)", $sprite="chart_line")
+
+Rel(seller, api, "Produtos, SKUs, ofertas, estoque, importação", "HTTPS/JSON + JWT")
+Rel(moderador, api, "Fila e decisões de moderação", "HTTPS/JSON + JWT")
+Rel(admin, api, "Taxonomia e leitura do tenant", "HTTPS/JSON + JWT")
+Rel(comprador, api, "GET /storefront/...", "HTTPS/JSON")
+Rel(checkout, api, "Reserva, confirma, libera e estende", "HTTPS/JSON + Idempotency-Key")
+
+Rel(api, pg, "Lê e grava; outbox na mesma transação", "Reactive SQL Client")
+Rel(api, redis, "Lê e invalida, se habilitado", "RESP", $tags="opcional")
+Rel(api, keycloak, "Busca chaves públicas", "JWKS")
+Rel(worker, pg, "Outbox, inbox, reservas vencidas, importações", "Reactive SQL Client")
+Rel(worker, redis, "Invalida após veredito e importação, se habilitado", "RESP", $tags="opcional")
+Rel(worker, kafka, "Publica eventos (acks=all, idempotente)", "Kafka", $tags="assincrono")
+Rel(kafka, worker, "Entrega vereditos do KYB/KYC", "Kafka", $tags="assincrono")
+Rel(kyb, kafka, "Publica em kyb-kyc.seller.v1", "Kafka", $tags="assincrono")
+Rel(kafka, consumidores, "catalog-inventory.product|offer|inventory|store.v1", "Kafka", $tags="assincrono")
+Rel(api, otel, "Traces e logs", "OTLP")
+Rel(worker, otel, "Traces e logs", "OTLP")
+
+SHOW_LEGEND()
+@enduml

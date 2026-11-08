@@ -1,0 +1,8 @@
+{
+  "name": "identity-organization-contracts",
+  "projectType": "library",
+  "tags": [
+    "scope:identity-organization",
+    "layer:contract"
+  ]
+}

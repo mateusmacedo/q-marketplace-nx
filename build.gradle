@@ -1,0 +1,28 @@
+plugins {
+    id 'io.quarkus' apply false
+    // Relata projetos, dependências e tarefas do Gradle ao @nx/gradle, que monta o grafo e os targets do Nx (ADR 025).
+    id 'dev.nx.gradle.project-graph' version '0.1.26'
+}
+allprojects { apply plugin: 'dev.nx.gradle.project-graph' }
+subprojects {
+    apply plugin: 'java-library'
+    group = 'dev.marketplace'
+    version = '0.1.0-SNAPSHOT'
+    repositories { mavenCentral() }
+    java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs.add('-parameters')
+    }
+    dependencies {
+        testImplementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        if (project.name.endsWith('-service')) {
+            systemProperty 'java.util.logging.manager', 'org.jboss.logmanager.LogManager'
+        }
+    }
+}

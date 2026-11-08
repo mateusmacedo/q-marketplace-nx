@@ -1,0 +1,22 @@
+# Ponto de entrada da telemetria dos serviços (OTLP gRPC 4317 e HTTP 4318): traces para o Tempo, logs para o Loki e
+# métricas OTLP para o Prometheus. Sobe também com o profile catalog, porque o catálogo exporta para ele; sem o
+# profile observability, o Collector recebe e descarta o que não consegue entregar.
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    deploy:
+      resources:
+        limits: {cpus: "0.40", memory: 768M}
+        reservations: {cpus: "0.05", memory: 128M}
+    profiles: [observability, catalog, all]
+    command: ["--config=/etc/otelcol/otel-collector.yaml"]
+    environment:
+      TAIL_SAMPLING_PERCENTAGE: ${TAIL_SAMPLING_PERCENTAGE:-100}
+      TAIL_SAMPLING_LATENCY_MS: ${TAIL_SAMPLING_LATENCY_MS:-500}
+    ports:
+      - "127.0.0.1:${OTLP_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${OTLP_HTTP_PORT:-4318}:4318"
+    volumes:
+      # WHY: a pasta, e não o arquivo: o bind de arquivo único fica preso ao arquivo antigo quando um editor o troca
+      # inteiro, e o restart continuaria lendo a versão anterior.
+      - ../../observability/otel-collector:/etc/otelcol:ro

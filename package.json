@@ -1,0 +1,34 @@
+{
+  "name": "marketplace-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "graph": "nx graph",
+    "check": "node --test tools/check-boundaries.test.mjs && node tools/check-boundaries.mjs",
+    "check:observability": "bash tools/observability-check.sh",
+    "check:chart": "bash tools/chart-check.sh",
+    "check:images": "node --test tools/check-images.test.mjs && node tools/check-images.mjs",
+    "check:vulnerabilities": "bash tools/vulnerability-scan.sh",
+    "infra:budget": "bash tools/infra-budget.sh",
+    "test": "nx run-many -t test",
+    "build": "nx run-many -t assemble",
+    "dev:catalog": "nx run catalog-inventory-service:serve",
+    "smoke": "node tools/smoke.mjs",
+    "load": "bash tools/load/run.sh average",
+    "load:check": "bash tools/load/run.sh --check",
+    "load:smoke": "bash tools/load/run.sh smoke",
+    "load:average": "bash tools/load/run.sh average",
+    "load:stress": "bash tools/load/run.sh stress",
+    "load:spike": "bash tools/load/run.sh spike",
+    "load:soak": "bash tools/load/run.sh soak",
+    "load:breakpoint": "bash tools/load/run.sh breakpoint"
+  },
+  "devDependencies": {
+    "@nx/gradle": "24.0.4",
+    "@nx/js": "24.0.4",
+    "nx": "24.0.4"
+  }
+}

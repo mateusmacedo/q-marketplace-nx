@@ -1,0 +1,204 @@
+@startuml dados-er
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+!include <tupadr3/font-awesome-5/barcode>
+!include <tupadr3/font-awesome-5/history>
+!include <tupadr3/font-awesome-5/percent>
+!include <tupadr3/font-awesome-5/bookmark>
+!include <tupadr3/font-awesome-5/list>
+!include <tupadr3/font-awesome-5/list_ol>
+!include <tupadr3/font-awesome-5/sliders_h>
+!include <tupadr3/font-awesome-5/inbox>
+hide circle
+hide stereotype
+skinparam linetype ortho
+
+title $I_POSTGRES Catálogo-inventário — modelo de dados (schema catalog_inventory, V1 a V6)
+
+package "V1 — catálogo" #F6FBF6 {
+  entity "<$sitemap,scale=0.8,color=#2E7D32> <b>category</b>" as category <<dominio>> {
+    * id : uuid <<PK>>
+    --
+    * tenant_id : uuid
+    parent_id : uuid <<FK category>>
+    * ancestry : uuid[]
+    * code : varchar(60) <<UK tenant_id+code>>
+    * name : varchar(120)
+    * attributes : jsonb
+    * active : boolean
+    * version : bigint
+  }
+  entity "<$box,scale=0.8,color=#2E7D32> <b>product</b>" as product <<dominio>> {
+    * id : uuid <<PK>>
+    --
+    * tenant_id : uuid
+    * store_id : uuid
+    * category_id : uuid <<FK category>>
+    * currency : char(3)
+    * title : varchar(200)
+    * description : varchar(5000)
+    * attributes : jsonb
+    * status : varchar(30) <<CHECK sem OUT_OF_STOCK>>
+    * version : bigint
+  }
+  entity "<$barcode,scale=0.8,color=#2E7D32> <b>sku</b>" as sku <<dominio>> {
+    * id : uuid <<PK>>
+    --
+    * product_id : uuid <<FK product>>
+    * tenant_id, store_id : uuid
+    * position : integer
+    * seller_sku : varchar(64) <<UK tenant+store+seller_sku>>
+    * variant_attributes : jsonb
+    * physical : boolean
+    height_cm, width_cm, length_cm : numeric(6,2)
+    weight_g : integer
+  }
+  entity "<$history,scale=0.8,color=#2E7D32> <b>product_status_change</b>" as product_status_change <<dominio>> {
+    * id : uuid <<PK>>
+    --
+    * product_id : uuid <<FK product>>
+    * transition, from_status, to_status : varchar(30)
+    * actor : varchar(255)
+    reason : varchar(500)
+    * occurred_at : timestamptz
+  }
+  entity "<$id_card,scale=0.8,color=#2E7D32> <b>seller_eligibility</b>" as seller_eligibility <<dominio>> {
+    * tenant_id : uuid <<PK>>
+    * store_id : uuid <<PK>>
+    --
+    * status : varchar(20)
+    * decided_at : timestamptz
+  }
+}
+
+package "V2 — oferta" #FFFCF2 {
+  entity "<$tag,scale=0.8,color=#FFA000> <b>offer</b>" as offer <<evento>> {
+    * sku_id : uuid <<PK, FK sku CASCADE>>
+    --
+    * product_id : uuid <<FK product>>
+    * tenant_id, store_id : uuid
+    * currency : char(3)
+    list_price : numeric
+    * sale_price : numeric
+    * price_version : bigint
+    * version : bigint
+  }
+  entity "<$percent,scale=0.8,color=#FFA000> <b>offer_promotion</b>" as offer_promotion <<evento>> {
+    * id : uuid <<PK>>
+    --
+    * sku_id : uuid <<FK offer CASCADE>>
+    * sale_price : numeric(19,2)
+    * starts_at, ends_at : timestamptz
+  }
+}
+
+package "V3 — estoque e reservas" #F5FAFF {
+  entity "<$warehouse,scale=0.8,color=#1565C0> <b>inventory_level</b>" as inventory_level <<serviço>> {
+    * sku_id : uuid <<PK, FK sku>>
+    --
+    * product_id : uuid <<FK product>>
+    * tenant_id, store_id : uuid
+    * on_hand : integer
+    * reserved : integer
+    * sold : bigint
+    * version : bigint
+  }
+  entity "<$sliders_h,scale=0.8,color=#1565C0> <b>inventory_adjustment</b>" as inventory_adjustment <<serviço>> {
+    * id : uuid <<PK>>
+    --
+    * sku_id : uuid <<sem FK>>
+    * previous_on_hand, new_on_hand : integer
+    * actor : varchar(255)
+    * occurred_at : timestamptz
+  }
+  entity "<$bookmark,scale=0.8,color=#1565C0> <b>inventory_reservation</b>" as inventory_reservation <<serviço>> {
+    * id : uuid <<PK>>
+    --
+    * tenant_id : uuid
+    * idempotency_key : varchar(255) <<UK tenant_id+key>>
+    * request_hash : char(64)
+    order_ref : varchar(100)
+    * status : varchar(20)
+    * created_at, expires_at : timestamptz
+    closed_at : timestamptz
+  }
+  entity "<$list,scale=0.8,color=#1565C0> <b>inventory_reservation_item</b>" as inventory_reservation_item <<serviço>> {
+    * reservation_id : uuid <<PK, FK inventory_reservation>>
+    * sku_id : uuid <<PK, sem FK>>
+    --
+    * product_id, store_id : uuid
+    * quantity : integer
+    * currency : char(3)
+    * unit_price : numeric(19,2)
+    * price_version : bigint
+  }
+}
+
+package "V4 — mensageria" #FBF6FC {
+  entity "<$envelope,scale=0.8,color=#6A1B9A> <b>outbox_event</b>" as outbox_event <<saida>> {
+    * seq : bigint identity <<PK>>
+    --
+    * id : uuid <<UK>>
+    * tenant_id : uuid
+    * topic : varchar(200)
+    * message_key : varchar(100)
+    * event_type : varchar(60)
+    * payload : json
+    trace_parent : varchar(55)
+    * created_at : timestamptz
+    published_at : timestamptz
+    * attempts : integer
+    last_error : varchar(500)
+    next_attempt_at : timestamptz <<V6>>
+    parked_at : timestamptz <<V6>>
+  }
+  entity "<$inbox,scale=0.8,color=#6A1B9A> <b>inbox_message</b>" as inbox_message <<saida>> {
+    * consumer : varchar(100) <<PK>>
+    * event_id : uuid <<PK>>
+    --
+    * processed_at : timestamptz
+  }
+}
+
+package "V5 — importação" #F7F9FA {
+  entity "<$file_csv,scale=0.8,color=#455A64> <b>product_import</b>" as product_import <<infra>> {
+    * id : uuid <<PK>>
+    --
+    * tenant_id, store_id : uuid
+    * actor
+    * status : PENDING | PROCESSING | COMPLETED
+    * content : text
+    * total_lines : integer
+    * created_at : timestamptz
+    started_at, finished_at : timestamptz
+  }
+  entity "<$list_ol,scale=0.8,color=#455A64> <b>product_import_line</b>" as product_import_line <<infra>> {
+    * import_id : uuid <<PK, FK product_import CASCADE>>
+    * line_number : integer <<PK>>
+    --
+    seller_sku
+    * outcome
+    code, message
+    product_id : uuid <<sem FK>>
+  }
+}
+
+category |o--o{ category : "parent_id"
+category ||--o{ product : "category_id"
+product ||--|{ sku : "product_id"
+product ||--o{ product_status_change : "product_id"
+sku ||--o| offer : "sku_id"
+product ||--o{ offer : "product_id"
+offer ||--o{ offer_promotion : "sku_id"
+sku ||--|| inventory_level : "sku_id"
+product ||--o{ inventory_level : "product_id"
+inventory_reservation ||--|{ inventory_reservation_item : "reservation_id"
+product_import ||--o{ product_import_line : "import_id"
+
+legend right
+  <b>Leitura</b>
+  <back:#2E7D32>    </back> V1 catálogo   <back:#FFA000>    </back> V2 oferta   <back:#1565C0>    </back> V3 estoque e reservas
+  <back:#6A1B9A>    </back> V4 mensageria   <back:#455A64>    </back> V5 importação
+  <U+002A> campo obrigatório (NOT NULL); PK, FK e UK entre « »; «V6» coluna da migração V6
+endlegend
+@enduml

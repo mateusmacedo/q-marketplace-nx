@@ -1,0 +1,287 @@
+@startuml dominio-classes
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+title Modelo de domínio do catálogo-inventário (agregados, entidades, VOs e enums)
+
+hide empty members
+<style>
+spot { FontColor #FFFFFF }
+</style>
+skinparam ClassBackgroundColor<<VO>> #F1F8E9
+skinparam ClassBorderColor<<VO>> #7CB342
+skinparam ClassBackgroundColor<<entidade>> #FFFFFF
+skinparam ClassBorderColor<<entidade>> #43A047
+skinparam ClassBackgroundColor<<política>> #E0F2F1
+skinparam ClassBorderColor<<política>> #00897B
+skinparam ClassBackgroundColor<<utilitário>> $COR_INFRA
+skinparam ClassBorderColor<<utilitário>> $BORDA_INFRA
+
+package "<$cubes,scale=0.5,color=#2E7D32> domain (raiz)" as raiz #F6FBF6;line:2E7D32 {
+  class Money << (V,#7CB342) VO>> {
+    amount : BigDecimal
+    currency : String
+    --
+    MAX = 99999999999999999.99
+    compareAmount(other) : int
+  }
+  class Attributes << (U,#78909C) utilitário>> {
+    {static} copy(values) : Map
+  }
+}
+
+package "<$sitemap,scale=0.5,color=#2E7D32> domain.category" as category #F6FBF6;line:2E7D32 {
+  class Category << (A,#2E7D32) agregado>> {
+    id : UUID
+    tenantId : UUID
+    ancestry : List<UUID>
+    code : String
+    name : String
+    active : boolean
+    version : long
+    --
+    {static} root(...)
+    {static} childOf(parent, ...)
+    revise(...)
+    moveUnder(chain, height, codes)
+    activate()
+    deactivate()
+    {static} effectiveAttributes(chain)
+  }
+  class AttributeDefinition << (V,#7CB342) VO>> {
+    code : String
+    label : String
+    required : boolean
+    variant : boolean
+    options : List<String>
+    --
+    accepts(value) : boolean
+  }
+  enum AttributeType {
+    TEXT
+    INTEGER
+    DECIMAL
+    BOOLEAN
+    OPTION
+  }
+}
+
+package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:2E7D32 {
+  class Product << (R,#1B5E20) agregado raiz>> #C8E6C9;line:1B5E20;line.bold {
+    id : UUID
+    tenantId : UUID
+    storeId : UUID
+    currency : String
+    categoryId : UUID
+    title : String
+    description : String
+    attributes : Map<String, String>
+    status : ProductStatus
+    version : long
+    createdAt : Instant
+    updatedAt : Instant
+    --
+    {static} draft(...)
+    reviseContent(...)
+    addSku(...) / reviseSku(...) / removeSku(...)
+    submit / approve / reject / block / unblock
+    pause / resume / archive
+    effectiveStatus(anyAvailable)
+    isPubliclyVisible(seller)
+    drainChanges() / drainEvents()
+  }
+  class Sku << (E,#43A047) entidade>> {
+    id : UUID
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : boolean
+  }
+  class Dimensions << (V,#7CB342) VO>> {
+    heightCm : BigDecimal
+    widthCm : BigDecimal
+    lengthCm : BigDecimal
+    weightGrams : int
+  }
+  class StatusChange << (V,#7CB342) VO>> {
+    id : UUID
+    transition : ProductTransition
+    from : ProductStatus
+    to : ProductStatus
+    actor : String
+    reason : String
+    at : Instant
+  }
+  class PublishingPolicy << (P,#00897B) política>> {
+    {static} valueViolations(...)
+    {static} publishingViolations(...)
+  }
+  enum ProductStatus {
+    DRAFT
+    PENDING_MODERATION
+    ACTIVE
+    PAUSED_BY_SELLER
+    OUT_OF_STOCK
+    BLOCKED
+    ARCHIVED
+  }
+  enum ProductTransition {
+    CREATE
+    SUBMIT
+    APPROVE
+    REJECT
+    BLOCK
+    UNBLOCK
+    PAUSE
+    RESUME
+    ARCHIVE
+    REVIEW_REQUIRED
+  }
+  enum SellerStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+}
+
+package "<$tag,scale=0.5,color=#2E7D32> domain.offer" as offer #F6FBF6;line:2E7D32 {
+  class Offer << (A,#2E7D32) agregado>> {
+    skuId : UUID {chave}
+    productId : UUID
+    tenantId : UUID
+    storeId : UUID
+    currency : String
+    priceVersion : long
+    version : long
+    --
+    {static} create(...)
+    changePrice(price, now)
+    schedulePromotion(promotion, now)
+    cancelPromotion(id, now)
+    effectivePrice(now) : EffectivePrice
+  }
+  class Price << (V,#7CB342) VO>> {
+    listPrice : Money [0..1]
+    salePrice : Money
+  }
+  class Promotion << (V,#7CB342) VO>> {
+    id : UUID
+    salePrice : Money
+    startsAt : Instant
+    endsAt : Instant
+  }
+  class EffectivePrice << (V,#7CB342) VO>> {
+    listPrice : Money
+    salePrice : Money
+    promotionId : Optional<UUID>
+    priceVersion : long
+  }
+}
+
+package "<$warehouse,scale=0.5,color=#2E7D32> domain.inventory" as inventory #F6FBF6;line:2E7D32 {
+  class StockLevel << (V,#7CB342) VO de estado>> #F1F8E9;line:7CB342 {
+    skuId : UUID
+    onHand : int
+    reserved : int
+    sold : long
+    version : long
+    --
+    available() : int
+  }
+  class Reservation << (A,#2E7D32) agregado>> {
+    id : UUID
+    tenantId : UUID
+    idempotencyKey : String
+    requestHash : String
+    orderRef : String
+    status : ReservationStatus
+    createdAt : Instant
+    expiresAt : Instant
+    closedAt : Instant
+    --
+    overdueAt(now) : boolean
+  }
+  class ReservationItem << (V,#7CB342) VO>> {
+    skuId : UUID
+    productId : UUID
+    storeId : UUID
+    quantity : int
+    unitPrice : Money
+    priceVersion : long
+  }
+  class RequestedItem << (V,#7CB342) VO>> {
+    skuId : UUID
+    quantity : int
+    expectedUnitPrice : Money
+  }
+  class SkuCandidate << (V,#7CB342) VO>> {
+    productId : UUID
+    storeId : UUID
+    productStatus : ProductStatus
+    seller : SellerStatus
+    offer : Offer
+  }
+  class ReservationPolicy << (P,#00897B) política>> {
+    LOCK_ORDER : Comparator<UUID>
+    --
+    {static} open(...) : Reservation
+    {static} inLockOrder(items)
+    {static} insufficientStock(skuIds)
+  }
+  enum ReservationStatus {
+    ACTIVE
+    COMMITTED
+    RELEASED
+    EXPIRED
+  }
+}
+
+Category "1" *-- "0..50" AttributeDefinition : attributes
+AttributeDefinition --> "1" AttributeType : type
+Category "0..*" --> "0..1" Category : pai (último de ancestry)
+
+Product "1" *-- "0..100" Sku : skus
+Sku "1" *-- "0..1" Dimensions : dimensions
+Product "1" *-- "0..*" StatusChange : transições não persistidas
+Product --> ProductStatus : status
+StatusChange --> ProductTransition
+Product ..> PublishingPolicy : usa
+Product "0..*" ..> "1" Category : categoryId
+
+Offer "0..1" ..> "1" Sku : skuId
+Offer "1" *-- "1" Price : price
+Offer "1" *-- "0..20" Promotion : pendentes
+Offer ..> EffectivePrice : calcula
+Price --> Money
+Promotion --> Money
+
+StockLevel "1" ..> "1" Sku : skuId
+Reservation "1" *-- "1..100" ReservationItem : items
+Reservation --> ReservationStatus : status
+ReservationItem --> Money : unitPrice
+ReservationPolicy ..> RequestedItem : recebe
+ReservationPolicy ..> SkuCandidate : consulta
+ReservationPolicy ..> Reservation : cria ACTIVE
+SkuCandidate --> Offer
+SkuCandidate --> ProductStatus
+SkuCandidate --> SellerStatus
+
+note bottom of Offer
+  Uma oferta por SKU. Moeda fixa,
+  igual à do produto.
+end note
+
+note bottom of StockLevel
+  available = onHand - reserved
+  0 <= reserved <= onHand <= 1.000.000
+end note
+
+legend right
+  <b>Domínio</b>
+  <back:#1B5E20>    </back> Agregado raiz (R) e agregado (A)
+  <back:#43A047>    </back> Entidade (E)
+  <back:#7CB342>    </back> Objeto de valor (V)
+  <back:#00897B>    </back> Política (P)
+  <back:#78909C>    </back> Utilitário (U)
+  <back:#EB937F>    </back> Enum (E no círculo salmão)
+  ◆ composição    - - > referência por id ou uso
+endlegend
+@enduml

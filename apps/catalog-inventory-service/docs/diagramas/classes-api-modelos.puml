@@ -1,0 +1,214 @@
+@startuml classes-api-modelos
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+title $I_API Pacote api: DTOs de catálogo (ProductModels, CategoryModels e StorefrontModels)
+
+hide empty members
+hide <<requisicao>> stereotype
+hide <<resposta>> stereotype
+hide <<serviço>> stereotype
+hide <<dominio>> stereotype
+skinparam ClassBackgroundColor<<requisicao>> $COR_ENTRADA
+skinparam ClassBorderColor<<requisicao>> $BORDA_ENTRADA
+skinparam ClassBackgroundColor<<resposta>> #E0F7FA
+skinparam ClassBorderColor<<resposta>> #00838F
+skinparam nodesep 15
+skinparam ranksep 30
+
+package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModels {
+  class DimensionsDto <<record>> {
+    heightCm : BigDecimal
+    widthCm : BigDecimal
+    lengthCm : BigDecimal
+    weightGrams : Integer
+    --
+    toDomain() : Dimensions
+    {static} of(dimensions) : DimensionsDto
+  }
+  class SkuRequest <<record>> <<requisicao>> {
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : boolean
+    dimensions : DimensionsDto
+    --
+    toCommand() : NewSku
+  }
+  class CreateProductRequest <<record>> <<requisicao>> {
+    categoryId : UUID
+    currency : String
+    title : String
+    description : String
+    attributes : Map<String, String>
+    skus : List<SkuRequest>
+  }
+  class ReviseProductRequest <<record>> <<requisicao>> {
+    categoryId : UUID
+    title : String
+    description : String
+    attributes : Map<String, String>
+  }
+  class ReviseSkuRequest <<record>> <<requisicao>> {
+    variantAttributes : Map<String, String>
+    physical : boolean
+    dimensions : DimensionsDto
+  }
+  class ReasonRequest <<record>> <<requisicao>> {
+    reason : String
+  }
+  class SkuResponse <<record>> <<resposta>> {
+    id : UUID
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : boolean
+    dimensions : DimensionsDto
+    --
+    {static} of(sku) : SkuResponse
+  }
+  class ProductResponse <<record>> <<resposta>> {
+    id : UUID
+    storeId : UUID
+    categoryId : UUID
+    currency : String
+    title : String
+    description : String
+    attributes : Map<String, String>
+    status : ProductStatus
+    version : long
+    createdAt : Instant
+    updatedAt : Instant
+    skus : List<SkuResponse>
+    --
+    {static} of(product, stock) : ProductResponse
+  }
+  class ProductPage <<record>> <<resposta>> {
+    items : List<ProductResponse>
+    nextCursor : String
+  }
+  class StatusChangeResponse <<record>> <<resposta>> {
+    transition : ProductTransition
+    from : ProductStatus
+    to : ProductStatus
+    actor : String
+    reason : String
+    at : Instant
+    --
+    {static} of(change) : StatusChangeResponse
+  }
+}
+
+package "<$sitemap,scale=0.6,color=#EF6C00> CategoryModels <<final>>" as categoryModels {
+  class AttributeDto <<record>> {
+    code : String
+    label : String
+    type : AttributeType
+    required : boolean
+    variant : boolean
+    options : List<String>
+    --
+    toDomain() : AttributeDefinition
+    {static} of(attribute) : AttributeDto
+  }
+  class CreateCategoryRequest <<record>> <<requisicao>> {
+    parentId : UUID
+    code : String
+    name : String
+    attributes : List<AttributeDto>
+  }
+  class ReviseCategoryRequest <<record>> <<requisicao>> {
+    name : String
+    attributes : List<AttributeDto>
+    active : Boolean
+  }
+  class MoveCategoryRequest <<record>> <<requisicao>> {
+    parentId : UUID [nulo = raiz]
+  }
+  class CategoryResponse <<record>> <<resposta>> {
+    id : UUID
+    parentId : UUID
+    code : String
+    name : String
+    active : boolean
+    usable : boolean
+    version : long
+    attributes : List<AttributeDto>
+    effectiveAttributes : List<AttributeDto>
+    --
+    {static} of(view) : CategoryResponse
+  }
+  class CategorySummary <<record>> <<resposta>> {
+    id : UUID
+    parentId : UUID
+    code : String
+    name : String
+    active : boolean
+    version : long
+  }
+  class CategoryPage <<record>> <<resposta>> {
+    items : List<CategorySummary>
+    nextCursor : String
+  }
+}
+
+package "<$store,scale=0.6,color=#EF6C00> StorefrontModels <<final>>" as storefrontModels {
+  class StorefrontSkuResponse <<record>> <<resposta>> {
+    id : UUID
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : boolean
+    dimensions : DimensionsDto
+    price : EffectivePriceDto
+    inStock : boolean
+  }
+  class StorefrontProductResponse <<record>> <<resposta>> {
+    id : UUID
+    storeId : UUID
+    categoryId : UUID
+    title : String
+    description : String
+    attributes : Map<String, String>
+    status : ProductStatus
+    skus : List<StorefrontSkuResponse>
+    --
+    {static} of(shown, stock, now) : StorefrontProductResponse
+  }
+}
+
+class "domain.Dimensions" as Dimensions <<dominio>> #line.dashed
+class "application.ProductService.NewSku" as NewSku <<serviço>> #line.dashed
+class "application.CategoryService.CategoryView" as CategoryView <<serviço>> #line.dashed
+class "application.StorefrontService.StorefrontProduct" as StorefrontProduct <<serviço>> #line.dashed
+class "OfferModels.EffectivePriceDto" as OfferEffectivePrice <<resposta>> #line.dashed
+
+CreateProductRequest "1" *-- "0..*" SkuRequest
+SkuRequest --> DimensionsDto
+ReviseSkuRequest --> DimensionsDto
+SkuResponse --> DimensionsDto
+ProductResponse "1" *-- "0..*" SkuResponse
+ProductPage "1" *-- "0..*" ProductResponse
+CreateCategoryRequest "1" *-- "0..*" AttributeDto
+ReviseCategoryRequest "1" *-- "0..*" AttributeDto
+CategoryResponse "1" *-- "0..*" AttributeDto
+CategoryPage "1" *-- "0..*" CategorySummary
+StorefrontSkuResponse --> DimensionsDto
+StorefrontProductResponse "1" *-- "1..*" StorefrontSkuResponse
+DimensionsDto ..> Dimensions : toDomain
+SkuRequest ..> NewSku : toCommand
+CategoryResponse ..> CategoryView : of
+StorefrontProductResponse ..> StorefrontProduct : of
+StorefrontSkuResponse --> OfferEffectivePrice
+
+note bottom of storefrontModels
+  Os records ficam em classes finais com construtor privado. Os de entrada validam
+  com Bean Validation e os de saída montam-se por métodos de fábrica. Os DTOs de
+  operação (oferta, estoque, reserva e importação) estão em classes-api-modelos-operacao.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:$BORDA_ENTRADA>    </back> Requisição (entrada validada por Bean Validation)
+  <back:#00838F>    </back> Resposta (montada por método de fábrica)
+  <back:#90A4AE>    </back> DTO compartilhado entre entrada e saída
+  <back:$BORDA_APLICACAO>    </back> Aplicação / <back:$BORDA_DOMINIO>    </back> Domínio
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

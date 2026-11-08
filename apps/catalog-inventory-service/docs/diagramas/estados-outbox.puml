@@ -1,0 +1,41 @@
+@startuml estados-outbox
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/hourglass_half>
+!include <tupadr3/font-awesome-5/parking>
+!include <tupadr3/font-awesome-5/check_circle>
+hide stereotype
+
+title $I_OUTBOX Linha de outbox_event — estados implícitos (sem enum no código)
+
+[*] --> Pendente : INSERT na transação da mudança\n(PgOutbox.append)
+
+state "$I_OUTBOX Pendente" as Pendente <<inicial>>
+Pendente : published_at IS NULL, parked_at IS NULL\nnext_attempt_at nulo ou vencido
+state "<$hourglass_half,scale=0.7,color=#FFA000> Em espera" as EmEspera <<espera>> : next_attempt_at no futuro
+state "<$parking,scale=0.7,color=#C62828> Estacionado" as Estacionado <<erro>> : parked_at preenchido
+state "<$check_circle,scale=0.7,color=#2E7D32> Publicado" as Publicado <<ativo>> : published_at preenchido
+
+Pendente -[#2E7D32,bold]-> Publicado : broker confirmou\n(UPDATE published_at, attempts += 1, last_error = NULL)
+Pendente -[#FFA000]-> EmEspera : falha no envio ou timeout de 10 s\nattempts += 1, last_error gravado;\nnext_attempt_at = agora + 2^n s (máx. 60 s)
+EmEspera --> Pendente : next_attempt_at venceu
+Pendente -[#C62828]-> Estacionado : falha que leva attempts a max-attempts (20)\nparked_at = agora
+Estacionado -[#1565C0,dashed]-> Pendente : reenvio manual\n(UPDATE parked_at = NULL, next_attempt_at = NULL)
+Publicado --> [*] : MessagingHousekeeping.purge\napós outbox-retention (7 dias)
+
+note right of Pendente
+  Retido (held): os seguintes do mesmo
+  tópico+chave ficam pendentes, sem
+  incrementar attempts, depois de uma falha
+  no lote ou atrás de um anterior em espera
+  ou estacionado.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#64B5F6>    </back> Pendente (aguarda o relay)
+  <back:#FFA000>    </back> Em espera (backoff)
+  <back:#C62828>    </back> Estacionado (exige reenvio manual)
+  <back:#2E7D32>    </back> Publicado (sucesso)
+  Seta tracejada azul: ação manual
+endlegend
+@enduml

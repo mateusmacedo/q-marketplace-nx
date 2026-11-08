@@ -1,0 +1,139 @@
+@startuml eventos-dominio
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+title Eventos de domínio (interfaces seladas e records)
+
+hide empty members
+<style>
+spot { FontColor #FFFFFF }
+</style>
+skinparam ClassBackgroundColor<<sealed>> #FFE0B2
+skinparam ClassBorderColor<<sealed>> #EF6C00
+skinparam ClassBackgroundColor<<record>> #FFF8E1
+skinparam ClassBorderColor<<record>> #FFA000
+skinparam ClassBackgroundColor<<fábrica>> $COR_DOMINIO
+skinparam ClassBorderColor<<fábrica>> $BORDA_DOMINIO
+
+package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:2E7D32 {
+  interface ProductEvent << (S,#EF6C00) sealed>> {
+    productId() : UUID
+    storeId() : UUID
+    occurredAt() : Instant
+  }
+  class ProductCreated << (R,#FFA000) record>> {
+    categoryId : UUID
+    currency : String
+    title : String
+    skus : List<SkuSummary>
+  }
+  class ProductStatusChanged << (R,#FFA000) record>> {
+    transition : ProductTransition
+    from : ProductStatus
+    to : ProductStatus
+    reason : String
+  }
+  class ProductBlocked << (R,#FFA000) record>> {
+    reason : String
+  }
+  class SkuSummary << (R,#7CB342) record>> #F1F8E9;line:7CB342 {
+    skuId : UUID
+    sellerSku : String
+  }
+  ProductEvent <|.. ProductCreated
+  ProductEvent <|.. ProductStatusChanged
+  ProductEvent <|.. ProductBlocked
+  ProductCreated "1" *-- "0..100" SkuSummary
+}
+
+package "<$tag,scale=0.5,color=#2E7D32> domain.offer" as offer #F6FBF6;line:2E7D32 {
+  interface OfferEvent << (S,#EF6C00) sealed>> {
+    skuId() : UUID
+    occurredAt() : Instant
+  }
+  class PriceChanged << (R,#FFA000) record>> {
+    productId : UUID
+    storeId : UUID
+    price : Price
+    promotions : List<Promotion>
+    priceVersion : long
+  }
+  OfferEvent <|.. PriceChanged
+}
+
+package "<$warehouse,scale=0.5,color=#2E7D32> domain.inventory" as inventory #F6FBF6;line:2E7D32 {
+  interface InventoryEvent << (S,#EF6C00) sealed>> {
+    occurredAt() : Instant
+  }
+  enum Cause {
+    ADJUSTED
+    RELEASED
+    EXPIRED
+    COMMITTED
+  }
+  class SkuStock << (R,#7CB342) record>> #F1F8E9;line:7CB342 {
+    skuId : UUID
+    productId : UUID
+    storeId : UUID
+    onHand : int
+    reserved : int
+    version : long
+    --
+    available() : int
+  }
+  class ReservedSku << (R,#7CB342) record>> #F1F8E9;line:7CB342 {
+    stock : SkuStock
+    quantity : int
+  }
+  class InventoryUpdated << (R,#FFA000) record>> {
+    stock : SkuStock
+    cause : Cause
+    reservationId : UUID [0..1]
+  }
+  class InventoryReserved << (R,#FFA000) record>> {
+    reservationId : UUID
+    orderRef : String
+    items : List<ReservedSku>
+    expiresAt : Instant
+  }
+  class InventoryDepleted << (R,#FFA000) record>> {
+    stock : SkuStock
+  }
+  class InventoryEvents << (F,#2E7D32) fábrica>> {
+    {static} adjusted(before, after, ...)
+    {static} reserved(reservation, after)
+    {static} closed(reservation, outcome, after, at)
+  }
+  InventoryEvent <|.. InventoryUpdated
+  InventoryEvent <|.. InventoryReserved
+  InventoryEvent <|.. InventoryDepleted
+  InventoryUpdated --> Cause
+  InventoryUpdated --> SkuStock
+  InventoryDepleted --> SkuStock
+  InventoryReserved "1" *-- "1..100" ReservedSku
+  ReservedSku --> SkuStock
+  InventoryEvents ..> InventoryEvent : deriva
+}
+
+note bottom of ProductStatusChanged
+  Toda transição, exceto CREATE.
+  BLOCK emite também ProductBlocked.
+end note
+
+note bottom of PriceChanged
+  Criação da oferta e toda mudança de
+  preço ou de promoção (priceVersion sobe).
+end note
+
+note bottom of InventoryDepleted
+  Disponível passou a zero no ajuste
+  ou na reserva.
+end note
+
+legend right
+  <b>Eventos</b>
+  <back:#EF6C00>    </back> Interface selada (S)
+  <back:#FFA000>    </back> Evento de domínio (R)
+  <back:#7CB342>    </back> Record de carga útil (R)
+  <back:#2E7D32>    </back> Fábrica de eventos (F)
+endlegend
+@enduml

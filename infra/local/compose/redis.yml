@@ -1,0 +1,74 @@
+# Redis do cache da vitrine e da taxonomia do catálogo (ADR 024), no modelo do DMPF. Sem persistência: o conteúdo é
+# derivado do banco, e reiniciar só esvazia o cache. Na falta de memória, allkeys-lru remove qualquer chave, e perder um
+# conteúdo ou uma geração só gera uma falta, nunca dado velho. ACL sem o usuário default: o catálogo só alcança chaves
+# catalog:* e os comandos que usa (dentro dos scripts inclusive); o exporter, só leitura de estado; o inspector, só
+# leitura de chaves e estado, sem escrita nem comandos @dangerous (KEYS, CONFIG...), para clientes como o RedisInsight.
+services:
+  redis:
+    image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    profiles: [infra, catalog, all]
+    command:
+      - redis-server
+      - --save
+      - ''
+      - --appendonly
+      - 'no'
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --user
+      - default
+      - 'off'
+      - --user
+      - catalog
+      - 'on'
+      - '>${REDIS_CATALOG_PASSWORD:-catalog-local-redis}'
+      - '~catalog:*'
+      - -@all
+      - +hello
+      - +auth
+      - +ping
+      - +get
+      - +set
+      - +exists
+      - +incr
+      - +time
+      - +eval
+      - +evalsha
+      - --user
+      - exporter
+      - 'on'
+      - '>${REDIS_EXPORTER_PASSWORD:-exporter-local-redis}'
+      - -@all
+      - +info
+      - +ping
+      - +client|setname
+      - +config|get
+      - +latency|latest
+      - +latency|histogram
+      - +slowlog|get
+      - +slowlog|len
+      - +command|info
+      - --user
+      - inspector
+      - 'on'
+      - '>${REDIS_INSPECTOR_PASSWORD:-inspector-local-redis}'
+      - '%R~*'
+      - -@all
+      - +@read
+      - +@connection
+      - -@dangerous
+      - +info
+    ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user catalog --pass '${REDIS_CATALOG_PASSWORD:-catalog-local-redis}' ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # WHY: o cache vem desligado, e 0,5 cabe no orçamento do host (tools/infra-budget.sh). Para medir o cache, suba para
+    # 1, que a thread única nunca estrangula: com 0,25, a cota parou 2,6% dos períodos CFS do average.
+    deploy:
+      resources:
+        limits: {cpus: "0.50", memory: 128M}
+        reservations: {cpus: "0.05", memory: 32M}

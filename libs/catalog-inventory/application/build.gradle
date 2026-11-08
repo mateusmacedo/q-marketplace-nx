@@ -1,0 +1,6 @@
+dependencies {
+    api project(':catalog-inventory-domain')
+    api platform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    // ADR 009: portas assíncronas retornam Uni; o domínio permanece Java puro.
+    api 'io.smallrye.reactive:mutiny'
+}

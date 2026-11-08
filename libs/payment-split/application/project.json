@@ -1,0 +1,9 @@
+{
+  "name": "payment-split-application",
+  "projectType": "library",
+  "tags": [
+    "scope:payment-split",
+    "layer:application",
+    "lang:java"
+  ]
+}

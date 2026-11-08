@@ -1,0 +1,57 @@
+# Exemplo de valores de produção, sem segredos: copie, ajuste os endereços e passe com -f.
+# Os Secrets catalog-inventory-db, catalog-inventory-kafka e catalog-inventory-redis precisam existir antes (README,
+# seção Implantação).
+
+image:
+  repository: registry.example.com/marketplace/catalog-inventory
+  tag: "0.1.0"
+
+# Servidor compartilhado: schema catalog_inventory no banco marketplace; o Secret traz o role de runtime e o migrator.
+database:
+  reactiveUrl: postgresql://postgres.example.internal:5432/marketplace
+  jdbcUrl: jdbc:postgresql://postgres.example.internal:5432/marketplace
+  schema: catalog_inventory
+  existingSecret: catalog-inventory-db
+
+kafka:
+  bootstrapServers: kafka-0.example.internal:9096,kafka-1.example.internal:9096,kafka-2.example.internal:9096
+  clientSecret: catalog-inventory-kafka
+
+cache:
+  enabled: true
+  hosts: redis://catalog@catalog-redis.example.internal:6379
+  existingSecret: catalog-inventory-redis
+
+jwt:
+  issuer: https://id.example.com/realms/marketplace
+  jwksUrl: https://id.example.com/realms/marketplace/protocol/openid-connect/certs
+  audience: catalog-inventory
+  groupsPath: realm_access/roles
+
+otel:
+  enabled: true
+  endpoint: http://otel-collector.observability:4317
+
+metrics:
+  scrapeAnnotations: false
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+
+api:
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    minAvailable: 2
+
+# O worker fica com 1 réplica e o PodDisruptionBudget maxUnavailable: 1, que deixa drenar o nó dele.
+worker:
+  replicaCount: 1
+
+topologySpread:
+  topologyKey: topology.kubernetes.io/zone
+

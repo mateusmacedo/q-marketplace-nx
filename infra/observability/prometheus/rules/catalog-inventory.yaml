@@ -1,0 +1,100 @@
+# Alertas de causa do catálogo e da infraestrutura local (ADR 019); os de sintoma (disponibilidade e latência) são os
+# SLOs de catalog-inventory-slo.yaml (ADR 021). O limite da outbox segue o PRD (eventos indexáveis em até 10 s); testes
+# em ../tests/catalog-inventory.test.yaml (promtool test rules).
+groups:
+  - name: catalog-inventory
+    rules:
+      - alert: CatalogInventoryDown
+        expr: up{job="catalog-inventory"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Instância do catálogo fora do ar
+          description: "{{ $labels.instance }} não responde em /q/metrics há 1 minuto."
+
+      - alert: CatalogOutboxBacklog
+        expr: max(catalog_outbox_oldest_age_seconds{job="catalog-inventory"}) > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Eventos da outbox esperando mais de 10 s
+          description: "O evento pendente mais antigo espera há {{ $value | humanizeDuration }}; o PRD pede indexação em até 10 s."
+
+      - alert: CatalogOutboxPublishFailures
+        expr: sum(increase(catalog_outbox_failures_total{job="catalog-inventory"}[10m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Falhas repetidas ao publicar eventos no Kafka
+          description: "{{ $value }} falha(s) de publicação nos últimos 10 minutos; os eventos continuam na outbox."
+
+      # WHY: crítico porque o evento estacionado só sai com o reenvio manual e retém os seguintes da sua chave.
+      - alert: CatalogOutboxParked
+        expr: max(catalog_outbox_parked{job="catalog-inventory"}) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Eventos da outbox estacionados
+          description: "{{ $value }} evento(s) esgotaram as tentativas de publicação e esperam o reenvio manual; os seguintes da mesma chave ficam retidos."
+
+      - alert: CatalogKybDeadLetters
+        expr: |
+          sum(increase(kafka_producer_record_send_total{job="catalog-inventory",client_id=~"kafka-dead-letter-topic-producer-.*"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Vereditos do KYB/KYC na fila de descarte
+          description: "{{ $value }} mensagem(ns) foram para catalog-inventory.kyb-seller.dlq nos últimos 15 minutos."
+
+      - alert: CatalogKybConsumerLag
+        expr: |
+          max(kafka_consumer_fetch_manager_records_lag_max{job="catalog-inventory",client_id="kafka-consumer-kyb-seller-verdicts"}) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Vereditos do KYB/KYC acumulados
+          description: "{{ $value }} mensagens de kyb-kyc.seller.v1 sem leitura há 10 minutos."
+
+      - alert: CatalogSqlPoolSaturated
+        expr: sum(sql_pool_queue_size{job="catalog-inventory"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Requisições esperando conexão do banco
+          description: "{{ $value }} pedido(s) na fila do pool SQL há 5 minutos."
+
+  - name: marketplace-infra
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL fora do ar
+          description: O postgres-exporter não consegue conectar ao banco há 1 minuto.
+
+      # WHY: aviso, não crítico: o Redis só guarda o cache opcional (ADR 024), e sem ele as leituras vão ao banco.
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis fora do ar
+          description: O redis-exporter não consegue conectar ao Redis há 1 minuto; com o cache ligado, as leituras vão ao banco.
+
+      - alert: ObservabilityTargetDown
+        expr: up{job=~"postgres|redis|cadvisor|otel-collector|tempo|loki|grafana"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Alvo {{ $labels.job }} fora do ar
+          description: "{{ $labels.instance }} não responde ao scrape há 5 minutos."

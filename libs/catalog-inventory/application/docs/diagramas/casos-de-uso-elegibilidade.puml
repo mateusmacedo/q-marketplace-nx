@@ -1,0 +1,56 @@
+@startuml casos-de-uso-elegibilidade
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/clipboard_list>
+!include <tupadr3/font-awesome-5/user_check>
+title Casos de uso de SellerEligibilityService
+left to right direction
+hide stereotype
+
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+actor "$I_KYB\nKYB/KYC" as kyb <<sistema>>
+
+package "<$user_check,scale=0.8,color=#1565C0> SellerEligibilityService" as SellerEligibilityService <<aplicacao>> {
+  usecase "Consultar situação KYB/KYC da loja\n(get)" as UC_get <<leitura>>
+  usecase "Registrar veredito KYB/KYC\n(record)" as UC_record <<sistema>>
+}
+
+seller --> UC_get
+admin --> UC_get
+UC_record <-- kyb
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_get
+    **get**
+    Seller lê a própria loja sem capacidade extra; outra
+    loja exige READ_SELLER_ELIGIBILITY (catalog-admin),
+    senão <color:#C62828>AccessDenied</color> (<color:#C62828>403</color>). A API aceita só seller e
+    catalog-admin; moderador não consulta.
+    Loja sem veredito registrado é PENDING.
+  end note
+  note as N_record
+    **record**
+    Sem chamador autenticado: SellerVerdictConsumer lê
+    o canal kyb-seller-verdicts do Kafka, no papel
+    worker. SellerApproved vira APPROVED, SellerRejected
+    vira REJECTED e ReviewRequired vira PENDING;
+    eventVersion deve ser 1.
+    Entrega deduplicada por eventId (DUPLICATE não muda
+    nada); veredito mais antigo que o registrado é
+    descartado (STALE); só APPLIED altera a loja.
+    Mensagem inválida vai para a fila de descarte.
+    A situação gravada aqui decide approve, resume,
+    reserve e a vitrine (exigem APPROVED).
+  end note
+}
+
+N_get -[hidden]left-> N_record
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#455A64>    </back> Ator de sistema (sem chamador autenticado)
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <back:#B0BEC5>    </back> Caso de uso disparado por sistema
+  <color:#C62828>código</color> recusa (problem, 4xx)
+endlegend
+@enduml

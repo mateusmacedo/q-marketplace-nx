@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "catalog-inventory.componentFullname" (dict "root" $ "component" "metrics") }}
+  labels:
+    {{- include "catalog-inventory.componentLabels" (dict "root" $ "component" "metrics") | nindent 4 }}
+spec:
+  # WHY: headless, para o Prometheus coletar cada pod, e não um pod qualquer atrás de um IP virtual.
+  clusterIP: None
+  # WHY: sem o component, o seletor pega a api e o worker; o pod do Job de tópicos tem outro name e fica de fora.
+  selector:
+    {{- include "catalog-inventory.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: management
+      port: 9000
+      targetPort: management
+      protocol: TCP

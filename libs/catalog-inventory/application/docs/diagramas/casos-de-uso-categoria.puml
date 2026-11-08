@@ -1,0 +1,94 @@
+@startuml casos-de-uso-categoria
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/clipboard_list>
+title Casos de uso de CategoryService
+left to right direction
+hide stereotype
+
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+
+package "$I_CATEGORIA CategoryService" as CategoryService <<aplicacao>> {
+  usecase "Criar categoria\n(create)" as UC_create
+  usecase "Consultar categoria\n(get)" as UC_get <<leitura>>
+  usecase "Revisar categoria\n(revise)" as UC_revise
+  usecase "Mover categoria\n(move)" as UC_move
+  usecase "Listar subcategorias\n(children)" as UC_children <<leitura>>
+}
+
+admin --> UC_create
+admin --> UC_get
+admin --> UC_revise
+admin --> UC_move
+admin --> UC_children
+
+seller --> UC_get
+seller --> UC_children
+
+moderator --> UC_get
+moderator --> UC_children
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_create
+    **create**
+    Só catalog-admin (MANAGE_TAXONOMY).
+    Sem parentId cria raiz; com parentId, subcategoria.
+    Pai inexistente: <color:#C62828>404</color>; pai inativo: <color:#C62828>category-inactive</color>.
+    Atributo repetido de ancestral: <color:#C62828>attribute-conflict</color>.
+    Código já usado no tenant: <color:#C62828>duplicate-category-code</color>
+    (<color:#C62828>409</color>). API: <color:#2E7D32>201</color> com Location e ETag.
+  end note
+  note as N_get
+    **get**
+    A API aceita seller, moderador e admin; o serviço
+    só exige que a categoria seja do tenant do chamador.
+    Devolve os atributos efetivos (herdados e próprios)
+    e usable (categoria e ancestrais ativos).
+    Inexistente no tenant: <color:#C62828>404</color>. ETag = versão.
+  end note
+  note as N_revise
+    **revise**
+    Só catalog-admin. If-Match obrigatório na API
+    (<color:#C62828>428</color> ausente, <color:#C62828>412</color> divergente); opcional no serviço.
+    Atualiza nome, atributos próprios e active (ativa
+    ou desativa).
+    Atributo que colide com herdado ou de subcategoria:
+    <color:#C62828>attribute-conflict</color> (<color:#C62828>422</color>).
+  end note
+  note as N_move
+    **move**
+    Só catalog-admin. If-Match obrigatório na API
+    (<color:#C62828>428</color> ausente, <color:#C62828>412</color> divergente).
+    Move a categoria e a subárvore para baixo de
+    parentId (vazio a torna raiz); mover para o pai
+    atual não grava nada.
+    Pai inexistente: <color:#C62828>404</color>. <color:#C62828>category-cycle</color>,
+    <color:#C62828>category-too-deep</color> (máximo de 6 níveis) e
+    <color:#C62828>attribute-conflict</color>: <color:#C62828>422</color>. <color:#C62828>409</color> se a árvore mudou
+    durante a gravação. Pai inativo é aceito.
+    Produtos não mudam: atributo obrigatório herdado só
+    é cobrado na próxima edição ou envio de cada um.
+  end note
+  note as N_children
+    **children**
+    A API aceita seller, moderador e admin.
+    Subcategorias diretas de parentId (raízes sem ele),
+    inclusive inativas, em ordem de código, com cursor
+    por código; limit de 1 a 100.
+    Pai inexistente: <color:#C62828>404</color>.
+  end note
+}
+
+N_create -[hidden]left-> N_get
+N_get -[hidden]left-> N_revise
+N_revise -[hidden]left-> N_move
+N_move -[hidden]left-> N_children
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <color:#C62828>código</color> recusa (problem, 4xx); <color:#2E7D32>2xx</color> sucesso
+endlegend
+@enduml

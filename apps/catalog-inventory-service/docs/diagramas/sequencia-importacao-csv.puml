@@ -1,0 +1,63 @@
+@startuml sequencia-importacao-csv
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_CSV Importação CSV em segundo plano
+autonumber
+
+participant "$I_SELLER\nSeller" as seller <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_API\nProductImportResource\n(api)" as res <<entrada>>
+  participant "$I_CSV\nProductCsv" as csv <<entrada>>
+  participant "$I_AGENDADOR\nProductImportWorker\n(worker, a cada 1 s)" as worker <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_SERVICO\nProductImportService" as svc <<aplicacao>>
+  participant "$I_SERVICO\nProductService /\nOfferService /\nInventoryService" as uc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_REPOSITORIO\nPgProductImportRepository" as repo <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+== Envio ==
+seller -> res : POST /products/imports (text/csv, até 1 MB)
+res -> csv : validate (Offload.cpu): UTF-8, RFC 4180,\ncabeçalho exato, até 5000 linhas
+alt #FFEBEE arquivo inválido
+  res --> seller : <color:#C62828>400 invalid-import-file + reasons</color>
+else #E8F5E9 válido
+  res -> svc : submit -> ProductImport.pending
+  svc -> repo : insert
+  repo -> pg : INSERT product_import (status PENDING, content)
+  res --> seller : <color:#2E7D32>202 Accepted + Location</color>
+end
+
+== Processamento ==
+worker -> svc : claimNext(lease 5 min)
+svc -> repo : claimNext
+repo -> pg : UPDATE product_import SET status='PROCESSING', started_at=now\nWHERE id = (SELECT id ... WHERE status='PENDING'\n OR (status='PROCESSING' AND started_at < now - lease)\n ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED)\nRETURNING content
+worker -> csv : rows (Offload.cpu)
+worker -> svc : process(lote, linhas)
+svc -> repo : resultados já gravados (retomada)
+svc -> svc : plan: SKU existente | novo produto por product_ref | rejeitado
+loop cada unidade
+  alt #E8F5E9 SKU existente
+    svc -> uc : OfferService.define e InventoryService.adjust,\nsó se preço ou estoque mudou
+  else #E8F5E9 grupo novo e válido
+    svc -> uc : ProductService.create; por SKU,\nOfferService.define e InventoryService.adjust
+  else #FFEBEE grupo inválido
+    svc -> svc : <color:#C62828>FAILED (invalid-row, inconsistent-product,</color>\n<color:#C62828>category-not-found, group-rejected)</color>
+  end
+  svc -> repo : recordResults
+  repo -> pg : INSERT product_import_line ... ON CONFLICT DO NOTHING;\nUPDATE started_at (renova a lease)
+end
+svc -> repo : complete
+repo -> pg : UPDATE status='COMPLETED', finished_at
+worker -> worker : catalog.imports.lines{outcome} += n
+
+== Consulta ==
+seller -> res : GET /products/imports/{id}
+res --> seller : <color:#2E7D32>200 (status e resultado por linha)</color>
+note over uc : Os eventos são os dos próprios casos de uso\n(ProductCreated, PriceChanged, InventoryUpdated...)
+$legenda_camadas()
+@enduml

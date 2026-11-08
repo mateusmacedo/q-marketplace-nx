@@ -1,0 +1,363 @@
+@startuml sequencias-categoria
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/user>
+title create: POST /categories
+autonumber
+
+participant "<$user,scale=0.9,color=#F9A825>\nCliente autenticado\n(JWT do tenant)" as cli <<ator>>
+box "Entrada" #FFFAF3
+participant "$I_API\nCategoryResource" as res <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+participant "$I_CATEGORIA\nCategoryService" as svc <<aplicacao>>
+end box
+box "Domínio" #F6FBF6
+participant "$I_DOMINIO\nCategory\n(domínio)" as dom <<dominio>>
+end box
+box "Saída" #FBF6FC
+participant "$I_CACHE\nTaxonomyCache" as tc <<saida>>
+participant "$I_CACHE\nCatalogCache" as cc <<saida>>
+database "\n$I_REDIS\nRedis" as redis
+participant "$I_CACHE\nCategoryCacheInvalidation\n(decorator)" as dec <<saida>>
+participant "$I_REPOSITORIO\nPgCategoryRepository" as repo <<saida>>
+database "\n$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+cli -> res : POST /categories (papel catalog-admin)\n{parentId?, code, name, attributes}
+alt #FFEBEE token ausente ou inválido
+  res --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-admin
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE corpo malformado ou campo inválido (@Valid)
+  res --> cli : <color:#C62828>400 malformed-body | validation-failed</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  res --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+res -> svc : create(actor, parentId?, code, name, attributes)
+svc -> svc : actor.require(MANAGE_TAXONOMY)
+== Cadeia do pai ==
+alt com parentId
+  alt cache desligado (catalog.cache.enabled=false, padrão em prod e dev)
+    svc -> repo : chain(tenant, parentId)
+    repo -> pg : SELECT ... FROM category\nWHERE id = ANY (ancestry || id do pai) ORDER BY cardinality(ancestry)
+  else cache ligado
+    svc -> tc : chain(tenant, parentId)
+    tc -> cc : read(taxonomy, catalog:taxonomy:v1:{t}:chain:{pai},\ngeração catalog:gen:taxonomy:{t})
+    cc -> redis : EVALSHA (EVAL se NOSCRIPT), prazo 100 ms
+    alt HIT (carimbo confere)
+      redis --> cc : retrato
+      tc -> tc : Snapshots.Categories.restore()
+    else MISS
+      tc -> repo : chain(tenant, parentId)
+      repo -> pg : SELECT da cadeia
+      tc -> cc : write(retrato com o carimbo), sem esperar (detach)
+      cc -> redis : SET PX 60 s (cadeia vazia não é guardada)
+    else BYPASS (Redis fora ou acima do prazo)
+      tc -> repo : chain(tenant, parentId)
+      repo -> pg : SELECT da cadeia
+    end
+  end
+  alt #FFEBEE cadeia vazia (pai inexistente no tenant)
+    res --> cli : <color:#C62828>404 not-found</color>
+  else #E8F5E9 pai encontrado
+    svc -> dom : Category.childOf(pai, id, code, name, attributes,\natributos efetivos do pai)
+  end
+else raiz
+  svc -> dom : Category.root(id, tenant, code, name, attributes)
+end
+== Validação e gravação ==
+alt #FFEBEE regra de domínio violada
+  res --> cli : <color:#C62828>422 category-inactive (pai inativo) | category-too-deep (acima de 6 níveis)</color>\n<color:#C62828>| attribute-conflict (atributo repetido de ancestral) | invalid-value</color>
+else #E8F5E9 válida
+  svc -> dec : insert(category)\n(TaxonomyCache só intercepta chain e children)
+  dec -> repo : insert(category)
+  repo -> pg : BEGIN
+  repo -> pg : SELECT pg_advisory_xact_lock(hashtextextended(\n'catalog-inventory.category-tree:' || tenant, 0))
+  opt com parentId
+    repo -> pg : SELECT 1 FROM category\nWHERE id = pai AND (ancestry || id) = caminho lido
+    alt #FFEBEE nenhuma linha (caminho do pai mudou)
+      repo -> pg : ROLLBACK
+      res --> cli : <color:#C62828>409 concurrent-update</color>
+    end
+  end
+  repo -> pg : INSERT INTO category (..., version = 0)
+  alt #FFEBEE violação de category_tenant_code_uk (23505)
+    repo -> pg : ROLLBACK
+    res --> cli : <color:#C62828>409 duplicate-category-code</color>
+  else #E8F5E9 gravada
+    repo -> pg : COMMIT
+  end
+  note over repo, pg : Cada operação no banco tem prazo (catalog.persistence.timeout, 2 s):\nestouro responde 503 service-unavailable + Retry-After: 1
+  opt cache ligado (também na falha da escrita)
+    dec -> cc : taxonomyChanged(tenant)
+    cc -> redis : EVALSHA INVALIDATE: INCR catalog:gen:taxonomy:{t}\nse a chave existir; prazo 1 s, uma nova tentativa
+  end
+  res --> cli : 201 + Location /categories/{id} + ETag "0"
+end
+note over cc, redis : Falha da invalidação não propaga: vai a log WARN e a\ncatalog.cache.invalidations{result=failed}; o conteúdo antigo vale até 60 s.\nGeração e invalidação genérica em sequencias-infraestrutura.puml
+
+newpage get: GET /categories/{id}
+autonumber 1
+
+cli -> res : GET /categories/{id}\n(papel seller, catalog-admin ou catalog-moderator)
+alt #FFEBEE token ausente ou inválido
+  res --> cli : <color:#C62828>401</color>
+else #FFEBEE papel fora dos três aceitos
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  res --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+res -> svc : get(actor, id)
+== Leitura da cadeia ==
+alt cache desligado (catalog.cache.enabled=false, padrão em prod e dev)
+  svc -> repo : chain(tenant, id)
+  repo -> pg : SELECT ... FROM category WHERE tenant_id = $1\nAND id = ANY (ancestry || id da categoria) ORDER BY cardinality(ancestry)
+else cache ligado
+  svc -> tc : chain(tenant, id)
+  tc -> cc : read(taxonomy, catalog:taxonomy:v1:{t}:chain:{id},\ngeração catalog:gen:taxonomy:{t})
+  cc -> redis : EVALSHA (EVAL se NOSCRIPT), prazo 100 ms
+  alt HIT (carimbo confere)
+    redis --> cc : retrato
+    tc -> tc : Snapshots.Categories.restore()
+  else MISS
+    tc -> repo : chain(tenant, id)
+    repo -> pg : SELECT da cadeia
+    tc -> cc : write(retrato com o carimbo), sem esperar (detach)
+    cc -> redis : SET PX 60 s (cadeia vazia não é guardada)
+  else BYPASS (Redis fora ou acima do prazo)
+    tc -> repo : chain(tenant, id)
+    repo -> pg : SELECT da cadeia
+  end
+end
+note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde\n503 service-unavailable + Retry-After: 1
+alt #FFEBEE cadeia vazia (inexistente no tenant do chamador)
+  res --> cli : <color:#C62828>404 not-found</color>
+else #E8F5E9 encontrada
+  svc -> dom : Category.effectiveAttributes(cadeia)\nusable = todos da cadeia ativos
+  res --> cli : 200 CategoryResponse + ETag "{version}"
+end
+
+newpage revise: PUT /categories/{id}
+autonumber 1
+
+cli -> res : PUT /categories/{id} (papel catalog-admin)\nIf-Match: "{version}"\n{name, attributes, active}
+alt #FFEBEE token ausente ou inválido
+  res --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-admin
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE corpo malformado ou campo inválido (@Valid)
+  res --> cli : <color:#C62828>400 malformed-body | validation-failed</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  res --> cli : <color:#C62828>403 tenant-not-authorized</color>
+else #FFEBEE If-Match ausente, em branco ou *
+  res --> cli : <color:#C62828>428 precondition-required</color>
+else #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res --> cli : <color:#C62828>400 invalid-request</color>
+end
+res -> svc : revise(actor, id, ifMatch, name, attributes, active)
+svc -> svc : actor.require(MANAGE_TAXONOMY)
+== Leituras ==
+par leituras em paralelo
+  alt cache desligado (catalog.cache.enabled=false, padrão em prod e dev)
+    svc -> repo : chain(tenant, id)
+    repo -> pg : SELECT da cadeia (id e ancestrais)
+  else cache ligado
+    svc -> tc : chain(tenant, id)
+    tc -> cc : read(taxonomy, catalog:taxonomy:v1:{t}:chain:{id},\ngeração catalog:gen:taxonomy:{t})
+    cc -> redis : EVALSHA (EVAL se NOSCRIPT), prazo 100 ms
+    alt HIT
+      redis --> cc : retrato
+      tc -> tc : Snapshots.Categories.restore()
+    else MISS ou BYPASS
+      tc -> repo : chain(tenant, id)
+      repo -> pg : SELECT da cadeia
+      tc -> cc : write(retrato com o carimbo), sem esperar (somente em MISS)
+    end
+  end
+else
+  svc -> repo : descendantAttributeCodes(tenant, id)
+  repo -> pg : SELECT DISTINCT a->>'code' FROM category c,\njsonb_array_elements(c.attributes) a\nWHERE c.tenant_id = $1 AND c.ancestry @> ARRAY[id]
+end
+alt #FFEBEE cadeia vazia (inexistente no tenant)
+  res --> cli : <color:#C62828>404 not-found</color>
+end
+== Validação e gravação ==
+svc -> svc : Versions.requireMatch(ifMatch, version lida)
+alt #FFEBEE versão diferente da lida
+  res --> cli : <color:#C62828>412 version-mismatch</color>
+end
+svc -> dom : self.revise(name, attributes, atributos efetivos do pai,\ncódigos dos descendentes)
+alt #FFEBEE colisão com herdado ou com subcategoria
+  res --> cli : <color:#C62828>422 attribute-conflict (reasons attribute-conflict:{código})</color>
+else #FFEBEE nome ou atributos inválidos
+  res --> cli : <color:#C62828>422 invalid-value</color>
+else #E8F5E9 válida
+  svc -> dom : active ? activate() : deactivate()
+  svc -> dec : update(category, version lida)
+  dec -> repo : update(category, version lida)
+  repo -> pg : UPDATE category SET name, attributes, active,\nversion = version + 1 WHERE tenant_id AND id AND version = lida
+  alt #FFEBEE nenhuma linha atualizada
+    res --> cli : <color:#C62828>409 concurrent-update</color>
+  else #E8F5E9 1 linha
+    repo -> dom : markPersisted(version lida + 1)
+  end
+  note over repo, pg : Instrução única, sem a trava da árvore: só a estrutura (create e move) a toma.\nPrazo catalog.persistence.timeout (2 s): estouro responde 503 + Retry-After: 1
+  opt cache ligado (também na falha da escrita)
+    dec -> cc : taxonomyChanged(tenant)
+    cc -> redis : EVALSHA INVALIDATE: INCR catalog:gen:taxonomy:{t}\nse a chave existir; prazo 1 s, uma nova tentativa
+  end
+  res --> cli : 200 CategoryResponse + ETag "{version lida + 1}"
+end
+note over svc, pg : Com o cache ligado, a cadeia lida pode estar atrasada até a invalidação chegar;\na escrita segue protegida pela versão otimista do banco (If-Match e UPDATE ... AND version)
+
+newpage move: PUT /categories/{id}/parent
+autonumber 1
+
+cli -> res : PUT /categories/{id}/parent (papel catalog-admin)\nIf-Match: "{version}"\n{parentId?}
+alt #FFEBEE token ausente ou inválido
+  res --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-admin
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE corpo malformado ou campo inválido (@Valid)
+  res --> cli : <color:#C62828>400 malformed-body | validation-failed</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  res --> cli : <color:#C62828>403 tenant-not-authorized</color>
+else #FFEBEE If-Match ausente, em branco ou *
+  res --> cli : <color:#C62828>428 precondition-required</color>
+else #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res --> cli : <color:#C62828>400 invalid-request</color>
+end
+res -> svc : move(actor, id, ifMatch, parentId?)
+svc -> svc : actor.require(MANAGE_TAXONOMY)
+== Leituras ==
+par leituras em paralelo
+  svc -> tc : chain(tenant, id) e, com parentId, chain(tenant, novo pai)\n(mesma leitura em cache da página get; cache desligado vai direto a repo)
+  tc -> repo : cadeia(s), em MISS ou BYPASS
+  repo -> pg : SELECT da cadeia
+else
+  svc -> repo : subtreeHeight(tenant, id)
+  repo -> pg : SELECT coalesce(max(cardinality(ancestry)\n- array_position(ancestry, id) + 1), 0) FROM category\nWHERE tenant_id = $1 AND ancestry @> ARRAY[id]
+else
+  svc -> repo : descendantAttributeCodes(tenant, id)
+  repo -> pg : SELECT DISTINCT a->>'code' dos descendentes
+end
+alt #FFEBEE cadeia da categoria ou do novo pai vazia
+  res --> cli : <color:#C62828>404 not-found</color>
+end
+== Validação e gravação ==
+svc -> svc : Versions.requireMatch(ifMatch, version lida)
+alt #FFEBEE versão diferente da lida
+  res --> cli : <color:#C62828>412 version-mismatch</color>
+else #E8F5E9 novo pai igual ao atual
+  res --> cli : 200 CategoryResponse + ETag atual (nada é gravado nem invalidado)
+else #FFFFFF muda de pai
+  svc -> dom : self.moveUnder(cadeia do novo pai, altura da subárvore,\ncódigos dos descendentes)
+  alt #FFEBEE novo pai é a própria categoria ou descendente
+    res --> cli : <color:#C62828>422 category-cycle</color>
+  else #FFEBEE cadeia do novo pai + altura da subárvore >= 6 níveis
+    res --> cli : <color:#C62828>422 category-too-deep</color>
+  else #FFEBEE atributo da subárvore já existe no novo caminho
+    res --> cli : <color:#C62828>422 attribute-conflict (reasons attribute-conflict:{código})</color>
+  else #E8F5E9 válida (pai inativo é aceito)
+    svc -> dec : move(category, ancestry anterior, version lida)
+    dec -> repo : move(category, ancestry anterior, version lida)
+    repo -> pg : BEGIN
+    repo -> pg : SELECT pg_advisory_xact_lock(hashtextextended(\n'catalog-inventory.category-tree:' || tenant, 0))
+    opt com novo pai
+      repo -> pg : SELECT 1 FROM category\nWHERE id = novo pai AND (ancestry || id) = caminho lido
+      alt #FFEBEE nenhuma linha (caminho do novo pai mudou)
+        repo -> pg : ROLLBACK
+        res --> cli : <color:#C62828>409 concurrent-update</color>
+      end
+    end
+    repo -> pg : UPDATE category SET parent_id, ancestry, version = version + 1\nWHERE tenant_id AND id AND version = lida AND ancestry = anterior
+    alt #FFEBEE nenhuma linha atualizada
+      repo -> pg : ROLLBACK
+      res --> cli : <color:#C62828>409 concurrent-update</color>
+    end
+    repo -> pg : UPDATE category SET ancestry = novo prefixo || ancestry[...]\nWHERE tenant_id AND ancestry @> ARRAY[id] (rebase dos descendentes)
+    alt #FFEBEE violação do CHECK category_depth (23514)
+      repo -> pg : ROLLBACK
+      res --> cli : <color:#C62828>409 concurrent-update (a subárvore cresceu depois da leitura)</color>
+    else #E8F5E9 ok
+      repo -> pg : COMMIT
+      repo -> dom : markPersisted(version lida + 1)
+    end
+    note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde 503 + Retry-After: 1
+    opt cache ligado (também na falha da escrita)
+      dec -> cc : taxonomyChanged(tenant)
+      cc -> redis : EVALSHA INVALIDATE: INCR catalog:gen:taxonomy:{t}\nse a chave existir; prazo 1 s, uma nova tentativa
+    end
+    res --> cli : 200 CategoryResponse + ETag "{version lida + 1}"
+  end
+end
+note over svc, pg : Produtos não mudam: atributo obrigatório herdado só é cobrado\nna próxima edição ou envio de cada produto
+
+newpage children: GET /categories?parentId&cursor&limit
+autonumber 1
+
+cli -> res : GET /categories?parentId={id}&cursor={opaco}&limit={1..100, padrão 50}\n(papel seller, catalog-admin ou catalog-moderator)
+alt #FFEBEE token ausente ou inválido
+  res --> cli : <color:#C62828>401</color>
+else #FFEBEE papel fora dos três aceitos
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE limit fora de 1 a 100 (@Min, @Max)
+  res --> cli : <color:#C62828>400 validation-failed</color>
+else #FFEBEE parentId que não é UUID ou cursor inválido (não base64url, em branco ou acima de 128 caracteres)
+  res --> cli : <color:#C62828>400 invalid-request</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  res --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+res -> svc : children(actor, parentId?, afterCode?, limit)
+svc -> svc : Page.fetch(limit): pede limit + 1 itens (o excedente só indica a próxima página)
+== Leitura da página ==
+opt com parentId
+  svc -> tc : chain(tenant, parentId)\n(mesma leitura em cache da página get; cache desligado vai direto a repo)
+  tc -> repo : chain(tenant, parentId), em MISS ou BYPASS
+  repo -> pg : SELECT da cadeia
+  alt #FFEBEE cadeia vazia
+    res --> cli : <color:#C62828>404 not-found</color>
+  end
+end
+alt cache desligado (catalog.cache.enabled=false, padrão em prod e dev)
+  svc -> repo : children(tenant, parentId?, afterCode?, limit + 1)
+  repo -> pg : SELECT ... FROM category WHERE tenant_id = $1\nAND parent_id = $2 (ou IS NULL para raízes) [AND code > cursor]\nORDER BY code LIMIT limit + 1 (inclui inativas)
+else cache ligado
+  svc -> tc : children(tenant, parentId?, afterCode?, limit + 1)
+  alt cursor com mais de 120 caracteres
+    tc -> repo : children(...) sem passar pelo cache
+    repo -> pg : SELECT da página
+  else
+    tc -> cc : read(taxonomy, catalog:taxonomy:v1:{t}:children:{pai|root}:{limit + 1}:{cursor},\ngeração catalog:gen:taxonomy:{t})
+    cc -> redis : EVALSHA (EVAL se NOSCRIPT), prazo 100 ms
+    alt HIT (carimbo confere)
+      redis --> cc : retrato
+      tc -> tc : Snapshots.Categories.restore()
+    else MISS
+      tc -> repo : children(...)
+      repo -> pg : SELECT da página
+      tc -> cc : write(retrato com o carimbo), sem esperar (página vazia também é guardada)
+      cc -> redis : SET PX 60 s
+    else BYPASS (Redis fora ou acima do prazo)
+      tc -> repo : children(...)
+      repo -> pg : SELECT da página
+    end
+  end
+end
+note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde\n503 service-unavailable + Retry-After: 1
+svc -> svc : Page.of(encontradas, limit, Category::code):\nexcedente presente => nextCursor = código do último item da página
+res --> cli : 200 CategoryPage {items: CategorySummary[], nextCursor: base64url do código | null}
+
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Cliente (JWT do tenant)
+  <back:#EF6C00>    </back> Entrada (REST)
+  <back:#1565C0>    </back> Aplicação
+  <back:#2E7D32>    </back> Domínio
+  <back:#6A1B9A>    </back> Saída (cache, repositório, Redis, PostgreSQL)
+  <b>Blocos</b>
+  <back:#66BB6A>    </back> Sucesso
+  <back:#E57373>    </back> Recusa ou conflito
+  <color:#C62828>vermelho</color>: resposta de erro
+endlegend
+@enduml

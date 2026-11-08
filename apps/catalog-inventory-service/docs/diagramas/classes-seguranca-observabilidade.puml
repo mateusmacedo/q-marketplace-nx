@@ -1,0 +1,186 @@
+@startuml classes-seguranca-observabilidade
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_SEGURANCA Pacotes security e observability: contexto do chamador, telemetria e spans do ciclo de vida
+
+hide empty members
+hide <<saida>> stereotype
+hide <<serviço>> stereotype
+hide <<infra>> stereotype
+hide <<exceção>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+
+package "<$lock,scale=0.55,color=#455A64> security" as security <<infra>> {
+  class CallerContext <<@RequestScoped>> {
+    -token : JsonWebToken
+    -config : CatalogConfig.Security
+    --
+    actor() : Actor
+    {static} capabilities(roles) : Set<Capability>
+  }
+  class Roles <<final>> {
+    {static} SELLER = "seller"
+    {static} CATALOG_ADMIN = "catalog-admin"
+    {static} CATALOG_MODERATOR = "catalog-moderator"
+    {static} CATALOG_RESERVATIONS = "catalog-reservations"
+  }
+  class SecurityConfigCheck <<@Startup, @Singleton>> {
+    SecurityConfigCheck(issuer, keyLocation, inlineKey, audiences)
+  }
+  class TenantNotAuthorizedException <<exceção>>
+}
+
+package "<$chart_line,scale=0.55,color=#455A64> observability" as observability <<infra>> {
+  annotation Traced <<@InterceptorBinding>> {
+    entry : boolean = false <<@Nonbinding>>
+  }
+  class TracedInterceptor <<@Traced, @Interceptor, @Priority(LIBRARY_BEFORE)>> {
+    @Inject lifecycle : Lifecycle
+    --
+    <<@AroundInvoke>> trace(context) : Object
+  }
+  class Lifecycle <<@ApplicationScoped>> {
+    -tracer : Tracer
+    --
+    step(name, work) : Uni<T>
+    job(work) : Uni<T>
+    entry(name, attributes, work) : Uni<T>
+    nested(name, attributes, work) : Uni<T>
+    nested(owner, function, work) : Uni<T>
+    sharing(name, attributes, work) : Uni<T>
+    linked(name, parent, attributes, work) : Uni<T>
+    {static} operation() : Span
+    {static} code(owner, function) : Attributes
+    {static} refusal(failure) : boolean
+  }
+  class Telemetry <<final>> {
+    {static} TENANT, STORE, USER, ROLES, CORRELATION : String
+    {static} PROBLEM_TYPE, PROBLEM_REASONS : String
+    --
+    {static} tag(key, value)
+    {static} problem(status, type, reasons)
+    {static} domainEvent(eventType, aggregateId, topic, eventId)
+  }
+  class RequestTelemetry {
+    -token : JsonWebToken
+    -security : CatalogConfig.Security
+    --
+    <<@ServerRequestFilter>> enrich(request, resource)
+    <<@ServerResponseFilter>> log(request, response)
+  }
+  class InventoryLatency <<@ApplicationScoped>> {
+    {static} NAME = "catalog.inventory.update.latency"
+    {static} SLO_THRESHOLD = 500 ms
+    -registry : MeterRegistry
+    --
+    timed(operation, work) : Uni<T>
+  }
+  interface Refusal
+  class Correlation <<final>> {
+    {static} HEADER = "X-Correlation-Id"
+    --
+    {static} accept(candidate) : String
+    {static} bind(correlationId)
+    {static} current() : String
+  }
+  interface SkuCountsSource <<porta>> {
+    skuCounts() : Uni<SkuCounts>
+  }
+  class "SkuCountsSource.SkuCounts" as SkuCounts <<record>> {
+    active : long
+    sellable : long
+  }
+  class SkuGauges <<@ApplicationScoped>> {
+    -metrics : SkuCountsSource
+    -lifecycle : Lifecycle
+    -active, sellable : AtomicLong
+    --
+    <<@Scheduled sku-gauges, SKIP>> refresh() : Uni<Void>
+  }
+  class SqlClientMetricsFilter {
+    {static} isPerConnectionSqlGauge(id) : boolean
+    <<@Produces @Singleton>> denyPerConnectionSqlGauges() : MeterFilter
+  }
+  class RedisClientMetricsFilter {
+    {static} isPerConnectionRedisGauge(id) : boolean
+    <<@Produces @Singleton>> denyPerConnectionRedisGauges() : MeterFilter
+  }
+}
+
+class RuntimeException <<infra>> #line.dashed
+class "application.Actor" as Actor <<record>> <<serviço>> #line.dashed
+class "application.Capability" as Capability <<enum>> <<serviço>> #line.dashed
+class "persistence.PgCatalogMetrics" as PgCatalogMetrics <<saida>> #line.dashed
+class "imports.InvalidImportFileException" as InvalidImportFileException <<exceção>> #line.dashed
+interface "config.CatalogConfig" as CatalogConfig <<@ConfigMapping>> <<infra>> #line.dashed
+
+RuntimeException <|-- TenantNotAuthorizedException
+Refusal <|.. TenantNotAuthorizedException
+Refusal <|.. InvalidImportFileException
+CallerContext ..> Actor : cria
+CallerContext ..> Capability : papel vira capacidade
+CallerContext ..> Roles
+CallerContext ..> TenantNotAuthorizedException
+CallerContext --> CatalogConfig : security()
+RequestTelemetry --> CatalogConfig : security()
+RequestTelemetry ..> Telemetry
+RequestTelemetry ..> Correlation : current()
+
+TracedInterceptor --> Lifecycle
+TracedInterceptor ..> Traced : interceptor binding
+Lifecycle ..> Refusal : refusal
+SkuGauges --> SkuCountsSource : skuCounts()
+SkuGauges --> Lifecycle : job
+SkuCountsSource +-- SkuCounts
+SkuCountsSource <|.. PgCatalogMetrics
+
+Traced -[hidden]right- TracedInterceptor
+TracedInterceptor -[hidden]right- Lifecycle
+Lifecycle -[hidden]right- Telemetry
+Telemetry -[hidden]right- RequestTelemetry
+InventoryLatency -[hidden]right- SkuGauges
+SkuGauges -[hidden]right- SqlClientMetricsFilter
+SqlClientMetricsFilter -[hidden]right- RedisClientMetricsFilter
+Traced -[hidden]down- InventoryLatency
+TracedInterceptor -[hidden]down- SkuGauges
+Lifecycle -[hidden]down- SqlClientMetricsFilter
+Telemetry -[hidden]down- RedisClientMetricsFilter
+
+note bottom of CallerContext
+  Chamador derivado só do token já validado: tenant e loja nunca vêm de cabeçalho
+  ou corpo, e os papéis do token viram capacidades de negócio. SecurityConfigCheck
+  falha a inicialização se issuer, chave pública ou audiência faltarem.
+end note
+
+note bottom of Lifecycle
+  Os spans do ciclo de vida das operações. Usado por TracedInterceptor, pelos agendadores
+  (OutboxRelay, MessagingHousekeeping, ProductImportWorker, ReservationSweeper e SkuGauges),
+  por ProductImportResource e por PgReservationRepository. refusal não pinta o trace de erro
+  nas recusas 4xx: exceções de domínio e de aplicação e as que implementam Refusal, sem que
+  observability importe as exceções concretas de outros pacotes.
+end note
+
+note bottom of SkuCountsSource
+  Porta das contagens de SKU: persistence.PgCatalogMetrics a implementa, de modo que
+  a persistência depende da observabilidade, e não o contrário.
+end note
+
+note bottom of Correlation
+  Correlação guardada no contexto Vert.x da requisição. Gravada por api.CorrelationFilter
+  e por SellerVerdictConsumer; lida por RequestTelemetry e por outbox.EventOrigin.
+end note
+
+note bottom of SqlClientMetricsFilter
+  Os filtros removem os gauges por conexão dos clientes SQL e Redis, que o Micrometer
+  descartaria depois do primeiro registro com mesmo nome e tags; timers e counters permanecem.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:$BORDA_INFRA>    </back> Infraestrutura transversal (segurança e observabilidade)
+  <back:$BORDA_ERRO>    </back> Exceção classificada como recusa (implementa Refusal)
+  <back:#3949AB>    </back> Porta implementada fora do pacote
+  <back:$BORDA_APLICACAO>    </back> Aplicação / <back:$BORDA_SAIDA>    </back> Saída
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

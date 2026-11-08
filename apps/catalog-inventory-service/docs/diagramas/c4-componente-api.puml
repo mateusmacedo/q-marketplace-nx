@@ -1,0 +1,61 @@
+@startuml c4-componente-api
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <C4/C4_Component>
+!include <tupadr3/font-awesome-5/users>
+!include <tupadr3/font-awesome-5/key>
+!include <tupadr3/font-awesome-5/exclamation_triangle>
+
+UpdateElementStyle("external_person", $legendText="Clientes externos")
+UpdateElementStyle("external_container", $legendText="Contêiner externo")
+UpdateElementStyle("external_system", $legendText="Sistema externo")
+UpdateBoundaryStyle("container", $legendText="Fronteira do contêiner (tracejada)")
+AddElementTag("entrada", $bgColor="#FFF3E0", $fontColor="#263238", $borderColor="#EF6C00", $legendText="Entrada (filtros, REST, mapeamento de erros)")
+AddElementTag("aplicacao", $bgColor="#E3F2FD", $fontColor="#263238", $borderColor="#1565C0", $legendText="Aplicação (casos de uso)")
+AddElementTag("saida", $bgColor="#F3E5F5", $fontColor="#263238", $borderColor="#6A1B9A", $legendText="Saída (cache, persistência, outbox)")
+AddElementTag("infra", $bgColor="#ECEFF1", $fontColor="#263238", $borderColor="#455A64", $legendText="Infraestrutura transversal")
+AddElementTag("dados", $bgColor="#6A1B9A", $fontColor="#FFFFFF", $borderColor="#4A148C", $legendText="Banco do serviço")
+AddElementTag("opcional", $bgColor="#B39DDB", $fontColor="#263238", $borderColor="#6A1B9A", $borderStyle=DashedLine(), $legendText="Opcional (desligado por padrão)")
+AddRelTag("erro", $textColor="#C62828", $lineColor="#C62828", $legendText="Caminho de erro")
+AddRelTag("opcional", $textColor="#6A1B9A", $lineColor="#9575CD", $lineStyle=DottedLine(), $legendText="Só com cache habilitado")
+
+title $I_QUARKUS catalog-inventory-api — componentes (C4 nível 3)
+
+Person_Ext(cliente, "Clientes HTTP", "Seller, moderador, admin, comprador, checkout/OMS", $sprite="users")
+ContainerDb_Ext(pg, "PostgreSQL", "catalog_inventory", $sprite="postgresql,scale=0.6", $tags="dados")
+ContainerDb_Ext(redis, "Redis", "Opcional", $sprite="redis,scale=0.6", $tags="opcional")
+System_Ext(keycloak, "Keycloak", "JWKS", $sprite="key")
+
+Container_Boundary(api, "catalog-inventory-api") {
+  Component(filtros, "Filtros e segurança", "CorrelationFilter, MicroProfile JWT, CallerContext", "X-Correlation-Id; valida o token; tenant_id/store_id e papéis viram Actor com Capability", $sprite="lock", $tags="entrada")
+  Component(resources, "Resources REST", "ProductResource, ProductImportResource, ModerationResource, CategoryResource, OfferResource, InventoryResource, ReservationResource", "Rotas autenticadas; ETag/If-Match, cursor, Idempotency-Key", $sprite="plug", $tags="entrada")
+  Component(publicos, "Resources públicos", "StorefrontResource, StoreEligibilityResource, ServiceInfoResource", "Vitrine anônima, elegibilidade da loja e /internal/info", $sprite="store", $tags="entrada")
+  Component(problemas, "ProblemMappers", "ServerExceptionMapper", "Exceções viram application/problem+json (RFC 9457)", $sprite="exclamation_triangle", $tags="entrada")
+  Component(casos, "Casos de uso", "ProductService, ModerationService, OfferService, InventoryService, ReservationService, CategoryService, StorefrontService, SellerEligibilityService, ProductImportService", "Montados em CatalogBeans; Java puro + Mutiny", $sprite="cogs", $tags="aplicacao")
+  Component(caches, "Cache de leitura", "StorefrontCache, TaxonomyCache, CatalogCache", "Gerações + script Lua; HIT, MISS, UNMAPPED, BYPASS", $sprite="bolt", $tags="saida")
+  Component(decorators, "Decorators de invalidação", "ProductCacheInvalidation, OfferCacheInvalidation, CategoryCacheInvalidation, SellerCacheInvalidation", "Incrementam gerações depois da escrita, também na falha", $sprite="broom", $tags="saida")
+  Component(repos, "Repositórios Pg*", "PgProductRepository, PgOfferRepository, PgCategoryRepository, PgInventoryRepository, PgReservationRepository, PgSellerEligibilityRepository, PgProductImportRepository", "SQL reativo; UPDATE condicional por versão", $sprite="database", $tags="saida")
+  Component(outbox, "PgOutbox + IntegrationEvents", "persistence, messaging", "Traduz eventos de domínio e grava outbox_event na transação", $sprite="envelope", $tags="saida")
+  Component(obs, "Observabilidade", "RequestTelemetry, InventoryLatency, TracedInterceptor, Micrometer", "Métricas em /q/metrics (9000), spans OTel", $sprite="chart_line", $tags="infra")
+}
+
+Rel(cliente, filtros, "HTTPS", "JSON")
+Rel(filtros, keycloak, "Chaves públicas", "JWKS")
+Rel(filtros, resources, "Requisição autenticada")
+Rel(filtros, publicos, "Requisição")
+Rel(resources, casos, "Chama")
+Rel(publicos, caches, "Vitrine")
+Rel(publicos, casos, "StorefrontService, InventoryService.stockOf")
+Rel(resources, problemas, "Exceções", $tags="erro")
+Rel(casos, caches, "Taxonomia via TaxonomyCache")
+Rel(casos, decorators, "Portas *Repository")
+Rel(decorators, repos, "Delega")
+Rel(casos, repos, "Portas sem cache: Inventory, Reservation, ProductImport")
+Rel(repos, outbox, "append na mesma transação")
+Rel(repos, pg, "SQL", "Reactive SQL Client")
+Rel(outbox, pg, "INSERT outbox_event")
+Rel(caches, redis, "EVALSHA/EVAL, SET", "RESP", $tags="opcional")
+Rel(decorators, redis, "Incrementa gerações", "RESP", $tags="opcional")
+Rel_R(resources, obs, "Métricas e spans")
+
+SHOW_LEGEND()
+@enduml

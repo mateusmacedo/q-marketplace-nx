@@ -1,0 +1,50 @@
+plugins { id 'io.quarkus' }
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation project(':catalog-inventory-application')
+    implementation project(':catalog-inventory-domain')
+    // Modelo reativo e ecossistema SmallRye têm preferência; exceções justificadas na ADR 009.
+    implementation 'io.quarkus:quarkus-rest-jackson'
+    implementation 'io.quarkus:quarkus-reactive-pg-client'
+    implementation 'io.quarkus:quarkus-smallrye-health'
+    implementation 'io.quarkus:quarkus-smallrye-openapi'
+    implementation 'io.quarkus:quarkus-smallrye-jwt'
+    implementation 'io.quarkus:quarkus-hibernate-validator'
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkus:quarkus-messaging-kafka'
+    implementation 'io.quarkus:quarkus-redis-client'
+    // Exceção: agendador do Quarkus para o varredor de reservas, o relay da outbox e a limpeza de outbox e inbox; não há equivalente SmallRye.
+    implementation 'io.quarkus:quarkus-scheduler'
+    // Exceção: Flyway só migra via JDBC; o driver bloqueante roda apenas no boot, fora do caminho das requisições.
+    implementation 'io.quarkus:quarkus-flyway'
+    implementation 'io.quarkus:quarkus-jdbc-postgresql'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    // Exceção: Micrometer é a abordagem de métricas recomendada pelo Quarkus.
+    implementation 'io.quarkus:quarkus-micrometer-registry-prometheus'
+    implementation 'io.quarkus:quarkus-opentelemetry'
+    implementation 'io.quarkus:quarkus-logging-json'
+    testImplementation 'io.quarkus:quarkus-junit'
+    testImplementation 'io.quarkus:quarkus-smallrye-jwt-build'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation 'io.quarkus:quarkus-test-kafka-companion'
+    testImplementation 'org.awaitility:awaitility'
+}
+// WORKAROUND(GHSA-xxph-c9ww-hj94): o BOM do Quarkus 3.40.1.1 trava o Guava em 33.6.0, e o enforcedPlatform ignora
+// constraints; a regra de resolução sobe para o patch corrigido. Remover quando o BOM trouxer 33.7.2 ou mais.
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == 'com.google.guava' && requested.name == 'guava') {
+            useVersion '33.7.2-jre'
+            because 'GHSA-xxph-c9ww-hj94'
+        }
+    }
+}
+tasks.named('test') {
+    // WHY: permite regenerar contracts/catalog-inventory/openapi.json a partir do código (-Dcontract.update=true).
+    systemProperty 'contract.update', System.getProperty('contract.update', 'false')
+    systemProperty 'contract.file', rootProject.file('contracts/catalog-inventory/openapi.json').absolutePath
+    systemProperty 'events.contract.file',
+        rootProject.file('contracts/catalog-inventory/events/catalog-inventory-events.v1.schema.json').absolutePath
+    inputs.file(rootProject.file('contracts/catalog-inventory/openapi.json'))
+    inputs.file(rootProject.file('contracts/catalog-inventory/events/catalog-inventory-events.v1.schema.json'))
+}

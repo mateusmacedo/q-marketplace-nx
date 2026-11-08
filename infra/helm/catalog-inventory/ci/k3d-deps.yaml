@@ -1,0 +1,119 @@
+# Dependências mínimas só para o teste de fumaça em k3d (k3d-smoke.sh): PostgreSQL 16 e Kafka 4.2 de nó único, sem
+# persistência. O PostgreSQL segue o servidor compartilhado do compose (banco marketplace, ADR 019), e o Job postgres-init
+# roda o mesmo infra/postgres/provision.sh, que o roteiro publica no ConfigMap postgres-provision. O Kafka exige
+# SASL/PLAIN no listener dos clientes e não cria tópicos sozinho, para que o teste prove o Job de tópicos e o Secret de
+# cliente do chart. Senhas de teste, iguais às do roteiro.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: postgres}
+  template:
+    metadata:
+      labels: {app: postgres}
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: postgres
+          image: postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+          env:
+            - {name: POSTGRES_DB, value: marketplace}
+            - {name: POSTGRES_USER, value: postgres}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: postgres-admin, key: password}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: [pg_isready, -h, 127.0.0.1, -U, postgres, -d, marketplace]}
+            periodSeconds: 2
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+      volumes: [{name: data, emptyDir: {}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: {app: postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    spec:
+      restartPolicy: Never
+      enableServiceLinks: false
+      containers:
+        - name: provision
+          image: postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+          command: [sh, -c, "until pg_isready -q; do sleep 1; done; exec sh /provision/provision.sh catalog_inventory"]
+          env:
+            - {name: PGHOST, value: postgres}
+            - {name: PGUSER, value: postgres}
+            - {name: PGDATABASE, value: marketplace}
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: postgres-admin, key: password}}
+            - name: CATALOG_INVENTORY_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: catalog-inventory-db, key: password}}
+            - name: CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD
+              valueFrom: {secretKeyRef: {name: catalog-inventory-db, key: migrator-password}}
+          volumeMounts: [{name: provision, mountPath: /provision}]
+      volumes: [{name: provision, configMap: {name: postgres-provision}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: kafka}
+  template:
+    metadata:
+      labels: {app: kafka}
+    spec:
+      # WHY: a imagem converte toda variável KAFKA_* em propriedade do broker; service links injetariam KAFKA_PORT.
+      enableServiceLinks: false
+      containers:
+        - name: kafka
+          image: apache/kafka:4.2.0@sha256:9516fb7634bad307d17c33b589fde9023003b0cb761374f500002b980a3149b9
+          env:
+            - {name: KAFKA_NODE_ID, value: "1"}
+            - {name: KAFKA_PROCESS_ROLES, value: "broker,controller"}
+            # SASL atende os clientes (kafka:9092); BROKER, sem autenticação, só a replicação e a inspeção local.
+            - {name: KAFKA_LISTENERS, value: "SASL://:9092,BROKER://localhost:9091,CONTROLLER://localhost:9093"}
+            - {name: KAFKA_ADVERTISED_LISTENERS, value: "SASL://kafka:9092,BROKER://localhost:9091"}
+            - {name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "SASL:SASL_PLAINTEXT,BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT"}
+            - {name: KAFKA_INTER_BROKER_LISTENER_NAME, value: BROKER}
+            - {name: KAFKA_CONTROLLER_LISTENER_NAMES, value: CONTROLLER}
+            - {name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "1@localhost:9093"}
+            - {name: KAFKA_SASL_ENABLED_MECHANISMS, value: PLAIN}
+            - name: KAFKA_LISTENER_NAME_SASL_PLAIN_SASL_JAAS_CONFIG
+              value: 'org.apache.kafka.common.security.plain.PlainLoginModule required user_catalog="catalog-kafka-k3d";'
+            - {name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "false"}
+            - {name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "1"}
+            - {name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "1"}
+            - {name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "1"}
+            - {name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0"}
+          ports: [{containerPort: 9092}]
+          readinessProbe:
+            tcpSocket: {port: 9092}
+            periodSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+spec:
+  selector: {app: kafka}
+  ports: [{port: 9092, targetPort: 9092}]

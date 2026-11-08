@@ -1,0 +1,31 @@
+# Contratos de catalog-inventory
+
+`openapi.json` é gerado do código do serviço (SmallRye OpenAPI) e versionado aqui. O teste `OpenApiContractTest` falha quando o código e o arquivo divergem; após uma mudança intencional, regenere com:
+
+```bash
+./gradlew :catalog-inventory-service:test -Dcontract.update=true
+```
+
+Versão `0.1.0`, de pré-lançamento: o contrato muda sem compatibilidade retroativa até o primeiro lançamento (ADR 015). As rotas seguem os agregados da ADR 014: `/products` (conteúdo, SKUs e publicação), `/products/imports` (importação por planilha CSV, ADR 016), `/moderation/products`, `/offers/{skuId}` (preço e promoções), `/inventory/skus/{skuId}` (saldo), `/inventory/reservations`, `/storefront/{tenantId}/products/{productId}` (vitrine anônima), `/stores/{storeId}/eligibility` e `/categories`; a rota operacional `/internal/info` e as de saúde ficam fora do contrato. Regras e decisões nas ADRs 011 a 014 e 016 (`docs/decisoes.md`).
+
+Convenções:
+
+- Tenant e loja vêm do token JWT (`tenant_id`, `store_id`); nunca de cabeçalho ou corpo.
+- Recursos versionados devolvem `ETag`. `PUT` de conteúdo do produto, de SKU e de categoria exige `If-Match` (428 sem ele, 412 com versão antiga). O primeiro `PUT` da oferta a cria sem `If-Match`; alterá-la exige. O ajuste de estoque define um valor absoluto, e ele e as demais alterações aceitam `If-Match` opcional.
+- Erros seguem RFC 9457 (`application/problem+json`); recusas de negócio trazem `reasons` com motivos estáveis, como `missing-attribute:cor` ou `missing-offer:CAM-P`.
+- `PUT /categories/{id}/parent` move a categoria com as subcategorias: corpo `{"parentId": "<uuid>"}`, ou `{"parentId": null}` para a raiz, com o campo sempre presente; exige `If-Match` da categoria movida e responde como o `GET /categories/{id}`. Recusas 422: `category-cycle`, `category-too-deep` e `attribute-conflict`; os produtos da subárvore não mudam (ADR 011).
+- Listagens usam cursor opaco (`nextCursor`) e `limit` entre 1 e 100.
+- Criar reserva exige `Idempotency-Key`; repetir a mesma requisição devolve a mesma reserva com `Idempotent-Replayed: true`.
+- `POST /products/imports` recebe `text/csv` (UTF-8, cabeçalho exato, até 5000 linhas de dados), recusa arquivo estruturalmente inválido com 400 `invalid-import-file` e motivos em `reasons`, e responde 202 com `Location`. `GET /products/imports/{id}` traz status (`PENDING`, `PROCESSING`, `COMPLETED`), contagens e, por linha, `lineNumber`, `sellerSku`, `outcome` (`CREATED`, `UPDATED`, `UNCHANGED`, `FAILED`), `code` e `message` nas falhas e `productId` quando houver; só a loja que enviou o vê.
+
+## Eventos
+
+`events/catalog-inventory-events.v1.schema.json` (JSON Schema 2020-12) descreve o valor dos registros Kafka publicados pela outbox: `ProductCreated`, `ProductStatusChanged` e `ProductBlocked` em `catalog-inventory.product.v1`; `PriceChanged` em `catalog-inventory.offer.v1`; `InventoryUpdated`, `InventoryReserved` e `InventoryDepleted` em `catalog-inventory.inventory.v1`; `StoreEligibilityChanged` em `catalog-inventory.store.v1`. Para indexar a vitrine, combine `ProductStatusChanged.visible` com `StoreEligibilityChanged.eligible` e busque o conteúdo em `GET /storefront/{tenantId}/products/{productId}`. O teste `EventsTest` confere os eventos publicados contra os campos obrigatórios do esquema.
+
+- A chave do registro é o `aggregateId` (produto, SKU da oferta ou do saldo, reserva ou loja); a ordem só é garantida dentro do mesmo agregado.
+- Com o OpenTelemetry ligado, o cabeçalho `traceparent` continua o trace da requisição que gravou o evento.
+- A entrega é pelo menos uma vez: deduplique pelo `eventId` e descarte saldo ou preço com versão (`stock.version`, `priceVersion`) menor que a já aplicada.
+- Valores monetários são texto decimal exato com duas casas (`"59.90"`).
+- Depois do lançamento, campo novo opcional é mudança compatível; qualquer outra exige novo `eventVersion` e, se incompatível, novo tópico (`.v2`).
+
+Consumidores devem depender de contratos publicados, nunca das classes de domínio do produtor; código gerado a partir deste contrato usa o pacote `dev.marketplace.contracts.cataloginventory` (ADR 010).

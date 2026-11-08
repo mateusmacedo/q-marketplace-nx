@@ -1,0 +1,9 @@
+{
+  "name": "payment-split-domain",
+  "projectType": "library",
+  "tags": [
+    "scope:payment-split",
+    "layer:domain",
+    "lang:java"
+  ]
+}

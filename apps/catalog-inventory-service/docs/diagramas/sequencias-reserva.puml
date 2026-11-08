@@ -1,0 +1,228 @@
+@startuml sequencias-reserva
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title reserve: POST /inventory/reservations
+autonumber
+
+participant "$I_SISTEMA\nCheckout / OMS\n(catalog-reservations)" as cli <<ator>>
+box "Entrada" #FFFAF3
+participant "$I_API\nReservationResource" as rr <<entrada>>
+participant "$I_AGENDADOR\nAgendador Quarkus\n(@Scheduled, papel worker)" as sched <<infra>>
+participant "$I_LIMPEZA\nReservationSweeper" as sweep <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+participant "$I_ESTOQUE\nReservationService" as svc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+participant "$I_REPOSITORIO\nPgReservationRepository" as repo <<saida>>
+participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
+database "\n$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+cli -> rr : POST /inventory/reservations\nIdempotency-Key + {orderRef, ttlSeconds?, items}
+rr -> svc : reserve(actor, request)
+note over cli, svc : Fluxo detalhado em sequencia-reserva-ciclo.puml (seção reserve) e, para a\nidempotência por Idempotency-Key, em libs/catalog-inventory/application/\ndocs/diagramas/sequencia-reserva-idempotente.puml
+
+newpage get: GET /inventory/reservations/{id}
+autonumber 1
+
+cli -> rr : GET /inventory/reservations/{id}
+alt #FFEBEE token ausente ou inválido
+  rr --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-reservations
+  rr --> cli : <color:#C62828>403</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  rr --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+rr -> svc : get(actor, id)
+svc -> svc : actor.require(MANAGE_RESERVATIONS)
+svc -> repo : find(tenant, id)
+repo -> pg : SELECT ... FROM inventory_reservation\nWHERE tenant_id = $1 AND id = $2
+opt reserva encontrada
+  repo -> pg : SELECT ... FROM inventory_reservation_item\nWHERE reservation_id = ANY ($1) ORDER BY reservation_id, sku_id
+end
+note over repo, pg : Leitura sem transação e sem trava; sem cache e sem outbox.\nPrazo catalog.persistence.timeout (2 s): estouro responde 503 service-unavailable + Retry-After: 1
+alt #FFEBEE inexistente no tenant do chamador (inclui reserva de outro tenant)
+  rr --> cli : <color:#C62828>404 not-found</color>
+else #E8F5E9 encontrada
+  rr --> cli : 200 ReservationResponse\n{id, orderRef, status, createdAt, expiresAt, closedAt, items}
+end
+note over rr : status é o gravado: reserva ACTIVE com prazo vencido segue ACTIVE\naté o varredor expirá-la (ver expireDue)
+
+newpage commit: POST /inventory/reservations/{id}/commit
+autonumber 1
+
+cli -> rr : POST /inventory/reservations/{id}/commit
+alt #FFEBEE token ausente ou inválido
+  rr --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-reservations
+  rr --> cli : <color:#C62828>403</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  rr --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+rr -> svc : commit(actor, id)\n(cronometrado em catalog.inventory.update.latency{operation=commit})
+svc -> svc : actor.require(MANAGE_RESERVATIONS); now = clock.instant()
+== Transição no banco ==
+svc -> repo : commit(tenant, id, now)
+repo -> pg : BEGIN
+repo -> pg : UPDATE inventory_reservation SET status = 'COMMITTED', closed_at = now\nWHERE tenant_id AND id AND status = 'ACTIVE' AND expires_at > now RETURNING ...
+alt #E8F5E9 1 linha (estava ACTIVE e dentro do prazo)
+  repo -> pg : SELECT ... FROM inventory_reservation_item (itens da reserva)
+  repo -> pg : UPDATE inventory_level SET on_hand = on_hand - n, reserved = reserved - n,\nsold = sold + n, version = version + 1 WHERE sku_id\n(um lote, SKUs em ordem canônica de travamento)
+  repo -> outbox : append(InventoryUpdated, cause COMMITTED, um por SKU)
+  outbox -> pg : INSERT INTO outbox_event (topic catalog-inventory.inventory.v1,\nmessage_key = id do SKU, event_type InventoryUpdated)
+  repo -> pg : COMMIT
+  repo --> svc : reserva COMMITTED
+  rr --> cli : 200 ReservationResponse
+else #FFFFFF nenhuma linha
+  repo -> pg : COMMIT (nada mudou; estoque intocado)
+  repo --> svc : vazio
+  svc -> repo : find(tenant, id)
+  repo -> pg : SELECT reserva + SELECT itens
+  alt #FFEBEE inexistente no tenant
+    rr --> cli : <color:#C62828>404 not-found</color>
+  else #E8F5E9 já COMMITTED
+    rr --> cli : 200 (idempotente: devolve a atual, sem nova baixa nem evento)
+  else #FFEBEE ACTIVE com prazo vencido (expiresAt <= now)
+    rr --> cli : <color:#C62828>409 reservation-expired</color>
+  else #FFEBEE ACTIVE dentro do prazo (outra transição venceu a corrida)
+    rr --> cli : <color:#C62828>409 concurrent-update</color>
+  else #FFEBEE RELEASED ou EXPIRED
+    rr --> cli : <color:#C62828>409 reservation-not-active</color>
+  end
+end
+note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde 503 service-unavailable + Retry-After: 1
+note over rr, outbox : catalog.reservations.committed conta toda resposta 200, inclusive a repetição idempotente.\nReserva vencida mantém o estoque reservado até o varredor expirá-la.\nPublicação no Kafka pelo relay: sequencia-outbox-kafka.puml. Resumo do ciclo: sequencia-reserva-ciclo.puml
+
+newpage release: POST /inventory/reservations/{id}/release
+autonumber 1
+
+cli -> rr : POST /inventory/reservations/{id}/release
+alt #FFEBEE token ausente ou inválido
+  rr --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-reservations
+  rr --> cli : <color:#C62828>403</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  rr --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+rr -> svc : release(actor, id)\n(cronometrado em catalog.inventory.update.latency{operation=release})
+svc -> svc : actor.require(MANAGE_RESERVATIONS); now = clock.instant()
+== Transição no banco ==
+svc -> repo : release(tenant, id, now)
+repo -> pg : BEGIN
+repo -> pg : UPDATE inventory_reservation SET status = 'RELEASED', closed_at = now\nWHERE tenant_id AND id AND status = 'ACTIVE' RETURNING ...\n(sem condição de prazo)
+alt #E8F5E9 1 linha (estava ACTIVE)
+  repo -> pg : SELECT ... FROM inventory_reservation_item (itens da reserva)
+  repo -> pg : UPDATE inventory_level SET reserved = reserved - n, version = version + 1\nWHERE sku_id (um lote, SKUs em ordem canônica de travamento)
+  repo -> outbox : append(InventoryUpdated, cause RELEASED, um por SKU)
+  outbox -> pg : INSERT INTO outbox_event (topic catalog-inventory.inventory.v1,\nmessage_key = id do SKU, event_type InventoryUpdated)
+  repo -> pg : COMMIT
+  repo --> svc : reserva RELEASED
+  rr --> cli : 200 ReservationResponse
+else #FFFFFF nenhuma linha
+  repo -> pg : COMMIT (nada mudou; estoque intocado)
+  repo --> svc : vazio
+  svc -> repo : find(tenant, id)
+  repo -> pg : SELECT reserva + SELECT itens
+  alt #FFEBEE inexistente no tenant
+    rr --> cli : <color:#C62828>404 not-found</color>
+  else #E8F5E9 RELEASED ou EXPIRED
+    rr --> cli : 200 (idempotente: devolve a atual, sem devolver o estoque outra vez)
+  else #FFEBEE COMMITTED
+    rr --> cli : <color:#C62828>409 invalid-transition (RELEASE não é permitida em COMMITTED)</color>
+  else #FFEBEE ACTIVE (outra transição venceu a corrida)
+    rr --> cli : <color:#C62828>409 concurrent-update</color>
+  end
+end
+note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde 503 service-unavailable + Retry-After: 1
+note over rr, outbox : Publicação no Kafka pelo relay: sequencia-outbox-kafka.puml.\nResumo do ciclo: sequencia-reserva-ciclo.puml
+
+newpage extend: POST /inventory/reservations/{id}/extend
+autonumber 1
+
+cli -> rr : POST /inventory/reservations/{id}/extend\n{ttlSeconds}
+alt #FFEBEE token ausente ou inválido
+  rr --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de catalog-reservations
+  rr --> cli : <color:#C62828>403</color>
+else #FFEBEE corpo malformado ou ttlSeconds ausente ou não positivo (@NotNull, @Positive)
+  rr --> cli : <color:#C62828>400 malformed-body | validation-failed</color>
+else #FFEBEE claim tenant_id ausente ou fora do formato UUID
+  rr --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+rr -> svc : extend(actor, id, Duration.ofSeconds(ttlSeconds))\n(cronometrado em catalog.inventory.update.latency{operation=extend})
+svc -> svc : actor.require(MANAGE_RESERVATIONS); now = clock.instant()
+alt #FFEBEE ttl acima de catalog.reservations.max-ttl (2 h)
+  rr --> cli : <color:#C62828>422 invalid-value</color>
+else #FFFFFF ttl válido
+  svc -> repo : find(tenant, id)
+  repo -> pg : SELECT reserva + SELECT itens
+  alt #FFEBEE inexistente no tenant
+    rr --> cli : <color:#C62828>404 not-found</color>
+  else #FFEBEE status diferente de ACTIVE
+    rr --> cli : <color:#C62828>409 reservation-not-active</color>
+  else #FFEBEE ACTIVE com prazo vencido (expiresAt <= now)
+    rr --> cli : <color:#C62828>409 reservation-expired</color>
+  else #FFEBEE now + ttl além de createdAt + catalog.reservations.max-lifetime (24 h)
+    rr --> cli : <color:#C62828>409 reservation-lifetime-exceeded</color>
+  else #FFFFFF extensão permitida
+    svc -> repo : extend(tenant, id, novo vencimento = now + ttl, now)
+    repo -> pg : UPDATE inventory_reservation SET expires_at = novo vencimento\nWHERE tenant_id AND id AND status = 'ACTIVE' AND expires_at > now RETURNING ...
+    repo -> pg : SELECT ... FROM inventory_reservation_item (itens da reserva)
+    alt #FFEBEE nenhuma linha (venceu ou fechou entre a leitura e a gravação)
+      rr --> cli : <color:#C62828>409 reservation-expired</color>
+    else #E8F5E9 1 linha
+      repo --> svc : reserva com o novo vencimento
+      rr --> cli : 200 ReservationResponse
+    end
+  end
+end
+note over repo, pg : Instrução única, sem transação: não altera saldo e não grava na outbox.\nPrazo catalog.persistence.timeout (2 s): estouro responde 503 service-unavailable + Retry-After: 1
+note over rr, outbox : O novo vencimento é agora + ttl (substitui o anterior, não soma).\nResumo do ciclo: sequencia-reserva-ciclo.puml
+
+newpage expireDue: ReservationSweeper (a cada catalog.reservations.sweep-interval)
+autonumber 1
+
+sched -> sweep : sweep() a cada 5 s (identity reservation-sweeper, concurrentExecution = SKIP);\ncatalog.reservations.sweep-interval=off no papel api e nos testes
+sweep -> svc : expireDue(catalog.reservations.sweep-batch = 200)\n(dentro de Lifecycle.job: o span da execução é a operação)
+== Seleção das vencidas ==
+svc -> repo : expireDue(now, 200)
+repo -> pg : SELECT tenant_id, id FROM inventory_reservation\nWHERE status = 'ACTIVE' AND expires_at <= now ORDER BY expires_at LIMIT 200\n(sem transação, cruza tenants)
+== Expiração uma a uma ==
+loop cada reserva vencida, em sequência, como etapa "reservation expire"
+  repo -> pg : BEGIN
+  repo -> pg : WITH due AS (SELECT id FROM inventory_reservation WHERE tenant_id AND id\nAND status = 'ACTIVE' AND expires_at <= now FOR UPDATE SKIP LOCKED)\nUPDATE inventory_reservation SET status = 'EXPIRED', closed_at = now\nWHERE tenant_id AND id IN (SELECT id FROM due) RETURNING ...
+  alt nenhuma linha (travada por outro pod ou confirmação, ou já fechada)
+    repo -> pg : COMMIT (sem efeito; volta no ciclo seguinte se ainda ACTIVE)
+  else 1 linha
+    repo -> pg : SELECT ... FROM inventory_reservation_item (itens da reserva)
+    repo -> pg : UPDATE inventory_level SET reserved = reserved - n, version = version + 1\nWHERE sku_id (um lote, SKUs em ordem canônica de travamento)
+    repo -> outbox : append(InventoryUpdated, cause EXPIRED, um por SKU)
+    outbox -> pg : INSERT INTO outbox_event (topic catalog-inventory.inventory.v1,\nmessage_key = id do SKU, event_type InventoryUpdated)
+    repo -> pg : COMMIT
+  end
+  opt #FFEBEE falha nesta reserva (erro do banco ou prazo de 2 s)
+    repo -> repo : log WARN "Falha ao expirar a reserva {id}; nova tentativa no próximo ciclo"\ne segue para a próxima do lote
+  end
+end
+== Resultado da execução ==
+repo --> svc : quantidade de reservas expiradas
+svc --> sweep : count
+sweep -> sweep : span marketplace.reservations.expired = count;\ncount > 0: catalog.reservations.expired += count e log INFO
+opt #FFEBEE falha na consulta das vencidas ou outra falha da execução
+  sweep -> sweep : log WARN "Falha ao expirar reservas; nova tentativa no próximo ciclo"\n(a falha é recuperada: a execução termina sem erro)
+end
+note over sched, sweep : O prazo vive no banco: reiniciar o pod não perde expirações.\nVários pods varrem ao mesmo tempo sem expirar a mesma reserva duas vezes.\nResumo do ciclo: sequencia-reserva-ciclo.puml
+note over repo, outbox : Publicação no Kafka pelo relay: sequencia-outbox-kafka.puml
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Checkout / OMS
+  <back:#EF6C00>    </back> Entrada (REST, varredor)
+  <back:#455A64>    </back> Agendador Quarkus
+  <back:#1565C0>    </back> Aplicação
+  <back:#6A1B9A>    </back> Saída (repositório, outbox, PostgreSQL)
+  <b>Blocos</b>
+  <back:#66BB6A>    </back> Sucesso (inclui repetição idempotente)
+  <back:#E57373>    </back> Recusa, conflito ou falha
+  <color:#C62828>vermelho</color>: resposta de erro
+endlegend
+@enduml

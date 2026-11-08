@@ -1,0 +1,277 @@
+@startuml classes-api
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/filter>
+!include <tupadr3/font-awesome-5/tools>
+title $I_API Pacote api: resources REST, filtros, tradução de erros e apoio (os DTOs estão em classes-api-modelos)
+
+hide empty members
+hide <<entrada>> stereotype
+hide <<serviço>> stereotype
+hide <<exceção>> stereotype
+hide <<infra>> stereotype
+skinparam nodesep 20
+skinparam ranksep 35
+
+class ProductResource <<@Path("/products")>> <<entrada>> {
+  -products : ProductService
+  -responses : ProductResponses
+  -caller : CallerContext
+  -created : Counter
+  --
+  POST / : create(CreateProductRequest)
+  GET / : list(status, storeId, cursor, limit)
+  GET /{id} : get(id)
+  PUT /{id} : revise(If-Match, ReviseProductRequest)
+  DELETE /{id} : archive(If-Match)
+  GET /{id}/history : history(id)
+  POST /{id}/submit : submit(If-Match)
+  POST /{id}/pause : pause(If-Match)
+  POST /{id}/resume : resume(If-Match)
+  POST /{id}/skus : addSku(If-Match, SkuRequest)
+  GET /{id}/skus/{skuId} : getSku(id, skuId)
+  PUT /{id}/skus/{skuId} : reviseSku(If-Match, ReviseSkuRequest)
+  DELETE /{id}/skus/{skuId} : removeSku(If-Match)
+}
+class ModerationResource <<@Path("/moderation/products")>> <<entrada>> {
+  -moderation : ModerationService
+  -responses : ProductResponses
+  -caller : CallerContext
+  -approved, rejected, blocked, unblocked : Counter
+  --
+  GET / : queue(cursor, limit)
+  POST /{id}/approve : approve(If-Match)
+  POST /{id}/reject : reject(If-Match, ReasonRequest)
+  POST /{id}/block : block(If-Match, ReasonRequest)
+  POST /{id}/unblock : unblock(If-Match)
+}
+class CategoryResource <<@Path("/categories")>> <<entrada>> {
+  -categories : CategoryService
+  -caller : CallerContext
+  --
+  POST / : create(CreateCategoryRequest)
+  GET /{id} : get(id)
+  GET / : list(parentId, cursor, limit)
+  PUT /{id} : revise(If-Match, ReviseCategoryRequest)
+  PUT /{id}/parent : move(If-Match, MoveCategoryRequest)
+}
+class ProductImportResource <<@Path("/products/imports")>> <<entrada>> {
+  {static} CSV = "text/csv"
+  -imports : ProductImportService
+  -caller : CallerContext
+  -config : CatalogConfig
+  -lifecycle : Lifecycle
+  --
+  POST / : submit(byte[] CSV) 202 + Location
+  GET /{id} : get(id)
+}
+class OfferResource <<@Path("/offers/{skuId}")>> <<entrada>> {
+  -offers : OfferService
+  -caller : CallerContext
+  -clock : Clock
+  -latency : InventoryLatency
+  --
+  GET / : get(skuId)
+  PUT / : define(If-Match, PriceDto)
+  POST /promotions : schedulePromotion(If-Match, PromotionRequest)
+  DELETE /promotions/{promotionId} : cancelPromotion(If-Match)
+}
+class InventoryResource <<@Path("/inventory/skus/{skuId}")>> <<entrada>> {
+  -inventory : InventoryService
+  -caller : CallerContext
+  -latency : InventoryLatency
+  --
+  GET / : get(skuId)
+  PUT / : adjust(If-Match, AdjustStockRequest)
+}
+class ReservationResource <<@Path("/inventory/reservations")>> <<entrada>> {
+  -reservations : ReservationService
+  -caller : CallerContext
+  -registry : MeterRegistry
+  -latency : InventoryLatency
+  --
+  POST / : create(Idempotency-Key, CreateReservationRequest)
+  GET /{id} : get(id)
+  POST /{id}/release : release(id)
+  POST /{id}/commit : commit(id)
+  POST /{id}/extend : extend(ExtendReservationRequest)
+}
+class StoreEligibilityResource <<@Path("/stores/{storeId}/eligibility")>> <<entrada>> {
+  -eligibility : SellerEligibilityService
+  -caller : CallerContext
+  --
+  GET / : get(storeId)
+}
+class "StoreEligibilityResource.EligibilityResponse" as EligibilityResponse <<record>> <<entrada>> {
+  storeId : UUID
+  status : SellerStatus
+}
+class StorefrontResource <<@Path("/storefront/{tenantId}/products/{productId}"), @PermitAll>> <<entrada>> {
+  -storefront : StorefrontService
+  -cache : StorefrontCache
+  -inventory : InventoryService
+  -clock : Clock
+  --
+  GET / : get(tenantId, productId)
+}
+
+class "application.ProductService" as ProductService <<serviço>> #line.dashed
+class "application.ModerationService" as ModerationService <<serviço>> #line.dashed
+class "application.CategoryService" as CategoryService <<serviço>> #line.dashed
+class "application.ProductImportService" as ProductImportService <<serviço>> #line.dashed
+class "application.OfferService" as OfferService <<serviço>> #line.dashed
+class "application.InventoryService" as InventoryService <<serviço>> #line.dashed
+class "application.ReservationService" as ReservationService <<serviço>> #line.dashed
+class "application.SellerEligibilityService" as SellerEligibilityService <<serviço>> #line.dashed
+class "application.StorefrontService" as StorefrontService <<serviço>> #line.dashed
+class "application.Page<T>" as Page <<record>> <<serviço>> #line.dashed
+interface "OASFilter (MicroProfile OpenAPI)" as OASFilter <<infra>> #line.dashed
+
+package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros <<entrada>> {
+  class ProblemMappers <<@ServerExceptionMapper>> <<entrada>> {
+    notFound() / duplicate() / concurrentUpdate()
+    versionMismatch() / preconditionRequired()
+    invalidTransition() / reservationRefused() / stockConflict()
+    businessRule() / accessDenied() / tenantNotAuthorized()
+    invalidInput() / invalidImportFile()
+    constraintViolation() / unreadableBody() / mismatchedBody()
+    persistenceTimeout() / webApplication() / unexpected()
+  }
+  class Problem <<record, RFC 9457>> <<exceção>> {
+    type : String
+    title : String
+    status : int
+    detail : String
+    instance : String
+    errors : List<FieldError>
+    reasons : List<String>
+    --
+    {static} MEDIA_TYPE = "application/problem+json"
+  }
+  class "Problem.FieldError" as FieldError <<record>> <<exceção>> {
+    field : String
+    message : String
+  }
+  class CorrelationFilter <<@ServerRequestFilter, @ServerResponseFilter>> <<entrada>> {
+    bind(request) <<preMatching>>
+    echo(response)
+  }
+  class OpenApiDescriptions <<@OpenApiFilter BUILD>> <<entrada>> {
+    filterAPIResponse(response) : APIResponse
+  }
+}
+
+package "<$tools,scale=0.6,color=#EF6C00> Apoio (pacote privado)" as apoio <<entrada>> {
+  class ProductResponses <<@ApplicationScoped>> <<entrada>> {
+    -inventory : InventoryService
+    --
+    of(product) : Uni<ProductResponse>
+    ok(product) : Uni<RestResponse<ProductResponse>>
+    page(page) : Uni<ProductPage>
+  }
+  class ETags <<utilitário>> <<entrada>> {
+    {static} of(version) : EntityTag
+    {static} optional(ifMatch) : Optional<Long>
+    {static} required(ifMatch) : Optional<Long>
+    {static} ok(body, version) : RestResponse
+    {static} created(uri, id, body, version) : RestResponse
+  }
+  class Cursors <<utilitário>> <<entrada>> {
+    {static} encode(key) : String
+    {static} next(page) : String
+    {static} decode(cursor) : Optional<String>
+    {static} decodeUuid(cursor) : Optional<String>
+  }
+  class QueryParams <<utilitário>> <<entrada>> {
+    {static} uuid(value) : Optional<UUID>
+  }
+}
+
+ProductResource -right-> ProductService
+ModerationResource -right-> ModerationService
+CategoryResource -right-> CategoryService
+ProductImportResource -right-> ProductImportService
+OfferResource -right-> OfferService
+InventoryResource -right-> InventoryService
+ReservationResource -right-> ReservationService
+StoreEligibilityResource -right-> SellerEligibilityService
+StorefrontResource -right-> StorefrontService
+StoreEligibilityResource +-- EligibilityResponse
+
+ProductService -[hidden]right- ModerationResource
+ModerationService -[hidden]right- CategoryResource
+ProductImportService -[hidden]right- OfferResource
+OfferService -[hidden]right- InventoryResource
+ReservationService -[hidden]right- StoreEligibilityResource
+SellerEligibilityService -[hidden]right- StorefrontResource
+ProductResource -[hidden]down- ProductImportResource
+ModerationResource -[hidden]down- OfferResource
+CategoryResource -[hidden]down- InventoryResource
+ProductImportResource -[hidden]down- ReservationResource
+OfferResource -[hidden]down- StoreEligibilityResource
+InventoryResource -[hidden]down- StorefrontResource
+ReservationResource -[hidden]down- ProblemMappers
+StorefrontResource -[hidden]down- ProductResponses
+
+ProductResource ..> ProductResponses
+ModerationResource ..> ProductResponses
+ProductResponses ..> InventoryService : stockOf
+ProductResponses ..> ETags
+ProductResponses ..> Cursors
+Cursors ..> Page
+ProductResource ..> ETags
+ProductResource ..> Cursors
+ProductResource ..> QueryParams
+
+OpenApiDescriptions ..|> OASFilter
+ProblemMappers ..> Problem : produz
+Problem "1" *-- "0..*" FieldError : errors
+
+note right of ProblemMappers
+  |= Exceção |= Status |= type |
+  | NotFoundException | 404 | not-found |
+  | DuplicateException | 409 | code da exceção |
+  | ConcurrentUpdateException | 409 | concurrent-update |
+  | VersionMismatchException | 412 | version-mismatch |
+  | PreconditionRequiredException | 428 | precondition-required |
+  | InvalidTransitionException, ReservationRefusal, StockConflictException | 409 | code da exceção |
+  | DomainRuleViolation | 422 | code da exceção |
+  | AccessDeniedException | 403 | access-denied |
+  | TenantNotAuthorizedException | 403 | tenant-not-authorized |
+  | InvalidInputException | 400 | invalid-request |
+  | InvalidImportFileException | 400 | invalid-import-file |
+  | ConstraintViolationException | 400 | validation-failed |
+  | JsonProcessingException, MismatchedInputException | 400 | malformed-body |
+  | TimeoutException (Mutiny) | 503 + Retry-After: 1 | service-unavailable |
+  | WebApplicationException | status original | http-{status} |
+  | Exception | 500 | internal-error |
+end note
+
+note bottom of ETags
+  ETags: todos os resources autenticados, menos ProductImportResource e
+  StoreEligibilityResource. Cursors: Product, Moderation e Category.
+  QueryParams: Product e Category. As setas de uso estão só em ProductResource;
+  ModerationResource e CategoryResource usam os mesmos apoios.
+end note
+
+note as ROLES
+  Todos os resources são @Traced(entry = true). Papéis (constantes de security.Roles):
+  leitura de produto, oferta, estoque e categoria: seller, catalog-admin e catalog-moderator;
+  escrita de produto, oferta, estoque e importação: seller; escrita de categoria: catalog-admin;
+  ModerationResource: catalog-moderator; ReservationResource: catalog-reservations;
+  StoreEligibilityResource: seller e catalog-admin; StorefrontResource: anônimo (@PermitAll),
+  estoque lido do banco e produto com ofertas via cache.StorefrontCache.
+  Colaboradores de outros pacotes: security.CallerContext, config.CatalogConfig,
+  observability.Lifecycle e InventoryLatency, cache.StorefrontCache, observability.Correlation
+  (CorrelationFilter) e observability.Telemetry.problem (ProblemMappers).
+end note
+ProductResponses -[hidden]down- ROLES
+
+legend right
+  <b>Leitura</b>
+  <back:$BORDA_ENTRADA>    </back> Entrada HTTP (resources, filtros e apoio)
+  <back:$BORDA_APLICACAO>    </back> Aplicação (casos de uso chamados)
+  <back:$BORDA_ERRO>    </back> Corpo de erro (problem+json)
+  <back:$BORDA_INFRA>    </back> Biblioteca externa
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

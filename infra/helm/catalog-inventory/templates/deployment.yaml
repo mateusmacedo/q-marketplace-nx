@@ -1,0 +1,10 @@
+{{- /* WHY: essas chaves saíram da raiz para os blocos api e worker; aceitá-las em silêncio deixaria réplicas, HPA ou PDB de produção sem efeito. */}}
+{{- range $key := list "replicaCount" "resources" "podDisruptionBudget" "autoscaling" "nodeSelector" "tolerations" "affinity" }}
+{{- if hasKey $.Values $key }}
+{{- fail (printf "%s não existe mais na raiz dos values: configure-o por papel em api e worker (podDisruptionBudget virou <papel>.pdb e autoscaling virou api.hpa)" $key) }}
+{{- end }}
+{{- end }}
+{{- range $role := list "api" "worker" }}
+---
+{{ include "catalog-inventory.deployment" (dict "root" $ "role" $role) }}
+{{- end }}

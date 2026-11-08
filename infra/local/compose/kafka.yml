@@ -1,0 +1,63 @@
+# Broker único em modo KRaft, sem persistência. A criação automática de tópicos fica desligada, como no cluster: o
+# kafka-init cria os mesmos tópicos que o Job do Helm chart (infra/helm/catalog-inventory/values.yaml, chave topics) e,
+# só aqui, também o do KYB/KYC, que no cluster pertence ao produtor.
+services:
+  kafka:
+    image: apache/kafka:4.2.0@sha256:9516fb7634bad307d17c33b589fde9023003b0cb761374f500002b980a3149b9
+    deploy:
+      resources:
+        limits: {cpus: "0.75", memory: 1536M}
+        reservations: {cpus: "0.10", memory: 512M}
+    profiles: [infra, catalog, all]
+    ports: ["127.0.0.1:${KAFKA_PORT:-9094}:9094"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # INTERNAL atende os contêineres (kafka:9092); EXTERNAL, o host (localhost:9094).
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:${KAFKA_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    # WHY: cada checagem sobe uma JVM; com os padrões do script e a cada 5 s, custava ~5 s de CPU por vez, perto de um
+    # núcleo o tempo todo. Heap pequeno e só o C1 cortam metade, e fora da partida basta checar a cada 30 s.
+    healthcheck:
+      test: ["CMD-SHELL", "KAFKA_HEAP_OPTS=-Xmx64m KAFKA_JVM_PERFORMANCE_OPTS='-XX:TieredStopAtLevel=1 -XX:+UseSerialGC' /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+  kafka-init:
+    image: apache/kafka:4.2.0@sha256:9516fb7634bad307d17c33b589fde9023003b0cb761374f500002b980a3149b9
+    deploy:
+      resources:
+        limits: {cpus: "0.20", memory: 384M}
+        reservations: {cpus: "0.01", memory: 64M}
+    profiles: [infra, catalog, all]
+    depends_on:
+      kafka: {condition: service_healthy}
+    restart: "no"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      PARTITIONS: ${KAFKA_TOPIC_PARTITIONS:-3}
+    entrypoint: ["/bin/bash", "-c"]
+    # Idempotente: --if-not-exists deixa subir de novo sem erro. A retenção da fila de descarte é a do chart (14 dias).
+    command:
+      - |
+        set -euo pipefail
+        topics() { /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$$BOOTSTRAP_SERVERS" "$$@"; }
+        for topic in catalog-inventory.product.v1 catalog-inventory.offer.v1 catalog-inventory.inventory.v1 \
+            catalog-inventory.store.v1 kyb-kyc.seller.v1; do
+          topics --create --if-not-exists --topic "$$topic" --partitions "$$PARTITIONS" --replication-factor 1
+        done
+        topics --create --if-not-exists --topic catalog-inventory.kyb-seller.dlq --partitions "$$PARTITIONS" \
+          --replication-factor 1 --config retention.ms=1209600000
+        topics --describe --topic '^(catalog-inventory\..*|kyb-kyc\.seller\.v1)$$'

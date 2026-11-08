@@ -1,0 +1,68 @@
+@startuml sequencias-elegibilidade
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title get: GET /stores/{storeId}/eligibility
+autonumber
+
+participant "$I_SELLER\nSeller ou administrador\n(JWT do tenant)" as cli <<ator>>
+box "Entrada" #FFFAF3
+participant "$I_API\nStoreEligibilityResource" as res <<entrada>>
+participant "$I_KYB\nSellerVerdictConsumer\n(worker)" as cons <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+participant "$I_SERVICO\nSellerEligibilityService" as svc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+participant "$I_REPOSITORIO\nPgSellerEligibilityRepository" as repo <<saida>>
+database "\n$I_POSTGRES\nPostgreSQL" as pg
+end box
+queue "$I_KAFKA\nkyb-kyc.seller.v1" as topico
+
+cli -> res : GET /stores/{storeId}/eligibility\n(papel seller ou catalog-admin)
+alt #FFEBEE token ausente ou inválido
+  res --> cli : <color:#C62828>401</color>
+else #FFEBEE papel diferente de seller e catalog-admin
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE claim tenant_id ausente, ou tenant_id e store_id fora do formato UUID
+  res --> cli : <color:#C62828>403 tenant-not-authorized</color>
+end
+== Autorização ==
+res -> svc : get(actor, storeId)
+svc -> svc : actor.ownsStore(storeId):\nclaim store_id do token é igual a storeId?
+alt loja do token diferente de storeId, ou token sem loja
+  svc -> svc : actor.require(READ_SELLER_ELIGIBILITY)\n(concedida ao papel catalog-admin)
+  alt #FFEBEE chamador sem a capacidade (seller consultando outra loja)
+    res --> cli : <color:#C62828>403 access-denied</color>
+  end
+end
+== Leitura do veredito ==
+svc -> repo : statusOf(tenant, storeId)
+repo -> pg : SELECT status FROM seller_eligibility\nWHERE tenant_id = $1 AND store_id = $2
+note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde\n503 service-unavailable + Retry-After: 1
+alt nenhuma linha (loja sem veredito registrado)
+  repo --> svc : PENDING
+else linha encontrada
+  repo --> svc : APPROVED | REJECTED | PENDING
+end
+res --> cli : 200 {storeId, status}
+note over res, pg : Leitura direta do banco, sem cache e sem outbox: o decorator\nSellerCacheInvalidation só atua na gravação do veredito
+
+newpage record: consumo de kyb-kyc.seller.v1 (SellerEligibilityService.record)
+autonumber 1
+
+topico -> cons : mensagem SellerApproved | SellerRejected | ReviewRequired
+cons -> svc : record(veredito)
+note over topico, svc : Fluxo detalhado em sequencia-veredito-kyb.puml (envelope, inbox, upsert por decided_at,\nStoreEligibilityChanged na outbox, invalidação da vitrine e fila de descarte)
+
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Seller ou administrador
+  <back:#EF6C00>    </back> Entrada (REST, consumidor Kafka)
+  <back:#1565C0>    </back> Aplicação
+  <back:#6A1B9A>    </back> Saída (repositório, PostgreSQL)
+  <back:#455A64>    </back> Tópico Kafka do KYB/KYC
+  <b>Blocos</b>
+  <back:#66BB6A>    </back> Sucesso
+  <back:#E57373>    </back> Recusa
+  <color:#C62828>vermelho</color>: resposta de erro
+endlegend
+@enduml

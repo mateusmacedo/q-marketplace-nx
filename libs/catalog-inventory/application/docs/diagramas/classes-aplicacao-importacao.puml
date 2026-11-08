@@ -1,0 +1,152 @@
+@startuml classes-aplicacao-importacao
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+set separator none
+title Aplicação: tipos da importação de produtos em lote (linhas, resultados, lote e unidades de processamento)
+
+hide empty members
+hide <<aplicacao>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+skinparam ClassBackgroundColor<<record>> #F1F8FF
+skinparam ClassBorderColor<<record>> #64B5F6
+skinparam ClassBackgroundColor<<record, privada>> #F1F8FF
+skinparam ClassBorderColor<<record, privada>> #64B5F6
+skinparam ClassBackgroundColor<<sealed, privada>> #F1F8FF
+skinparam ClassBorderColor<<sealed, privada>> #64B5F6
+
+package "$I_CSV Importação de produtos" as importacao <<aplicacao>> {
+  class ImportRow <<record>> {
+    lineNumber : int
+    productRef : String
+    categoryCode : String
+    title : String
+    description : String
+    attributes : Map<String, String>
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : Boolean
+    heightCm, widthCm, lengthCm : BigDecimal
+    weightGrams : Integer
+    currency : String
+    listPrice, salePrice : BigDecimal
+    onHand : Integer
+    error : String
+    productError : String
+    --
+    {static} invalid(lineNumber, productRef, sellerSku, error) : ImportRow
+  }
+  class ImportResult <<record>> {
+    {static} SELLER_SKU_MAX_LENGTH = 100
+    {static} MESSAGE_MAX_LENGTH = 1000
+    lineNumber : int
+    sellerSku : String
+    outcome : ImportOutcome
+    code : String
+    message : String
+    productId : UUID
+    --
+    ~{static} succeeded(row, outcome, productId) : ImportResult
+    ~{static} failed(row, productId, code, message) : ImportResult
+  }
+  enum "ImportResult.ImportOutcome" as ImportOutcome {
+    CREATED
+    UPDATED
+    UNCHANGED
+    FAILED
+  }
+  class ProductImport <<record>> {
+    id : UUID
+    tenantId : UUID
+    storeId : UUID
+    actor : String
+    status : ImportStatus
+    totalLines : int
+    createdAt : Instant
+    startedAt : Instant
+    finishedAt : Instant
+    --
+    {static} pending(id, tenantId, storeId, actor, totalLines, now) : ProductImport
+    seller() : Actor
+  }
+  enum "ProductImport.ImportStatus" as ImportStatus {
+    PENDING
+    PROCESSING
+    COMPLETED
+  }
+  class "ProductImportRepository.Claimed" as Claimed <<record>> {
+    job : ProductImport
+    content : String
+  }
+  class "ProductImportService.Report" as Report <<record>> {
+    job : ProductImport
+    lines : List<ImportResult>
+  }
+  class ProductImportService <<final>> <<serviço>> {
+    {static} INVALID_ROW = "invalid-row"
+    {static} DUPLICATE_SELLER_SKU = "duplicate-seller-sku"
+    {static} INCONSISTENT_PRODUCT = "inconsistent-product"
+    {static} CATEGORY_NOT_FOUND = "category-not-found"
+    {static} GROUP_REJECTED = "group-rejected"
+  }
+  interface "ProductImportService.Unit" as Unit <<sealed, privada>>
+  class "ProductImportService.NewProduct" as NewProduct <<record, privada>> {
+    productRef : String
+    rows : List<ImportRow>
+  }
+  class "ProductImportService.ExistingSku" as ExistingSku <<record, privada>> {
+    row : ImportRow
+    skuId : UUID
+  }
+  class "ProductImportService.Rejected" as Rejected <<record, privada>> {
+    result : ImportResult
+  }
+  class "ProductImportService.Prepared" as Prepared <<record, privada>> {
+    row : ImportRow
+    sku : NewSku
+    price : Price
+    onHand : int
+  }
+}
+
+class "Actor" as Actor <<record>> #F5FAFF;line.dashed;line:1565C0
+class "domain.Price" as Price #F6FBF6;line.dashed;line:2E7D32
+class "ProductService.NewSku" as NewSku <<record>> #F5FAFF;line.dashed;line:1565C0
+
+ImportResult --> ImportOutcome
+ImportResult ..> ImportRow : succeeded / failed
+ProductImport --> ImportStatus
+ProductImport ..> Actor : seller()
+Claimed --> ProductImport
+Report --> ProductImport
+Report "1" *-- "0..*" ImportResult : lines
+ProductImportService +-- Report
+ProductImportService +-- Unit
+ProductImportService +-- Prepared
+ProductImportService +-- NewProduct
+ProductImportService +-- ExistingSku
+ProductImportService +-- Rejected
+Unit <|.. NewProduct
+Unit <|.. ExistingSku
+Unit <|.. Rejected
+NewProduct "1" *-- "1..*" ImportRow
+ExistingSku --> ImportRow
+Rejected --> ImportResult
+Prepared --> ImportRow
+Prepared --> NewSku
+Prepared ..> Price
+
+note bottom of ProductImportService
+  Só os tipos aninhados e as constantes de código aparecem aqui; as operações do caso de
+  uso estão descritas em portas-e-casos-de-uso. Unit agrupa as linhas do CSV: produto
+  novo, SKU já existente ou grupo rejeitado. Report e Claimed são públicos; Unit,
+  NewProduct, ExistingSku, Rejected e Prepared são privados do caso de uso.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#1565C0>    </back> Caso de uso (serviço)
+  <back:#64B5F6>    </back> Record ou unidade de processamento
+  <back:#90A4AE>    </back> Enum de estado ou desfecho
+  Tracejado: tipo de outro diagrama (aplicação ou domínio)
+endlegend
+@enduml

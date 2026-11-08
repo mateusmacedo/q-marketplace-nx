@@ -1,0 +1,140 @@
+@startuml classes-mensageria-contrato
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/file_contract>
+!include <tupadr3/font-awesome-5/box>
+title $I_OUTBOX Pacote outbox: contrato v1 dos eventos publicados (EventContracts e seus records)
+
+hide empty members
+hide <<saida>> stereotype
+hide <<evento>> stereotype
+hide <<valor>> stereotype
+hide <<infra>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+
+package "$I_OUTBOX outbox (dev.marketplace.cataloginventory.outbox)" as pkg_outbox <<infra>> {
+  class "<$file_contract,scale=0.55,color=#6A1B9A> EventContracts" as EventContracts <<final>> <<saida>> {
+    {static} SOURCE = "catalog-inventory"
+    {static} VERSION = 1
+  }
+  class "<$envelope,scale=0.55,color=#6A1B9A> Envelope" as Envelope <<record>> <<saida>> {
+    eventId : UUID
+    eventType : String
+    eventVersion : int
+    source : String
+    tenantId : UUID
+    aggregateType : String
+    aggregateId : UUID
+    occurredAt : Instant
+    correlationId : String
+    data : Object
+  }
+  class SkuV1 <<record>> <<valor>> {
+    skuId : UUID
+    sellerSku : String
+  }
+  class "<$box,scale=0.55,color=#FFA000> ProductCreatedV1" as ProductCreatedV1 <<record>> <<evento>> {
+    productId : UUID
+    storeId : UUID
+    categoryId : UUID
+    currency : String
+    title : String
+    skus : List<SkuV1>
+  }
+  class "<$box,scale=0.55,color=#FFA000> ProductStatusChangedV1" as ProductStatusChangedV1 <<record>> <<evento>> {
+    productId : UUID
+    storeId : UUID
+    transition : String
+    from : String
+    to : String
+    reason : String
+    visible : boolean
+  }
+  class "<$box,scale=0.55,color=#FFA000> ProductBlockedV1" as ProductBlockedV1 <<record>> <<evento>> {
+    productId : UUID
+    storeId : UUID
+    reason : String
+  }
+  class PromotionV1 <<record>> <<valor>> {
+    promotionId : UUID
+    salePrice : String
+    startsAt : Instant
+    endsAt : Instant
+  }
+  class "<$tag,scale=0.55,color=#FFA000> PriceChangedV1" as PriceChangedV1 <<record>> <<evento>> {
+    skuId : UUID
+    productId : UUID
+    storeId : UUID
+    currency : String
+    listPrice : String
+    salePrice : String
+    priceVersion : long
+    promotions : List<PromotionV1>
+  }
+  class StockV1 <<record>> <<valor>> {
+    skuId : UUID
+    productId : UUID
+    storeId : UUID
+    onHand : int
+    reserved : int
+    available : int
+    version : long
+  }
+  class "<$warehouse,scale=0.55,color=#FFA000> InventoryUpdatedV1" as InventoryUpdatedV1 <<record>> <<evento>> {
+    stock : StockV1
+    cause : String
+    reservationId : UUID
+  }
+  class ReservedItemV1 <<record>> <<valor>> {
+    quantity : int
+    stock : StockV1
+  }
+  class "<$warehouse,scale=0.55,color=#FFA000> InventoryReservedV1" as InventoryReservedV1 <<record>> <<evento>> {
+    reservationId : UUID
+    orderRef : String
+    expiresAt : Instant
+    items : List<ReservedItemV1>
+  }
+  class "<$warehouse,scale=0.55,color=#FFA000> InventoryDepletedV1" as InventoryDepletedV1 <<record>> <<evento>> {
+    stock : StockV1
+  }
+  class "<$store,scale=0.55,color=#FFA000> StoreEligibilityChangedV1" as StoreEligibilityChangedV1 <<record>> <<evento>> {
+    storeId : UUID
+    previousStatus : String
+    status : String
+    eligible : boolean
+    decidedAt : Instant
+  }
+}
+
+EventContracts +-- Envelope
+Envelope o-- "data" ProductCreatedV1
+Envelope o-- "data" ProductStatusChangedV1
+Envelope o-- "data" ProductBlockedV1
+Envelope o-- "data" PriceChangedV1
+Envelope o-- "data" InventoryUpdatedV1
+Envelope o-- "data" InventoryReservedV1
+Envelope o-- "data" InventoryDepletedV1
+Envelope o-- "data" StoreEligibilityChangedV1
+ProductCreatedV1 "1" *-- "0..*" SkuV1
+PriceChangedV1 "1" *-- "0..*" PromotionV1
+InventoryUpdatedV1 --> StockV1
+InventoryDepletedV1 --> StockV1
+InventoryReservedV1 "1" *-- "1..*" ReservedItemV1
+ReservedItemV1 --> StockV1
+
+note bottom of EventContracts
+  Contrato v1 do pacote outbox, espelhado em contracts/catalog-inventory/events e
+  anotado com @RegisterForReflection para a imagem nativa. IntegrationEvents o usa para
+  serializar os eventos gravados como OutboxMessage. Valores monetários são texto decimal
+  exato. Campo novo opcional é compatível; qualquer outra mudança exige eventVersion nova.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:$BORDA_SAIDA>    </back> Envelope comum e constantes do contrato
+  <back:#FFA000>    </back> Payload de evento (campo data)
+  <back:#7CB342>    </back> Parte reutilizada dentro de um payload
+  <$box,scale=0.55,color=#FFA000> produto  <$tag,scale=0.55,color=#FFA000> oferta  <$warehouse,scale=0.55,color=#FFA000> estoque  <$store,scale=0.55,color=#FFA000> loja
+endlegend
+@enduml

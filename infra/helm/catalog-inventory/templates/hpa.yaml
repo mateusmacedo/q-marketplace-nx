@@ -1,0 +1,32 @@
+{{- /* WHY: só a api recebe a carga HTTP que a CPU acompanha; o worker roda tarefas agendadas e o consumo, dimensionados por worker.replicaCount. */}}
+{{- if .Values.api.hpa.enabled }}
+{{- $component := dict "root" $ "component" "api" }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "catalog-inventory.componentFullname" $component }}
+  labels:
+    {{- include "catalog-inventory.componentLabels" $component | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "catalog-inventory.componentFullname" $component }}
+  minReplicas: {{ .Values.api.hpa.minReplicas }}
+  maxReplicas: {{ .Values.api.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.api.hpa.targetCPUUtilizationPercentage }}
+    {{- with .Values.api.hpa.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ . }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,8 @@
+{
+  "name": "kyb-kyc-contracts",
+  "projectType": "library",
+  "tags": [
+    "scope:kyb-kyc",
+    "layer:contract"
+  ]
+}

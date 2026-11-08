@@ -1,0 +1,43 @@
+@startuml estados-importacao
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/hourglass_half>
+!include <tupadr3/font-awesome-5/check_circle>
+title Estados do lote de importação (ProductImport.ImportStatus)
+hide empty description
+
+state "<$hourglass_half,scale=0.6,color=#FFA000> PENDING" as PENDING <<espera>>
+state "$I_RETENTATIVA PROCESSING" as PROCESSING <<ativo>>
+state "<$check_circle,scale=0.6,color=#455A64> COMPLETED" as COMPLETED <<terminal>>
+
+[*] --> PENDING : submit\n(createdAt = agora)
+
+PENDING --> PROCESSING : claimNext\n(startedAt = agora)
+
+PROCESSING --> PROCESSING : recordResults ao fim de cada unidade\n(renova startedAt)
+PROCESSING --> PROCESSING : claimNext após o lease\n(startedAt < agora - lease;\nretoma as linhas sem resultado)
+PROCESSING --> COMPLETED : complete\n(finishedAt = agora)
+
+COMPLETED --> [*]
+
+note left of PROCESSING
+  Falha técnica interrompe process sem
+  mudar o estado: o lote fica PROCESSING
+  e volta a ser reivindicável quando
+  startedAt fica mais antigo que o lease.
+  Recusa de negócio não interrompe:
+  vira linha FAILED.
+end note
+
+note left of PENDING
+  Dois chamadores nunca recebem o mesmo
+  lote (contrato de claimNext). A ordem
+  é do lote mais antigo para o mais novo.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#FFA000>    </back> Aguardando reivindicação
+  <back:#2E7D32>    </back> Em processamento (retomável após o lease)
+  <back:#455A64>    </back> Terminal
+endlegend
+@enduml

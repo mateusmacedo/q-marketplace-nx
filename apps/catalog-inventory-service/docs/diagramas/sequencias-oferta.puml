@@ -1,0 +1,279 @@
+@startuml sequencias-oferta
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!procedure $legenda_sequencia()
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Ator externo
+  <back:#EF6C00>    </back> Entrada (REST)
+  <back:#1565C0>    </back> Aplicação (caso de uso)
+  <back:#2E7D32>    </back> Domínio
+  <back:#6A1B9A>    </back> Saída (repositórios, outbox, cache)
+  <back:#455A64>    </back> Infraestrutura
+  <b>Respostas</b>
+  <back:#66BB6A>    </back> Sucesso (2xx) e caminho feliz
+  <back:#E57373>    </back> Recusa (4xx/5xx, problem+json)
+endlegend
+!endprocedure
+title GET /offers/{skuId}: consultar oferta com o preço vigente (OfferService.get)
+autonumber
+
+participant "$I_SELLER\nSeller" as seller <<ator>>
+participant "$I_ADMIN\nSeller, Admin ou\nModerador" as reader <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_API\nOfferResource" as res <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_OFERTA\nOfferService" as svc <<aplicacao>>
+end box
+box "Domínio" #F6FBF6
+  participant "$I_DOMINIO\nOffer\n(domínio)" as dom <<dominio>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_REPOSITORIO\nPgProductRepository" as prod <<saida>>
+  participant "$I_CACHE\nOfferCacheInvalidation\n(decorator)" as dec <<saida>>
+  participant "$I_REPOSITORIO\nPgOfferRepository" as repo <<saida>>
+  participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+  database "$I_REDIS\nRedis" as redis
+end box
+
+reader -> res : GET /offers/{skuId}
+res -> res : @RolesAllowed (seller, catalog-admin, catalog-moderator); CallerContext.actor()
+== Aplicação e regras de domínio ==
+res -> svc : get(actor, skuId)
+svc -> prod : ProductAccess.visibleBySku: findBySku(tenant, skuId)
+prod -> pg : SELECT product LEFT JOIN sku WHERE tenant_id\nAND id = (SELECT product_id FROM sku WHERE tenant_id AND id = {skuId})
+svc -> svc : requireVisible: READ_TENANT_CATALOG ou MODERATE_PRODUCTS vê qualquer loja;\nMANAGE_OWN_PRODUCTS só a própria
+alt #FFEBEE SKU desconhecido ou produto fora do alcance do chamador
+  res -[#C62828]-> reader : <color:#C62828>404 not-found (Produto)</color>
+else #FAFAFA visível
+  svc -> repo : ofSku(tenant, skuId)
+  repo -> pg : SELECT offer WHERE tenant_id AND sku_id;\nSELECT offer_promotion WHERE sku_id = ANY ORDER BY starts_at (só se há oferta)
+  alt #FFEBEE SKU sem oferta
+    res -[#C62828]-> reader : <color:#C62828>404 not-found (Oferta)</color>
+  else #E8F5E9 ok
+    res -> dom : OfferResponse.of(offer, agora): Offer.effectivePrice(agora)\n(promoção em vigor, com início inclusivo e fim exclusivo, vence o preço base)
+    res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> + ETag (versão da oferta, usada no If-Match)\ncom price, effectivePrice (priceVersion), promotions
+  end
+end
+note over res, repo
+  Comum às páginas: 401 token ausente ou inválido; 403 papel fora do @RolesAllowed
+  ou claim de tenant ausente (tenant-not-authorized); 400 validation-failed e malformed-body;
+  503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+  Leituras (ofSku, ofProduct) passam direto pelo decorator; só insert e update invalidam o cache,
+  também quando a escrita falha. As escritas são cronometradas em
+  catalog.inventory.update.latency{operation=define_offer|schedule_promotion|cancel_promotion}.
+end note
+$legenda_sequencia()
+
+newpage PUT /offers/{skuId}: criar a oferta ou trocar o preço (OfferService.define)
+autonumber 1
+seller -> res : PUT /offers/{skuId} {listPrice?, salePrice} + If-Match (obrigatório só na troca)
+note over res, pg : A criação inicial também aparece em sequencia-publicacao-produto.puml (seção "Oferta por SKU")
+res -> res : @RolesAllowed(seller); @Valid PriceDto (MoneyDto: valor >= 0, até 2 casas, moeda ISO 4217);\nETags.optional(If-Match); PriceDto.toDomain: Money e Price
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+opt #FFEBEE preço "de" menor que o preço "por", ou valor recusado pelo domínio
+  res -[#C62828]-> seller : <color:#C62828>422 list-price-below-sale-price ou invalid-value</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : define(actor, skuId, ifMatch, price) (InventoryLatency.timed define_offer)
+svc -> svc : ProductAccess.ownedBySku: requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> prod : findBySku(tenant, skuId)
+prod -> pg : SELECT product LEFT JOIN sku WHERE tenant_id\nAND id = (SELECT product_id FROM sku WHERE tenant_id AND id = {skuId})
+opt #FFEBEE SKU desconhecido ou produto de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found (Produto)</color>
+end
+svc -> svc : Product.requireNotArchived("CHANGE_PRICE")
+opt #FFEBEE produto ARCHIVED (oferta congelada)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (CHANGE_PRICE)</color>
+end
+svc -> repo : ofSku(tenant, skuId)
+repo -> pg : SELECT offer WHERE tenant_id AND sku_id;\nSELECT offer_promotion WHERE sku_id = ANY ORDER BY starts_at (só se há oferta)
+alt SKU ainda sem oferta
+  opt #FFEBEE If-Match presente (RFC 9110: não confere com recurso inexistente)
+    res -[#C62828]-> seller : <color:#C62828>412 version-mismatch (versão atual 0)</color>
+  end
+  svc -> dom : Offer.create(skuId, produto, loja, moeda do produto, price, agora)
+  opt #FFEBEE preço em moeda diferente da do produto
+    res -[#C62828]-> seller : <color:#C62828>422 currency-mismatch</color>
+  end
+  dom -> dom : version 0, priceVersion 1, sem promoções; evento PriceChanged
+  svc -> dec : insert(offer)
+  dec -> repo : insert
+  repo -> pg : BEGIN; INSERT offer (list_price, sale_price, price_version = 1, version = 0)
+  alt #FFEBEE SKU ganhou oferta de outra requisição (offer_pkey)
+    repo -> pg : ROLLBACK
+    res -[#C62828]-> seller : <color:#C62828>409 duplicate-offer</color>
+  else #E8F5E9 ok
+    repo -> outbox : append(PriceChanged)
+    outbox -> pg : INSERT outbox_event (catalog-inventory.offer.v1, chave skuId)
+    repo -> pg : COMMIT
+    opt cache ligado
+      dec -> redis : EVALSHA INVALIDATE: INCR catalog:gen:product:{tenant}:{produto};\nrenova catalog:product-store; uma nova tentativa se falhar
+    end
+    res -[#2E7D32]-> seller : <color:#2E7D32><b>201</b></color> Created + Location /offers/{skuId} + ETag da versão 0
+  end
+else oferta já existe
+  opt #FFEBEE sem If-Match
+    res -[#C62828]-> seller : <color:#C62828>428 precondition-required</color>
+  end
+  svc -> svc : Versions.requireMatch(If-Match, versão lida da oferta)
+  opt #FFEBEE If-Match diferente da versão lida
+    res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+  end
+  svc -> dom : Offer.changePrice(price, agora)
+  alt #FFEBEE preço em moeda diferente da da oferta
+    res -[#C62828]-> seller : <color:#C62828>422 currency-mismatch</color>
+  else #FFEBEE promoção pendente acima do novo preço "de"
+    res -[#C62828]-> seller : <color:#C62828>422 promotion-above-list-price</color>
+  else #E8F5E9 ok
+    dom -> dom : descarta promoções encerradas; priceVersion + 1; evento PriceChanged
+  end
+  svc -> dec : update(offer, versão lida)
+  dec -> repo : update
+  repo -> pg : BEGIN; UPDATE offer SET list_price, sale_price, price_version, version = version + 1\nWHERE tenant_id AND sku_id AND version = {versão lida}
+  alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+    repo -> pg : ROLLBACK
+    res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+  else #E8F5E9 ok
+    repo -> pg : DELETE offer_promotion WHERE sku_id; INSERT offer_promotion (as pendentes)
+    repo -> outbox : append(PriceChanged)
+    outbox -> pg : INSERT outbox_event (catalog-inventory.offer.v1, chave skuId)
+    repo -> pg : COMMIT
+    opt cache ligado
+      dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+    end
+    res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)
+  end
+end
+$legenda_sequencia()
+
+newpage POST /offers/{skuId}/promotions: agendar promoção (OfferService.schedulePromotion)
+autonumber 1
+seller -> res : POST /offers/{skuId}/promotions {salePrice, startsAt, endsAt} + If-Match opcional
+res -> res : @RolesAllowed(seller); @Valid PromotionRequest; ETags.optional(If-Match);\npromotionId = UUID.randomUUID(); salePrice.toDomain
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : schedulePromotion(actor, skuId, ifMatch, promotionId, salePrice, startsAt, endsAt)\n(InventoryLatency.timed schedule_promotion)
+svc -> svc : owned: ProductAccess.ownedBySku: requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> prod : findBySku(tenant, skuId)
+prod -> pg : SELECT product LEFT JOIN sku WHERE tenant_id\nAND id = (SELECT product_id FROM sku WHERE tenant_id AND id = {skuId})
+opt #FFEBEE SKU desconhecido ou produto de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found (Produto)</color>
+end
+svc -> svc : Product.requireNotArchived("CHANGE_PRICE")
+opt #FFEBEE produto ARCHIVED (oferta congelada)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (CHANGE_PRICE)</color>
+end
+svc -> repo : ofSku(tenant, skuId)
+repo -> pg : SELECT offer WHERE tenant_id AND sku_id;\nSELECT offer_promotion WHERE sku_id = ANY ORDER BY starts_at
+opt #FFEBEE SKU sem oferta
+  res -[#C62828]-> seller : <color:#C62828>404 not-found (Oferta)</color>
+end
+svc -> svc : change: Versions.requireMatch(If-Match, versão lida da oferta) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> dom : new Promotion(id, salePrice, startsAt, endsAt) e Offer.schedulePromotion(promotion, agora)
+alt #FFEBEE início não anterior ao fim, janela acima de 366 dias ou promoção já encerrada
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-value</color>
+else #FFEBEE 20 promoções pendentes já agendadas
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-value</color>
+else #FFEBEE intervalo sobrepõe outra promoção pendente
+  res -[#C62828]-> seller : <color:#C62828>422 promotion-overlap</color>
+else #FFEBEE moeda diferente da oferta
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-value</color>
+else #FFEBEE preço promocional acima do preço "de"
+  res -[#C62828]-> seller : <color:#C62828>422 promotion-above-list-price</color>
+else #E8F5E9 ok
+  dom -> dom : descarta promoções encerradas e acrescenta a nova (ordenadas por início);\npriceVersion + 1; evento PriceChanged
+end
+== Persistência transacional ==
+svc -> dec : update(offer, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE offer SET list_price, sale_price, price_version, version = version + 1\nWHERE tenant_id AND sku_id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : DELETE offer_promotion WHERE sku_id; INSERT offer_promotion (pendentes + nova)
+  repo -> outbox : append(PriceChanged com as promoções e a priceVersion)
+  outbox -> pg : INSERT outbox_event (catalog-inventory.offer.v1, chave skuId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+  end
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>201</b></color> Created + Location /offers/{skuId}/promotions/{promotionId}\n+ ETag (versão + 1 da oferta)
+end
+$legenda_sequencia()
+
+newpage DELETE /offers/{skuId}/promotions/{promotionId}: cancelar promoção (OfferService.cancelPromotion)
+autonumber 1
+seller -> res : DELETE /offers/{skuId}/promotions/{promotionId} + If-Match opcional
+res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : cancelPromotion(actor, skuId, promotionId, ifMatch)\n(InventoryLatency.timed cancel_promotion)
+svc -> svc : owned: ProductAccess.ownedBySku: requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> prod : findBySku(tenant, skuId)
+prod -> pg : SELECT product LEFT JOIN sku WHERE tenant_id\nAND id = (SELECT product_id FROM sku WHERE tenant_id AND id = {skuId})
+opt #FFEBEE SKU desconhecido ou produto de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found (Produto)</color>
+end
+svc -> svc : Product.requireNotArchived("CHANGE_PRICE")
+opt #FFEBEE produto ARCHIVED (oferta congelada)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (CHANGE_PRICE)</color>
+end
+svc -> repo : ofSku(tenant, skuId)
+repo -> pg : SELECT offer WHERE tenant_id AND sku_id;\nSELECT offer_promotion WHERE sku_id = ANY ORDER BY starts_at
+opt #FFEBEE SKU sem oferta
+  res -[#C62828]-> seller : <color:#C62828>404 not-found (Oferta)</color>
+end
+svc -> svc : change: Versions.requireMatch(If-Match, versão lida da oferta) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> dom : Offer.cancelPromotion(promotionId, agora)
+alt #FFEBEE promotionId não existe na oferta
+  res -[#C62828]-> seller : <color:#C62828>422 promotion-not-found</color>
+else #FFEBEE promoção já encerrada (fim exclusivo: endsAt <= agora)
+  res -[#C62828]-> seller : <color:#C62828>422 promotion-ended</color>
+else #E8F5E9 ok (pendente ou em vigor)
+  dom -> dom : remove a promoção e descarta as encerradas;\npriceVersion + 1; evento PriceChanged
+end
+== Persistência transacional ==
+svc -> dec : update(offer, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE offer SET list_price, sale_price, price_version, version = version + 1\nWHERE tenant_id AND sku_id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : DELETE offer_promotion WHERE sku_id; INSERT offer_promotion (as que sobraram)
+  repo -> outbox : append(PriceChanged)
+  outbox -> pg : INSERT outbox_event (catalog-inventory.offer.v1, chave skuId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+  end
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1 da oferta), com a oferta atualizada
+end
+$legenda_sequencia()
+@enduml

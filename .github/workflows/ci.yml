@@ -1,0 +1,160 @@
+name: CI
+
+# Sem paths-ignore: o job `CI` é o check obrigatório e precisa reportar em todo PR, inclusive no só de documentação,
+# em que ele aprova sem rodar o resto (ADR 023).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+# Nx Cloud (ADR 026): cache remoto e distribuição das tarefas Nx da Verificação entre os agentes deste workflow.
+# WHY: só o push na main grava no cache compartilhado. O PR usa o token somente leitura, que grava num cache isolado da
+# execução, visível aos agentes dela, e não altera o que a main restaura (CREEP, CVE-2025-36852).
+env:
+  NX_BRANCH: ${{ github.event.number || github.ref_name }}
+  NX_CLOUD_ACCESS_TOKEN: >-
+    ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'
+    && secrets.NX_CLOUD_READ_WRITE_TOKEN || secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+jobs:
+  scope:
+    name: Escopo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Classificar o diff
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          # WHY: o push que cria a branch ou reescreve o histórico não tem base comparável; aí roda tudo.
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "code=true" | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          code="$(grep -v -E '^docs/|\.md$' <<<"$changed" || true)"
+          echo "code=$([ -n "$code" ] && echo true || echo false)" | tee -a "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verificação
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      # O nx-set-shas procura a última execução verde na main.
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
+      - name: Node, Java e Gradle
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Base e head do affected
+        uses: nrwl/nx-set-shas@e602fada7ad5987b0f7b1905e7a99ea1c661514c # v5.1.0
+        with:
+          main-branch-name: main
+
+      # Lê .nx/ci-config.yaml: daqui em diante, cada comando nx manda as tarefas para o job Agentes.
+      - name: Execução distribuída
+        run: npx nx-cloud start-workers
+
+      - name: Fronteiras entre contextos
+        run: npm run check
+
+      - name: Observabilidade
+        run: npm run check:observability
+
+      - name: Imagens fixadas
+        run: npm run check:images
+
+      - name: Helm chart
+        run: npm run check:chart
+
+      - name: Parâmetros da carga
+        run: npx nx run load:check
+
+      - name: Vulnerabilidades
+        run: npm run check:vulnerabilities
+
+      - name: Testes afetados
+        run: npx nx affected -t test-ci
+
+      # WHY: o build é completo, e não só o afetado, porque o smoke sobe os oito serviços a partir dos jars.
+      - name: Build
+        run: npm run build
+
+      - name: Smoke
+        run: npm run smoke
+
+      - name: Correção sugerida das falhas
+        if: always()
+        run: npx nx fix-ci
+
+  agents:
+    name: Agente ${{ matrix.agent }}
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        agent: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
+      - name: Node, Java e Gradle
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Agente do Nx Cloud
+        run: npx nx-cloud start-worker
+        env:
+          NX_AGENT_NAME: ${{ matrix.agent }}
+
+      - name: Correção sugerida das falhas
+        if: always()
+        run: npx nx fix-ci
+
+  # Único check obrigatório da proteção da main: pulado conta como aprovado, porque o escopo só pula o que não se
+  # aplica à mudança; falha ou cancelamento reprova.
+  ci:
+    name: CI
+    needs: [scope, verify, agents]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Resultado dos jobs
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" > /dev/null

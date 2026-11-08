@@ -1,0 +1,69 @@
+@startuml estados-produto
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/pencil_alt>
+!include <tupadr3/font-awesome-5/hourglass_half>
+!include <tupadr3/font-awesome-5/eye>
+!include <tupadr3/font-awesome-5/pause_circle>
+!include <tupadr3/font-awesome-5/ban>
+!include <tupadr3/font-awesome-5/archive>
+!include <tupadr3/font-awesome-5/box_open>
+title Ciclo de publicação do produto (ProductStatus / ProductTransition)
+
+hide empty description
+skinparam StateBackgroundColor<<derivado>> #FAFAFA
+skinparam StateBorderColor<<derivado>> #90A4AE
+
+state "Editáveis (isEditable)" as Editaveis #F5FAFF;line:1565C0 {
+  state "<$pencil_alt,scale=0.5,color=#1565C0> DRAFT" as DRAFT <<inicial>>
+  state "<$hourglass_half,scale=0.5,color=#FFA000> PENDING_MODERATION" as PENDING_MODERATION <<espera>>
+  state "Publicados (isPublished)" as Publicados #F6FBF6;line:2E7D32 {
+    state "<$eye,scale=0.5,color=#2E7D32> ACTIVE" as ACTIVE <<ativo>>
+    state "<$pause_circle,scale=0.5,color=#FFA000> PAUSED_BY_SELLER" as PAUSED_BY_SELLER <<espera>>
+  }
+}
+state "<$ban,scale=0.5,color=#C62828> BLOCKED" as BLOCKED <<erro>>
+state "<$archive,scale=0.5,color=#455A64> ARCHIVED" as ARCHIVED <<terminal>>
+state "<$box_open,scale=0.5,color=#78909C> OUT_OF_STOCK" as OUT_OF_STOCK <<derivado>>
+
+[*] --> DRAFT : CREATE\nProduct.draft\n[categoria ativa, atributos válidos]
+DRAFT --> PENDING_MODERATION : SUBMIT\n[sem motivos de PublishingPolicy]
+PENDING_MODERATION -[#2E7D32]-> ACTIVE : <color:#2E7D32>APPROVE</color>\n[publicável e loja APPROVED]
+PENDING_MODERATION -[#C62828]-> DRAFT : <color:#C62828>REJECT</color>\n[motivo obrigatório]
+ACTIVE --> PAUSED_BY_SELLER : PAUSE
+PAUSED_BY_SELLER --> ACTIVE : RESUME\n[loja APPROVED]
+Publicados --> PENDING_MODERATION : REVIEW_REQUIRED\n(automática ao editar\nconteúdo ou SKU)
+Editaveis -[#C62828]-> BLOCKED : <color:#C62828>BLOCK</color>\n[motivo obrigatório]
+BLOCKED --> PENDING_MODERATION : UNBLOCK
+Editaveis -[#455A64]-> ARCHIVED : ARCHIVE
+BLOCKED -[#455A64]-> ARCHIVED : ARCHIVE
+ARCHIVED --> [*]
+
+ACTIVE -[dashed]-> OUT_OF_STOCK : leitura: nenhum SKU\ncom saldo disponível
+
+note right of OUT_OF_STOCK
+  Nunca é gravado. É o ACTIVE sem saldo,
+  calculado por effectiveStatus(anyAvailable).
+  Nenhuma transição parte dele.
+end note
+
+note bottom of ARCHIVED
+  Estado final: nenhuma transição sai dele.
+  Oferta e estoque ficam congelados
+  (requireNotArchived).
+end note
+
+note bottom of BLOCKED
+  Não aceita edição. BLOCK emite
+  ProductStatusChanged e ProductBlocked.
+end note
+
+legend right
+  <b>Produto</b>
+  <back:#64B5F6>    </back> Rascunho (editável)
+  <back:#FFCA28>    </back> Aguardando moderação ou pausado
+  <back:#66BB6A>    </back> Publicado ativo
+  <back:#E57373>    </back> Bloqueado (sem edição)
+  <back:#90A4AE>    </back> Arquivado (final)
+  - - → Status derivado na leitura, nunca gravado
+endlegend
+@enduml

@@ -1,0 +1,141 @@
+@startuml pacotes
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/sliders_h>
+!include <tupadr3/font-awesome-5/box>
+title Pacotes do catálogo-inventário: módulos Nx/Gradle e dependências entre pacotes Java
+
+hide empty members
+skinparam linetype polyline
+skinparam nodesep 30
+skinparam ranksep 80
+skinparam defaultTextAlignment center
+skinparam rectangle<<pacote>> {
+  BackgroundColor #FFFFFF
+  BorderColor #90A4AE
+}
+hide stereotype
+
+package "$I_QUARKUS catalog-inventory-service\napps/catalog-inventory-service\nlayer:service" as svc <<infra>> {
+  rectangle "$I_API api\n25 tipos" as s_api <<pacote>>
+  rectangle "$I_CACHE cache\n10 tipos" as s_cache <<pacote>>
+  rectangle "<$sliders_h,scale=0.8,color=#455A64> config\n1 tipo" as s_config <<pacote>>
+  rectangle "$I_CSV imports\n5 tipos" as s_imports <<pacote>>
+  rectangle "$I_SISTEMA messaging\n3 tipos" as s_messaging <<pacote>>
+  rectangle "$I_METRICA observability\n12 tipos" as s_observability <<pacote>>
+  rectangle "$I_OUTBOX outbox\n4 tipos" as s_outbox <<pacote>>
+  rectangle "$I_REPOSITORIO persistence\n10 tipos" as s_persistence <<pacote>>
+  rectangle "$I_SEGURANCA security\n4 tipos" as s_security <<pacote>>
+  rectangle "$I_SERVIDOR raiz\n3 tipos" as s_root <<pacote>>
+}
+
+package "$I_SERVICO catalog-inventory-application\nlibs/catalog-inventory/application\nlayer:application" as app <<aplicacao>> {
+  rectangle "$I_SERVICO application\n33 tipos" as a_app <<pacote>>
+}
+
+package "$I_DOMINIO catalog-inventory-domain\nlibs/catalog-inventory/domain\nlayer:domain" as dom <<dominio>> {
+  rectangle "$I_DOMINIO domain\n4 tipos" as d_root <<pacote>>
+  rectangle "$I_CATEGORIA domain.category\n3 tipos" as d_category <<pacote>>
+  rectangle "<$box,scale=0.8,color=#2E7D32> domain.product\n9 tipos" as d_product <<pacote>>
+  rectangle "$I_OFERTA domain.offer\n5 tipos" as d_offer <<pacote>>
+  rectangle "$I_ESTOQUE domain.inventory\n11 tipos" as d_inventory <<pacote>>
+}
+
+s_api --[#1F77B4]-> s_cache
+s_api --[#1F77B4]-> s_config
+s_api --[#1F77B4]-> s_imports
+s_api --[#1F77B4]-> s_observability
+s_api --[#1F77B4]-> s_security
+s_cache --[#2CA02C]-> s_config
+s_cache --[#2CA02C]-> s_observability
+s_imports --[#9467BD]-> s_config
+s_imports --[#9467BD]-> s_observability
+s_messaging --[#FF7F0E]-> s_config
+s_messaging --[#FF7F0E]-> s_observability
+s_messaging --[#FF7F0E]-> s_outbox
+s_messaging --[#FF7F0E]-> s_persistence
+s_observability --[#D62728]-> s_config
+s_outbox --[#BCBD22]-> s_config
+s_outbox --[#BCBD22]-> s_observability
+s_persistence --[#8C564B]-> s_config
+s_persistence --[#8C564B]-> s_observability
+s_persistence --[#8C564B]-> s_outbox
+s_security --[#7F7F7F]-> s_config
+s_security --[#7F7F7F]-> s_observability
+s_root --[#E377C2]-> s_cache
+s_root --[#E377C2]-> s_config
+s_root --[#E377C2]-> s_observability
+
+s_api --[#1F77B4]-> a_app
+s_cache --[#2CA02C]-> a_app
+s_imports --[#9467BD]-> a_app
+s_messaging --[#FF7F0E]-> a_app
+s_persistence --[#8C564B]-> a_app
+s_security --[#7F7F7F]-> a_app
+s_root --[#E377C2]-> a_app
+
+s_api --[#1F77B4,dashed]-> d_root
+s_api --[#1F77B4,dashed]-> d_category
+s_api --[#1F77B4,dashed]-> d_product
+s_api --[#1F77B4,dashed]-> d_offer
+s_api --[#1F77B4,dashed]-> d_inventory
+s_cache --[#2CA02C,dashed]-> d_root
+s_cache --[#2CA02C,dashed]-> d_category
+s_cache --[#2CA02C,dashed]-> d_product
+s_cache --[#2CA02C,dashed]-> d_offer
+s_messaging --[#FF7F0E,dashed]-> d_product
+s_outbox --[#BCBD22,dashed]-> d_root
+s_outbox --[#BCBD22,dashed]-> d_product
+s_outbox --[#BCBD22,dashed]-> d_offer
+s_outbox --[#BCBD22,dashed]-> d_inventory
+s_persistence --[#8C564B,dashed]-> d_root
+s_persistence --[#8C564B,dashed]-> d_category
+s_persistence --[#8C564B,dashed]-> d_product
+s_persistence --[#8C564B,dashed]-> d_offer
+s_persistence --[#8C564B,dashed]-> d_inventory
+
+a_app --[#000000]-> d_root
+a_app --[#000000]-> d_category
+a_app --[#000000]-> d_product
+a_app --[#000000]-> d_offer
+a_app --[#000000]-> d_inventory
+
+d_category --[#000000]-> d_root
+d_product --[#000000]-> d_root
+d_product --[#000000]-> d_category
+d_offer --[#000000]-> d_root
+d_inventory --[#000000]-> d_root
+d_inventory --[#000000]-> d_product
+d_inventory --[#000000]-> d_offer
+
+note right of d_root
+  Regra de camadas: o domínio não depende de
+  nenhum pacote interno fora de si mesmo
+  (Java puro, sem infraestrutura).
+end note
+
+note right of a_app
+  A aplicação depende só do domínio
+  (api project(':catalog-inventory-domain')).
+end note
+
+note left of s_config
+  Todos os pacotes do serviço importam
+  config por CatalogConfig (@ConfigMapping).
+  O serviço depende da aplicação e do domínio.
+end note
+
+note bottom of s_outbox
+  O grafo de pacotes do serviço não tem ciclos:
+  config não depende de nenhum pacote interno
+  e os contratos de evento ficam em outbox,
+  importados por messaging e persistence.
+end note
+
+legend bottom
+  <b>Leitura</b>
+  <back:#455A64>    </back> Módulo do serviço  <back:#1565C0>    </back> Módulo de aplicação  <back:#2E7D32>    </back> Módulo de domínio
+  Seta contínua: import entre pacotes. Seta tracejada: import de pacote do domínio.
+  Cor da seta: pacote de origem no serviço; preto: dependências internas das bibliotecas.
+  Tipos contam os arquivos .java do pacote, sem package-info.
+endlegend
+@enduml

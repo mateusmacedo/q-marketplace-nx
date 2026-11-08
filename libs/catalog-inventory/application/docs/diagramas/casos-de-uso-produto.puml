@@ -1,0 +1,199 @@
+@startuml casos-de-uso-produto
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/box>
+!include <tupadr3/font-awesome-5/clipboard_list>
+title Casos de uso de ProductService
+left to right direction
+hide stereotype
+
+actor "$I_SELLER\nSeller\n(seller)" as seller
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+
+package "<$box,scale=0.8,color=#1565C0> ProductService" as ProductService <<aplicacao>> {
+  usecase "Criar produto em rascunho\n(create)" as UC_create
+  usecase "Consultar produto\n(get)" as UC_get <<leitura>>
+  usecase "Listar produtos\n(list)" as UC_list <<leitura>>
+  usecase "Consultar histórico do produto\n(history)" as UC_history <<leitura>>
+  usecase "Revisar conteúdo do produto\n(reviseContent)" as UC_reviseContent
+  usecase "Adicionar SKU\n(addSku)" as UC_addSku
+  usecase "Revisar SKU\n(reviseSku)" as UC_reviseSku
+  usecase "Remover SKU\n(removeSku)" as UC_removeSku
+  usecase "Enviar produto à moderação\n(submit)" as UC_submit
+  usecase "Pausar produto\n(pause)" as UC_pause
+  usecase "Retomar produto\n(resume)" as UC_resume
+  usecase "Arquivar produto\n(archive)" as UC_archive
+  usecase "Devolver produto publicado\nà moderação\n(REVIEW_REQUIRED)" as UC_review
+}
+
+package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
+  usecase "Calcular saldo dos SKUs\n(stockOf)" as UC_stockOf <<leitura>>
+}
+
+seller --> UC_create
+seller --> UC_get
+seller --> UC_list
+seller --> UC_history
+seller --> UC_reviseContent
+seller --> UC_addSku
+seller --> UC_reviseSku
+seller --> UC_removeSku
+seller --> UC_submit
+seller --> UC_pause
+seller --> UC_resume
+seller --> UC_archive
+
+moderator --> UC_get
+moderator --> UC_list
+moderator --> UC_history
+
+admin --> UC_get
+admin --> UC_list
+admin --> UC_history
+
+UC_create ..> UC_stockOf : <<include>>
+UC_get ..> UC_stockOf : <<include>>
+UC_list ..> UC_stockOf : <<include>>
+UC_reviseContent ..> UC_stockOf : <<include>>
+UC_addSku ..> UC_stockOf : <<include>>
+UC_reviseSku ..> UC_stockOf : <<include>>
+UC_removeSku ..> UC_stockOf : <<include>>
+UC_submit ..> UC_stockOf : <<include>>
+UC_pause ..> UC_stockOf : <<include>>
+UC_resume ..> UC_stockOf : <<include>>
+UC_archive ..> UC_stockOf : <<include>>
+
+UC_review ..> UC_reviseContent : <<extend>>
+UC_review ..> UC_addSku : <<extend>>
+UC_review ..> UC_reviseSku : <<extend>>
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_create
+    **create**
+    Exige papel seller e loja no token.
+    Categoria inexistente: <color:#C62828>404</color>; ela ou um ancestral
+    inativo: <color:#C62828>category-inactive</color>.
+    SKU repetido na loja: <color:#C62828>duplicate-seller-sku</color> (<color:#C62828>409</color>).
+    Atributos fora da categoria: <color:#C62828>invalid-attributes</color>.
+    Nasce em DRAFT, sem idempotência.
+    API: <color:#2E7D32>201</color> com Location e ETag.
+  end note
+  note as N_get
+    **get**
+    Admin e moderador veem qualquer loja do tenant;
+    seller, só a própria. Inexistente ou fora do
+    alcance: <color:#C62828>404</color>, sem distinguir.
+    ETag = versão do produto. GET .../skus/{skuId}
+    usa este mesmo caso de uso.
+  end note
+  note as N_list
+    **list**
+    Cursor por id, limit de 1 a 100.
+    Admin e moderador filtram por storeId; o seller
+    vê só a própria loja e o filtro é ignorado.
+    Filtrar por OUT_OF_STOCK é inválido (<color:#C62828>400</color>):
+    estado derivado do saldo.
+  end note
+  note as N_history
+    **history**
+    Transições em ordem cronológica, com ator e
+    motivo. Mesma visibilidade de get. Único caso
+    que devolve produto sem incluir stockOf.
+  end note
+  note as N_reviseContent
+    **reviseContent**
+    Só o seller dono (outra loja: <color:#C62828>404</color>).
+    If-Match obrigatório na API (<color:#C62828>428</color> ausente, <color:#C62828>412</color>
+    divergente); opcional no serviço.
+    BLOCKED ou ARCHIVED: <color:#C62828>invalid-transition</color> (<color:#C62828>409</color>).
+    <color:#C62828>category-inactive</color>, <color:#C62828>invalid-attributes</color>.
+  end note
+  note as N_addSku
+    **addSku**
+    Só o seller dono; If-Match opcional (<color:#C62828>412</color>).
+    BLOCKED ou ARCHIVED: <color:#C62828>invalid-transition</color>.
+    <color:#C62828>duplicate-seller-sku</color> (<color:#C62828>409</color>), <color:#C62828>invalid-attributes</color>.
+    API: <color:#2E7D32>201</color> com Location do SKU.
+  end note
+  note as N_reviseSku
+    **reviseSku**
+    Só o seller dono; If-Match obrigatório na API
+    (<color:#C62828>428</color> ausente, <color:#C62828>412</color> divergente), sobre a versão
+    do produto.
+    <color:#C62828>sku-not-found</color>, <color:#C62828>missing-dimensions</color> (físico sem
+    dimensões), <color:#C62828>invalid-transition</color>.
+  end note
+  note as N_removeSku
+    **removeSku**
+    Só o seller dono; If-Match opcional (<color:#C62828>412</color>).
+    Só em DRAFT: <color:#C62828>sku-removal-requires-draft</color>.
+    SKU com saldo: <color:#C62828>sku-has-stock</color> (<color:#C62828>409</color>).
+    A oferta do SKU sai junto.
+  end note
+  note as N_submit
+    **submit**
+    Só o seller dono; If-Match opcional (<color:#C62828>412</color>).
+    DRAFT para PENDING_MODERATION; outro estado:
+    <color:#C62828>invalid-transition</color>.
+    Exige categoria ativa, oferta em todo SKU e
+    atributos obrigatórios; senão
+    <color:#C62828>product-not-publishable</color> (<color:#C62828>422</color>) com reasons.
+    Não consulta o KYB/KYC da loja: approve e
+    resume é que o conferem.
+  end note
+  note as N_pause
+    **pause**
+    Só o seller dono; If-Match opcional (<color:#C62828>412</color>).
+    ACTIVE (esgotado ou não) para PAUSED_BY_SELLER;
+    sai da vitrine. Outro estado: <color:#C62828>invalid-transition</color>.
+  end note
+  note as N_resume
+    **resume**
+    Só o seller dono; If-Match opcional (<color:#C62828>412</color>).
+    PAUSED_BY_SELLER para ACTIVE, sem nova moderação.
+    Loja fora de APPROVED: <color:#C62828>seller-not-eligible</color> (<color:#C62828>422</color>).
+  end note
+  note as N_archive
+    **archive**
+    Só o seller dono; If-Match opcional (<color:#C62828>412</color>).
+    Qualquer estado, menos ARCHIVED; é definitivo
+    e congela edição, oferta e estoque.
+  end note
+  note as N_review
+    **REVIEW_REQUIRED**
+    Condição: produto ACTIVE ou PAUSED_BY_SELLER.
+    A edição grava a transição REVIEW_REQUIRED e o
+    produto volta para PENDING_MODERATION.
+    Em DRAFT e PENDING_MODERATION só atualiza o
+    produto.
+  end note
+  note as N_stockOf
+    **stockOf**
+    Sem ator: ProductResponses, no adaptador REST,
+    o chama para montar a resposta de produto com o
+    saldo atual e derivar OUT_OF_STOCK.
+  end note
+}
+
+N_create -[hidden]left-> N_get
+N_get -[hidden]left-> N_list
+N_list -[hidden]left-> N_history
+N_history -[hidden]left-> N_reviseContent
+N_reviseContent -[hidden]left-> N_addSku
+N_addSku -[hidden]left-> N_reviseSku
+N_reviseSku -[hidden]left-> N_removeSku
+N_removeSku -[hidden]left-> N_submit
+N_submit -[hidden]left-> N_pause
+N_pause -[hidden]left-> N_resume
+N_resume -[hidden]left-> N_archive
+N_archive -[hidden]left-> N_review
+N_review -[hidden]left-> N_stockOf
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <color:#546E7A>╌╌▸</color> «include» sempre executado; «extend» variante condicional
+  <color:#C62828>código</color> recusa (problem, 4xx); <color:#2E7D32>2xx</color> sucesso
+endlegend
+@enduml

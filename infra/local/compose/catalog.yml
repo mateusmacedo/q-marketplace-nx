@@ -1,0 +1,90 @@
+# Catálogo em dois papéis do mesmo executável (ADR 020), no schema catalog_inventory do PostgreSQL compartilhado
+# (postgres.yml); o Redis do cache fica em redis.yml. A imagem empacota o executável gerado por
+# `npx nx run catalog-inventory-service:native`. Saúde e métricas ficam na porta de gestão 9000 dos dois papéis.
+x-catalog: &catalog
+  build:
+    context: ../../..
+    dockerfile: infra/docker/Dockerfile.native
+    args:
+      APP: catalog-inventory-service
+  image: marketplace-nx/catalog-inventory:local
+  profiles: [catalog, all]
+  # Logs vão por OTLP; o Alloy ignora o stdout de quem tem este rótulo, para não duplicar no Loki.
+  labels:
+    dev.marketplace.telemetry: otlp
+  environment: &catalog-env
+    QUARKUS_OTEL_SDK_DISABLED: ${CATALOG_OTEL_SDK_DISABLED:-false}
+    QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    # Requisições usam o cliente reativo com o role de runtime, só DML; o JDBC serve só às migrations Flyway no boot,
+    # que rodam com o role dono do schema.
+    QUARKUS_DATASOURCE_REACTIVE_URL: postgresql://postgres:5432/marketplace
+    QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/marketplace
+    QUARKUS_DATASOURCE_USERNAME: catalog_inventory
+    QUARKUS_DATASOURCE_PASSWORD: ${CATALOG_INVENTORY_DB_PASSWORD:-catalog-inventory-local}
+    QUARKUS_FLYWAY_USERNAME: catalog_inventory_migrator
+    QUARKUS_FLYWAY_PASSWORD: ${CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD:-catalog-inventory-migrator-local}
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    # Cache da vitrine e da taxonomia (ADR 024), desligado por padrão; true liga com o usuário catalog da ACL do Redis.
+    CATALOG_CACHE_ENABLED: ${CATALOG_CACHE_ENABLED:-false}
+    QUARKUS_REDIS_HOSTS: redis://catalog@redis:6379
+    QUARKUS_REDIS_PASSWORD: ${REDIS_CATALOG_PASSWORD:-catalog-local-redis}
+    # Padrões apontam para o Keycloak local; sobrescreva para usar outro provedor OIDC.
+    CATALOG_JWT_ISSUER: ${CATALOG_JWT_ISSUER:-http://localhost:${KEYCLOAK_PORT:-8180}/realms/marketplace}
+    CATALOG_JWT_JWKS_URL: ${CATALOG_JWT_JWKS_URL:-http://keycloak:8080/realms/marketplace/protocol/openid-connect/certs}
+    CATALOG_JWT_AUDIENCE: ${CATALOG_JWT_AUDIENCE:-catalog-inventory}
+    CATALOG_JWT_GROUPS_PATH: ${CATALOG_JWT_GROUPS_PATH:-realm_access/roles}
+  # Pronto quando o readiness da porta de gestão responde UP; `up --wait` depende disto. A micro image não tem curl,
+  # então o próprio bash faz a requisição pelo /dev/tcp.
+  healthcheck:
+    test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /q/health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+    start_period: 5s
+  # WHY: acima dos 25 s do quarkus.shutdown.timeout; com os 10 s padrão do compose, o SIGKILL interrompia a drenagem.
+  stop_grace_period: 30s
+  read_only: true
+  tmpfs: ["/tmp"]
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  # HTTP de negócio e gravação na outbox, sem tarefas agendadas nem Kafka.
+  catalog-api:
+    <<: *catalog
+    deploy:
+      resources:
+        limits: {cpus: "1", memory: 512M}
+        reservations: {cpus: "0.10", memory: 128M}
+    ports:
+      - "127.0.0.1:${CATALOG_PORT:-8083}:8080"
+      - "127.0.0.1:${CATALOG_API_MANAGEMENT_PORT:-9083}:9000"
+    depends_on:
+      postgres-init: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+      otel-collector: {condition: service_started}
+    environment:
+      <<: *catalog-env
+      QUARKUS_PROFILE: prod,api
+      # Swagger UI só no ambiente local: http://localhost:8083/q/swagger-ui
+      CATALOG_SWAGGER_UI_ENABLED: ${CATALOG_SWAGGER_UI_ENABLED:-true}
+
+  # Relay da outbox, varredor de reservas, importação, contagem de SKUs, limpeza e consumo dos vereditos do KYB/KYC.
+  catalog-worker:
+    <<: *catalog
+    deploy:
+      resources:
+        limits: {cpus: "0.50", memory: 256M}
+        reservations: {cpus: "0.05", memory: 64M}
+    ports:
+      - "127.0.0.1:${CATALOG_WORKER_MANAGEMENT_PORT:-9084}:9000"
+    depends_on:
+      postgres-init: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+      otel-collector: {condition: service_started}
+    environment:
+      <<: *catalog-env
+      QUARKUS_PROFILE: prod,worker
+

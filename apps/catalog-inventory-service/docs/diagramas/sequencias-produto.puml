@@ -1,0 +1,572 @@
+@startuml sequencias-produto
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!procedure $legenda_sequencia()
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Ator externo
+  <back:#EF6C00>    </back> Entrada (REST)
+  <back:#1565C0>    </back> Aplicação (caso de uso)
+  <back:#2E7D32>    </back> Domínio
+  <back:#6A1B9A>    </back> Saída (repositórios, outbox, cache)
+  <back:#455A64>    </back> Infraestrutura
+  <b>Respostas</b>
+  <back:#66BB6A>    </back> Sucesso (2xx) e caminho feliz
+  <back:#E57373>    </back> Recusa (4xx/5xx, problem+json)
+endlegend
+!endprocedure
+title POST /products: criar produto em rascunho (ProductService.create)
+autonumber
+
+participant "$I_SELLER\nSeller" as seller <<ator>>
+participant "$I_ADMIN\nSeller, Admin ou\nModerador" as reader <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_API\nProductResource" as res <<entrada>>
+  participant "$I_ESTOQUE\nProductResponses /\nInventoryService /\nPgInventoryRepository" as resp <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_SERVICO\nProductService" as svc <<aplicacao>>
+end box
+box "Domínio" #F6FBF6
+  participant "$I_DOMINIO\nProduct\n(domínio)" as dom <<dominio>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_REPOSITORIO\nPgCategoryRepository /\nPgOfferRepository /\nPgSellerEligibilityRepository" as ctx <<saida>>
+  participant "$I_CACHE\nProductCacheInvalidation\n(decorator)" as dec <<saida>>
+  participant "$I_REPOSITORIO\nPgProductRepository" as repo <<saida>>
+  participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+  database "$I_REDIS\nRedis" as redis
+end box
+
+seller -> res : POST /products {categoryId, currency, title, description, attributes, skus}
+note over res, resp : Fluxo detalhado em sequencia-publicacao-produto.puml (seção "Criar rascunho")
+res -> svc : create(actor, categoryId, currency, title, description, attributes, skus)
+svc -> svc : ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> ctx : chain(tenant, categoryId)
+ctx -> pg : SELECT category WHERE id = ANY (ancestry || id)
+opt #FFEBEE categoria inexistente no tenant
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : CategoryView.requireActive
+opt #FFEBEE categoria ou ancestral inativo
+  res -[#C62828]-> seller : <color:#C62828>422 category-inactive</color>
+end
+svc -> dom : Product.draft(categoria, atributos efetivos, moeda, texto, SKUs)
+opt #FFEBEE conteúdo recusado pelo domínio
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-attributes (reasons), invalid-value, missing-dimensions</color>\n<color:#C62828>ou duplicate-seller-sku (repetido no próprio produto)</color>
+end
+== Persistência transacional ==
+svc -> dec : insert(product)
+dec -> repo : insert
+repo -> pg : transação única: product (DRAFT, version 0), sku, inventory_level zerado,\nproduct_status_change CREATE e outbox_event ProductCreated
+opt #FFEBEE SKU do seller já usado em outro produto da loja (sku_store_seller_sku_uk)
+  res -[#C62828]-> seller : <color:#C62828>409 duplicate-seller-sku (transação revertida)</color>
+end
+res -[#2E7D32]-> seller : <color:#2E7D32><b>201</b></color> Created + Location /products/{id} + ETag da versão 0\n(catalog.products.created++)
+note over res, repo
+  Comum às páginas: 401 token ausente ou inválido; 403 papel fora do @RolesAllowed
+  ou claim de tenant ausente (tenant-not-authorized); 400 validation-failed e malformed-body;
+  503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+  Leituras (findById, find, history) passam direto pelo decorator; só insert e update
+  invalidam o cache, também quando a escrita falha.
+end note
+$legenda_sequencia()
+
+newpage GET /products/{id}: consultar produto (ProductService.get)
+autonumber 1
+reader -> res : GET /products/{id} (seller da loja dona, admin ou moderador)
+res -> svc : get(actor, id)
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id\n(um statement, snapshot único)
+svc -> svc : ProductAccess.requireVisible: READ_TENANT_CATALOG ou MODERATE_PRODUCTS\nvê qualquer loja; MANAGE_OWN_PRODUCTS só a própria
+alt #FFEBEE produto inexistente ou fora do alcance do chamador
+  res -[#C62828]-> reader : <color:#C62828>404 not-found (não revela se o produto existe)</color>
+else #E8F5E9 visível
+  res -> resp : ProductResponses.ok(product)
+  resp -> pg : SELECT sku_id, on_hand, reserved, sold, version FROM inventory_level\nWHERE tenant_id AND sku_id = ANY (SKUs do produto)
+  resp -> resp : Product.effectiveStatus: ACTIVE sem saldo disponível vira OUT_OF_STOCK\n(derivado na leitura, nunca gravado)
+  res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> + ETag (versão do produto)
+end
+note over res, resp
+  GET /products/{id}/skus/{skuId} reutiliza ProductService.get e devolve só o SKU, com o ETag
+  da versão do produto. SKU que não pertence ao produto: Product.sku lança
+  DomainRuleViolation, que responde 422 sku-not-found (não 404).
+end note
+$legenda_sequencia()
+
+newpage GET /products: listar produtos com cursor (ProductService.list)
+autonumber 1
+reader -> res : GET /products?status=&storeId=&cursor=&limit=
+res -> res : @RolesAllowed (seller, catalog-admin, catalog-moderator);\n@Min(1) @Max(100) em limit; status(): ProductStatus.valueOf;\nQueryParams.uuid(storeId); Cursors.decodeUuid(cursor)
+opt #FFEBEE limit fora de 1 a 100
+  res -[#C62828]-> reader : <color:#C62828>400 validation-failed</color>
+end
+opt #FFEBEE status desconhecido, storeId ou cursor malformados (cursor: base64url de UUID)
+  res -[#C62828]-> reader : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : list(actor, status, storeFilter, afterId, limit)
+svc -> svc : Page.fetch: requireSize(limit)
+opt #FFEBEE status = OUT_OF_STOCK (derivado do saldo, não gravado)
+  res -[#C62828]-> reader : <color:#C62828>400 invalid-request</color>
+end
+svc -> svc : ProductAccess.listScope: admin e moderador filtram por storeId (vazio = todas);\nseller: requireSeller e só a própria loja (storeId ignorado)
+opt #FFEBEE seller sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> reader : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : find(tenant, loja?, status?, afterId, limit + 1)
+repo -> pg : SELECT product WHERE tenant_id [AND store_id] [AND status] [AND id > cursor]\nORDER BY id LIMIT limit + 1, com LEFT JOIN sku
+svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = id do último item da página
+res -> resp : ProductResponses.page(page)
+resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs da página)\n(uma consulta; página sem SKUs não consulta)
+res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> {items, nextCursor em base64url, ausente na última página}
+$legenda_sequencia()
+
+newpage GET /products/{id}/history: histórico de transições (ProductService.history)
+autonumber 1
+reader -> res : GET /products/{id}/history
+res -> svc : history(actor, id)
+svc -> repo : findById(tenant, id) (visibilidade como em ProductService.get)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+alt #FFEBEE produto inexistente ou fora do alcance do chamador
+  res -[#C62828]-> reader : <color:#C62828>404 not-found</color>
+else #E8F5E9 visível
+  svc -> repo : history(tenant, product.id)
+  repo -> pg : SELECT id, transition, from_status, to_status, actor, reason, occurred_at\nFROM product_status_change WHERE tenant_id AND product_id\nORDER BY occurred_at, id
+  res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> [{transition, from, to, actor, reason, at}] em ordem cronológica\n(sem ETag e sem consulta de saldo)
+end
+$legenda_sequencia()
+
+newpage PUT /products/{id}: revisar conteúdo (ProductService.reviseContent)
+autonumber 1
+seller -> res : PUT /products/{id} {categoryId, title, description, attributes} + If-Match
+res -> res : @RolesAllowed(seller); @Valid ReviseProductRequest; ETags.required(If-Match)
+opt #FFEBEE If-Match ausente, vazio ou *
+  res -[#C62828]-> seller : <color:#C62828>428 precondition-required</color>
+end
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : reviseContent(actor, id, ifMatch, categoryId, title, description, attributes)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> ctx : chain(tenant, novo categoryId)
+ctx -> pg : SELECT category WHERE id = ANY (ancestry || id)
+opt #FFEBEE categoria inexistente no tenant
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : CategoryView.requireActive
+opt #FFEBEE categoria ou ancestral inativo
+  res -[#C62828]-> seller : <color:#C62828>422 category-inactive</color>
+end
+svc -> dom : reviseContent(categoria, atributos efetivos, title, description, attributes, ator, agora)
+alt #FFEBEE produto BLOCKED ou ARCHIVED (requireEditable)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (operação EDIT)</color>
+else #FFEBEE atributos fora da categoria, texto inválido ou categoria de outro tenant
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-attributes (reasons) ou invalid-value</color>
+else #FAFAFA produto ACTIVE ou PAUSED_BY_SELLER
+  dom -> dom : REVIEW_REQUIRED: volta para PENDING_MODERATION;\nStatusChange + ProductStatusChanged(visible=false)
+else #FAFAFA produto DRAFT ou PENDING_MODERATION
+  dom -> dom : só atualiza updatedAt (sem transição e sem evento)
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET category_id, title, description, attributes, status,\nversion = version + 1 WHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : INSERT sku ... ON CONFLICT (id) DO UPDATE (só o que mudou);\nINSERT inventory_level ... ON CONFLICT DO NOTHING;\nINSERT product_status_change (só se houve transição)
+  repo -> outbox : append(ProductStatusChanged), se houve transição
+  outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE: INCR catalog:gen:product:{tenant}:{produto};\nrenova catalog:product-store; uma nova tentativa se falhar
+  end
+  res -> resp : ProductResponses.ok(product)
+  resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1); status efetivo (OUT_OF_STOCK se ACTIVE sem saldo)
+end
+$legenda_sequencia()
+
+newpage POST /products/{id}/skus: adicionar SKU (ProductService.addSku)
+autonumber 1
+seller -> res : POST /products/{id}/skus {sellerSku, variantAttributes, physical, dimensions}\n+ If-Match opcional
+res -> res : @RolesAllowed(seller); @Valid SkuRequest; ETags.optional(If-Match)
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : addSku(actor, id, ifMatch, NewSku)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> ctx : chain(tenant, categoria do produto)
+ctx -> pg : SELECT category WHERE id = ANY (ancestry || id)
+svc -> dom : Sku.create(...) e Product.addSku(sku, atributos efetivos, ator, agora)
+alt #FFEBEE código fora do padrão ou SKU físico sem dimensões
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-value ou missing-dimensions</color>
+else #FFEBEE produto BLOCKED ou ARCHIVED (requireEditable)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (operação EDIT)</color>
+else #FFEBEE sellerSku repetido no produto ou acima de 100 SKUs
+  res -[#C62828]-> seller : <color:#C62828>422 duplicate-seller-sku ou invalid-value</color>
+else #FFEBEE variante fora da categoria
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-attributes (reasons)</color>
+else #FAFAFA produto ACTIVE ou PAUSED_BY_SELLER
+  dom -> dom : REVIEW_REQUIRED: volta para PENDING_MODERATION;\nStatusChange + ProductStatusChanged(visible=false)
+else #FAFAFA produto DRAFT ou PENDING_MODERATION
+  dom -> dom : só atualiza updatedAt
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET ... version = version + 1\nWHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : INSERT sku (novo SKU, position); INSERT inventory_level zerado do novo SKU
+  alt #FFEBEE sellerSku já usado em outro produto da loja (sku_store_seller_sku_uk)
+    repo -> pg : ROLLBACK
+    res -[#C62828]-> seller : <color:#C62828>409 duplicate-seller-sku</color>
+  else #E8F5E9 ok
+    repo -> pg : INSERT product_status_change (só se houve transição)
+    repo -> outbox : append(ProductStatusChanged), se houve transição
+    outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
+    repo -> pg : COMMIT
+    opt cache ligado
+      dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+    end
+    res -> resp : ProductResponses.of(product)
+    resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+    res -[#2E7D32]-> seller : <color:#2E7D32><b>201</b></color> Created + Location /products/{id}/skus/{skuId} + ETag (versão + 1)
+  end
+end
+$legenda_sequencia()
+
+newpage PUT /products/{id}/skus/{skuId}: revisar SKU (ProductService.reviseSku)
+autonumber 1
+seller -> res : PUT /products/{id}/skus/{skuId} {variantAttributes, physical, dimensions} + If-Match
+res -> res : @RolesAllowed(seller); @Valid ReviseSkuRequest; ETags.required(If-Match);\nDimensionsDto.domainOf
+opt #FFEBEE If-Match ausente, vazio ou *
+  res -[#C62828]-> seller : <color:#C62828>428 precondition-required</color>
+end
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : reviseSku(actor, id, skuId, ifMatch, variantAttributes, physical, dimensions)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> ctx : chain(tenant, categoria do produto)
+ctx -> pg : SELECT category WHERE id = ANY (ancestry || id)
+svc -> dom : reviseSku(skuId, variantAttributes, physical, dimensions, atributos efetivos, ator, agora)
+alt #FFEBEE produto BLOCKED ou ARCHIVED (requireEditable)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (operação EDIT)</color>
+else #FFEBEE SKU não pertence ao produto
+  res -[#C62828]-> seller : <color:#C62828>422 sku-not-found</color>
+else #FFEBEE físico sem dimensões ou não físico com dimensões
+  res -[#C62828]-> seller : <color:#C62828>422 missing-dimensions ou invalid-value</color>
+else #FFEBEE variante fora da categoria
+  res -[#C62828]-> seller : <color:#C62828>422 invalid-attributes (reasons)</color>
+else #FAFAFA produto ACTIVE ou PAUSED_BY_SELLER
+  dom -> dom : Sku.define; REVIEW_REQUIRED: volta para PENDING_MODERATION;\nStatusChange + ProductStatusChanged(visible=false)
+else #FAFAFA produto DRAFT ou PENDING_MODERATION
+  dom -> dom : Sku.define; só atualiza updatedAt
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET ... version = version + 1\nWHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : INSERT sku ... ON CONFLICT (id) DO UPDATE (variant_attributes, physical, dimensões);\nINSERT product_status_change (só se houve transição)
+  repo -> outbox : append(ProductStatusChanged), se houve transição
+  outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+  end
+  res -> resp : ProductResponses.ok(product)
+  resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)
+end
+$legenda_sequencia()
+
+newpage DELETE /products/{id}/skus/{skuId}: remover SKU (ProductService.removeSku)
+autonumber 1
+seller -> res : DELETE /products/{id}/skus/{skuId} + If-Match opcional
+res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : removeSku(actor, id, skuId, ifMatch)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> dom : removeSku(skuId, agora)
+alt #FFEBEE produto fora de DRAFT
+  res -[#C62828]-> seller : <color:#C62828>422 sku-removal-requires-draft</color>
+else #FFEBEE SKU não pertence ao produto
+  res -[#C62828]-> seller : <color:#C62828>422 sku-not-found</color>
+else #E8F5E9 ok
+  dom -> dom : tira o SKU da lista e atualiza updatedAt\n(sem transição, sem StatusChange e sem evento)
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET ... version = version + 1\nWHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : DELETE inventory_level dos SKUs removidos (só com on_hand = 0 e reserved = 0)
+  repo -> pg : DELETE sku dos SKUs removidos (offer e offer_promotion saem em cascata)
+  alt #FFEBEE SKU removido ainda com estoque ou reserva (FK inventory_level_sku_fk)
+    repo -> pg : ROLLBACK
+    res -[#C62828]-> seller : <color:#C62828>409 sku-has-stock</color>
+  else #E8F5E9 ok
+    repo -> pg : INSERT sku ... ON CONFLICT (id) DO UPDATE (SKUs que ficam, só se mudaram)
+    repo -> pg : COMMIT (nenhum outbox_event: a remoção não publica evento)
+    opt cache ligado
+      dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+    end
+    res -> resp : ProductResponses.ok(product)
+    resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs que ficaram)
+    res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)
+  end
+end
+$legenda_sequencia()
+
+newpage POST /products/{id}/submit: enviar para moderação (ProductService.submit)
+autonumber 1
+seller -> res : POST /products/{id}/submit (If-Match opcional)
+note over res, resp : Fluxo detalhado em sequencia-publicacao-produto.puml (seção "Envio para moderação")
+res -> svc : submit(actor, id, ifMatch)
+svc -> svc : mutateOwned: requireSeller; findById; Versions.requireMatch
+opt #FFEBEE recusa de acesso, de produto ou de versão
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied, 404 not-found ou 412 version-mismatch</color>
+end
+svc -> ctx : publicationOf: chain da categoria + ofertas do produto
+ctx -> pg : SELECT category (ancestry); SELECT offer WHERE tenant_id AND product_id
+svc -> dom : submit(atributos efetivos, categoria usável, SKUs com oferta, ator, agora)
+alt #FFEBEE produto fora de DRAFT
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (SUBMIT)</color>
+else #FFEBEE produto incompleto para publicação
+  res -[#C62828]-> seller : <color:#C62828>422 product-not-publishable com todos os motivos em reasons:</color>\n<color:#C62828>category-inactive, no-sku, missing-offer:{sellerSku}, unknown-attribute:{chave},</color>\n<color:#C62828>invalid-attribute:{chave}, missing-attribute:{código},</color>\n<color:#C62828>missing-variant-attribute:{sellerSku}:{código}, duplicate-variant:{sellerSku}</color>
+else #E8F5E9 ok
+  dom -> dom : SUBMIT: DRAFT para PENDING_MODERATION;\nStatusChange + ProductStatusChanged(visible=false)
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida) (detalhe no arquivo citado)
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)
+end
+$legenda_sequencia()
+
+newpage POST /products/{id}/pause: pausar produto (ProductService.pause)
+autonumber 1
+seller -> res : POST /products/{id}/pause (If-Match opcional)
+res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : pause(actor, id, ifMatch)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> dom : pause(ator, agora)
+alt #FFEBEE produto fora de ACTIVE (esgotado continua ACTIVE no banco e pode ser pausado)
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (PAUSE)</color>
+else #E8F5E9 ok
+  dom -> dom : PAUSE: ACTIVE para PAUSED_BY_SELLER;\nStatusChange + ProductStatusChanged(visible=false)
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET status, version = version + 1\nWHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : INSERT product_status_change (PAUSE, ACTIVE para PAUSED_BY_SELLER, ator)
+  repo -> outbox : append(ProductStatusChanged)
+  outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto});\no produto sai da vitrine antes da resposta
+  end
+  res -> resp : ProductResponses.ok(product)
+  resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status PAUSED_BY_SELLER
+end
+$legenda_sequencia()
+
+newpage POST /products/{id}/resume: reativar produto pausado (ProductService.resume)
+autonumber 1
+seller -> res : POST /products/{id}/resume (If-Match opcional)
+res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : resume(actor, id, ifMatch)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> ctx : sellerOf(product): statusOf(tenant, loja)
+ctx -> pg : SELECT status FROM seller_eligibility WHERE tenant_id AND store_id\n(loja sem linha conta como PENDING)
+svc -> dom : resume(situação KYB/KYC da loja, ator, agora)
+alt #FFEBEE produto fora de PAUSED_BY_SELLER
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (RESUME)</color>
+else #FFEBEE loja não APPROVED
+  res -[#C62828]-> seller : <color:#C62828>422 seller-not-eligible (reasons: seller-not-eligible:{status})</color>
+else #E8F5E9 ok
+  dom -> dom : RESUME: PAUSED_BY_SELLER para ACTIVE, sem nova moderação;\nStatusChange + ProductStatusChanged(visible=true)
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET status, version = version + 1\nWHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : INSERT product_status_change (RESUME, PAUSED_BY_SELLER para ACTIVE, ator)
+  repo -> outbox : append(ProductStatusChanged)
+  outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+  end
+  res -> resp : ProductResponses.ok(product)
+  resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status ACTIVE (OUT_OF_STOCK se sem saldo)
+end
+$legenda_sequencia()
+
+newpage DELETE /products/{id}: arquivar produto (ProductService.archive)
+autonumber 1
+seller -> res : DELETE /products/{id} (If-Match opcional)
+res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : archive(actor, id, ifMatch)
+svc -> svc : mutateOwned: ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findById(tenant, id)
+repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
+opt #FFEBEE produto inexistente ou de outra loja
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+end
+svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checagem)
+opt #FFEBEE If-Match diferente da versão lida
+  res -[#C62828]-> seller : <color:#C62828>412 version-mismatch</color>
+end
+svc -> dom : archive(ator, agora)
+alt #FFEBEE produto já ARCHIVED
+  res -[#C62828]-> seller : <color:#C62828>409 invalid-transition (ARCHIVE)</color>
+else #E8F5E9 ok
+  dom -> dom : ARCHIVE: qualquer estado para ARCHIVED (definitivo);\nStatusChange + ProductStatusChanged(visible=false)
+end
+== Persistência transacional ==
+svc -> dec : update(product, versão lida)
+dec -> repo : update
+repo -> pg : BEGIN; UPDATE product SET status, version = version + 1\nWHERE tenant_id AND id AND version = {versão lida}
+alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
+  repo -> pg : ROLLBACK
+  res -[#C62828]-> seller : <color:#C62828>409 concurrent-update</color>
+else #E8F5E9 ok
+  repo -> pg : INSERT product_status_change (ARCHIVE, estado anterior para ARCHIVED, ator)
+  repo -> outbox : append(ProductStatusChanged)
+  outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
+  end
+  res -> resp : ProductResponses.ok(product)
+  resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status ARCHIVED
+end
+note over res, repo : Exclusão lógica: o histórico fica. Arquivado congela edição (409 invalid-transition EDIT),\noferta (CHANGE_PRICE) e estoque (ADJUST_STOCK).
+$legenda_sequencia()
+@enduml

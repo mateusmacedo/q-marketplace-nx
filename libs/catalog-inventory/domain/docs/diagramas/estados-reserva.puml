@@ -1,0 +1,43 @@
+@startuml estados-reserva
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/check_circle>
+!include <tupadr3/font-awesome-5/undo_alt>
+!include <tupadr3/font-awesome-5/hourglass_end>
+title Ciclo de vida da reserva de estoque (ReservationStatus)
+
+hide empty description
+
+state "<$lock,scale=0.5,color=#2E7D32> ACTIVE" as ACTIVE <<ativo>> : retém estoque (reserved += n)\nclosedAt nulo
+state "<$check_circle,scale=0.5,color=#2E7D32> COMMITTED" as COMMITTED <<terminal>> : on_hand -= n, reserved -= n, sold += n
+state "<$undo_alt,scale=0.5,color=#455A64> RELEASED" as RELEASED <<terminal>> : reserved -= n
+state "<$hourglass_end,scale=0.5,color=#C62828> EXPIRED" as EXPIRED <<erro>> : reserved -= n
+
+[*] --> ACTIVE : ReservationPolicy.open\n[1 a 100 itens, produto ACTIVE,\nloja APPROVED, preço vigente igual]\n+ saldo atômico: on_hand - reserved >= n
+ACTIVE --> ACTIVE : extend\n[ativa, não vencida,\nnovo prazo <= createdAt + 24 h]\nsem evento
+ACTIVE -[#2E7D32]-> COMMITTED : <color:#2E7D32>commit</color>\n[expires_at > agora]
+ACTIVE -[#455A64]-> RELEASED : release
+ACTIVE -[#C62828]-> EXPIRED : <color:#C62828>expiração pelo varredor</color>\n[expires_at <= agora]
+COMMITTED --> [*]
+RELEASED --> [*]
+EXPIRED --> [*]
+
+note left of ACTIVE
+  overdueAt(now): ACTIVE com prazo vencido.
+  Não pode mais ser confirmada, mesmo
+  antes de o varredor expirá-la.
+end note
+
+note bottom of COMMITTED
+  COMMITTED, RELEASED e EXPIRED são finais
+  e mutuamente exclusivos. As transições são
+  aplicadas pelo armazenamento (compare-and-set),
+  em ReservationPolicy.LOCK_ORDER.
+end note
+
+legend right
+  <b>Reserva</b>
+  <back:#66BB6A>    </back> Ativa: retém estoque
+  <back:#90A4AE>    </back> Final: estoque devolvido ou vendido
+  <back:#E57373>    </back> Final por prazo vencido
+endlegend
+@enduml

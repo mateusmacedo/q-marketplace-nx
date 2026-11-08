@@ -1,0 +1,107 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "parallel": 1,
+  "plugins": [
+    {
+      "plugin": "@nx/gradle",
+      "options": {
+        "buildTargetName": "gradle-build",
+        "ciTestTargetName": "test-ci"
+      }
+    }
+  ],
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/build.gradle",
+      "{workspaceRoot}/settings.gradle",
+      "{workspaceRoot}/gradle.properties",
+      "{workspaceRoot}/gradle/**/*",
+      "{workspaceRoot}/gradlew",
+      "{workspaceRoot}/gradlew.bat",
+      "{workspaceRoot}/tools/**/*",
+      "{workspaceRoot}/package-lock.json",
+      {
+        "runtime": "java -version"
+      },
+      {
+        "runtime": "node --version"
+      }
+    ],
+    "default": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/build/**/*",
+      "!{projectRoot}/docs/**/*",
+      "sharedGlobals"
+    ]
+  },
+  "targetDefaults": {
+    "assemble": {
+      "cache": true,
+      "outputs": [
+        "{projectRoot}/build/libs",
+        "{projectRoot}/build/quarkus-app"
+      ]
+    },
+    "test": {
+      "cache": true
+    },
+    "serve": {
+      "cache": false
+    },
+    "native": {
+      "cache": false
+    },
+    "container": {
+      "cache": false
+    },
+    "quarkusDev": {
+      "cache": false
+    },
+    "quarkusRemoteDev": {
+      "cache": false
+    },
+    "quarkusRun": {
+      "cache": false
+    }
+  },
+  "release": {
+    "projectsRelationship": "independent",
+    "groups": {
+      "apps": {
+        "projectsRelationship": "independent",
+        "projects": ["tag:layer:service"]
+      },
+      "libs": {
+        "projectsRelationship": "independent",
+        "projects": ["tag:layer:domain", "tag:layer:application"]
+      },
+      "contracts": {
+        "projectsRelationship": "independent",
+        "projects": ["tag:layer:contract"]
+      }
+    },
+    "releaseTag": {
+      "pattern": "{projectName}@{version}"
+    },
+    "version": {
+      "conventionalCommits": true,
+      "fallbackCurrentVersionResolver": "disk",
+      "updateDependents": "always"
+    },
+    "changelog": {
+      "automaticFromRef": true,
+      "projectChangelogs": {
+        "file": "{projectRoot}/CHANGELOG.md",
+        "createRelease": "github"
+      }
+    },
+    "git": {
+      "commit": true,
+      "tag": true,
+      "commitMessage": "chore(release): publish"
+    }
+  },
+  "analytics": true,
+  "nxCloudId": "6aefee2a5c73bb897c69723c"
+}

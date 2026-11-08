@@ -1,0 +1,128 @@
+@startuml portas-e-casos-de-uso
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+set separator none
+title Casos de uso, apoio de acesso e portas (e quem as implementa no serviço)
+hide empty members
+hide <<aplicacao>> stereotype
+hide <<saida>> stereotype
+skinparam ClassBackgroundColor<<final>> $COR_APLICACAO
+skinparam ClassBorderColor<<final>> $BORDA_APLICACAO
+skinparam ClassBackgroundColor<<decorator>> #FFF8E1
+skinparam ClassBorderColor<<decorator>> #FFA000
+skinparam ClassBackgroundColor<<wrapper>> #FFF8E1
+skinparam ClassBorderColor<<wrapper>> #FFA000
+
+package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplicacao>> {
+  package "$I_SERVICO Casos de uso" <<aplicacao>> {
+    class ProductService <<final>>
+    class ModerationService <<final>>
+    class OfferService <<final>>
+    class InventoryService <<final>>
+    class ReservationService <<final>>
+    class CategoryService <<final>>
+    class StorefrontService <<final>>
+    class SellerEligibilityService <<final>>
+    class ProductImportService <<final>>
+  }
+
+  package "$I_SEGURANCA Apoio (pacote privado)" <<aplicacao>> {
+    class ProductSupport #FFFFFF;line:64B5F6;line.dashed {
+      mutateOwned()
+      mutateAsModerator()
+      publicationOf()
+      sellerOf()
+    }
+    class ProductAccess #FFFFFF;line:64B5F6;line.dashed {
+      visible() / visibleBySku()
+      owned() / ownedBySku()
+      inTenant()
+      listScope() / requireSeller()
+    }
+  }
+
+  package "<$plug,scale=0.8,color=#3949AB> Portas" <<aplicacao>> {
+    interface ProductRepository <<porta>>
+    interface CategoryRepository <<porta>>
+    interface OfferRepository <<porta>>
+    interface InventoryRepository <<porta>>
+    interface ReservationRepository <<porta>>
+    interface SellerEligibilityRepository <<porta>>
+    interface ProductImportRepository <<porta>>
+  }
+}
+
+package "$I_POSTGRES catalog-inventory-service (adaptadores)" <<saida>> #FBF6FC;line.dashed {
+  class PgProductRepository <<saida>>
+  class PgCategoryRepository <<saida>>
+  class PgOfferRepository <<saida>>
+  class PgInventoryRepository <<saida>>
+  class PgReservationRepository <<saida>>
+  class PgSellerEligibilityRepository <<saida>>
+  class PgProductImportRepository <<saida>>
+  class ProductCacheInvalidation <<decorator>>
+  class OfferCacheInvalidation <<decorator>>
+  class CategoryCacheInvalidation <<decorator>>
+  class SellerCacheInvalidation <<decorator>>
+  class "TaxonomyCache.over()" as TaxonomyOver <<wrapper>>
+}
+
+ProductService --> ProductSupport
+ModerationService --> ProductSupport
+ProductSupport --> ProductAccess
+ProductSupport --> CategoryRepository
+ProductSupport --> SellerEligibilityRepository
+ProductSupport --> OfferRepository
+ProductAccess --> ProductRepository
+
+OfferService --> ProductAccess
+OfferService --> OfferRepository
+InventoryService --> ProductAccess
+InventoryService --> InventoryRepository
+StorefrontService --> ProductAccess
+StorefrontService --> SellerEligibilityRepository
+StorefrontService --> OfferRepository
+ReservationService --> ReservationRepository
+ReservationService --> InventoryRepository
+CategoryService --> CategoryRepository
+SellerEligibilityService --> SellerEligibilityRepository
+
+ProductImportService --> ProductImportRepository
+ProductImportService --> ProductRepository : skuIdsBySellerSku
+ProductImportService --> ProductAccess
+ProductImportService --> CategoryRepository
+ProductImportService --> OfferRepository
+ProductImportService --> ProductService : create
+ProductImportService --> OfferService : define
+ProductImportService --> InventoryService : get / adjust
+
+ProductRepository <|.. PgProductRepository
+CategoryRepository <|.. PgCategoryRepository
+OfferRepository <|.. PgOfferRepository
+InventoryRepository <|.. PgInventoryRepository
+ReservationRepository <|.. PgReservationRepository
+SellerEligibilityRepository <|.. PgSellerEligibilityRepository
+ProductImportRepository <|.. PgProductImportRepository
+
+ProductRepository <|.. ProductCacheInvalidation
+OfferRepository <|.. OfferCacheInvalidation
+CategoryRepository <|.. CategoryCacheInvalidation
+SellerEligibilityRepository <|.. SellerCacheInvalidation
+CategoryRepository <|.. TaxonomyOver
+
+note bottom of TaxonomyOver
+  Montado em CatalogBeans para CategoryService,
+  ProductService, ModerationService e
+  ProductImportService. Com o cache ligado,
+  chain e children passam pelo Redis; com ele
+  desligado, devolve a própria porta.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#1565C0>    </back> Caso de uso (final)
+  <back:#64B5F6>    </back> Apoio de acesso (tracejado)
+  <back:#3949AB>    </back> Porta (interface)
+  <back:#6A1B9A>    </back> Adaptador Pg* no serviço
+  <back:#FFA000>    </back> Decorator ou wrapper de cache (Redis)
+endlegend
+@enduml

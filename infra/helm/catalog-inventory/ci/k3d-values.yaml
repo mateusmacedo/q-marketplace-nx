@@ -1,0 +1,27 @@
+# Valores do teste de fumaça em k3d (k3d-smoke.sh); a tag da imagem importada vem por --set image.tag.
+database:
+  reactiveUrl: postgresql://postgres:5432/marketplace
+  jdbcUrl: jdbc:postgresql://postgres:5432/marketplace
+  existingSecret: catalog-inventory-db
+
+kafka:
+  bootstrapServers: kafka:9092
+  clientSecret: catalog-kafka-client
+
+# Endereços fictícios: o JWKS só é buscado ao validar um token, e o teste confirma que o readiness não depende dele.
+jwt:
+  issuer: https://issuer.invalid/realms/marketplace
+  jwksUrl: https://jwks.invalid/realms/marketplace/protocol/openid-connect/certs
+
+# Réplicas que o k3d-smoke.sh confere como prontas.
+api:
+  replicaCount: 2
+worker:
+  replicaCount: 1
+
+# Broker único.
+topicDefaults:
+  partitions: 3
+  replicationFactor: 1
+  config:
+    min.insync.replicas: "1"

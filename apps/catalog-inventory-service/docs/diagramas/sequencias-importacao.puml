@@ -1,0 +1,167 @@
+@startuml sequencias-importacao
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title POST /products/imports: enviar planilha CSV (ProductImportService.submit)
+autonumber
+
+participant "$I_SELLER\nSeller" as seller <<ator>>
+box "Entrada" #FFFAF3
+participant "$I_API\nProductImportResource\n(api)" as res <<entrada>>
+participant "$I_CSV\nProductCsv" as csv <<entrada>>
+participant "$I_WORKER\nProductImportWorker\n(worker, a cada 1 s)" as worker <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+participant "$I_SERVICO\nProductImportService" as svc <<aplicacao>>
+participant "$I_SERVICO\nProductService /\nOfferService /\nInventoryService" as uc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+participant "$I_REPOSITORIO\nPgProductImportRepository" as repo <<saida>>
+participant "$I_REPOSITORIO\nPgProductRepository /\nPgCategoryRepository /\nPgOfferRepository" as ctx <<saida>>
+database "\n$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+seller -> res : POST /products/imports (Content-Type: text/csv, até 1 MB)
+note over res, pg : Fluxo detalhado em sequencia-importacao-csv.puml (seção "Envio")
+res -> res : @RolesAllowed(seller); CallerContext.actor()
+res -> csv : validate(corpo, maxRows = 5000) (Offload.cpu)
+alt #FFEBEE arquivo recusado
+  res --> seller : <color:#C62828>400 invalid-import-file + reasons: empty-file, invalid-encoding,</color>\n<color:#C62828>malformed-csv:{linha}, duplicate-column:{coluna}, unknown-column:{coluna},</color>\n<color:#C62828>missing-column:{coluna}, column-order, no-rows, too-many-rows:{máximo}</color>
+else #E8F5E9 arquivo válido
+  res -> svc : submit(actor, conteúdo sem BOM, totalLines)
+  svc -> svc : ProductAccess.requireSeller;\nProductImport.pending(id, tenant, loja, subject, totalLines, agora)
+  opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+    res --> seller : <color:#C62828>403 access-denied</color>
+  end
+  svc -> repo : insert(job, conteúdo)
+  repo -> pg : INSERT product_import (status PENDING, content, total_lines)
+  res --> seller : 202 Accepted + Location /products/imports/{id}\n(corpo ImportResponse sem linhas; o processamento segue em segundo plano)
+end
+note over res, pg
+  Comum às páginas: 401 token ausente ou inválido; 403 papel fora de seller
+  (admin e moderador não consultam nem enviam lotes) ou claim de tenant ausente
+  (tenant-not-authorized); 503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+end note
+
+newpage GET /products/imports/{id}: consultar lote e resultado por linha (ProductImportService.get)
+autonumber 1
+seller -> res : GET /products/imports/{id}
+res -> res : @RolesAllowed(seller); CallerContext.actor()
+res -> svc : get(actor, id)
+svc -> svc : ProductAccess.requireSeller
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res --> seller : <color:#C62828>403 access-denied</color>
+end
+svc -> repo : findImport(tenant, loja, id)
+repo -> pg : SELECT id, tenant_id, store_id, actor, status, total_lines, created_at,\nstarted_at, finished_at FROM product_import WHERE tenant_id AND store_id AND id
+alt #FFEBEE lote inexistente, de outra loja ou de outro tenant
+  res --> seller : <color:#C62828>404 not-found (Lote de importação)</color>
+else #E8F5E9 lote da loja do seller
+  svc -> repo : results(job.id)
+  repo -> pg : SELECT line_number, seller_sku, outcome, code, message, product_id\nFROM product_import_line WHERE import_id ORDER BY line_number
+  svc -> svc : Report(job, linhas)
+  res -> res : ImportResponse.of: counts por resultado (CREATED, UPDATED, UNCHANGED, FAILED);\nprocessedLines = linhas com resultado
+  res --> seller : 200 {status PENDING, PROCESSING ou COMPLETED, totalLines, processedLines,\ncounts, createdAt, startedAt, finishedAt, lines} (sem ETag)
+end
+note over res, pg : Lote ainda em andamento devolve só as linhas já gravadas; o resultado cresce a cada unidade concluída.
+
+newpage ProductImportService.claimNext: reivindicar lote (gatilho: ProductImportWorker.run, a cada catalog.imports.interval)
+autonumber 1
+worker -> worker : @Scheduled(product-import, every = catalog.imports.interval, 1 s);\nconcurrentExecution = SKIP; desligado no papel api; lifecycle.job
+note over worker, pg : Fluxo detalhado em sequencia-importacao-csv.puml (seção "Processamento")
+worker -> svc : claimNext(lease = catalog.imports.lease, 5 min)
+svc -> repo : claimNext(agora, agora - lease)
+repo -> pg : UPDATE product_import SET status = 'PROCESSING', started_at = agora\nWHERE id = (SELECT ... WHERE status = 'PENDING' OR (status = 'PROCESSING' AND started_at < agora - lease)\nORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING content, ...
+alt nenhum lote pendente nem com lease vencida
+  repo --> worker : Optional.empty (nada a fazer até o próximo ciclo)
+else lote reivindicado (outro pod pula o lote travado)
+  repo --> worker : Claimed(job, content)
+  worker -> worker : process(claimed): etapa "product-import process",\ncom tenant, loja e lote no span e no MDC
+end
+opt #FFEBEE falha ao reivindicar ou processar
+  worker -> worker : log warn e recoverWithNull: o lote volta a ser reivindicado depois da lease
+end
+
+newpage ProductImportService.process: unidades do lote, resultado por linha e retomada (gatilho: ProductImportWorker)
+autonumber 1
+note over worker, pg : Visão geral e SQL do claim em sequencia-importacao-csv.puml. Esta página detalha as unidades.
+worker -> csv : rows(content) (Offload.cpu): converte cada registro em ImportRow
+worker -> svc : process(job, linhas)
+== Planejamento das unidades ==
+svc -> repo : results(job.id)
+repo -> pg : SELECT line_number, ... FROM product_import_line WHERE import_id ORDER BY line_number
+svc -> svc : done = linhas que já têm resultado (retomada); pendingSkus = seller_sku das demais
+svc -> ctx : skuIdsBySellerSku(tenant, loja, pendingSkus)
+ctx -> pg : SELECT seller_sku, id FROM sku WHERE tenant_id AND store_id\nAND seller_sku = ANY ({pendingSkus})
+svc -> svc : plan, na ordem do arquivo: SKU repetido no arquivo = Rejected;\nSKU que já existe na loja = ExistingSku; SKU novo sem product_ref = Rejected;\nSKU novo com product_ref = NewProduct (agrupado pela referência)
+note over svc, uc : Cada unidade roda como o seller que enviou: ProductImport.seller() monta o Actor da loja do lote,\ncom só MANAGE_OWN_PRODUCTS, e passa pelos mesmos casos de uso e regras da API.
+== Execução das unidades ==
+loop cada unidade, em sequência
+  alt #FFEBEE Rejected
+    svc -> svc : <color:#C62828>FAILED duplicate-seller-sku (só a primeira linha do SKU é importada)</color>\n<color:#C62828>ou invalid-row (SKU novo sem product_ref; a mensagem traz o erro de leitura da linha, se houver)</color>
+  else #FFFFFF ExistingSku (recebe só preço e estoque)
+    opt #FFEBEE linha com erro nas colunas de preço ou estoque
+      svc -> svc : <color:#C62828>FAILED invalid-row</color>
+    end
+    svc -> ctx : ProductAccess.ownedBySku(seller, skuId); offers.ofSku(tenant, skuId)
+    ctx -> pg : SELECT product WHERE id = (SELECT product_id FROM sku ...);\nSELECT offer; SELECT offer_promotion
+    svc -> svc : Product.requireNotArchived("IMPORT")
+    alt preço igual ao da oferta atual
+      svc -> svc : preço sem mudança
+    else oferta nova ou preço diferente
+      svc -> uc : OfferService.define(seller, skuId, versão lida como If-Match, preço)\n(PriceChanged em catalog-inventory.offer.v1; invalida a vitrine do produto)
+    end
+    svc -> uc : InventoryService.get(seller, skuId)
+    alt onHand igual ao saldo atual
+      svc -> svc : estoque sem mudança
+    else onHand diferente
+      svc -> uc : InventoryService.adjust(seller, skuId, sem If-Match, onHand)\n(InventoryUpdated em catalog-inventory.inventory.v1)
+    end
+    svc -> svc : UPDATED se preço ou estoque mudou; senão UNCHANGED
+  else #FFFFFF NewProduct (grupo por product_ref)
+    svc -> svc : prepare de cada linha, sem gravar: categoria, título e indicador físico obrigatórios;\nSKU, preço e estoque válidos
+    alt #FFEBEE alguma linha do grupo inválida
+      svc -> svc : <color:#C62828>FAILED com o código da linha inválida e group-rejected nas demais;</color>\n<color:#C62828>nenhum produto é criado</color>
+    else #FFEBEE linhas divergem da primeira em categoria, título, descrição, atributos ou moeda
+      svc -> svc : <color:#C62828>FAILED inconsistent-product em todas as linhas</color>
+    else #FFFFFF grupo coerente
+      svc -> ctx : categories.idByCode(tenant, category_code)
+      ctx -> pg : SELECT id FROM category WHERE tenant_id AND code
+      alt #FFEBEE categoria inexistente no tenant
+        svc -> svc : <color:#C62828>FAILED category-not-found em todas as linhas</color>
+      else #E8F5E9 categoria encontrada
+        svc -> uc : ProductService.create(seller, categoria, moeda, título, descrição, atributos, todos os SKUs)\n(DRAFT + ProductCreated em catalog-inventory.product.v1)
+        loop cada SKU criado, em sequência
+          svc -> uc : OfferService.define(seller, skuId, sem If-Match, preço);\nInventoryService.adjust(seller, skuId, sem If-Match, onHand), só se onHand > 0
+          svc -> svc : CREATED (ou FAILED com o productId, se a oferta ou o estoque recusar)
+        end
+      end
+    end
+  end
+  opt #FFEBEE recusa de negócio de ProductService, OfferService ou InventoryService
+    svc -> svc : a linha vira FAILED com code igual ao type que a API responderia\n(invalid-attributes, category-inactive, invalid-transition, duplicate-seller-sku,\nversion-mismatch, not-found...); o produto já criado fica em rascunho
+  end
+  svc -> repo : recordResults(job.id, resultados da unidade)
+  repo -> pg : BEGIN; INSERT product_import_line ... ON CONFLICT (import_id, line_number) DO NOTHING;\nUPDATE product_import SET started_at = agora WHERE id AND status = 'PROCESSING'\n(renova a lease); COMMIT
+end
+== Conclusão do lote ==
+alt #FFEBEE falha técnica (prazo do banco, erro inesperado)
+  svc --> worker : <color:#C62828>falha, sem complete</color>
+  worker -> worker : log warn e recoverWithNull; depois da lease o lote é reivindicado de novo\ne só as linhas sem resultado são reprocessadas
+else #E8F5E9 todas as unidades concluídas
+  svc -> repo : complete(job.id)
+  repo -> pg : UPDATE product_import SET status = 'COMPLETED', finished_at = agora\nWHERE id AND status = 'PROCESSING'
+  svc --> worker : resultados novos desta execução
+  worker -> worker : catalog.imports.lines{outcome} += n; atributo marketplace.import.lines no span; log info
+end
+
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Seller
+  <back:#EF6C00>    </back> Entrada (REST, leitura do CSV, worker)
+  <back:#1565C0>    </back> Aplicação (casos de uso)
+  <back:#6A1B9A>    </back> Saída (repositórios, PostgreSQL)
+  <b>Blocos</b>
+  <back:#66BB6A>    </back> Sucesso ou linha aceita
+  <back:#E57373>    </back> Recusa, falha ou linha FAILED
+  <color:#C62828>vermelho</color>: resposta de erro ou resultado FAILED
+endlegend
+@enduml

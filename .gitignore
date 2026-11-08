@@ -1,0 +1,47 @@
+# Node e Nx
+node_modules/
+.nx/*
+!.nx/ci-config.yaml
+
+# Gradle
+.gradle/
+**/build/
+!**/src/**/build/
+gradle-app.setting
+.gradletasknamecache
+
+# Saída do compilador Java do VS Code e do Eclipse (JDT)
+bin/
+.project
+.classpath
+.settings/
+.factorypath
+
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# VS Code: só a configuração compartilhada é versionada
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Ambiente e logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Planos de trabalho, temporários e locais
+plans/

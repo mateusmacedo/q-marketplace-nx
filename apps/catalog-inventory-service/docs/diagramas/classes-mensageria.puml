@@ -1,0 +1,153 @@
+@startuml classes-mensageria
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/file_contract>
+title $I_KAFKA Pacotes messaging e outbox: relay Kafka, limpeza e consumidor de vereditos; contrato v1, tradução de eventos e mensagem de outbox
+
+hide empty members
+hide <<entrada>> stereotype
+hide <<saida>> stereotype
+hide <<serviço>> stereotype
+hide <<dominio>> stereotype
+hide <<infra>> stereotype
+hide <<exceção>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+
+package "$I_SISTEMA messaging (dev.marketplace.cataloginventory.messaging)" as pkg_messaging <<infra>> {
+  class "<$kafka-icon,scale=0.3> OutboxRelay" as OutboxRelay <<@ApplicationScoped>> <<saida>> {
+    -emitter : MutinyEmitter<String> @Channel("catalog-events")
+    -outbox : PgOutbox
+    -config : CatalogConfig.Events
+    -clock : Clock
+    -lifecycle : Lifecycle
+    -published, failures : Counter
+    -lag : Timer
+    -pending, parked, oldestAgeSeconds : AtomicLong
+    --
+    <<@Scheduled outbox-relay, SKIP>> relay() : Uni<Void>
+  }
+  class "<$broom,scale=0.55,color=#6A1B9A> MessagingHousekeeping" as MessagingHousekeeping <<@ApplicationScoped>> <<saida>> {
+    -outbox : PgOutbox
+    -config : CatalogConfig.Events
+    -clock : Clock
+    -lifecycle : Lifecycle
+    --
+    <<@Scheduled messaging-purge, SKIP>> purge() : Uni<Void>
+  }
+  class "<$id_card,scale=0.55,color=#EF6C00> SellerVerdictConsumer" as SellerVerdictConsumer <<@ApplicationScoped, @Traced(entry = true)>> <<entrada>> {
+    {static} STATUS_BY_TYPE : Map<String, SellerStatus>
+    -eligibility : SellerEligibilityService
+    -json : ObjectMapper
+    -retries : int
+    -registry : MeterRegistry
+    --
+    <<@Incoming kyb-seller-verdicts>> consume(payload) : Uni<Void>
+  }
+  class "SellerVerdictConsumer.InvalidMessageException" as InvalidMessageException <<final>> <<exceção>> {
+    InvalidMessageException(message)
+  }
+}
+
+package "$I_OUTBOX outbox (dev.marketplace.cataloginventory.outbox)" as pkg_outbox <<infra>> {
+  class EventOrigin <<record>> <<infra>> {
+    correlationId : String
+    traceParent : String
+    --
+    {static} current() : EventOrigin
+    {static} context(traceParent) : Optional<Context>
+  }
+  class IntegrationEvents <<@ApplicationScoped>> <<saida>> {
+    -json : ObjectMapper
+    -config : CatalogConfig.Events
+    --
+    fromProduct(tenantId, events, origin) : List<OutboxMessage>
+    fromOffer(tenantId, events, origin) : List<OutboxMessage>
+    fromInventory(tenantId, events, origin) : List<OutboxMessage>
+    fromEligibility(tenantId, storeId, previous, status, ...) : OutboxMessage
+  }
+  class "<$file_contract,scale=0.55,color=#6A1B9A> EventContracts" as EventContracts <<final, @RegisterForReflection>> <<saida>> {
+    {static} SOURCE = "catalog-inventory"
+    {static} VERSION = 1
+    --
+    Envelope, SkuV1, ProductCreatedV1, ProductStatusChangedV1, ProductBlockedV1
+    PromotionV1, PriceChangedV1, StockV1, InventoryUpdatedV1, ReservedItemV1
+    InventoryReservedV1, InventoryDepletedV1, StoreEligibilityChangedV1
+  }
+  class "<$envelope,scale=0.55,color=#6A1B9A> OutboxMessage" as OutboxMessage <<record>> <<saida>> {
+    id : UUID
+    tenantId : UUID
+    topic : String
+    key : String
+    eventType : String
+    payload : String
+    createdAt : Instant
+    traceParent : String
+  }
+}
+
+package "$I_METRICA observability (dev.marketplace.cataloginventory.observability)" as pkg_observability <<infra>> {
+  class Correlation <<utilitário>> <<infra>> {
+    {static} HEADER = "X-Correlation-Id"
+    {static} accept(candidate) : String
+    {static} bind(correlationId)
+    {static} current() : String
+  }
+}
+
+interface "domain.ProductEvent" as ProductEvent <<sealed>> <<dominio>> #line.dashed
+interface "domain.OfferEvent" as OfferEvent <<sealed>> <<dominio>> #line.dashed
+interface "domain.InventoryEvent" as InventoryEvent <<sealed>> <<dominio>> #line.dashed
+class "domain.SellerStatus" as SellerStatus <<enum>> <<dominio>> #line.dashed
+class "persistence.PgOutbox" as PgOutbox <<saida>> #line.dashed
+class "application.SellerEligibilityService" as SellerEligibilityService <<serviço>> #line.dashed
+class "application.SellerVerdict" as SellerVerdict <<record>> <<serviço>> #line.dashed
+
+IntegrationEvents ..> ProductEvent : traduz
+IntegrationEvents ..> OfferEvent : traduz
+IntegrationEvents ..> InventoryEvent : traduz
+IntegrationEvents ..> SellerStatus : fromEligibility
+IntegrationEvents --> OutboxMessage : cria
+IntegrationEvents ..> EventOrigin : correlação e traceparent
+IntegrationEvents ..> EventContracts : serializa Envelope e payloads V1
+EventOrigin ..> Correlation : current()
+
+OutboxRelay --> PgOutbox : relay(batch, now, maxBackoff, maxAttempts, publish)
+OutboxRelay ..> EventOrigin : context(traceParent)
+MessagingHousekeeping --> PgOutbox : purge
+SellerVerdictConsumer --> SellerEligibilityService : record(verdict)
+SellerVerdictConsumer ..> SellerVerdict : cria
+SellerVerdictConsumer ..> Correlation : bind / accept
+SellerVerdictConsumer +-- InvalidMessageException
+SellerVerdictConsumer ..> SellerStatus : STATUS_BY_TYPE
+
+
+SellerEligibilityService -[hidden]right- PgOutbox
+IntegrationEvents -[hidden]right- EventOrigin
+IntegrationEvents -[hidden]down- EventContracts
+EventOrigin -[hidden]down- Correlation
+InvalidMessageException -[hidden]down- IntegrationEvents
+
+note bottom of OutboxRelay
+  Publica a outbox no tópico de cada evento (chave = agregado) e só marca como
+  publicado depois da confirmação do broker; falha adia só aquele evento, até
+  catalog.events.max-backoff, e o estaciona depois de catalog.events.max-attempts
+  tentativas, sem pausar as outras chaves. Os repositórios gravam OutboxMessage
+  (pacote outbox) pelo PgOutbox na mesma transação da mudança de estado.
+end note
+
+note bottom of SellerVerdictConsumer
+  Consome os vereditos KYB/KYC (SellerApproved, SellerRejected, ReviewRequired; envelope
+  versão 1). A leitura só é confirmada no Kafka depois do commit; mensagem inválida ou
+  com falha técnica persistente vai para a fila de descarte configurada no canal.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:$BORDA_ENTRADA>    </back> Entrada: consumidor de vereditos KYB
+  <back:$BORDA_SAIDA>    </back> Saída: tradução, outbox e relay para o Kafka
+  <back:$BORDA_APLICACAO>    </back> Aplicação / <back:$BORDA_DOMINIO>    </back> Domínio
+  <back:$BORDA_INFRA>    </back> Correlação e rastreamento
+  <back:$BORDA_ERRO>    </back> Mensagem inválida (vai para descarte)
+  Borda tracejada: classe de outro pacote
+endlegend
+@enduml

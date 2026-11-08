@@ -1,0 +1,95 @@
+@startuml casos-de-uso-moderacao
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/clipboard_list>
+title Casos de uso de ModerationService
+left to right direction
+hide stereotype
+
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+
+package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
+  usecase "Ver fila de moderação\n(queue)" as UC_queue <<leitura>>
+  usecase "Aprovar produto\n(approve)" as UC_approve
+  usecase "Rejeitar produto\n(reject)" as UC_reject
+  usecase "Bloquear produto\n(block)" as UC_block
+  usecase "Desbloquear produto\n(unblock)" as UC_unblock
+}
+
+package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
+  usecase "Calcular saldo dos SKUs\n(stockOf)" as UC_stockOf <<leitura>>
+}
+
+moderator --> UC_queue
+moderator --> UC_approve
+moderator --> UC_reject
+moderator --> UC_block
+moderator --> UC_unblock
+
+UC_queue ..> UC_stockOf : <<include>>
+UC_approve ..> UC_stockOf : <<include>>
+UC_reject ..> UC_stockOf : <<include>>
+UC_block ..> UC_stockOf : <<include>>
+UC_unblock ..> UC_stockOf : <<include>>
+
+package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
+  note as N_queue
+    **queue**
+    Rotas de moderação aceitam só catalog-moderator;
+    catalog-admin não as acessa. Alcança produto de
+    qualquer loja do tenant (MODERATE_PRODUCTS).
+    Lista os PENDING_MODERATION, com cursor por id e
+    limit de 1 a 100.
+  end note
+  note as N_approve
+    **approve**
+    PENDING_MODERATION para ACTIVE; outro estado:
+    <color:#C62828>invalid-transition</color> (<color:#C62828>409</color>).
+    Reavalia a completude: <color:#C62828>product-not-publishable</color>
+    (<color:#C62828>422</color>) com reasons.
+    Exige loja APPROVED no KYB/KYC: <color:#C62828>seller-not-eligible</color>
+    (<color:#C62828>422</color>). If-Match opcional (<color:#C62828>412</color>).
+  end note
+  note as N_reject
+    **reject**
+    PENDING_MODERATION para DRAFT; outro estado:
+    <color:#C62828>invalid-transition</color> (<color:#C62828>409</color>).
+    Motivo obrigatório, até 500 caracteres
+    (<color:#C62828>invalid-value</color>), gravado no histórico.
+    If-Match opcional (<color:#C62828>412</color>).
+  end note
+  note as N_block
+    **block**
+    Qualquer estado, menos BLOCKED e ARCHIVED
+    (<color:#C62828>invalid-transition</color>, <color:#C62828>409</color>).
+    Motivo obrigatório, até 500 caracteres; publica
+    ProductBlocked e tira o produto da vitrine na hora.
+    If-Match opcional (<color:#C62828>412</color>).
+  end note
+  note as N_unblock
+    **unblock**
+    Só em BLOCKED (<color:#C62828>invalid-transition</color>, <color:#C62828>409</color>).
+    Volta para PENDING_MODERATION, não para ACTIVE:
+    precisa de nova aprovação.
+    If-Match opcional (<color:#C62828>412</color>).
+  end note
+  note as N_stockOf
+    **stockOf**
+    Sem ator: ProductResponses, no adaptador REST, o
+    chama para montar a resposta com o saldo atual.
+  end note
+}
+
+N_queue -[hidden]left-> N_approve
+N_approve -[hidden]left-> N_reject
+N_reject -[hidden]left-> N_block
+N_block -[hidden]left-> N_unblock
+N_unblock -[hidden]left-> N_stockOf
+legend right
+  <b>Como ler</b>
+  <back:#F9A825>    </back> Ator humano ou cliente autenticado
+  <back:#1565C0>    </back> Caso de uso que altera estado
+  <back:#64B5F6>    </back> Caso de uso de leitura
+  <color:#546E7A>╌╌▸</color> «include» sempre executado pelo caso de origem
+  <color:#C62828>código</color> recusa (problem, 4xx)
+endlegend
+@enduml

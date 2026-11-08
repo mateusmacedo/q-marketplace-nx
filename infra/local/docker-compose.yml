@@ -1,0 +1,18 @@
+# Ambiente local (ADR 019): um recurso por arquivo em compose/, nada sobe sem profile (infra, catalog, observability ou
+# all), portas só em 127.0.0.1 e valores locais sobrescrevíveis por infra/local/.env (ver .env.example).
+name: marketplace-nx
+
+include:
+  - compose/kafka.yml
+  - compose/kafka-console.yml
+  - compose/keycloak.yml
+  - compose/redis.yml
+  - compose/postgres.yml
+  - compose/catalog.yml
+  - compose/otel-collector.yml
+  - compose/prometheus.yml
+  - compose/tempo.yml
+  - compose/loki.yml
+  - compose/alloy.yml
+  - compose/grafana.yml
+  - compose/exporters.yml

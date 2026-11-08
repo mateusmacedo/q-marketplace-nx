@@ -1,0 +1,628 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketplace.dev/contracts/catalog-inventory/events/catalog-inventory-events.v1.schema.json",
+  "title": "Eventos publicados por catalog-inventory (v1)",
+  "description": "Valor de cada registro Kafka; a chave do registro é o aggregateId. Tópicos: catalog-inventory.product.v1 (ProductCreated, ProductStatusChanged, ProductBlocked), catalog-inventory.offer.v1 (PriceChanged), catalog-inventory.inventory.v1 (InventoryUpdated, InventoryReserved, InventoryDepleted) e catalog-inventory.store.v1 (StoreEligibilityChanged). Os cabeçalhos event-type e event-id repetem os campos do envelope; com o OpenTelemetry ligado, traceparent continua o trace da requisição que gravou o evento. Consumidores ignoram tipos que não conhecem.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ProductCreated"
+    },
+    {
+      "$ref": "#/$defs/ProductStatusChanged"
+    },
+    {
+      "$ref": "#/$defs/ProductBlocked"
+    },
+    {
+      "$ref": "#/$defs/PriceChanged"
+    },
+    {
+      "$ref": "#/$defs/InventoryUpdated"
+    },
+    {
+      "$ref": "#/$defs/InventoryReserved"
+    },
+    {
+      "$ref": "#/$defs/InventoryDepleted"
+    },
+    {
+      "$ref": "#/$defs/StoreEligibilityChanged"
+    }
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "required": [
+        "eventId",
+        "eventType",
+        "eventVersion",
+        "source",
+        "tenantId",
+        "aggregateType",
+        "aggregateId",
+        "occurredAt",
+        "correlationId",
+        "data"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Identifica o evento; consumidores deduplicam por ele, porque a entrega é pelo menos uma vez."
+        },
+        "eventType": {
+          "type": "string"
+        },
+        "eventVersion": {
+          "const": 1
+        },
+        "source": {
+          "const": "catalog-inventory"
+        },
+        "tenantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "aggregateType": {
+          "enum": [
+            "product",
+            "offer",
+            "sku",
+            "reservation",
+            "store"
+          ]
+        },
+        "aggregateId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "correlationId": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "X-Correlation-Id da requisição (gerado quando ausente) ou do veredito KYB/KYC que originou o evento."
+        },
+        "data": {
+          "type": "object"
+        }
+      }
+    },
+    "amount": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]{2}$",
+      "description": "Valor decimal exato, sempre com duas casas."
+    },
+    "nullableAmount": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/amount"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "promotion": {
+      "type": "object",
+      "required": [
+        "promotionId",
+        "salePrice",
+        "startsAt",
+        "endsAt"
+      ],
+      "properties": {
+        "promotionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "salePrice": {
+          "$ref": "#/$defs/amount"
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "stock": {
+      "type": "object",
+      "description": "Saldo do SKU depois da mudança. version só cresce: descarte saldo com versão menor que a já aplicada.",
+      "required": [
+        "skuId",
+        "productId",
+        "storeId",
+        "onHand",
+        "reserved",
+        "available",
+        "version"
+      ],
+      "properties": {
+        "skuId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "productId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "storeId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "onHand": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "available": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ProductCreated": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "description": "Produto criado em rascunho; o preço de cada SKU chega por PriceChanged no tópico de ofertas.",
+      "properties": {
+        "eventType": {
+          "const": "ProductCreated"
+        },
+        "aggregateType": {
+          "const": "product"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "productId",
+            "storeId",
+            "categoryId",
+            "currency",
+            "title",
+            "skus"
+          ],
+          "properties": {
+            "productId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "storeId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "categoryId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "currency": {
+              "$ref": "#/$defs/currency"
+            },
+            "title": {
+              "type": "string"
+            },
+            "skus": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "skuId",
+                  "sellerSku"
+                ],
+                "properties": {
+                  "skuId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "sellerSku": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ProductStatusChanged": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "description": "Transição do produto depois da criação. O conteúdo do produto vem da vitrine (GET /storefront/{tenantId}/products/{productId}).",
+      "properties": {
+        "eventType": {
+          "const": "ProductStatusChanged"
+        },
+        "aggregateType": {
+          "const": "product"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "productId",
+            "storeId",
+            "transition",
+            "from",
+            "to",
+            "reason",
+            "visible"
+          ],
+          "properties": {
+            "productId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "storeId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "transition": {
+              "enum": [
+                "SUBMIT",
+                "APPROVE",
+                "REJECT",
+                "BLOCK",
+                "UNBLOCK",
+                "PAUSE",
+                "RESUME",
+                "ARCHIVE",
+                "REVIEW_REQUIRED"
+              ]
+            },
+            "from": {
+              "enum": [
+                "DRAFT",
+                "PENDING_MODERATION",
+                "ACTIVE",
+                "PAUSED_BY_SELLER",
+                "BLOCKED",
+                "ARCHIVED"
+              ]
+            },
+            "to": {
+              "enum": [
+                "DRAFT",
+                "PENDING_MODERATION",
+                "ACTIVE",
+                "PAUSED_BY_SELLER",
+                "BLOCKED",
+                "ARCHIVED"
+              ]
+            },
+            "reason": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Presente em rejeição e bloqueio."
+            },
+            "visible": {
+              "type": "boolean",
+              "description": "O novo estado aparece na vitrine quando a loja está aprovada."
+            }
+          }
+        }
+      }
+    },
+    "ProductBlocked": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "properties": {
+        "eventType": {
+          "const": "ProductBlocked"
+        },
+        "aggregateType": {
+          "const": "product"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "productId",
+            "storeId",
+            "reason"
+          ],
+          "properties": {
+            "productId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "storeId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    },
+    "PriceChanged": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "description": "Definição de preço da oferta do SKU (preço base e promoções pendentes). Aplique só priceVersion maior que a já aplicada.",
+      "properties": {
+        "eventType": {
+          "const": "PriceChanged"
+        },
+        "aggregateType": {
+          "const": "offer"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "skuId",
+            "productId",
+            "storeId",
+            "currency",
+            "listPrice",
+            "salePrice",
+            "priceVersion",
+            "promotions"
+          ],
+          "properties": {
+            "skuId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "productId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "storeId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "currency": {
+              "$ref": "#/$defs/currency"
+            },
+            "listPrice": {
+              "$ref": "#/$defs/nullableAmount"
+            },
+            "salePrice": {
+              "$ref": "#/$defs/amount"
+            },
+            "priceVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "promotions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/promotion"
+              }
+            }
+          }
+        }
+      }
+    },
+    "InventoryUpdated": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "properties": {
+        "eventType": {
+          "const": "InventoryUpdated"
+        },
+        "aggregateType": {
+          "const": "sku"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "stock",
+            "cause",
+            "reservationId"
+          ],
+          "properties": {
+            "stock": {
+              "$ref": "#/$defs/stock"
+            },
+            "cause": {
+              "enum": [
+                "ADJUSTED",
+                "RELEASED",
+                "EXPIRED",
+                "COMMITTED"
+              ]
+            },
+            "reservationId": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nulo em ajuste do seller."
+            }
+          }
+        }
+      }
+    },
+    "InventoryReserved": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "properties": {
+        "eventType": {
+          "const": "InventoryReserved"
+        },
+        "aggregateType": {
+          "const": "reservation"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "reservationId",
+            "orderRef",
+            "expiresAt",
+            "items"
+          ],
+          "properties": {
+            "reservationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "orderRef": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "quantity",
+                  "stock"
+                ],
+                "properties": {
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "stock": {
+                    "$ref": "#/$defs/stock"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "InventoryDepleted": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "description": "O disponível do SKU chegou a zero nesta mudança.",
+      "properties": {
+        "eventType": {
+          "const": "InventoryDepleted"
+        },
+        "aggregateType": {
+          "const": "sku"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "stock"
+          ],
+          "properties": {
+            "stock": {
+              "$ref": "#/$defs/stock"
+            }
+          }
+        }
+      }
+    },
+    "StoreEligibilityChanged": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/envelope"
+        }
+      ],
+      "description": "A situação KYB/KYC da loja mudou; a vitrine mostra ou esconde todos os produtos da loja. Não é publicado para veredito repetido, obsoleto ou que mantém a situação.",
+      "properties": {
+        "eventType": {
+          "const": "StoreEligibilityChanged"
+        },
+        "aggregateType": {
+          "const": "store"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "storeId",
+            "previousStatus",
+            "status",
+            "eligible",
+            "decidedAt"
+          ],
+          "properties": {
+            "storeId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "previousStatus": {
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED"
+              ]
+            },
+            "status": {
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED"
+              ]
+            },
+            "eligible": {
+              "type": "boolean",
+              "description": "Verdadeiro só para APPROVED."
+            },
+            "decidedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Instante da decisão no KYB/KYC."
+            }
+          }
+        }
+      }
+    }
+  }
+}

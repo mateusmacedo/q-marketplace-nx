@@ -1,0 +1,69 @@
+@startuml sequencia-vitrine-cache
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_VITRINE Vitrine com cache de gerações: GET /storefront/{tenantId}/products/{productId}
+autonumber
+
+participant "$I_ANONIMO\nComprador (anônimo)" as comp <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_VITRINE\nStorefrontResource" as res <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_SERVICO\nStorefrontService" as svc <<aplicacao>>
+  participant "$I_ESTOQUE\nInventoryService" as inv <<aplicacao>>
+end box
+box "Saída (cache)" #FBF6FC
+  participant "$I_CACHE\nStorefrontCache" as sc <<saida>>
+  participant "$I_CACHE\nCatalogCache" as cc <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_REDIS\nRedis" as redis
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+comp -> res : GET (sem token, @PermitAll)
+res -> sc : get(tenant, produto, carga do banco)
+alt #ECEFF1 cache desligado (catalog.cache.enabled=false, padrão)
+  sc -> svc : get
+  svc -> pg : produto, SKUs, loja, ofertas e promoções
+else #F5FAFF cache ligado
+  sc -> cc : read(storefront)
+  cc -> redis : EVALSHA (EVAL se o script sumiu), prazo 100 ms:\nconteúdo catalog:storefront:v1:{t}:{p} + gerações\ncatalog:gen:product e catalog:gen:store (via catalog:product-store)
+  alt #E8F5E9 HIT (carimbo confere)
+    redis --> cc : conteúdo
+    sc -> sc : decode do retrato
+  else #FFF8E1 MISS
+    redis --> cc : gerações atuais
+    sc -> svc : get
+    svc -> pg : carga do banco
+    sc -> redis : SET retrato com o carimbo, TTL 60 s\n(sem esperar: CatalogCache.detach)
+  else #FFF8E1 UNMAPPED (sem mapa produto -> loja)
+    sc -> svc : get
+    svc -> pg : carga do banco
+    sc -> redis : grava só o mapa produto -> loja (sem esperar)
+  else #FFEBEE BYPASS (Redis fora ou acima do prazo)
+    sc -> svc : get
+    svc -> pg : carga do banco
+  end
+end
+alt #FFEBEE carga encontrou produto não visível ou loja não APPROVED
+  res --> comp : <color:#C62828>404 not-found</color> (NotFoundException na carga; nada é guardado)
+else #E8F5E9 visível
+  res -> inv : stockOf(produto)
+  inv -> pg : inventory_level dos SKUs (sempre do banco)
+  res -> res : preço vigente calculado no instante da leitura
+  res --> comp : <color:#2E7D32>200 + Cache-Control: no-cache (inStock por SKU)</color>
+end
+note over cc : $I_METRICA catalog.cache.requests{cache=storefront,result=hit|miss|bypass}\n(UNMAPPED conta como miss)
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Ator externo
+  <back:#EF6C00>    </back> Entrada (REST)
+  <back:#1565C0>    </back> Aplicação (casos de uso)
+  <back:#6A1B9A>    </back> Saída (cache)
+  <back:#455A64>    </back> Infraestrutura
+  <b>Resultado do cache</b>
+  <back:#66BB6A>    </back> HIT
+  <back:#FFB300>    </back> MISS ou UNMAPPED (carga do banco e gravação)
+  <back:#E57373>    </back> BYPASS ou falha
+endlegend
+@enduml

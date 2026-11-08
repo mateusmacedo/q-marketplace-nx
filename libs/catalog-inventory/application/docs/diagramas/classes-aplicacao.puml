@@ -1,0 +1,206 @@
+@startuml classes-aplicacao
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/exclamation_triangle>
+!include <tupadr3/font-awesome-5/list_ol>
+!include <tupadr3/font-awesome-5/user_check>
+set separator none
+title Aplicação: identidade, paginação, comandos aninhados e exceções (complemento de portas-e-casos-de-uso; importação em classes-aplicacao-importacao)
+
+hide empty members
+hide <<aplicacao>> stereotype
+skinparam nodesep 20
+skinparam ranksep 40
+skinparam ClassBackgroundColor<<record>> #F1F8FF
+skinparam ClassBorderColor<<record>> #64B5F6
+skinparam ClassBackgroundColor<<record, pacote privado>> #F1F8FF
+skinparam ClassBorderColor<<record, pacote privado>> #64B5F6
+
+package "$I_SEGURANCA Identidade e permissões" as identidade <<aplicacao>> {
+  class Actor <<record>> {
+    tenantId : UUID
+    storeId : Optional<UUID>
+    subject : String
+    capabilities : Set<Capability>
+    --
+    can(capability) : boolean
+    canReadTenantCatalog() : boolean
+    ownsStore(store) : boolean
+    require(capability)
+    requireStore() : UUID
+  }
+  enum Capability {
+    MANAGE_OWN_PRODUCTS
+    MODERATE_PRODUCTS
+    MANAGE_TAXONOMY
+    READ_TENANT_CATALOG
+    READ_SELLER_ELIGIBILITY
+    MANAGE_RESERVATIONS
+  }
+}
+
+package "<$list_ol,scale=0.8,color=#1565C0> Paginação e versionamento" as paginacao <<aplicacao>> {
+  class "Page<T>" as Page <<record>> {
+    {static} DEFAULT_SIZE = 50
+    {static} MAX_SIZE = 100
+    items : List<T>
+    nextCursor : Optional<String>
+    --
+    {static} requireSize(limit)
+    {static} of(fetched, limit, key) : Page<T>
+    ~{static} fetch(limit, search, key) : Uni<Page<T>>
+  }
+  class Versions <<final, pacote privado>> #F1F8FF;line:64B5F6 {
+    ~{static} requireMatch(expected : Optional<Long>, current : long)
+  }
+}
+
+package "<$user_check,scale=0.8,color=#1565C0> Elegibilidade do seller" as elegibilidade <<aplicacao>> {
+  class SellerVerdict <<record>> {
+    eventId : UUID
+    tenantId : UUID
+    storeId : UUID
+    status : SellerStatus
+    decidedAt : Instant
+  }
+  enum "SellerVerdict.Outcome" as VerdictOutcome {
+    APPLIED
+    DUPLICATE
+    STALE
+  }
+}
+
+package "$I_SERVICO Comandos, views e resultados aninhados nos casos de uso" as aninhados <<aplicacao>> {
+  class ProductService <<final>> <<serviço>>
+  class "ProductService.NewSku" as NewSku <<record>> {
+    sellerSku : String
+    variantAttributes : Map<String, String>
+    physical : boolean
+    dimensions : Dimensions
+  }
+  class CategoryService <<final>> <<serviço>>
+  class "CategoryService.CategoryView" as CategoryView <<record>> {
+    category : Category
+    effectiveAttributes : List<AttributeDefinition>
+    usable : boolean
+  }
+  class OfferService <<final>> <<serviço>>
+  class "OfferService.Defined" as Defined <<record>> {
+    offer : Offer
+    created : boolean
+  }
+  class StorefrontService <<final>> <<serviço>>
+  class "StorefrontService.StorefrontProduct" as StorefrontProduct <<record>> {
+    product : Product
+    offers : Map<UUID, Offer>
+  }
+  class ReservationService <<final>> <<serviço>>
+  class "ReservationService.Settings" as Settings <<record>> {
+    defaultTtl : Duration
+    maxTtl : Duration
+    maxLifetime : Duration
+  }
+  class "ReservationService.Request" as Request <<record>> {
+    idempotencyKey : String
+    orderRef : String
+    ttl : Optional<Duration>
+    items : List<RequestedItem>
+  }
+  class "ReservationService.Result" as Result <<record>> {
+    reservation : Reservation
+    replayed : boolean
+  }
+  class ProductSupport <<final, pacote privado>> <<serviço>>
+  class "ProductSupport.PublicationContext" as PublicationContext <<record, pacote privado>> {
+    category : CategoryView
+    offeredSkus : Set<UUID>
+  }
+}
+
+package "<$exclamation_triangle,scale=0.8,color=#C62828> Exceções da aplicação" as excecoes <<aplicacao>> {
+  class RuntimeException #ECEFF1;line.dashed;line:90A4AE
+  class AccessDeniedException <<exceção>> {
+    AccessDeniedException(message)
+  }
+  class ConcurrentUpdateException <<exceção>> {
+    ConcurrentUpdateException()
+  }
+  class DuplicateException <<exceção>> {
+    -code : String
+    --
+    DuplicateException(code, message)
+    code() : String
+  }
+  class InvalidInputException <<exceção>> {
+    InvalidInputException(message)
+  }
+  class NotFoundException <<exceção>> {
+    NotFoundException(resource)
+  }
+  class PreconditionRequiredException <<exceção>> {
+    PreconditionRequiredException()
+  }
+  class VersionMismatchException <<exceção>> {
+    VersionMismatchException(current : long)
+  }
+}
+
+class "domain.RequestedItem" as RequestedItem #F6FBF6;line.dashed;line:2E7D32
+
+Actor "1" *-- "0..*" Capability : capabilities
+Actor ..> AccessDeniedException : require
+Page ..> InvalidInputException : requireSize
+Versions ..> VersionMismatchException : requireMatch
+
+SellerVerdict +-- VerdictOutcome
+
+ProductService +-- NewSku
+CategoryService +-- CategoryView
+OfferService +-- Defined
+StorefrontService +-- StorefrontProduct
+ReservationService +-- Settings
+ReservationService +-- Request
+ReservationService +-- Result
+ProductSupport +-- PublicationContext
+PublicationContext --> CategoryView
+Request ..> RequestedItem
+
+RuntimeException <|-- AccessDeniedException
+RuntimeException <|-- ConcurrentUpdateException
+RuntimeException <|-- DuplicateException
+RuntimeException <|-- InvalidInputException
+RuntimeException <|-- NotFoundException
+RuntimeException <|-- PreconditionRequiredException
+RuntimeException <|-- VersionMismatchException
+
+Actor -[hidden]right- Page
+Page -[hidden]right- SellerVerdict
+Capability -[hidden]down- ProductService
+NewSku -[hidden]right- CategoryView
+CategoryView -[hidden]right- Defined
+NewSku -[hidden]down- StorefrontService
+CategoryView -[hidden]down- ReservationService
+Defined -[hidden]down- ProductSupport
+PublicationContext -[hidden]down- RuntimeException
+Result -[hidden]down- RuntimeException
+AccessDeniedException -[hidden]right- ConcurrentUpdateException
+ConcurrentUpdateException -[hidden]right- DuplicateException
+InvalidInputException -[hidden]right- NotFoundException
+NotFoundException -[hidden]right- PreconditionRequiredException
+
+note bottom of excecoes
+  Sem dependência de HTTP: o serviço traduz cada exceção em ProblemMappers
+  (NotFound 404, Duplicate e ConcurrentUpdate 409, VersionMismatch 412,
+  PreconditionRequired 428, AccessDenied 403, InvalidInput 400). Lançadas por Actor,
+  Page, Versions, ProductAccess e pelos casos de uso; DuplicateException e
+  ConcurrentUpdateException também pelos repositórios Pg* do serviço.
+end note
+
+legend right
+  <b>Leitura</b>
+  <back:#1565C0>    </back> Caso de uso (serviço)
+  <back:#64B5F6>    </back> Record ou utilitário da aplicação
+  <back:#C62828>    </back> Exceção da aplicação
+  <back:#90A4AE>    </back> Tipo externo (tracejado)
+  <back:#2E7D32>    </back> Tipo do domínio (tracejado)
+endlegend
+@enduml

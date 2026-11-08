@@ -1,0 +1,49 @@
+@startuml sequencia-ajuste-estoque
+!include ../../../../docs/diagramas/tema-catalogo.iuml
+title $I_ESTOQUE Ajuste de estoque: PUT /inventory/skus/{skuId}
+autonumber
+
+participant "$I_SELLER\nSeller" as seller <<ator>>
+box "Entrada" #FFFAF3
+  participant "$I_API\nInventoryResource" as ir <<entrada>>
+end box
+box "Aplicação" #F5FAFF
+  participant "$I_ESTOQUE\nInventoryService" as svc <<aplicacao>>
+end box
+box "Saída" #FBF6FC
+  participant "$I_REPOSITORIO\nPgInventoryRepository" as repo <<saida>>
+  participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
+end box
+box "Infraestrutura" #F7F9FA
+  database "$I_POSTGRES\nPostgreSQL" as pg
+end box
+
+== Validação ==
+seller -> ir : PUT {onHand} + If-Match opcional
+ir -> ir : ETags.optional (ETag fraco ou malformado -> <color:#C62828>400</color>)
+ir -> svc : adjust(actor, skuId, versão?, onHand)
+svc -> svc : ownedBySku; requireOnHand;\nrequireNotArchived("ADJUST_STOCK")
+
+== Transação ==
+svc -> repo : adjust
+activate repo
+repo -> pg : BEGIN
+repo -> pg : SELECT ... FROM inventory_level ... FOR UPDATE
+alt #FFEBEE versão do If-Match diferente
+  repo -> pg : ROLLBACK
+  ir --> seller : <color:#C62828>412 version-mismatch</color>
+else #FFEBEE onHand < reserved
+  repo -> pg : ROLLBACK
+  ir --> seller : <color:#C62828>409 stock-below-reserved</color>
+else #E8F5E9 ok
+  repo -> pg : UPDATE inventory_level SET on_hand, version = version + 1
+  repo -> pg : INSERT inventory_adjustment (previous/new_on_hand, actor)
+  repo -> outbox : append InventoryUpdated(ADJUSTED)\n+ InventoryDepleted se o disponível foi de > 0 para 0
+  outbox -> pg : INSERT outbox_event (tópico catalog-inventory.inventory.v1, chave skuId)
+  repo -> pg : COMMIT
+  deactivate repo
+  ir --> seller : <color:#2E7D32>200 + ETag (nova versão)</color>
+end
+note over ir : $I_METRICA O resource mede a chamada em InventoryLatency\n(catalog.inventory.update.latency, operation=adjust_stock)
+$legenda_camadas()
+@enduml

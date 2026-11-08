@@ -1,0 +1,24 @@
+# Provedor OIDC só para desenvolvimento local: realm "marketplace" importado de infra/keycloak.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    deploy:
+      resources:
+        limits: {cpus: "1", memory: 1G}
+        reservations: {cpus: "0.10", memory: 512M}
+    profiles: [infra, catalog, all]
+    command: ["start-dev", "--import-realm"]
+    ports: ["127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin-local}
+      # WHY: o emissor (iss) dos tokens é sempre o endereço visto pelo host; o catálogo busca o JWKS pela rede interna.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8180}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes: ["../../keycloak:/opt/keycloak/data/import:ro"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 40

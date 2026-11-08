@@ -1,0 +1,30 @@
+name: Vulnerabilidades
+
+# Varredura semanal das dependências npm e Java pela base OSV: acusa vulnerabilidade publicada depois do último PR,
+# sem depender de diff. No PR, o job Verificação roda a mesma varredura.
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: OSV
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Node, Java e Gradle
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Varredura
+        run: npm run check:vulnerabilities

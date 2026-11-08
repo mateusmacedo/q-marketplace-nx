@@ -1,0 +1,88 @@
+rule_files:
+  - ../rules/catalog-inventory-slo.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # 2% de 5xx: 20 vezes o orçamento de 0,1%, consumo rápido.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/inventory/reservations",status="201"}'
+        values: '0+98x90'
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/inventory/reservations",status="500"}'
+        values: '0+2x90'
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/q/health/ready",status="503"}'
+        values: '0+500x90'
+    alert_rule_test:
+      - eval_time: 75m
+        alertname: CatalogApiAvailabilityBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: Disponibilidade da api consumindo o orçamento de erro rápido demais
+              description: Taxa de erro de 2%; nesse ritmo o orçamento de 30 dias acaba em poucos dias.
+
+  # 0,5% de 5xx: 5 vezes o orçamento, abaixo dos limites rápidos e acima dos lentos.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/products",status="200"}'
+        values: '0+995x180'
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/products",status="503"}'
+        values: '0+5x180'
+    alert_rule_test:
+      - eval_time: 170m
+        alertname: CatalogApiAvailabilityBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 170m
+        alertname: CatalogApiAvailabilityBudgetBurnSlow
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: Disponibilidade da api acima do orçamento de erro
+              description: Taxa de erro de 0.5%; nesse ritmo o orçamento de 30 dias acaba antes do fim do período.
+
+  # 0,05% de 5xx: dentro do orçamento, nenhum alerta.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/products",status="200"}'
+        values: '0+9995x180'
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/products",status="500"}'
+        values: '0+5x180'
+    alert_rule_test:
+      - eval_time: 170m
+        alertname: CatalogApiAvailabilityBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 170m
+        alertname: CatalogApiAvailabilityBudgetBurnSlow
+        exp_alerts: []
+
+  # 20% das escritas acima de 500 ms: 20 vezes o orçamento de 1%, consumo rápido.
+  - interval: 1m
+    input_series:
+      - series: 'catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",operation="reserve",outcome="success",le="0.5"}'
+        values: '0+80x90'
+      - series: 'catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",operation="reserve",outcome="success",le="+Inf"}'
+        values: '0+100x90'
+      # Série de uma versão sem o bucket do SLO: não entra na conta.
+      - series: 'catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",instance="antiga",operation="reserve",outcome="success",le="+Inf"}'
+        values: '0+1000x90'
+    alert_rule_test:
+      - eval_time: 75m
+        alertname: CatalogInventoryLatencyBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: Latência das escritas de inventário consumindo o orçamento de erro rápido demais
+              description: Taxa de erro de 20%; nesse ritmo o orçamento de 30 dias acaba em poucos dias.
+
+  # Sem nenhum 5xx, o SLI de disponibilidade vale 0, e não fica vazio.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="catalog-inventory",uri="/products",status="200"}'
+        values: '0+100x10'
+    promql_expr_test:
+      - expr: slo:catalog_api_availability:error_ratio_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:catalog_api_availability:error_ratio_rate5m'
+            value: 0

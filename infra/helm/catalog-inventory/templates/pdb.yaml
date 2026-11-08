@@ -1,0 +1,26 @@
+{{- range $role := list "api" "worker" }}
+{{- $pdb := (index $.Values $role).pdb }}
+{{- if $pdb.enabled }}
+{{- $component := dict "root" $ "component" $role }}
+{{- $hasMinAvailable := not (kindIs "invalid" $pdb.minAvailable) }}
+{{- if and $hasMinAvailable (not (kindIs "invalid" $pdb.maxUnavailable)) }}
+{{- fail (printf "%s.pdb aceita minAvailable ou maxUnavailable, não os dois: anule um deles com null" $role) }}
+{{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "catalog-inventory.componentFullname" $component }}
+  labels:
+    {{- include "catalog-inventory.componentLabels" $component | nindent 4 }}
+spec:
+  {{- if $hasMinAvailable }}
+  minAvailable: {{ $pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ required (printf "%s.pdb precisa de minAvailable ou maxUnavailable" $role) $pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "catalog-inventory.componentSelectorLabels" $component | nindent 6 }}
+{{- end }}
+{{- end }}

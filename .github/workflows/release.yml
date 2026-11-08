@@ -1,0 +1,83 @@
+name: Release
+
+# Versão semver, CHANGELOG.md e GitHub release por projeto (apps, libs e contratos), a partir dos Conventional Commits
+# desde a última tag de cada um (`<projeto>@<versão>`). Configuração em `release` no nx.json. Roda sozinho depois do
+# CI verde num push na main; o disparo manual serve para simular ou repetir.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Só mostrar as versões e os changelogs, sem commit, tag nem release
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    # WHY: o filtro branches só olha o nome da branch do CI; o event == 'push' descarta o CI de PR, inclusive o de um
+    # fork cuja branch se chame main.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      # O commit de versão e as tags vão para a main antes das GitHub releases.
+      contents: write
+    env:
+      # Nenhuma tarefa roda aqui; o grafo dos projetos vem do Gradle local.
+      NX_NO_CLOUD: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      # WHY: o release sai do commit que o CI aprovou; se a main andou, o CI do commit mais novo dispara o próximo.
+      - name: Commit aprovado pelo CI
+        id: tested
+        if: github.event_name == 'workflow_run'
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$TESTED_SHA" ]; then
+            echo "::notice::A main avançou depois do CI de $TESTED_SHA; o release fica para o CI do commit mais novo."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Node, Java e Gradle
+        if: steps.tested.outputs.skip != 'true'
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Identidade do commit de versão
+        if: steps.tested.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Versão, changelog e GitHub releases
+        if: steps.tested.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          set -euo pipefail
+          # Não há registry: --skip-publish responde "não" à publicação e dispensa o --yes, que o Nx recusa junto.
+          args=(--skip-publish)
+          # WHY: sem nenhuma tag de projeto, o Nx não acha a versão atual no git e precisa do --first-release.
+          if [ -z "$(git tag -l '*@*' | head -n 1)" ]; then args+=(--first-release); fi
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          npx nx release "${args[@]}"

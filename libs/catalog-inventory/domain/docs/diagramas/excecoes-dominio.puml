@@ -1,0 +1,49 @@
+@startuml excecoes-dominio
+!include ../../../../../docs/diagramas/tema-catalogo.iuml
+!include <tupadr3/font-awesome-5/ban>
+title Exceções de domínio e tradução HTTP no serviço
+
+hide empty members
+hide stereotype
+
+class RuntimeException <<infra>>
+class DomainRuleViolation << (!,#C62828) exceção>> {
+  code : String
+  reasons : List<String>
+  --
+  {static} invalid(message)
+  {static} requireText(value, max, message)
+}
+class InvalidTransitionException << (!,#C62828) exceção>> {
+  code = invalid-transition
+}
+class ReservationRefusal << (!,#C62828) exceção>>
+class StockConflictException << (!,#C62828) exceção>>
+
+RuntimeException <|-- DomainRuleViolation
+DomainRuleViolation <|-- InvalidTransitionException
+DomainRuleViolation <|-- ReservationRefusal
+DomainRuleViolation <|-- StockConflictException
+
+note right of DomainRuleViolation
+  Recusa de negócio: <color:#C62828><b>422</b></color> com code e reasons.
+  <$ban,scale=0.4,color=#C62828> Nunca deve disparar retentativa.
+end note
+note right of InvalidTransitionException
+  <color:#E65100><b>409</b></color> (transição negada pelo estado)
+end note
+note right of ReservationRefusal
+  <color:#E65100><b>409</b></color> (reserva recusada; o cliente recota)
+end note
+note right of StockConflictException
+  <color:#E65100><b>409</b></color> (stock-below-reserved, sku-has-stock)
+end note
+
+legend right
+  <b>Tradução HTTP</b>
+  <color:#C62828><b>422</b></color> Recusa de negócio (code e reasons)
+  <color:#E65100><b>409</b></color> Conflito com o estado atual
+  <back:#E57373>    </back> Exceção de domínio
+  <back:#90A4AE>    </back> Classe da JDK
+endlegend
+@enduml

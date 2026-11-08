@@ -1,0 +1,82 @@
+# SLOs do catálogo em 30 dias (ADR 021), com alertas de taxa de consumo do orçamento em janelas múltiplas: página
+# quando o consumo esgotaria o orçamento em cerca de 2 a 5 dias e ticket quando o esgotaria antes do fim dos 30 dias.
+# Disponibilidade: 99,9% das requisições de negócio da api sem 5xx. Latência: 99% das escritas de inventário
+# concluídas com sucesso em até 500 ms, contadas só nas séries que já têm o bucket de 500 ms (um rollout a partir de
+# versão sem ele não infla a taxa). Testes em ../tests/catalog-inventory-slo.test.yaml.
+groups:
+  - name: catalog-inventory-slo-sli
+    rules:
+      - record: slo:catalog_api_availability:error_ratio_rate5m
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[5m])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[5m]))
+      - record: slo:catalog_api_availability:error_ratio_rate30m
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[30m])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[30m]))
+      - record: slo:catalog_api_availability:error_ratio_rate1h
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[1h])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[1h]))
+      - record: slo:catalog_api_availability:error_ratio_rate2h
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[2h])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[2h]))
+      - record: slo:catalog_api_availability:error_ratio_rate6h
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[6h])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[6h]))
+      - record: slo:catalog_api_availability:error_ratio_rate1d
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[1d])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[1d]))
+      - record: slo:catalog_api_availability:error_ratio_rate3d
+        expr: (sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*",status=~"5.."}[3d])) or vector(0)) / sum(rate(http_server_requests_seconds_count{job="catalog-inventory",uri!~"/q/.*"}[3d]))
+      - record: slo:catalog_inventory_latency:error_ratio_rate5m
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[5m])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[5m]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[5m])))
+      - record: slo:catalog_inventory_latency:error_ratio_rate30m
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[30m])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[30m]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[30m])))
+      - record: slo:catalog_inventory_latency:error_ratio_rate1h
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[1h])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[1h]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[1h])))
+      - record: slo:catalog_inventory_latency:error_ratio_rate2h
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[2h])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[2h]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[2h])))
+      - record: slo:catalog_inventory_latency:error_ratio_rate6h
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[6h])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[6h]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[6h])))
+      - record: slo:catalog_inventory_latency:error_ratio_rate1d
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[1d])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[1d]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[1d])))
+      - record: slo:catalog_inventory_latency:error_ratio_rate3d
+        expr: 1 - (sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[3d])) / sum(rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="+Inf"}[3d]) and on (instance, operation) rate(catalog_inventory_update_latency_seconds_bucket{job="catalog-inventory",outcome="success",le="0.5"}[3d])))
+
+  - name: catalog-inventory-slo-alerts
+    rules:
+      - alert: CatalogApiAvailabilityBudgetBurnFast
+        expr: |
+          (slo:catalog_api_availability:error_ratio_rate1h > (14.4 * 0.001) and slo:catalog_api_availability:error_ratio_rate5m > (14.4 * 0.001))
+          or (slo:catalog_api_availability:error_ratio_rate6h > (6 * 0.001) and slo:catalog_api_availability:error_ratio_rate30m > (6 * 0.001))
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Disponibilidade da api consumindo o orçamento de erro rápido demais
+          description: "Taxa de erro de {{ $value | humanizePercentage }}; nesse ritmo o orçamento de 30 dias acaba em poucos dias."
+
+      - alert: CatalogApiAvailabilityBudgetBurnSlow
+        expr: |
+          (slo:catalog_api_availability:error_ratio_rate1d > (3 * 0.001) and slo:catalog_api_availability:error_ratio_rate2h > (3 * 0.001))
+          or (slo:catalog_api_availability:error_ratio_rate3d > 0.001 and slo:catalog_api_availability:error_ratio_rate6h > 0.001)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Disponibilidade da api acima do orçamento de erro
+          description: "Taxa de erro de {{ $value | humanizePercentage }}; nesse ritmo o orçamento de 30 dias acaba antes do fim do período."
+
+      - alert: CatalogInventoryLatencyBudgetBurnFast
+        expr: |
+          (slo:catalog_inventory_latency:error_ratio_rate1h > (14.4 * 0.01) and slo:catalog_inventory_latency:error_ratio_rate5m > (14.4 * 0.01))
+          or (slo:catalog_inventory_latency:error_ratio_rate6h > (6 * 0.01) and slo:catalog_inventory_latency:error_ratio_rate30m > (6 * 0.01))
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Latência das escritas de inventário consumindo o orçamento de erro rápido demais
+          description: "Taxa de erro de {{ $value | humanizePercentage }}; nesse ritmo o orçamento de 30 dias acaba em poucos dias."
+
+      - alert: CatalogInventoryLatencyBudgetBurnSlow
+        expr: |
+          (slo:catalog_inventory_latency:error_ratio_rate1d > (3 * 0.01) and slo:catalog_inventory_latency:error_ratio_rate2h > (3 * 0.01))
+          or (slo:catalog_inventory_latency:error_ratio_rate3d > 0.01 and slo:catalog_inventory_latency:error_ratio_rate6h > 0.01)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Latência das escritas de inventário acima do orçamento de erro
+          description: "Taxa de erro de {{ $value | humanizePercentage }}; nesse ritmo o orçamento de 30 dias acaba antes do fim do período."

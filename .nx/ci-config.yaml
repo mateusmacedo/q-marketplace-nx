@@ -1,0 +1,7 @@
+# Nx Cloud com agentes próprios (ADR 026): as tarefas vão para o job Agentes do ci.yml, nos runners do GitHub, que já
+# têm Docker e Java para os testes com Dev Services. A execução termina com o assemble, último comando nx da Verificação.
+dte:
+  distribute-on: manual
+lifecycle:
+  stop-after:
+    - assemble

@@ -1,0 +1,281 @@
+# Valores do chart do catálogo e inventário (executável nativo do Quarkus, ADR 005).
+# Campos marcados como OBRIGATÓRIO não têm padrão: a renderização falha com mensagem explícita se faltarem.
+# Exemplo completo de produção: values-production.example.yaml.
+# A mesma imagem e a mesma configuração rodam em dois Deployments, escolhidos pelo perfil do Quarkus: a api
+# (QUARKUS_PROFILE=prod,api) e o worker (QUARKUS_PROFILE=prod,worker). O que difere por papel fica nos blocos api e
+# worker, no fim do arquivo; o resto vale para os dois.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: marketplace/catalog-inventory
+  # OBRIGATÓRIO: tag imutável da imagem nativa (por exemplo, a versão ou o commit). "latest" é recusada.
+  tag: ""
+  # Opcional: digest (sha256:...) para fixar a imagem exata, somado à tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Rollout sem perda de capacidade, nos dois papéis: sobe um pod novo pronto antes de retirar um antigo.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+serviceAccount:
+  create: true
+  # Vazio usa o nome completo da release.
+  name: ""
+  # Anotações para identidade de carga de trabalho (por exemplo, IRSA na AWS).
+  annotations: {}
+
+# Anotações e rótulos dos pods dos dois papéis; <papel>.podAnnotations tem precedência na mesma chave.
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  # Usuário da imagem (infra/docker/Dockerfile.native).
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# Volume gravável em /tmp, já que a raiz do contêiner é somente leitura.
+tmpVolume:
+  sizeLimit: 128Mi
+
+# Probes dos dois papéis na porta de gestão (management, 9000); a porta 8080 da api não serve /q/*.
+# A partida nativa leva menos de 1 s; a startupProbe só cobre as migrations Flyway do boot.
+startupProbe:
+  httpGet:
+    path: /q/health/started
+    port: management
+  periodSeconds: 1
+  timeoutSeconds: 2
+  failureThreshold: 30
+readinessProbe:
+  httpGet:
+    path: /q/health/ready
+    port: management
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
+livenessProbe:
+  httpGet:
+    path: /q/health/live
+    port: management
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+# Encerramento: o preStop segura o SIGTERM até o Service retirar o pod dos endpoints; depois o Quarkus drena as
+# requisições por até 25 s (quarkus.shutdown.timeout). O prazo total precisa ficar acima da soma dos dois.
+preStopSleepSeconds: 5
+terminationGracePeriodSeconds: 40
+
+# Só a api, na porta http (8080).
+service:
+  type: ClusterIP
+  port: 80
+
+# Espalha as réplicas de cada papel entre nós, sem impedir o agendamento quando não houver nós suficientes.
+topologySpread:
+  enabled: true
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway
+
+# /q/metrics na porta de gestão (9000) dos dois papéis.
+metrics:
+  # Anotações prometheus.io/* no pod, para coleta por descoberta de pods. Desligue se usar o ServiceMonitor.
+  scrapeAnnotations: true
+  # ServiceMonitor do Prometheus Operator (exige o CRD monitoring.coreos.com/v1 no cluster) sobre o Service headless
+  # <release>-metrics; o papel do pod vira o rótulo app_kubernetes_io_component.
+  serviceMonitor:
+    enabled: false
+    # Rótulos que o Prometheus usa para selecionar o ServiceMonitor (por exemplo, release: kube-prometheus-stack).
+    labels: {}
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Banco PostgreSQL compartilhado (ADRs 006 e 019): o catálogo vive no schema do contexto, no banco marketplace. As
+# requisições usam o cliente reativo com o role de runtime, só DML; o JDBC serve só às migrations Flyway no boot, que
+# rodam com o role dono do schema. Schema e roles são criados fora do chart.
+database:
+  # OBRIGATÓRIO, por exemplo: postgresql://postgres.example.internal:5432/marketplace
+  reactiveUrl: ""
+  # OBRIGATÓRIO, por exemplo: jdbc:postgresql://postgres.example.internal:5432/marketplace
+  jdbcUrl: ""
+  # Schema das migrations e do search_path das conexões reativas.
+  schema: catalog_inventory
+  # OBRIGATÓRIO: Secret existente, criado fora do chart, com usuário e senha do role de runtime.
+  existingSecret: ""
+  usernameKey: username
+  passwordKey: password
+  # Role dono do schema, usado só pelo Flyway; sem existingSecret, as chaves são lidas de database.existingSecret.
+  migrator:
+    existingSecret: ""
+    usernameKey: migrator-username
+    passwordKey: migrator-password
+
+kafka:
+  # OBRIGATÓRIO: lista host:porta dos brokers.
+  bootstrapServers: ""
+  # Opcional: Secret existente com propriedades de cliente para SASL/SSL, uma chave por propriedade, no formato de
+  # variável de ambiente do Quarkus (KAFKA_SECURITY_PROTOCOL, KAFKA_SASL_MECHANISM, KAFKA_SASL_JAAS_CONFIG etc.).
+  # O serviço recebe as chaves como variáveis de ambiente; o Job de tópicos as converte em --command-config.
+  clientSecret: ""
+
+# Servidor de recursos OIDC (ADR 007). Sem emissor, JWKS e audiência, o serviço não inicia.
+jwt:
+  # OBRIGATÓRIO: emissor (claim iss) dos tokens.
+  issuer: ""
+  # OBRIGATÓRIO: URL do JWKS do provedor; buscada só ao validar um token.
+  jwksUrl: ""
+  audience: catalog-inventory
+  # Caminho da claim de papéis; no Keycloak, realm_access/roles.
+  groupsPath: groups
+
+# Cache Redis da vitrine e da taxonomia (ADR 024). O Redis é externo, standalone (sem Redis Cluster) e com um usuário
+# de ACL restrito a catalog:*; desligado, ou com o Redis fora, o serviço lê do banco.
+cache:
+  enabled: false
+  # OBRIGATÓRIO com enabled: usuário da ACL sem a senha, por exemplo redis://catalog@redis.example.internal:6379.
+  hosts: ""
+  # OBRIGATÓRIO com enabled: Secret existente, criado fora do chart, com a senha do usuário.
+  existingSecret: ""
+  passwordKey: password
+  # Vazios usam o padrão do serviço: validade do conteúdo (60s) e prazo de cada comando (100ms).
+  ttl: ""
+  timeout: ""
+
+swaggerUi:
+  enabled: false
+
+# Traces OTLP (ADR 013).
+otel:
+  enabled: false
+  # Endpoint OTLP do coletor, por exemplo http://otel-collector.observability:4317
+  endpoint: ""
+
+# Tópicos do catálogo (ADR 013). Os nomes alimentam também a configuração do serviço, então o Job cria exatamente
+# os tópicos que o serviço usa. Cada tópico herda partitions, replicationFactor e config de topicDefaults e pode
+# sobrescrevê-los. "create: false" mantém o nome na configuração do serviço sem criar o tópico.
+topicDefaults:
+  # A chave de cada evento é o id do agregado; aumentar partições depois muda a distribuição das chaves e a ordem
+  # por agregado, então defina o número antes do lançamento.
+  partitions: 6
+  replicationFactor: 3
+  config:
+    # Com acks=all no produtor, duas réplicas em sincronia confirmam cada evento.
+    min.insync.replicas: "2"
+
+topics:
+  product:
+    name: catalog-inventory.product.v1
+  offer:
+    name: catalog-inventory.offer.v1
+  inventory:
+    name: catalog-inventory.inventory.v1
+  store:
+    name: catalog-inventory.store.v1
+  # Fila de descarte do consumo de vereditos KYB/KYC.
+  kybSellerDlq:
+    name: catalog-inventory.kyb-seller.dlq
+    config:
+      # 14 dias para investigar e reprocessar mensagens descartadas.
+      retention.ms: "1209600000"
+  # Vereditos consumidos do KYB/KYC: o tópico pertence ao produtor e não é criado por este chart.
+  # Ligue create só onde o catálogo precisar subir antes do KYB/KYC existir.
+  kybSeller:
+    name: kyb-kyc.seller.v1
+    create: false
+
+# Job de criação dos tópicos: hook pre-install e pre-upgrade, idempotente (--create --if-not-exists).
+# Não altera tópicos existentes (partições, réplicas ou config).
+topicsJob:
+  enabled: true
+  image:
+    repository: apache/kafka
+    # Tag com o digest da mesma imagem do compose (tools/check-images.mjs).
+    tag: 4.2.0@sha256:9516fb7634bad307d17c33b589fde9023003b0cb761374f500002b980a3149b9
+    pullPolicy: IfNotPresent
+  backoffLimit: 4
+  activeDeadlineSeconds: 300
+  # WHY: vazio usa a ServiceAccount padrão do namespace, porque o hook roda antes da ServiceAccount do chart existir.
+  serviceAccountName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podAnnotations: {}
+
+# Variáveis adicionais dos dois papéis; têm precedência sobre o ConfigMap, e <papel>.extraEnv substitui a de mesmo nome.
+# Exemplo: [{name: CATALOG_RESERVATIONS_DEFAULT_TTL, value: 10m}]
+extraEnv: []
+# Fontes adicionais de variáveis dos dois papéis (ConfigMaps ou Secrets existentes).
+extraEnvFrom: []
+
+# api: HTTP de negócio na porta 8080, atrás do Service; grava no banco e na outbox, sem Kafka nem tarefas agendadas.
+api:
+  replicaCount: 2
+  # Recursos dimensionados para o executável nativo (sem JVM).
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: "1"
+      memory: 256Mi
+  # Use minAvailable ou maxUnavailable (o outro fica null).
+  pdb:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: null
+  # Desligado por padrão; quando ligado, o HPA controla as réplicas e replicaCount é ignorado.
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    # Opcional: alvo de memória em percentual do request.
+    targetMemoryUtilizationPercentage: null
+  extraEnv: []
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# worker: relay da outbox para o Kafka, varredor de reservas, importação, contagem de SKUs, limpeza e consumidor
+# KYB/KYC. Sem a porta 8080: só a porta de gestão abre.
+worker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: "1"
+      memory: 256Mi
+  # WHY: maxUnavailable em vez de minAvailable, que com 1 réplica impediria drenar o nó.
+  pdb:
+    enabled: true
+    minAvailable: null
+    maxUnavailable: 1
+  extraEnv: []
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

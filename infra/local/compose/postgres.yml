@@ -1,0 +1,52 @@
+# PostgreSQL compartilhado pela plataforma (ADR 019): banco marketplace, com um schema por contexto. Schemas e roles
+# nascem no postgres-init, por infra/postgres/provision.sh, e não no init script da imagem, para que um contexto novo
+# entre também num volume que já existe; o superusuário do contêiner é só administrativo.
+x-postgres-image: &postgres-image postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+
+services:
+  postgres:
+    image: *postgres-image
+    profiles: [infra, catalog, all]
+    environment:
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-local}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d marketplace"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # WHY: na carga average, o banco do catálogo chegou a 0,74 núcleo (média de 1 min) e 342 MiB de working set; 1,25
+    # núcleo cabe no orçamento do host (tools/infra-budget.sh), e o kernel recupera o cache de páginas antes do teto.
+    deploy:
+      resources:
+        limits: {cpus: "1.25", memory: 1G}
+        reservations: {cpus: "0.25", memory: 256M}
+
+  # Idempotente, como o kafka-init: um contexto por item de command; cada um precisa das duas senhas abaixo.
+  postgres-init:
+    image: *postgres-image
+    deploy:
+      resources:
+        limits: {cpus: "0.05", memory: 64M}
+        reservations: {cpus: "0.01", memory: 16M}
+    profiles: [infra, catalog, all]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres-local}
+      PGDATABASE: marketplace
+      CATALOG_INVENTORY_DB_PASSWORD: ${CATALOG_INVENTORY_DB_PASSWORD:-catalog-inventory-local}
+      CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD: ${CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD:-catalog-inventory-migrator-local}
+      POSTGRES_EXPORTER_PASSWORD: ${POSTGRES_EXPORTER_PASSWORD:-exporter-local-postgres}
+    volumes: ["../../postgres/provision.sh:/provision.sh:ro"]
+    entrypoint: ["sh", "/provision.sh"]
+    command: [catalog_inventory]
+
+volumes:
+  postgres: {}
