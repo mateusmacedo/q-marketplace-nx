@@ -16,5 +16,6 @@ services:
       retries: 30
     deploy:
       resources:
-        limits: {cpus: "0.10", memory: 256M}
+        # Teto de CPU como disjuntor (ADR 019): com 0,10, até o healthcheck era estrangulado (56% do tempo).
+        limits: {cpus: "0.25", memory: 256M}
         reservations: {cpus: "0.05", memory: 64M}

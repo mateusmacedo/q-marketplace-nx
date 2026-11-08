@@ -6,7 +6,8 @@ services:
     image: apache/kafka:4.2.0@sha256:9516fb7634bad307d17c33b589fde9023003b0cb761374f500002b980a3149b9
     deploy:
       resources:
-        limits: {cpus: "0.75", memory: 1536M}
+        # Teto de CPU como disjuntor (ADR 019): com 0,75, o boot e a JVM do healthcheck eram estrangulados em 9% do tempo.
+        limits: {cpus: "1.5", memory: 1536M}
         reservations: {cpus: "0.10", memory: 512M}
     profiles: [infra, catalog, all]
     ports: ["127.0.0.1:${KAFKA_PORT:-9094}:9094"]
