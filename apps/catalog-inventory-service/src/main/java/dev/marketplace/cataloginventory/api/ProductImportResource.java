@@ -2,7 +2,7 @@ package dev.marketplace.cataloginventory.api;
 
 import dev.marketplace.cataloginventory.observability.Lifecycle;
 import dev.marketplace.cataloginventory.observability.Traced;
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.api.ProductImportModels.ImportResponse;
 import dev.marketplace.cataloginventory.application.Actor;
 import dev.marketplace.cataloginventory.application.ProductImportService;

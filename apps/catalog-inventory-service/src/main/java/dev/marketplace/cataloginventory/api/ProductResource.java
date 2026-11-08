@@ -218,8 +218,8 @@ public class ProductResource {
 
     /**
      * Devolve a variação do SKU com o ETag da versão do produto, não do SKU; 404 se
-     * o SKU não
-     * pertence ao produto.
+     * o produto não existe ou está fora do alcance do chamador e 422
+     * {@code sku-not-found} se o SKU não pertence ao produto.
      */
     @GET
     @Path("/{id}/skus/{skuId}")
@@ -248,9 +248,10 @@ public class ProductResource {
     }
 
     /**
-     * Remove o SKU; {@code If-Match} opcional (412 se divergir). Responde 409
-     * {@code sku-has-stock}
-     * se o SKU ainda tem estoque ou reserva.
+     * Remove o SKU; {@code If-Match} opcional (412 se divergir). Responde 422
+     * {@code sku-removal-requires-draft} fora de {@code DRAFT}, 422
+     * {@code sku-not-found} se o SKU não pertence ao produto e 409
+     * {@code sku-has-stock} se o SKU ainda tem estoque ou reserva.
      */
     @DELETE
     @Path("/{id}/skus/{skuId}")

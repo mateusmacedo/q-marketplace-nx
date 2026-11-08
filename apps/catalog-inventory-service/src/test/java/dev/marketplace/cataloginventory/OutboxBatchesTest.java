@@ -1,7 +1,7 @@
 package dev.marketplace.cataloginventory;
 
 import dev.marketplace.cataloginventory.messaging.MessagingHousekeeping;
-import dev.marketplace.cataloginventory.messaging.OutboxMessage;
+import dev.marketplace.cataloginventory.outbox.OutboxMessage;
 import dev.marketplace.cataloginventory.messaging.OutboxRelay;
 import dev.marketplace.cataloginventory.persistence.PgOutbox;
 import io.micrometer.core.instrument.MeterRegistry;

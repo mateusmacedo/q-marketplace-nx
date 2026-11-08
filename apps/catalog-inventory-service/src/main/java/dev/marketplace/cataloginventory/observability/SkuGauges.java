@@ -1,7 +1,6 @@
 package dev.marketplace.cataloginventory.observability;
 
 import io.opentelemetry.api.trace.Span;
-import dev.marketplace.cataloginventory.persistence.PgCatalogMetrics;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.scheduler.Scheduled;
@@ -21,12 +20,12 @@ import static io.quarkus.scheduler.Scheduled.ConcurrentExecution.SKIP;
 @ApplicationScoped
 public class SkuGauges {
     private static final Logger LOG = Logger.getLogger(SkuGauges.class);
-    private final PgCatalogMetrics metrics;
+    private final SkuCountsSource metrics;
     private final Lifecycle lifecycle;
     private final AtomicLong active = new AtomicLong();
     private final AtomicLong sellable = new AtomicLong();
 
-    SkuGauges(PgCatalogMetrics metrics, MeterRegistry registry, Lifecycle lifecycle) {
+    SkuGauges(SkuCountsSource metrics, MeterRegistry registry, Lifecycle lifecycle) {
         this.metrics = metrics;
         this.lifecycle = lifecycle;
         Gauge.builder("catalog.skus.active", active, AtomicLong::get)

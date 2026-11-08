@@ -1,5 +1,6 @@
 package dev.marketplace.cataloginventory.persistence;
 
+import dev.marketplace.cataloginventory.observability.SkuCountsSource;
 import dev.marketplace.cataloginventory.observability.Traced;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;
@@ -13,7 +14,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  */
 @ApplicationScoped
 @Traced
-public class PgCatalogMetrics {
+public class PgCatalogMetrics implements SkuCountsSource {
     // WHY: loja sem linha em seller_eligibility ainda está PENDING, como na leitura da elegibilidade.
     private static final String SKU_COUNTS = """
             SELECT count(*) AS active,
@@ -25,13 +26,6 @@ public class PgCatalogMetrics {
             LEFT JOIN inventory_level i ON i.sku_id = s.id
             WHERE p.status = 'ACTIVE'""";
 
-    /**
-     * SKUs de produtos com status gravado {@code ACTIVE} e, entre eles, os de loja
-     * {@code APPROVED} com saldo disponível ({@code on_hand - reserved}) positivo.
-     */
-    public record SkuCounts(long active, long sellable) {
-    }
-
     private final Pool pool;
 
     PgCatalogMetrics(Pool pool) {
@@ -39,6 +33,7 @@ public class PgCatalogMetrics {
     }
 
     /** Conta os SKUs ativos e os vendáveis de todos os tenants numa única consulta agregada. */
+    @Override
     public Uni<SkuCounts> skuCounts() {
         return pool.query(SKU_COUNTS).execute().map(rows -> {
             Row r = rows.iterator().next();

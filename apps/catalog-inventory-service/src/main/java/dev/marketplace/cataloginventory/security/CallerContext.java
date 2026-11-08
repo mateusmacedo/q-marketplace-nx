@@ -1,6 +1,6 @@
 package dev.marketplace.cataloginventory.security;
 
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.Actor;
 import dev.marketplace.cataloginventory.application.Capability;
 import jakarta.enterprise.context.RequestScoped;

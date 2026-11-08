@@ -1,7 +1,7 @@
 package dev.marketplace.cataloginventory;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import dev.marketplace.cataloginventory.messaging.OutboxMessage;
+import dev.marketplace.cataloginventory.outbox.OutboxMessage;
 import dev.marketplace.cataloginventory.persistence.PgOutbox;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.mutiny.sqlclient.Pool;

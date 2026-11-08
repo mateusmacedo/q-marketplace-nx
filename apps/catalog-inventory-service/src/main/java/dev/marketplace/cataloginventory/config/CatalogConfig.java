@@ -1,4 +1,4 @@
-package dev.marketplace.cataloginventory;
+package dev.marketplace.cataloginventory.config;
 
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;

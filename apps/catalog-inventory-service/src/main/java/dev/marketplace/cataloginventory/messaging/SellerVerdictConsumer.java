@@ -1,11 +1,12 @@
 package dev.marketplace.cataloginventory.messaging;
 
+import dev.marketplace.cataloginventory.observability.Correlation;
 import dev.marketplace.cataloginventory.observability.Traced;
 import dev.marketplace.cataloginventory.observability.Telemetry;
 import io.opentelemetry.api.trace.Span;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.SellerEligibilityService;
 import dev.marketplace.cataloginventory.application.SellerVerdict;
 import dev.marketplace.cataloginventory.domain.product.SellerStatus;

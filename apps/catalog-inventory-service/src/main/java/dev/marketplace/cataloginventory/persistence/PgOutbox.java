@@ -2,7 +2,7 @@ package dev.marketplace.cataloginventory.persistence;
 
 import dev.marketplace.cataloginventory.observability.Traced;
 import dev.marketplace.cataloginventory.observability.Telemetry;
-import dev.marketplace.cataloginventory.messaging.OutboxMessage;
+import dev.marketplace.cataloginventory.outbox.OutboxMessage;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;

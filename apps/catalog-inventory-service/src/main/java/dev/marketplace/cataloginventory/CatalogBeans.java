@@ -1,5 +1,6 @@
 package dev.marketplace.cataloginventory;
 
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.*;
 import dev.marketplace.cataloginventory.cache.TaxonomyCache;
 import jakarta.enterprise.inject.Produces;

@@ -1,14 +1,14 @@
-package dev.marketplace.cataloginventory.messaging;
+package dev.marketplace.cataloginventory.outbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.inventory.InventoryEvent;
 import dev.marketplace.cataloginventory.domain.offer.OfferEvent;
 import dev.marketplace.cataloginventory.domain.product.ProductEvent;
 import dev.marketplace.cataloginventory.domain.product.SellerStatus;
-import dev.marketplace.cataloginventory.messaging.EventContracts.*;
+import dev.marketplace.cataloginventory.outbox.EventContracts.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Instant;
 import java.util.List;

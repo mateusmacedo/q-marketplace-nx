@@ -1,4 +1,4 @@
-package dev.marketplace.cataloginventory.messaging;
+package dev.marketplace.cataloginventory.outbox;
 
 import java.time.Instant;
 import java.util.UUID;

@@ -4,7 +4,7 @@ import dev.marketplace.cataloginventory.application.ProductImport;
 import io.opentelemetry.api.trace.Span;
 import dev.marketplace.cataloginventory.observability.Telemetry;
 import dev.marketplace.cataloginventory.observability.Lifecycle;
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.ImportResult;
 import dev.marketplace.cataloginventory.application.ProductImportRepository;
 import dev.marketplace.cataloginventory.application.ProductImportService;

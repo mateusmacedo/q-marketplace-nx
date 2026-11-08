@@ -1,5 +1,6 @@
-package dev.marketplace.cataloginventory.messaging;
+package dev.marketplace.cataloginventory.outbox;
 
+import dev.marketplace.cataloginventory.observability.Correlation;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;

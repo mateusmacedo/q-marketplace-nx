@@ -1,4 +1,4 @@
-package dev.marketplace.cataloginventory.messaging;
+package dev.marketplace.cataloginventory.outbox;
 
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import java.time.Instant;

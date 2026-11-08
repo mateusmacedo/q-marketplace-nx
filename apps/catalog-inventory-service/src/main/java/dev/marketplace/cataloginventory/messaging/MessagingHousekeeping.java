@@ -2,7 +2,7 @@ package dev.marketplace.cataloginventory.messaging;
 
 import dev.marketplace.cataloginventory.observability.Lifecycle;
 import io.opentelemetry.api.trace.Span;
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.persistence.PgOutbox;
 import io.quarkus.scheduler.Scheduled;
 import io.quarkus.scheduler.Scheduled.ApplicationNotRunning;

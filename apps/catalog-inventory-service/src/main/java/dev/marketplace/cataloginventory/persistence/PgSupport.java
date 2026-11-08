@@ -1,6 +1,6 @@
 package dev.marketplace.cataloginventory.persistence;
 
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.ConcurrentUpdateException;
 import dev.marketplace.cataloginventory.application.DuplicateException;
 import io.smallrye.mutiny.Uni;

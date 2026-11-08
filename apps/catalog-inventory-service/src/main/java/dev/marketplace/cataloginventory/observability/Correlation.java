@@ -1,4 +1,4 @@
-package dev.marketplace.cataloginventory.messaging;
+package dev.marketplace.cataloginventory.observability;
 
 import io.smallrye.common.vertx.ContextLocals;
 import io.smallrye.common.vertx.VertxContext;

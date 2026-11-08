@@ -1,11 +1,12 @@
 package dev.marketplace.cataloginventory.messaging;
 
+import dev.marketplace.cataloginventory.outbox.EventOrigin;
 import dev.marketplace.cataloginventory.observability.Lifecycle;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Context;
-import dev.marketplace.cataloginventory.CatalogConfig;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.persistence.PgOutbox;
 import dev.marketplace.cataloginventory.persistence.PgOutbox.Delivery;
 import dev.marketplace.cataloginventory.persistence.PgOutbox.Pending;

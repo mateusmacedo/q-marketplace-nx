@@ -1,7 +1,6 @@
 package dev.marketplace.cataloginventory.observability;
 
-import dev.marketplace.cataloginventory.CatalogConfig;
-import dev.marketplace.cataloginventory.messaging.Correlation;
+import dev.marketplace.cataloginventory.config.CatalogConfig;
 import io.smallrye.common.vertx.ContextLocals;
 import jakarta.json.JsonString;
 import jakarta.ws.rs.container.ContainerRequestContext;

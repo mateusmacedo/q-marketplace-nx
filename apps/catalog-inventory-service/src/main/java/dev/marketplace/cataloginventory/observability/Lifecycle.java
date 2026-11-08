@@ -1,8 +1,6 @@
 package dev.marketplace.cataloginventory.observability;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import dev.marketplace.cataloginventory.imports.InvalidImportFileException;
-import dev.marketplace.cataloginventory.security.TenantNotAuthorizedException;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
@@ -279,6 +277,6 @@ public class Lifecycle {
         String type = failure.getClass().getName();
         return type.startsWith(DOMAIN) || type.startsWith(APPLICATION)
                 || failure instanceof ConstraintViolationException || failure instanceof JsonProcessingException
-                || failure instanceof InvalidImportFileException || failure instanceof TenantNotAuthorizedException;
+                || failure instanceof Refusal;
     }
 }

@@ -1,6 +1,8 @@
 package dev.marketplace.cataloginventory.security;
 
-public class TenantNotAuthorizedException extends RuntimeException {
+import dev.marketplace.cataloginventory.observability.Refusal;
+
+public class TenantNotAuthorizedException extends RuntimeException implements Refusal {
     public TenantNotAuthorizedException(String message) {
         super(message);
     }

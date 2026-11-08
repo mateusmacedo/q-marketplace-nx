@@ -1,6 +1,6 @@
 package dev.marketplace.cataloginventory.api;
 
-import dev.marketplace.cataloginventory.messaging.Correlation;
+import dev.marketplace.cataloginventory.observability.Correlation;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import org.jboss.resteasy.reactive.server.ServerRequestFilter;
