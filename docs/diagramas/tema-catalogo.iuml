@@ -1,0 +1,242 @@
+' Tema visual compartilhado pelos diagramas do catálogo-inventário.
+' Inclua com caminho relativo, por exemplo: !include ../../../../docs/diagramas/tema-catalogo.iuml
+' Sprites vêm da biblioteca padrão embutida no PlantUML (sem rede).
+
+!include <tupadr3/font-awesome-5/user_tie>
+!include <tupadr3/font-awesome-5/user_shield>
+!include <tupadr3/font-awesome-5/user_cog>
+!include <tupadr3/font-awesome-5/shopping_cart>
+!include <tupadr3/font-awesome-5/globe>
+!include <tupadr3/font-awesome-5/robot>
+!include <tupadr3/font-awesome-5/clock>
+!include <tupadr3/font-awesome-5/id_card>
+!include <tupadr3/font-awesome-5/file_csv>
+!include <tupadr3/font-awesome-5/database>
+!include <tupadr3/font-awesome-5/bolt>
+!include <tupadr3/font-awesome-5/lock>
+!include <tupadr3/font-awesome-5/cubes>
+!include <tupadr3/font-awesome-5/cogs>
+!include <tupadr3/font-awesome-5/plug>
+!include <tupadr3/font-awesome-5/exchange_alt>
+!include <tupadr3/font-awesome-5/envelope>
+!include <tupadr3/font-awesome-5/broom>
+!include <tupadr3/font-awesome-5/chart_line>
+!include <tupadr3/font-awesome-5/server>
+!include <tupadr3/font-awesome-5/store>
+!include <tupadr3/font-awesome-5/gavel>
+!include <tupadr3/font-awesome-5/warehouse>
+!include <tupadr3/font-awesome-5/tag>
+!include <tupadr3/font-awesome-5/sitemap>
+!include <tupadr3/font-awesome-5/redo>
+!include <logos/postgresql>
+!include <logos/kafka-icon>
+!include <logos/redis>
+!include <logos/quarkus-icon>
+
+' Paleta por camada (fundo / borda)
+!$COR_DOMINIO = "#E8F5E9"
+!$BORDA_DOMINIO = "#2E7D32"
+!$COR_APLICACAO = "#E3F2FD"
+!$BORDA_APLICACAO = "#1565C0"
+!$COR_ENTRADA = "#FFF3E0"
+!$BORDA_ENTRADA = "#EF6C00"
+!$COR_SAIDA = "#F3E5F5"
+!$BORDA_SAIDA = "#6A1B9A"
+!$COR_INFRA = "#ECEFF1"
+!$BORDA_INFRA = "#455A64"
+!$COR_ATOR = "#FFFDE7"
+!$BORDA_ATOR = "#F9A825"
+!$COR_ERRO = "#FFEBEE"
+!$BORDA_ERRO = "#C62828"
+!$COR_OK = "#E8F5E9"
+!$COR_NOTA = "#FFFBEA"
+!$TEXTO = "#263238"
+
+' Ícones prontos para usar em rótulos: "$I_SELLER\nSeller"
+!$I_SELLER = "<$user_tie,scale=0.9,color=#F9A825>"
+!$I_MODERADOR = "<$user_shield,scale=0.9,color=#F9A825>"
+!$I_ADMIN = "<$user_cog,scale=0.9,color=#F9A825>"
+!$I_COMPRADOR = "<$shopping_cart,scale=0.9,color=#F9A825>"
+!$I_ANONIMO = "<$globe,scale=0.9,color=#F9A825>"
+!$I_SISTEMA = "<$exchange_alt,scale=0.9,color=#455A64>"
+!$I_WORKER = "<$robot,scale=0.9,color=#455A64>"
+!$I_AGENDADOR = "<$clock,scale=0.9,color=#455A64>"
+!$I_KYB = "<$id_card,scale=0.9,color=#455A64>"
+!$I_CSV = "<$file_csv,scale=0.9,color=#455A64>"
+!$I_API = "<$plug,scale=0.8,color=#EF6C00>"
+!$I_SERVICO = "<$cogs,scale=0.8,color=#1565C0>"
+!$I_DOMINIO = "<$cubes,scale=0.8,color=#2E7D32>"
+!$I_REPOSITORIO = "<$database,scale=0.8,color=#6A1B9A>"
+!$I_OUTBOX = "<$envelope,scale=0.8,color=#6A1B9A>"
+!$I_CACHE = "<$bolt,scale=0.8,color=#6A1B9A>"
+!$I_SEGURANCA = "<$lock,scale=0.8,color=#455A64>"
+!$I_LIMPEZA = "<$broom,scale=0.8,color=#455A64>"
+!$I_METRICA = "<$chart_line,scale=0.8,color=#455A64>"
+!$I_SERVIDOR = "<$server,scale=0.8,color=#455A64>"
+!$I_VITRINE = "<$store,scale=0.8,color=#EF6C00>"
+!$I_MODERACAO = "<$gavel,scale=0.8,color=#1565C0>"
+!$I_ESTOQUE = "<$warehouse,scale=0.8,color=#1565C0>"
+!$I_OFERTA = "<$tag,scale=0.8,color=#1565C0>"
+!$I_CATEGORIA = "<$sitemap,scale=0.8,color=#1565C0>"
+!$I_RETENTATIVA = "<$redo,scale=0.7,color=#455A64>"
+!$I_POSTGRES = "<$postgresql,scale=0.55>"
+!$I_KAFKA = "<$kafka-icon,scale=0.5>"
+!$I_REDIS = "<$redis,scale=0.5>"
+!$I_QUARKUS = "<$quarkus-icon,scale=0.5>"
+
+' Base comum
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName "SansSerif"
+skinparam defaultFontSize 13
+skinparam defaultFontColor $TEXTO
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam titleFontColor #1A237E
+skinparam ArrowColor #546E7A
+skinparam ArrowFontColor #37474F
+skinparam ArrowFontSize 12
+skinparam ArrowThickness 1.2
+skinparam NoteBackgroundColor $COR_NOTA
+skinparam NoteBorderColor #E0C060
+skinparam NoteFontSize 12
+skinparam LegendBackgroundColor #FAFAFA
+skinparam LegendBorderColor #B0BEC5
+skinparam LegendFontSize 12
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #90A4AE
+skinparam PackageFontColor #37474F
+skinparam RectangleBorderColor #90A4AE
+skinparam actorStyle awesome
+skinparam ActorBackgroundColor $COR_ATOR
+skinparam ActorBorderColor $BORDA_ATOR
+skinparam DatabaseBackgroundColor $COR_SAIDA
+skinparam DatabaseBorderColor $BORDA_SAIDA
+skinparam QueueBackgroundColor $COR_INFRA
+skinparam QueueBorderColor $BORDA_INFRA
+
+' Sequência
+skinparam sequence {
+  ParticipantBackgroundColor $COR_APLICACAO
+  ParticipantBorderColor $BORDA_APLICACAO
+  ParticipantFontStyle bold
+  LifeLineBorderColor #B0BEC5
+  LifeLineBackgroundColor #ECEFF1
+  GroupBorderColor #78909C
+  GroupBackgroundColor #ECEFF1
+  GroupHeaderFontColor #263238
+  BoxBorderColor #CFD8DC
+  DividerBackgroundColor #ECEFF1
+  ReferenceBackgroundColor #FAFAFA
+}
+skinparam ParticipantBackgroundColor<<ator>> $COR_ATOR
+skinparam ParticipantBorderColor<<ator>> $BORDA_ATOR
+skinparam ParticipantBackgroundColor<<entrada>> $COR_ENTRADA
+skinparam ParticipantBorderColor<<entrada>> $BORDA_ENTRADA
+skinparam ParticipantBackgroundColor<<aplicacao>> $COR_APLICACAO
+skinparam ParticipantBorderColor<<aplicacao>> $BORDA_APLICACAO
+skinparam ParticipantBackgroundColor<<dominio>> $COR_DOMINIO
+skinparam ParticipantBorderColor<<dominio>> $BORDA_DOMINIO
+skinparam ParticipantBackgroundColor<<saida>> $COR_SAIDA
+skinparam ParticipantBorderColor<<saida>> $BORDA_SAIDA
+skinparam ParticipantBackgroundColor<<infra>> $COR_INFRA
+skinparam ParticipantBorderColor<<infra>> $BORDA_INFRA
+skinparam ParticipantStereotypeFontSize 0
+skinparam ParticipantStereotypeFontColor transparent
+
+' Casos de uso
+skinparam usecase {
+  BackgroundColor $COR_APLICACAO
+  BorderColor $BORDA_APLICACAO
+  ArrowColor #546E7A
+}
+skinparam UsecaseBackgroundColor<<leitura>> #F1F8FF
+skinparam UsecaseBorderColor<<leitura>> #64B5F6
+skinparam UsecaseBackgroundColor<<sistema>> $COR_INFRA
+skinparam UsecaseBorderColor<<sistema>> $BORDA_INFRA
+skinparam ActorBackgroundColor<<sistema>> $COR_INFRA
+skinparam ActorBorderColor<<sistema>> $BORDA_INFRA
+
+' Classes e pacotes
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #90A4AE
+  HeaderBackgroundColor #F5F7F8
+  StereotypeFontColor #546E7A
+  StereotypeFontSize 11
+}
+skinparam ClassBackgroundColor<<dominio>> $COR_DOMINIO
+skinparam ClassBorderColor<<dominio>> $BORDA_DOMINIO
+skinparam ClassBackgroundColor<<agregado>> $COR_DOMINIO
+skinparam ClassBorderColor<<agregado>> $BORDA_DOMINIO
+skinparam ClassBackgroundColor<<valor>> #F1F8E9
+skinparam ClassBorderColor<<valor>> #7CB342
+skinparam ClassBackgroundColor<<evento>> #FFF8E1
+skinparam ClassBorderColor<<evento>> #FFA000
+skinparam ClassBackgroundColor<<exceção>> $COR_ERRO
+skinparam ClassBorderColor<<exceção>> $BORDA_ERRO
+skinparam ClassBackgroundColor<<serviço>> $COR_APLICACAO
+skinparam ClassBorderColor<<serviço>> $BORDA_APLICACAO
+skinparam ClassBackgroundColor<<porta>> #E8EAF6
+skinparam ClassBorderColor<<porta>> #3949AB
+skinparam ClassBackgroundColor<<entrada>> $COR_ENTRADA
+skinparam ClassBorderColor<<entrada>> $BORDA_ENTRADA
+skinparam ClassBackgroundColor<<saida>> $COR_SAIDA
+skinparam ClassBorderColor<<saida>> $BORDA_SAIDA
+skinparam ClassBackgroundColor<<infra>> $COR_INFRA
+skinparam ClassBorderColor<<infra>> $BORDA_INFRA
+skinparam PackageBackgroundColor<<dominio>> #F6FBF6
+skinparam PackageBorderColor<<dominio>> $BORDA_DOMINIO
+skinparam PackageBackgroundColor<<aplicacao>> #F5FAFF
+skinparam PackageBorderColor<<aplicacao>> $BORDA_APLICACAO
+skinparam PackageBackgroundColor<<entrada>> #FFFAF3
+skinparam PackageBorderColor<<entrada>> $BORDA_ENTRADA
+skinparam PackageBackgroundColor<<saida>> #FBF6FC
+skinparam PackageBorderColor<<saida>> $BORDA_SAIDA
+skinparam PackageBackgroundColor<<infra>> #F7F9FA
+skinparam PackageBorderColor<<infra>> $BORDA_INFRA
+
+' Estados e atividades
+skinparam state {
+  BackgroundColor $COR_APLICACAO
+  BorderColor $BORDA_APLICACAO
+  StartColor #2E7D32
+  EndColor #C62828
+}
+skinparam StateBackgroundColor<<inicial>> #F1F8FF
+skinparam StateBackgroundColor<<ativo>> $COR_OK
+skinparam StateBorderColor<<ativo>> $BORDA_DOMINIO
+skinparam StateBackgroundColor<<espera>> #FFF8E1
+skinparam StateBorderColor<<espera>> #FFA000
+skinparam StateBackgroundColor<<terminal>> #ECEFF1
+skinparam StateBorderColor<<terminal>> #455A64
+skinparam StateBackgroundColor<<erro>> $COR_ERRO
+skinparam StateBorderColor<<erro>> $BORDA_ERRO
+skinparam activity {
+  BackgroundColor $COR_APLICACAO
+  BorderColor $BORDA_APLICACAO
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #FFA000
+}
+
+' Legendas prontas
+!procedure $legenda_camadas()
+legend right
+  <b>Camadas</b>
+  <back:#F9A825>    </back> Ator externo
+  <back:#EF6C00>    </back> Entrada (REST, consumidor, agendador)
+  <back:#1565C0>    </back> Aplicação (casos de uso)
+  <back:#2E7D32>    </back> Domínio
+  <back:#6A1B9A>    </back> Saída (persistência, outbox, cache)
+  <back:#455A64>    </back> Infraestrutura
+endlegend
+!endprocedure
+
+!procedure $legenda_erros()
+legend right
+  <b>Leitura</b>
+  <back:#66BB6A>    </back> Caminho feliz
+  <back:#E57373>    </back> Falha ou recusa (status HTTP / problem)
+endlegend
+!endprocedure

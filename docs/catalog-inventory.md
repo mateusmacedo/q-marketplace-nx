@@ -30,21 +30,26 @@ A dependência entre os módulos segue a ADR 002: o serviço depende da aplicaç
 
 ```plantuml
 @startuml c4-contexto
+!include diagramas/tema-catalogo.iuml
 !include <C4/C4_Context>
+!include <tupadr3/font-awesome-5/key>
+
+AddElementTag("ator", $bgColor="#FFF8D6", $fontColor="#263238", $borderColor="#F9A825", $legendText="Pessoa (papel no JWT)")
+AddElementTag("servico", $bgColor="#1565C0", $fontColor="#FFFFFF", $borderColor="#0D47A1", $legendText="Este sistema")
 
 title Catálogo-inventário — contexto
 
-Person(seller, "Seller", "Cadastra produtos, preços, estoque e importa planilhas")
-Person(moderador, "Moderador", "Aprova, rejeita e bloqueia produtos")
-Person(admin, "Admin do catálogo", "Mantém a taxonomia e consulta o catálogo do tenant")
-Person(comprador, "Comprador", "Consulta a vitrine sem autenticação")
+Person(seller, "Seller", "Cadastra produtos, preços, estoque e importa planilhas", $sprite="user_tie", $tags="ator")
+Person(moderador, "Moderador", "Aprova, rejeita e bloqueia produtos", $sprite="user_shield", $tags="ator")
+Person(admin, "Admin do catálogo", "Mantém a taxonomia e consulta o catálogo do tenant", $sprite="user_cog", $tags="ator")
+Person(comprador, "Comprador", "Consulta a vitrine sem autenticação", $sprite="shopping_cart", $tags="ator")
 
-System(catalogo, "Catálogo-inventário", "Taxonomia, produtos, ofertas, moderação, estoque, reservas e vitrine")
+System(catalogo, "Catálogo-inventário", "Taxonomia, produtos, ofertas, moderação, estoque, reservas e vitrine", $sprite="store", $tags="servico")
 
-System_Ext(idp, "Identity & Organization (Keycloak)", "Emite os tokens JWT com tenant, loja e papéis")
-System_Ext(checkout, "Checkout e OMS", "Reservam, confirmam e liberam estoque com contas de serviço")
-System_Ext(kyb, "KYB/KYC", "Publica o veredito de verificação da loja")
-System_Ext(consumidores, "Consumidores de eventos", "Busca e demais contextos (ainda não implementados)")
+System_Ext(idp, "Identity & Organization (Keycloak)", "Emite os tokens JWT com tenant, loja e papéis", $sprite="key")
+System_Ext(checkout, "Checkout e OMS", "Reservam, confirmam e liberam estoque com contas de serviço", $sprite="exchange_alt")
+System_Ext(kyb, "KYB/KYC", "Publica o veredito de verificação da loja", $sprite="id_card")
+System_Ext(consumidores, "Consumidores de eventos", "Busca e demais contextos (ainda não implementados)", $sprite="globe")
 
 Rel(seller, catalogo, "Gerencia o próprio catálogo", "HTTPS/JSON")
 Rel(moderador, catalogo, "Modera produtos", "HTTPS/JSON")
@@ -82,7 +87,7 @@ As decisões do contexto estão em [decisoes.md](decisoes.md):
 
 ## Diagramas
 
-Os diagramas usam PlantUML com a biblioteca padrão C4-PlantUML (`!include <C4/...>`), que já vem embutida no PlantUML. Para renderizar todos sem instalar nada, inclusive o de contexto embutido neste arquivo, rode na raiz do repositório. Os SVG ficam em `build/diagramas`, que o Git ignora:
+Os diagramas usam PlantUML com a biblioteca padrão C4-PlantUML (`!include <C4/...>`), que já vem embutida no PlantUML. Todos incluem o tema compartilhado [`docs/diagramas/tema-catalogo.iuml`](diagramas/tema-catalogo.iuml) por caminho relativo: paleta por camada, ícones da biblioteca padrão (`tupadr3/font-awesome-5` e `logos`) e legendas prontas. Ao mover um `.puml` de pasta, ajuste o `!include`. Para renderizar todos sem instalar nada, inclusive o de contexto embutido neste arquivo, rode na raiz do repositório. Os SVG ficam em `build/diagramas`, que o Git ignora:
 
 ```bash
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w plantuml/plantuml:latest \
