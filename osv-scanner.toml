@@ -1,0 +1,12 @@
+# Vulnerabilidades aceitas por prazo pela varredura (tools/vulnerability-scan.sh, ADR 023). Ao vencer o prazo, o
+# gate volta a reprovar: corrija com o upgrade ou renove o prazo com novo motivo.
+
+[[IgnoredVulns]]
+id = "GHSA-ccrj-gw8r-854m"
+ignoreUntil = 2026-12-07
+reason = "opentelemetry-api 1.62.0 vem travado pelo BOM do Quarkus 3.40.1.1; forçar o 1.67.0 arrisca a extensão OpenTelemetry do Quarkus. Aguarda o patch do Quarkus."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-12-07
+reason = "minimatch 10.2.5 vem do Nx 24.0.4, ferramenta de desenvolvimento fora da imagem do serviço; a correção exige a 11.x, major nova. Aguarda o upgrade do Nx."

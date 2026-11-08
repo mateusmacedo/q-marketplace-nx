@@ -1,0 +1,87 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests",
+    ":enableVulnerabilityAlerts"
+  ],
+  "osvVulnerabilityAlerts": true,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/build/**",
+    "tools/load/results/**"
+  ],
+  "docker-compose": {
+    "managerFilePatterns": [
+      "/^infra/local/compose/[^/]+\\.yml$/"
+    ]
+  },
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^infra/helm/[^/]+/ci/[^/]+\\.yaml$/"
+    ]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Imagens em âncoras YAML do compose, que o manager docker-compose não lê",
+      "managerFilePatterns": [
+        "/^infra/local/compose/[^/]+\\.yml$/"
+      ],
+      "matchStrings": [
+        "&[\\w-]+ (?<depName>[a-z0-9][a-z0-9.-]*(?:/[a-z0-9._-]+)*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Imagens dos Dev Services do Quarkus",
+      "managerFilePatterns": [
+        "/^apps/[^/]+/src/main/resources/application\\.properties$/"
+      ],
+      "matchStrings": [
+        "image-name=(?<depName>[a-z0-9][a-z0-9.-]*(?:/[a-z0-9._-]+)*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Imagens fixadas nos scripts de verificação, smoke, carga e k3d",
+      "managerFilePatterns": [
+        "/^tools/.+\\.sh$/",
+        "/^infra/helm/[^/]+/ci/[^/]+\\.sh$/",
+        "/^tools/[^/]+\\.mjs$/"
+      ],
+      "matchStrings": [
+        "(?<depName>[a-z0-9][a-z0-9.-]*(?:/[a-z0-9._-]+)*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Plugin e BOM do Quarkus sobem juntos",
+      "matchPackageNames": [
+        "io.quarkus{/,}**",
+        "io.quarkus.platform{/,}**"
+      ],
+      "groupName": "Quarkus"
+    },
+    {
+      "description": "Imagem construída neste repositório, sem registro de origem",
+      "matchPackageNames": [
+        "marketplace-nx/catalog-inventory",
+        "marketplace/catalog-inventory"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Versões de API dos manifestos do k3d",
+      "matchDatasources": [
+        "kubernetes-api"
+      ],
+      "enabled": false
+    }
+  ]
+}
