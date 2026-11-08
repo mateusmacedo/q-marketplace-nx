@@ -1,0 +1,69 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "parallel": 1,
+  "plugins": [
+    {
+      "plugin": "@nx/gradle",
+      "options": {
+        "buildTargetName": "gradle-build",
+        "ciTestTargetName": "test-ci"
+      }
+    }
+  ],
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/build.gradle",
+      "{workspaceRoot}/settings.gradle",
+      "{workspaceRoot}/gradle.properties",
+      "{workspaceRoot}/gradle/**/*",
+      "{workspaceRoot}/gradlew",
+      "{workspaceRoot}/gradlew.bat",
+      "{workspaceRoot}/tools/**/*",
+      "{workspaceRoot}/package-lock.json",
+      {
+        "runtime": "java -version"
+      },
+      {
+        "runtime": "node --version"
+      }
+    ],
+    "default": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/build/**/*",
+      "!{projectRoot}/docs/**/*",
+      "sharedGlobals"
+    ]
+  },
+  "targetDefaults": {
+    "assemble": {
+      "cache": true,
+      "outputs": [
+        "{projectRoot}/build/libs",
+        "{projectRoot}/build/quarkus-app"
+      ]
+    },
+    "test": {
+      "cache": true
+    },
+    "serve": {
+      "cache": false
+    },
+    "native": {
+      "cache": false
+    },
+    "container": {
+      "cache": false
+    },
+    "quarkusDev": {
+      "cache": false
+    },
+    "quarkusRemoteDev": {
+      "cache": false
+    },
+    "quarkusRun": {
+      "cache": false
+    }
+  },
+  "analytics": true
+}
