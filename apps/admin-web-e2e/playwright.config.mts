@@ -8,12 +8,6 @@ const isCI = !!process.env['CI'];
 const baseURL = process.env['BASE_URL'] || getReadyUrl('http://localhost:4200');
 
 /**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// import 'dotenv/config';
-
-/**
  * See https://playwright.dev/docs/test-configuration.
  *
  * Generated as a .mts file so Node forces ESM regardless of workspace
