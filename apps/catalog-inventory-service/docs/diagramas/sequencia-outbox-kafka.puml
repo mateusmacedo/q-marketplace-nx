@@ -1,0 +1,51 @@
+@startuml sequencia-outbox-kafka
+title Outbox transacional até o Kafka
+autonumber
+
+participant "Repositório Pg*\n(api ou worker)" as repo
+participant "PgOutbox" as outbox
+database "PostgreSQL" as pg
+participant "OutboxRelay\n(worker, a cada 1 s)" as relay
+participant "Canal catalog-events\n(SmallRye Kafka)" as canal
+queue "Kafka" as kafka
+participant "MessagingHousekeeping\n(worker, a cada 1 h)" as purge
+
+== Gravação na transação da mudança ==
+repo -> pg : BEGIN; UPDATE/INSERT do agregado
+repo -> outbox : append(eventos traduzidos por IntegrationEvents)
+outbox -> pg : INSERT outbox_event (topic, message_key = id do agregado,\nevent_type, payload com envelope v1, trace_parent)
+repo -> pg : COMMIT
+
+== Relay ==
+relay -> relay : em backoff? (pausedUntil) -> não faz nada
+loop até 20 lotes, enquanto o lote vem cheio e sem falha
+  relay -> outbox : relay(lote = 100)
+  outbox -> pg : BEGIN
+  outbox -> pg : SELECT pg_try_advisory_xact_lock(\nhashtextextended('catalog-inventory.outbox-relay', 0))
+  alt outro pod tem a trava
+    outbox -> pg : COMMIT (nada a fazer)
+  else trava obtida
+    outbox -> pg : SELECT ... WHERE published_at IS NULL\nORDER BY seq LIMIT 100 FOR UPDATE
+    par grupos de tópico+chave em paralelo
+      loop eventos do grupo, em ordem
+        relay -> canal : mensagem (tópico, chave, cabeçalhos event-type, event-id;\ntraceparent gravado como pai)
+        canal -> kafka : produce (acks=all, idempotente), timeout 10 s
+        alt confirmado
+          kafka --> relay : ack
+        else falha
+          kafka --> relay : erro
+          relay -> relay : seguintes do grupo ficam retidos (held)
+        end
+      end
+    end
+    outbox -> pg : UPDATE published_at dos confirmados;\nattempts += 1 e last_error nas falhas
+    outbox -> pg : COMMIT (libera a trava)
+  end
+end
+relay -> relay : falha no ciclo: pausa 2^n s (máx. 60 s);\nsem falha: zera o backoff
+relay -> pg : backlog (catalog.outbox.pending, catalog.outbox.oldest.age)
+
+== Limpeza ==
+purge -> pg : DELETE outbox_event publicada há mais de 7 dias (lotes de 10000, até 10)
+purge -> pg : DELETE inbox_message processada há mais de 30 dias
+@enduml

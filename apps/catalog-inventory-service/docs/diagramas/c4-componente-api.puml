@@ -1,0 +1,44 @@
+@startuml c4-componente-api
+!include <C4/C4_Component>
+
+title catalog-inventory-api — componentes (C4 nível 3)
+
+Person_Ext(cliente, "Clientes HTTP", "Seller, moderador, admin, comprador, checkout/OMS")
+ContainerDb_Ext(pg, "PostgreSQL", "catalog_inventory")
+ContainerDb_Ext(redis, "Redis", "Opcional")
+System_Ext(keycloak, "Keycloak", "JWKS")
+
+Container_Boundary(api, "catalog-inventory-api") {
+  Component(filtros, "Filtros e segurança", "CorrelationFilter, MicroProfile JWT, CallerContext", "X-Correlation-Id; valida o token; tenant_id/store_id e papéis viram Actor com Capability")
+  Component(resources, "Resources REST", "ProductResource, ProductImportResource, ModerationResource, CategoryResource, OfferResource, InventoryResource, ReservationResource", "Rotas autenticadas; ETag/If-Match, cursor, Idempotency-Key")
+  Component(publicos, "Resources públicos", "StorefrontResource, StoreEligibilityResource, ServiceInfoResource", "Vitrine anônima, elegibilidade da loja e /internal/info")
+  Component(problemas, "ProblemMappers", "ServerExceptionMapper", "Exceções viram application/problem+json (RFC 9457)")
+  Component(casos, "Casos de uso", "ProductService, ModerationService, OfferService, InventoryService, ReservationService, CategoryService, StorefrontService, SellerEligibilityService, ProductImportService", "Montados em CatalogBeans; Java puro + Mutiny")
+  Component(caches, "Cache de leitura", "StorefrontCache, TaxonomyCache, CatalogCache", "Gerações + script Lua; HIT, MISS, UNMAPPED, BYPASS")
+  Component(decorators, "Decorators de invalidação", "ProductCacheInvalidation, OfferCacheInvalidation, CategoryCacheInvalidation, SellerCacheInvalidation", "Incrementam gerações depois da escrita, também na falha")
+  Component(repos, "Repositórios Pg*", "PgProductRepository, PgOfferRepository, PgCategoryRepository, PgInventoryRepository, PgReservationRepository, PgSellerEligibilityRepository, PgProductImportRepository", "SQL reativo; UPDATE condicional por versão")
+  Component(outbox, "PgOutbox + IntegrationEvents", "persistence, messaging", "Traduz eventos de domínio e grava outbox_event na transação")
+  Component(obs, "Observabilidade", "RequestTelemetry, InventoryLatency, TracedInterceptor, Micrometer", "Métricas em /q/metrics (9000), spans OTel")
+}
+
+Rel(cliente, filtros, "HTTPS", "JSON")
+Rel(filtros, keycloak, "Chaves públicas", "JWKS")
+Rel(filtros, resources, "Requisição autenticada")
+Rel(filtros, publicos, "Requisição")
+Rel(resources, casos, "Chama")
+Rel(publicos, caches, "Vitrine")
+Rel(publicos, casos, "StorefrontService, InventoryService.stockOf")
+Rel(resources, problemas, "Exceções")
+Rel(casos, caches, "Taxonomia via TaxonomyCache")
+Rel(casos, decorators, "Portas *Repository")
+Rel(decorators, repos, "Delega")
+Rel(casos, repos, "Portas sem cache: Inventory, Reservation, ProductImport")
+Rel(repos, outbox, "append na mesma transação")
+Rel(repos, pg, "SQL", "Reactive SQL Client")
+Rel(outbox, pg, "INSERT outbox_event")
+Rel(caches, redis, "EVALSHA/EVAL, SET", "RESP")
+Rel(decorators, redis, "Incrementa gerações", "RESP")
+Rel_R(resources, obs, "Métricas e spans")
+
+SHOW_LEGEND()
+@enduml

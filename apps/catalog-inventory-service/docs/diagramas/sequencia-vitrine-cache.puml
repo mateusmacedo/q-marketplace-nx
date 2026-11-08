@@ -1,0 +1,48 @@
+@startuml sequencia-vitrine-cache
+title Vitrine com cache de gerações: GET /storefront/{tenantId}/products/{productId}
+autonumber
+
+actor "Comprador (anônimo)" as comp
+participant "StorefrontResource" as res
+participant "StorefrontCache" as sc
+participant "CatalogCache" as cc
+database "Redis" as redis
+participant "StorefrontService" as svc
+participant "InventoryService" as inv
+database "PostgreSQL" as pg
+
+comp -> res : GET (sem token, @PermitAll)
+res -> sc : get(tenant, produto, carga do banco)
+alt cache desligado (catalog.cache.enabled=false, padrão)
+  sc -> svc : get
+  svc -> pg : produto, SKUs, loja, ofertas e promoções
+else cache ligado
+  sc -> cc : read(storefront)
+  cc -> redis : EVALSHA (EVAL se o script sumiu), prazo 100 ms:\nconteúdo catalog:storefront:v1:{t}:{p} + gerações\ncatalog:gen:product e catalog:gen:store (via catalog:product-store)
+  alt HIT (carimbo confere)
+    redis --> cc : conteúdo
+    sc -> sc : decode do retrato
+  else MISS
+    redis --> cc : gerações atuais
+    sc -> svc : get
+    svc -> pg : carga do banco
+    sc -> redis : SET retrato com o carimbo, TTL 60 s\n(sem esperar: CatalogCache.detach)
+  else UNMAPPED (sem mapa produto -> loja)
+    sc -> svc : get
+    svc -> pg : carga do banco
+    sc -> redis : grava só o mapa produto -> loja (sem esperar)
+  else BYPASS (Redis fora ou acima do prazo)
+    sc -> svc : get
+    svc -> pg : carga do banco
+  end
+end
+alt carga encontrou produto não visível ou loja não APPROVED
+  res --> comp : 404 not-found (NotFoundException na carga; nada é guardado)
+else visível
+  res -> inv : stockOf(produto)
+  inv -> pg : inventory_level dos SKUs (sempre do banco)
+  res -> res : preço vigente calculado no instante da leitura
+  res --> comp : 200 + Cache-Control: no-cache (inStock por SKU)
+end
+note over cc : catalog.cache.requests{cache=storefront,result=hit|miss|bypass}\n(UNMAPPED conta como miss)
+@enduml

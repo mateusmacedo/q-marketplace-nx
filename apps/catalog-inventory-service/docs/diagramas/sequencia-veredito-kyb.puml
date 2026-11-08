@@ -1,0 +1,55 @@
+@startuml sequencia-veredito-kyb
+title Veredito do KYB/KYC: consumo com inbox
+autonumber
+
+queue "kyb-kyc.seller.v1" as topico
+participant "SellerVerdictConsumer\n(worker)" as cons
+participant "SellerEligibilityService" as svc
+participant "SellerCacheInvalidation" as dec
+participant "PgSellerEligibilityRepository" as repo
+database "PostgreSQL" as pg
+database "Redis" as redis
+queue "catalog-inventory.kyb-seller.dlq" as dlq
+
+topico -> cons : mensagem (grupo catalog-inventory-service, earliest)
+cons -> cons : parse do envelope
+alt JSON inválido, eventVersion != 1 ou campo ausente
+  cons -> dlq : InvalidMessageException -> dead-letter-queue
+else eventType desconhecido
+  cons -> topico : confirma sem efeito
+else SellerApproved | SellerRejected | ReviewRequired
+  cons -> cons : status APPROVED | REJECTED | PENDING;\nassocia correlationId
+  cons -> svc : record(veredito)\nretry com backoff 200 ms a 10 s, até 10 vezes
+  svc -> dec : apply("catalog-inventory.seller-eligibility", veredito)
+  dec -> repo : apply
+  repo -> pg : BEGIN
+  repo -> pg : INSERT inbox_message (consumer, event_id)\nON CONFLICT DO NOTHING
+  alt nenhuma linha inserida
+    repo -> pg : COMMIT
+    repo --> dec : DUPLICATE
+  else nova
+    repo -> pg : SELECT status ... FOR UPDATE
+    repo -> pg : upsert seller_eligibility\nWHERE decided_at <= EXCLUDED.decided_at
+    alt nenhuma linha atualizada
+      repo -> pg : COMMIT
+      repo --> dec : STALE
+    else aplicada
+      opt status mudou de fato
+        repo -> pg : INSERT outbox_event StoreEligibilityChanged\n(catalog-inventory.store.v1, chave storeId)
+      end
+      repo -> pg : COMMIT
+      repo --> dec : APPLIED
+    end
+  end
+  opt APPLIED ou falha, com cache ligado
+    dec -> redis : incrementa catalog:gen:store:{tenant}:{loja}
+  end
+  dec --> cons : resultado
+  cons -> cons : catalog.kyb.verdicts{outcome}++
+  alt retries esgotados
+    cons -> dlq : falha -> dead-letter-queue
+  else ok
+    cons -> topico : confirma (ack)
+  end
+end
+@enduml

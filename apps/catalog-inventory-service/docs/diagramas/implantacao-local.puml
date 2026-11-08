@@ -1,0 +1,36 @@
+@startuml implantacao-local
+!include <C4/C4_Deployment>
+
+title Catálogo-inventário — ambiente local (docker compose, perfil catalog)
+
+Deployment_Node(host, "Máquina do desenvolvedor", "Docker Compose; portas publicadas só em 127.0.0.1") {
+  Deployment_Node(cat, "Serviços do catálogo", "imagem marketplace-nx/catalog-inventory:local (Dockerfile.native)") {
+    Container(api, "catalog-api", "QUARKUS_PROFILE=prod,api", "8083 -> 8080 (HTTP), 9083 -> 9000 (gestão)")
+    Container(worker, "catalog-worker", "QUARKUS_PROFILE=prod,worker", "9084 -> 9000 (gestão)")
+  }
+  Deployment_Node(deps, "Dependências") {
+    ContainerDb(pg, "postgres", "PostgreSQL 16.15", "Banco marketplace; postgres-init roda infra/postgres/provision.sh")
+    Container(kafka, "kafka", "Apache Kafka 4.2.0", "kafka-init cria os tópicos")
+    ContainerDb(redis, "redis", "Redis 7.4.11 com ACL", "Usuário catalog; cache desligado por padrão")
+    Container(kc, "keycloak", "Keycloak 26.8.1", "--import-realm do marketplace-realm.json")
+    Container(otel, "otel-collector", "OTel Collector contrib 0.160.0", "OTLP 4317")
+  }
+  Deployment_Node(obs, "Perfil observability (opcional)") {
+    Container(stack, "Prometheus, Tempo, Loki, Alloy, Grafana", "", "Mais postgres-exporter, redis-exporter e cAdvisor")
+  }
+}
+
+Rel(api, pg, "SQL")
+Rel(worker, pg, "SQL")
+Rel(worker, kafka, "Publica e consome", "kafka:9092")
+Rel(api, redis, "Opcional")
+Rel(worker, redis, "Opcional")
+Rel(api, kc, "JWKS", "keycloak:8080")
+Rel(api, otel, "Traces e logs", "OTLP")
+Rel(worker, otel, "Traces e logs", "OTLP")
+Rel(otel, stack, "Exporta")
+Rel(stack, api, "Scrape /q/metrics", "9000")
+Rel(stack, worker, "Scrape /q/metrics", "9000")
+
+SHOW_LEGEND()
+@enduml

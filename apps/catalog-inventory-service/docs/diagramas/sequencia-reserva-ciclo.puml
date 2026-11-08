@@ -1,0 +1,69 @@
+@startuml sequencia-reserva-ciclo
+title Ciclo da reserva: reserve, commit, release, extend e expiração
+autonumber
+
+actor "Checkout / OMS\n(catalog-reservations)" as cli
+participant "ReservationResource" as rr
+participant "ReservationService" as svc
+participant "PgInventoryRepository" as inv
+participant "PgReservationRepository" as repo
+participant "ReservationSweeper\n(worker)" as sweep
+database "PostgreSQL" as pg
+
+== reserve ==
+cli -> rr : POST /inventory/reservations\nIdempotency-Key + itens + ttlSeconds?
+rr -> svc : reserve
+svc -> svc : MANAGE_RESERVATIONS; chave [\x21-\x7E]{1,255};\nrequestHash = SHA-256 canônico
+svc -> repo : busca por (tenant, Idempotency-Key)
+alt chave já usada com o mesmo hash
+  rr --> cli : 200 + Idempotent-Replayed: true
+else chave já usada com outro hash
+  rr --> cli : 422 idempotency-key-reused
+else nova
+  svc -> inv : candidates (um SELECT: SKU, produto, loja, oferta, promoções)
+  svc -> svc : ReservationPolicy.open -> ACTIVE,\nexpiresAt = now + ttl (padrão 15 min, máx. 2 h)
+  svc -> repo : insert
+  repo -> pg : BEGIN; INSERT inventory_reservation + itens
+  repo -> pg : UPDATE inventory_level SET reserved = reserved + n\nWHERE on_hand - reserved >= n (ordem canônica dos SKUs)
+  alt algum SKU sem saldo
+    repo -> pg : ROLLBACK
+    rr --> cli : 409 insufficient-stock
+  else ok
+    repo -> pg : INSERT outbox_event (InventoryReserved,\nInventoryDepleted dos SKUs zerados); COMMIT
+    rr --> cli : 201 + Location
+  end
+end
+
+== commit ==
+cli -> rr : POST /{id}/commit
+rr -> svc : commit
+svc -> repo : commit
+repo -> pg : BEGIN; UPDATE inventory_reservation SET status='COMMITTED'\nWHERE status='ACTIVE' AND expires_at > now
+repo -> pg : por item, na ordem canônica: on_hand -= n,\nreserved -= n, sold += n
+repo -> pg : INSERT outbox_event InventoryUpdated(COMMITTED); COMMIT
+rr --> cli : 200 (repetição: idempotente; vencida: 409 reservation-expired)
+
+== release ==
+cli -> rr : POST /{id}/release
+rr -> svc : release
+svc -> repo : release
+repo -> pg : UPDATE ... SET status='RELEASED' WHERE status='ACTIVE';\nreserved -= n; InventoryUpdated(RELEASED)
+rr --> cli : 200 (sobre RELEASED/EXPIRED devolve a atual;\nsobre COMMITTED: 409 invalid-transition)
+
+== extend ==
+cli -> rr : POST /{id}/extend {ttlSeconds}
+rr -> svc : extend (ttl <= 2 h; vida total <= 24 h)
+svc -> repo : UPDATE expires_at\nWHERE status='ACTIVE' AND expires_at > now
+note right : Sem evento e sem mudança de saldo
+rr --> cli : 200
+
+== expiração (a cada 5 s, papel worker) ==
+sweep -> svc : expireDue(200)
+svc -> repo : expireDue
+repo -> pg : SELECT ... WHERE status='ACTIVE' AND expires_at <= now\nORDER BY expires_at LIMIT 200
+loop cada reserva vencida, transação própria
+  repo -> pg : UPDATE ... SET status='EXPIRED'\nWHERE status='ACTIVE' AND expires_at <= now
+  repo -> pg : reserved -= n; INSERT outbox_event InventoryUpdated(EXPIRED)
+end
+sweep -> sweep : catalog.reservations.expired += n
+@enduml

@@ -1,0 +1,53 @@
+@startuml sequencia-importacao-csv
+title Importação CSV em segundo plano
+autonumber
+
+actor Seller as seller
+participant "ProductImportResource\n(api)" as res
+participant "ProductCsv" as csv
+participant "ProductImportService" as svc
+participant "PgProductImportRepository" as repo
+participant "ProductImportWorker\n(worker, a cada 1 s)" as worker
+participant "ProductService /\nOfferService /\nInventoryService" as uc
+database "PostgreSQL" as pg
+
+== Envio ==
+seller -> res : POST /products/imports (text/csv, até 1 MB)
+res -> csv : validate (Offload.cpu): UTF-8, RFC 4180,\ncabeçalho exato, até 5000 linhas
+alt arquivo inválido
+  res --> seller : 400 invalid-import-file + reasons
+else válido
+  res -> svc : submit -> ProductImport.pending
+  svc -> repo : insert
+  repo -> pg : INSERT product_import (status PENDING, content)
+  res --> seller : 202 Accepted + Location
+end
+
+== Processamento ==
+worker -> svc : claimNext(lease 5 min)
+svc -> repo : claimNext
+repo -> pg : UPDATE product_import SET status='PROCESSING', started_at=now\nWHERE id = (SELECT id ... WHERE status='PENDING'\n OR (status='PROCESSING' AND started_at < now - lease)\n ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED)\nRETURNING content
+worker -> csv : rows (Offload.cpu)
+worker -> svc : process(lote, linhas)
+svc -> repo : resultados já gravados (retomada)
+svc -> svc : plan: SKU existente | novo produto por product_ref | rejeitado
+loop cada unidade
+  alt SKU existente
+    svc -> uc : OfferService.define e InventoryService.adjust,\nsó se preço ou estoque mudou
+  else grupo novo e válido
+    svc -> uc : ProductService.create; por SKU,\nOfferService.define e InventoryService.adjust
+  else grupo inválido
+    svc -> svc : FAILED (invalid-row, inconsistent-product,\ncategory-not-found, group-rejected)
+  end
+  svc -> repo : recordResults
+  repo -> pg : INSERT product_import_line ... ON CONFLICT DO NOTHING;\nUPDATE started_at (renova a lease)
+end
+svc -> repo : complete
+repo -> pg : UPDATE status='COMPLETED', finished_at
+worker -> worker : catalog.imports.lines{outcome} += n
+
+== Consulta ==
+seller -> res : GET /products/imports/{id}
+res --> seller : 200 (status e resultado por linha)
+note over uc : Os eventos são os dos próprios casos de uso\n(ProductCreated, PriceChanged, InventoryUpdated...)
+@enduml

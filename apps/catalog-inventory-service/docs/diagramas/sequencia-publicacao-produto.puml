@@ -1,0 +1,64 @@
+@startuml sequencia-publicacao-produto
+title Criar e publicar produto: criar, oferta, estoque, submit, approve
+autonumber
+
+actor Seller as seller
+actor Moderador as mod
+participant "ProductResource" as pr
+participant "OfferResource" as or
+participant "InventoryResource" as ir
+participant "ModerationResource" as mr
+participant "ProductService /\nOfferService /\nInventoryService /\nModerationService" as uc
+participant "Decorators de\ncache" as dec
+participant "PgProductRepository /\nPgOfferRepository /\nPgInventoryRepository" as repo
+database "PostgreSQL" as pg
+
+== Criar rascunho ==
+seller -> pr : POST /products
+pr -> uc : ProductService.create
+uc -> uc : ProductAccess.requireSeller;\ncategoria ativa (TaxonomyCache);\nProduct.draft -> DRAFT + ProductCreated
+uc -> dec : insert(product)
+dec -> repo : insert
+repo -> pg : BEGIN; INSERT product, sku,\nproduct_status_change, inventory_level (zerado),\noutbox_event; COMMIT
+dec -> dec : productChanged (se cache ligado)
+pr --> seller : 201 Created + ETag + Location
+
+== Oferta por SKU ==
+seller -> or : PUT /offers/{skuId} (sem If-Match)
+or -> uc : OfferService.define
+uc -> repo : insert(offer) via OfferCacheInvalidation
+repo -> pg : BEGIN; INSERT offer, offer_promotion,\noutbox_event (PriceChanged); COMMIT
+or --> seller : 201 Created + ETag
+
+== Estoque ==
+seller -> ir : PUT /inventory/skus/{skuId} {onHand}
+ir -> uc : InventoryService.adjust
+uc -> repo : adjust
+repo -> pg : SELECT ... FOR UPDATE; UPDATE on_hand;\nINSERT inventory_adjustment, outbox_event
+ir --> seller : 200 + ETag
+
+== Envio para moderação ==
+seller -> pr : POST /products/{id}/submit (If-Match opcional)
+pr -> uc : ProductService.submit
+uc -> uc : publicationOf (categoria + ofertas);\nProduct.submit -> PENDING_MODERATION
+uc -> repo : update(product, versão lida)
+repo -> pg : UPDATE product ... WHERE version = $lida;\nINSERT product_status_change, outbox_event
+alt nenhuma linha atualizada
+  repo --> pr : ConcurrentUpdateException
+  pr --> seller : 409 concurrent-update
+else ok
+  pr --> seller : 200 + ETag
+end
+
+== Aprovação ==
+mod -> mr : POST /moderation/products/{id}/approve
+mr -> uc : ModerationService.approve
+uc -> pg : situação da loja (seller_eligibility)
+alt loja não APPROVED ou produto não publicável
+  mr --> mod : 422 seller-not-eligible / product-not-publishable
+else ok
+  uc -> repo : update -> ACTIVE + ProductStatusChanged(visible=true)
+  repo -> pg : UPDATE condicional + outbox_event
+  mr --> mod : 200 + ETag (catalog.moderation.decisions++)
+end
+@enduml

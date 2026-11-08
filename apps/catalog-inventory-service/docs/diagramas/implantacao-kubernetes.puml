@@ -1,0 +1,46 @@
+@startuml implantacao-kubernetes
+!include <C4/C4_Deployment>
+
+title Catálogo-inventário — implantação no Kubernetes (Helm chart catalog-inventory)
+
+Deployment_Node(cluster, "Cluster Kubernetes", "kubeVersion >= 1.30") {
+  Deployment_Node(ns, "Namespace da release", "helm upgrade --install") {
+    Deployment_Node(dapi, "Deployment <fullname>-api", "2 réplicas; RollingUpdate maxSurge 1, maxUnavailable 0") {
+      Container(podapi, "Pod api", "QUARKUS_PROFILE=prod,api", "http 8080, management 9000; probes /q/health/started|ready|live na 9000; usuário 10001, rootfs só leitura")
+    }
+    Deployment_Node(dworker, "Deployment <fullname>-worker", "1 réplica") {
+      Container(podworker, "Pod worker", "QUARKUS_PROFILE=prod,worker", "Só management 9000; mesmas probes")
+    }
+    Container(svc, "Service <fullname>", "ClusterIP 80 -> http", "Só os pods da api")
+    Container(svcmetrics, "Service <fullname>-metrics", "porta 9000", "Scrape dos dois papéis; ServiceMonitor opcional")
+    Container(hpa, "HorizontalPodAutoscaler", "só api; desligado por padrão", "2 a 6 réplicas, 70% de CPU")
+    Container(pdb, "PodDisruptionBudget por papel", "api minAvailable 1; worker maxUnavailable 1", "")
+    Container(cm, "ConfigMap", "URLs, tópicos, JWT, cache, OTel", "Variáveis comuns aos dois papéis")
+    Container(job, "Job <fullname>-topics", "contêiner kafka-topics; hook pre-install, pre-upgrade", "Cria product, offer, inventory, store e a DLQ: 6 partições, RF 3, min.insync.replicas 2")
+    Container(secrets, "Secrets existentes", "criados fora do chart", "Banco (runtime e migrator), cliente Kafka, senha do Redis")
+  }
+}
+
+System_Ext(pg, "PostgreSQL", "Schema catalog_inventory e roles provisionados antes")
+System_Ext(kafka, "Kafka", "kyb-kyc.seller.v1 não é criado pelo chart")
+System_Ext(redis, "Redis standalone", "Só com cache.enabled")
+System_Ext(idp, "Provedor OIDC", "Issuer e JWKS")
+
+Rel(svc, podapi, "Encaminha HTTP")
+Rel(svcmetrics, podapi, "9000")
+Rel(svcmetrics, podworker, "9000")
+Rel(hpa, dapi, "Escala")
+Rel(cm, podapi, "envFrom")
+Rel(cm, podworker, "envFrom")
+Rel(secrets, podapi, "secretKeyRef")
+Rel(secrets, podworker, "secretKeyRef")
+Rel(podapi, pg, "SQL; Flyway na partida")
+Rel(podworker, pg, "SQL; Flyway na partida")
+Rel(podworker, kafka, "Publica e consome")
+Rel(job, kafka, "kafka-topics.sh --create")
+Rel(podapi, redis, "Opcional")
+Rel(podworker, redis, "Opcional")
+Rel(podapi, idp, "JWKS")
+
+SHOW_LEGEND()
+@enduml

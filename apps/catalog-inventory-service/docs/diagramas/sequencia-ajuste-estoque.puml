@@ -1,0 +1,36 @@
+@startuml sequencia-ajuste-estoque
+title Ajuste de estoque: PUT /inventory/skus/{skuId}
+autonumber
+
+actor Seller as seller
+participant "InventoryResource" as ir
+participant "InventoryService" as svc
+participant "PgInventoryRepository" as repo
+participant "PgOutbox" as outbox
+database "PostgreSQL" as pg
+
+seller -> ir : PUT {onHand} + If-Match opcional
+ir -> ir : ETags.optional (ETag fraco ou malformado -> 400)
+ir -> svc : adjust(actor, skuId, versão?, onHand)
+svc -> svc : ownedBySku; requireOnHand;\nrequireNotArchived("ADJUST_STOCK")
+svc -> repo : adjust
+activate repo
+repo -> pg : BEGIN
+repo -> pg : SELECT ... FROM inventory_level ... FOR UPDATE
+alt versão do If-Match diferente
+  repo -> pg : ROLLBACK
+  ir --> seller : 412 version-mismatch
+else onHand < reserved
+  repo -> pg : ROLLBACK
+  ir --> seller : 409 stock-below-reserved
+else ok
+  repo -> pg : UPDATE inventory_level SET on_hand, version = version + 1
+  repo -> pg : INSERT inventory_adjustment (previous/new_on_hand, actor)
+  repo -> outbox : append InventoryUpdated(ADJUSTED)\n+ InventoryDepleted se o disponível foi de > 0 para 0
+  outbox -> pg : INSERT outbox_event (tópico catalog-inventory.inventory.v1, chave skuId)
+  repo -> pg : COMMIT
+  deactivate repo
+  ir --> seller : 200 + ETag (nova versão)
+end
+note over ir : O resource mede a chamada em InventoryLatency\n(catalog.inventory.update.latency, operation=adjust_stock)
+@enduml

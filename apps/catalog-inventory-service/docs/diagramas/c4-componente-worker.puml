@@ -1,0 +1,43 @@
+@startuml c4-componente-worker
+!include <C4/C4_Component>
+
+title catalog-inventory-worker — componentes (C4 nível 3)
+
+ContainerDb_Ext(pg, "PostgreSQL", "catalog_inventory")
+ContainerDb_Ext(redis, "Redis", "Opcional")
+System_Ext(kafka, "Kafka", "Tópicos do catálogo, kyb-kyc.seller.v1 e DLQ")
+
+Container_Boundary(worker, "catalog-inventory-worker") {
+  Component(relay, "OutboxRelay", "@Scheduled outbox-relay, 1 s (início após 3 s)", "Drena até 20 lotes de 100; publica por tópico+chave; backoff até 60 s")
+  Component(sweeper, "ReservationSweeper", "@Scheduled reservation-sweeper, 5 s", "Expira até 200 reservas vencidas por execução")
+  Component(importer, "ProductImportWorker", "@Scheduled product-import, 1 s", "Reivindica lote com SKIP LOCKED (lease 5 min) e processa o CSV")
+  Component(purge, "MessagingHousekeeping", "@Scheduled messaging-purge, 1 h", "Apaga outbox publicada há 7 dias e inbox com 30 dias")
+  Component(gauges, "SkuGauges", "@Scheduled sku-gauges, 60 s", "Atualiza catalog.skus.active e catalog.skus.sellable")
+  Component(consumer, "SellerVerdictConsumer", "@Incoming kyb-seller-verdicts", "Valida envelope v1, retry 200 ms..10 s até 10 vezes; falha vai à DLQ")
+  Component(casos, "Casos de uso", "ReservationService, ProductImportService, ProductService, OfferService, InventoryService, SellerEligibilityService", "Mesmas classes da api, montadas em CatalogBeans")
+  Component(decorators, "Decorators de invalidação", "ProductCacheInvalidation, OfferCacheInvalidation, SellerCacheInvalidation", "Incrementam gerações no Redis")
+  Component(repos, "Repositórios Pg*", "PgReservationRepository, PgProductImportRepository, PgSellerEligibilityRepository, PgProductRepository, PgOfferRepository, PgInventoryRepository", "SQL reativo; transações por unidade")
+  Component(outbox, "PgOutbox", "persistence", "Advisory lock do relay, leitura de pendentes, marcação, purge")
+  Component(canal, "Canal catalog-events", "SmallRye Kafka", "acks=all, enable.idempotence=true")
+}
+
+Rel(sweeper, casos, "expireDue")
+Rel(importer, casos, "claimNext, process")
+Rel(consumer, casos, "SellerEligibilityService.record")
+Rel(casos, decorators, "Portas com cache")
+Rel(decorators, repos, "Delega")
+Rel(casos, repos, "Portas sem cache")
+Rel(repos, outbox, "append")
+Rel(relay, outbox, "drain")
+Rel(purge, outbox, "purge")
+Rel(gauges, pg, "Contagem de SKUs via PgCatalogMetrics", "SQL")
+Rel(relay, canal, "Mensagem com tópico, chave e cabeçalhos")
+Rel(canal, kafka, "Produz", "Kafka")
+Rel(kafka, consumer, "kyb-kyc.seller.v1", "Kafka")
+Rel(consumer, kafka, "Falha permanente: catalog-inventory.kyb-seller.dlq", "Kafka")
+Rel(repos, pg, "SQL", "Reactive SQL Client")
+Rel(outbox, pg, "outbox_event, inbox_message")
+Rel(decorators, redis, "Incrementa gerações", "RESP")
+
+SHOW_LEGEND()
+@enduml

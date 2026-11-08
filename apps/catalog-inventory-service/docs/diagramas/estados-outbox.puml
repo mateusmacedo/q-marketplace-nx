@@ -1,0 +1,19 @@
+@startuml estados-outbox
+title Linha de outbox_event — estados implícitos (sem enum no código)
+
+[*] --> Pendente : INSERT na transação da mudança\n(PgOutbox.append)
+
+state Pendente : published_at IS NULL
+state Publicado : published_at preenchido
+
+Pendente --> Pendente : falha no envio ou timeout de 10 s\nattempts += 1, last_error gravado;\nrelay entra em backoff de 2^n s (máx. 60 s)
+Pendente --> Publicado : broker confirmou\n(UPDATE published_at, attempts += 1, last_error = NULL)
+Publicado --> [*] : MessagingHousekeeping.purge\napós outbox-retention (7 dias)
+
+note right of Pendente
+  Retido (held): eventos seguintes
+  do mesmo tópico+chave depois de uma
+  falha ficam pendentes para a próxima
+  execução, sem incrementar attempts.
+end note
+@enduml
