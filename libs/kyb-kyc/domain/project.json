@@ -1,0 +1,9 @@
+{
+  "name": "kyb-kyc-domain",
+  "projectType": "library",
+  "tags": [
+    "scope:kyb-kyc",
+    "layer:domain",
+    "lang:java"
+  ]
+}
