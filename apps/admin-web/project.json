@@ -112,6 +112,15 @@
         "staticFilePath": "dist/apps/admin-web/browser",
         "spa": true
       }
+    },
+    "container": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "command": "docker build -f infra/docker/Dockerfile.admin-web -t marketplace-nx/admin-web:local ."
+      }
     }
   }
 }
