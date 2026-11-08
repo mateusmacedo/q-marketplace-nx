@@ -1,0 +1,1205 @@
+{
+  "uid": "marketplace-infra-telemetry",
+  "title": "Marketplace · Pipeline de telemetria",
+  "description": "A própria observabilidade: o dado não apareceu porque a app não mandou ou porque o pipeline perdeu? Collector, Loki, Tempo, Prometheus e Grafana. Os nomes do Collector 0.160 não têm sufixo _total.",
+  "tags": [
+    "marketplace",
+    "infra"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 27,
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 28,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** conferir se a própria telemetria está chegando (Collector, Loki, Tempo e Prometheus) antes de confiar nos outros dashboards.\n\n**De onde vêm os dados:** métricas internas de cada componente, raspadas pelo Prometheus a cada 15 s (jobs `otel-collector`, `loki`, `tempo`, `prometheus` e `grafana`). O caminho: o catálogo envia traces e logs por OTLP ao Collector, que manda os traces ao Tempo depois da amostragem de cauda (100% no compose), os logs ao Loki e as séries por span ao Prometheus por OTLP; o k6 escreve no Prometheus por remote write; o Alloy leva ao Loki os logs dos demais contêineres. As métricas do catálogo não passam pelo Collector: vêm do scrape de `/q/metrics`.\n\n**Variáveis:** nenhuma.\n\n**Triagem rápida:**\n1. Aceitos por sinal zerado: o catálogo não exporta (Collector fora ou SDK desligado).\n2. Ocupação da fila do exporter subindo: o destino (Tempo, Prometheus ou Loki) está lento ou fora; veja a seção dele.\n3. Descartes antecipados acima de 0 na amostragem de cauda: traces perdidos; veja Memória do Collector.\n4. Séries na head ou Streams em memória crescendo sem carga: cardinalidade nova.\n5. Amostras perdidas acima de 0 em Amostras fora de ordem: o Prometheus recusou amostras antigas demais; os percentis da carga podem ter buracos."
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Collector",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Aceitos por sinal",
+      "description": "**O que mostra:** Spans, registros de log e pontos de métrica aceitos por segundo pelo receptor OTLP do Collector (`otelcol_receiver_accepted_*`).\n\n**Normal:** Spans e logs acompanham o tráfego do catálogo (um span por consulta, duas linhas de log por escrita, ADR 021); pontos de métrica em 0, porque as métricas vêm do scrape do Micrometer (ADR 020).\n\n**Sinais de anomalia:** Spans ou logs zerados com tráfego indicam exportação OTLP parada (SDK desligado ou Collector fora); veja Recusados e falhos e o alerta ObservabilityTargetDown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(otelcol_receiver_accepted_spans[$__rate_interval]))",
+          "legendFormat": "spans",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(otelcol_receiver_accepted_log_records[$__rate_interval]))",
+          "legendFormat": "logs",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(otelcol_receiver_accepted_metric_points[$__rate_interval]))",
+          "legendFormat": "pontos",
+          "refId": "C"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Recusados e falhos",
+      "description": "**O que mostra:** Spans, logs e pontos de métrica recusados ou falhos no receptor do Collector, somados (`otelcol_receiver_refused_*` e `otelcol_receiver_failed_*`).\n\n**Normal:** 0. Cada métrica ainda ausente conta como 0, então a soma não fica vazia antes da primeira recusa.\n\n**Sinais de anomalia:** Acima de 0 indica o memory_limiter recusando (memória acima de 80%) ou dado inválido; veja Memória do Collector.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(otelcol_receiver_refused_spans[$__rate_interval])) or vector(0)) + (sum(rate(otelcol_receiver_failed_spans[$__rate_interval])) or vector(0)) + (sum(rate(otelcol_receiver_refused_log_records[$__rate_interval])) or vector(0)) + (sum(rate(otelcol_receiver_failed_log_records[$__rate_interval])) or vector(0)) + (sum(rate(otelcol_receiver_refused_metric_points[$__rate_interval])) or vector(0)) + (sum(rate(otelcol_receiver_failed_metric_points[$__rate_interval])) or vector(0))",
+          "legendFormat": "recusados + falhos",
+          "refId": "A"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Enviados por exporter",
+      "description": "**O que mostra:** Itens enviados por segundo por exporter: spans ao Tempo (`otlp_grpc/tempo`), pontos ao Prometheus (`otlp_http/prometheus`, com as séries de spanmetrics e servicegraph) e logs ao Loki (`otlp_http/loki`).\n\n**Normal:** Spans enviados perto dos aceitos, porque no compose a amostragem guarda 100%; pontos em ritmo constante (o spanmetrics descarrega a cada 15 s).\n\n**Sinais de anomalia:** Exporter zerado com aceitos subindo indica destino fora ou recusando; veja Ocupação da fila do exporter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_sent_spans[$__rate_interval]))",
+          "legendFormat": "{{exporter}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_sent_log_records[$__rate_interval]))",
+          "legendFormat": "{{exporter}}",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (exporter) (rate(otelcol_exporter_sent_metric_points[$__rate_interval]))",
+          "legendFormat": "{{exporter}}",
+          "refId": "C"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ocupação da fila do exporter",
+      "description": "**O que mostra:** Lotes na fila de envio de cada exporter sobre a capacidade (`otelcol_exporter_queue_size` / `queue_capacity`, 1.000 lotes por exporter).\n\n**Normal:** Perto de 0%: os destinos estão na mesma máquina e respondem rápido.\n\n**Sinais de anomalia:** Fila subindo indica destino lento ou fora (Tempo, Prometheus ou Loki); em 100%, o Collector descarta dados novos. Veja a seção do destino e o alerta ObservabilityTargetDown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (exporter) (otelcol_exporter_queue_size) / max by (exporter) (otelcol_exporter_queue_capacity)",
+          "legendFormat": "{{exporter}}",
+          "refId": "A"
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tail sampling: decisões por política",
+      "description": "**O que mostra:** Traces decididos por segundo por política da amostragem de cauda (`errors`, `slow` acima de 500 ms e `baseline` probabilística), com `sampled` true ou false (`count_traces_sampled`).\n\n**Normal:** No compose, `TAIL_SAMPLING_PERCENTAGE` é 100: `baseline` amostra todo trace (RF-E7); `errors` e `slow` só dão true nos traces com erro ou lentos.\n\n**Sinais de anomalia:** `errors` ou `slow` com true crescendo indicam falha ou lentidão real (Traces com erro e lentos no Ponta a ponta); `baseline` false no compose é fração alterada.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (policy, sampled) (rate(otelcol_processor_tail_sampling_count_traces_sampled[$__rate_interval]))",
+          "legendFormat": "{{policy}} amostrado={{sampled}}",
+          "refId": "A"
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tail sampling: traces em memória e descartes antecipados",
+      "description": "**O que mostra:** Traces aguardando decisão na memória do Collector (`sampling_traces_on_memory`) e traces descartados antes da decisão em 5 min (`sampling_trace_dropped_too_early`).\n\n**Normal:** Em memória, cerca de traces novos por segundo × 10 s (`decision_wait`); descartes em 0.\n\n**Sinais de anomalia:** Descartes acima de 0 são traces perdidos sem decisão (limite de traces em memória atingido); em memória crescendo sem estabilizar, veja Memória do Collector.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(otelcol_processor_tail_sampling_sampling_traces_on_memory)",
+          "legendFormat": "em memória",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(otelcol_processor_tail_sampling_sampling_trace_dropped_too_early[5m]))",
+          "legendFormat": "descartados em 5 min",
+          "refId": "B"
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tail sampling: latência da decisão (p95)",
+      "description": "**O que mostra:** P95 da duração de cada ciclo do temporizador de decisão da amostragem de cauda, em milissegundos, como declara o help do instrumento (`sampling_decision_timer_latency`).\n\n**Normal:** Baixo e estável, proporcional aos traces em memória.\n\n**Sinais de anomalia:** Subida junto com traces em memória e CPU do Collector indica processador sobrecarregado, que atrasa a chegada dos traces ao Tempo; veja CPU do Collector.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(otelcol_processor_tail_sampling_sampling_decision_timer_latency_bucket[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória do Collector",
+      "description": "**O que mostra:** Memória residente (RSS) do processo do Collector (`otelcol_process_memory_rss`).\n\n**Normal:** Estável sob tráfego constante; cresce com os traces que a amostragem de cauda segura por 10 s.\n\n**Sinais de anomalia:** Crescimento contínuo; acima de 80% da memória disponível, o memory_limiter passa a recusar dados (Recusados e falhos). Veja também OOM na janela no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(otelcol_process_memory_rss)",
+          "legendFormat": "RSS",
+          "refId": "A"
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU do Collector",
+      "description": "**O que mostra:** Núcleos de CPU usados pelo Collector (rate de `otelcol_process_cpu_seconds`).\n\n**Normal:** Acompanha o volume de spans e logs; o spanmetrics e o servicegraph processam todos os spans, antes da amostragem.\n\n**Sinais de anomalia:** Subida sem aumento de Aceitos por sinal sugere cardinalidade alta no spanmetrics ou laço; com as filas subindo junto, o Collector virou gargalo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(otelcol_process_cpu_seconds[$__rate_interval]))",
+          "legendFormat": "núcleos",
+          "refId": "A"
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 18
+      }
+    },
+    {
+      "type": "row",
+      "id": 11,
+      "title": "Loki",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Linhas recebidas",
+      "description": "**O que mostra:** Linhas de log recebidas por segundo pelo distributor do Loki (`loki_distributor_lines_received_total`), das duas entradas: OTLP do Collector (catálogo) e push do Alloy (demais contêineres).\n\n**Normal:** Acompanha o tráfego: cada requisição deixa uma linha de acesso e cada evento de domínio outra (ADR 021).\n\n**Sinais de anomalia:** Queda a 0 com o catálogo ativo indica ingestão parada (Collector ou Alloy); explosão sem tráfego, serviço em laço de erro. Veja Push (p95).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(loki_distributor_lines_received_total[$__rate_interval]))",
+          "legendFormat": "linhas/s",
+          "refId": "A"
+        }
+      ],
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 27
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Bytes recebidos",
+      "description": "**O que mostra:** Bytes de log por segundo recebidos pelo distributor do Loki (`loki_distributor_bytes_received_total`).\n\n**Normal:** Proporcional a Linhas recebidas, com bytes por linha quase constantes.\n\n**Sinais de anomalia:** Bytes crescendo mais que as linhas indicam linhas maiores (stack traces, corpos inteiros); confira os logs do serviço no período.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(loki_distributor_bytes_received_total[$__rate_interval]))",
+          "legendFormat": "bytes/s",
+          "refId": "A"
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 27
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Streams em memória",
+      "description": "**O que mostra:** Streams ativos nos ingesters do Loki (`loki_ingester_memory_streams`), um por combinação de labels; vigia a cardinalidade.\n\n**Normal:** Estável, na ordem do número de serviços e contêineres; o MDC (tenant, agregados) vai como structured metadata e não cria stream.\n\n**Sinais de anomalia:** Crescimento contínuo indica label de alta cardinalidade (um id virando label); revise o Alloy e o Collector antes que o Loki fique lento.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(loki_ingester_memory_streams)",
+          "legendFormat": "streams",
+          "refId": "A"
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 27
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Push (p95)",
+      "description": "**O que mostra:** P95 da duração das requisições de ingestão do Loki por rota: `otlp_v1_logs` (Collector) e `loki_api_v1_push` (Alloy), de `loki_request_duration_seconds`.\n\n**Normal:** Baixo e estável nas duas rotas.\n\n**Sinais de anomalia:** Subida indica Loki lento (disco, compactação); a fila do exporter `otlp_http/loki` sobe junto (Ocupação da fila do exporter) e o Alloy acumula atraso.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(loki_request_duration_seconds_bucket{route=~\"otlp_v1_logs|loki_api_v1_push\"}[$__rate_interval])))",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 27
+      }
+    },
+    {
+      "type": "row",
+      "id": 16,
+      "title": "Tempo",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Spans recebidos",
+      "description": "**O que mostra:** Spans recebidos por segundo pelo distributor do Tempo (`tempo_distributor_spans_received_total`), depois da amostragem de cauda do Collector.\n\n**Normal:** No compose, igual aos spans enviados pelo exporter `otlp_grpc/tempo`, porque a amostragem guarda 100%, com 10 s de atraso da decisão.\n\n**Sinais de anomalia:** Abaixo do enviado pelo Collector indica recusa no Tempo; zerado com o Collector enviando, Tempo fora (ObservabilityTargetDown, job `tempo`).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(tempo_distributor_spans_received_total[$__rate_interval]))",
+          "legendFormat": "spans/s",
+          "refId": "A"
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Traces vivos",
+      "description": "**O que mostra:** Traces ainda abertos no live store do Tempo (`tempo_live_store_live_traces`), antes de virarem bloco.\n\n**Normal:** Proporcional ao ritmo de traces e estável sob tráfego constante.\n\n**Sinais de anomalia:** Crescimento contínuo indica traces que não fecham ou blocos não sendo gravados; acompanhe a Memória residente dos componentes (`tempo`).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(tempo_live_store_live_traces)",
+          "legendFormat": "traces",
+          "refId": "A"
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      }
+    },
+    {
+      "type": "row",
+      "id": 20,
+      "title": "Prometheus e Grafana",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Séries na head",
+      "description": "**O que mostra:** Séries ativas na head do TSDB do Prometheus, o bloco em memória das últimas horas (`prometheus_tsdb_head_series`).\n\n**Normal:** Estável, com degrau a cada execução da carga, cujas séries levam a tag `testid`, e queda quando elas saem da head.\n\n**Sinais de anomalia:** Crescimento contínuo sem carga indica cardinalidade nova (label com id, histograma novo); só o timer de inventário soma 62 séries por operação e resultado (ADR 017).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(prometheus_tsdb_head_series)",
+          "legendFormat": "séries",
+          "refId": "A"
+        }
+      ],
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Amostras por segundo",
+      "description": "**O que mostra:** Amostras gravadas por segundo na head do Prometheus (rate de `prometheus_tsdb_head_samples_appended_total`): scrape a cada 15 s, OTLP do Collector e remote write do k6.\n\n**Normal:** Patamar estável fora da carga e degrau durante ela, com o remote write do k6 a cada 2 s.\n\n**Sinais de anomalia:** Degrau sem carga aponta alvo novo ou cardinalidade; queda indica alvo fora (alertas CatalogInventoryDown e ObservabilityTargetDown).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(prometheus_tsdb_head_samples_appended_total[$__rate_interval]))",
+          "legendFormat": "amostras/s",
+          "refId": "A"
+        }
+      ],
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "OTLP e remote write",
+      "description": "**O que mostra:** Requisições por segundo ao receptor OTLP do Prometheus (`/api/v1/otlp/v1/metrics`, do Collector: spanmetrics e servicegraph) e ao de remote write (`/api/v1/write`, do k6), por código HTTP.\n\n**Normal:** OTLP constante com 200; remote write só durante a carga, com 200 ou 204.\n\n**Sinais de anomalia:** 4xx ou 5xx indicam lote recusado (formato, amostra fora da janela de 30 min); veja Amostras fora de ordem e a fila do exporter `otlp_http/prometheus`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (handler, code) (rate(prometheus_http_requests_total{handler=~\"/api/v1/otlp/v1/metrics|/api/v1/write\"}[$__rate_interval]))",
+          "legendFormat": "{{handler}} {{code}}",
+          "refId": "A"
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Amostras fora de ordem",
+      "description": "**O que mostra:** Amostras recusadas pelo TSDB por tipo: antigas demais para a janela de 30 min (`too_old`, perdidas) e fora de ordem (`out_of_order`).\n\n**Normal:** Perdidas em 0. Em fora de ordem histogram, cada execução do k6 soma uma por série, porque o Prometheus conta ali o reenvio idêntico do fim e o descarta sem perder ponto.\n\n**Sinais de anomalia:** Perdidas acima de 0 é OTLP ou remote write atrasado mais de 30 min; fora de ordem float, ou histogram sem k6 rodando, merece investigação.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (type) (rate(prometheus_tsdb_too_old_samples_total[5m]))",
+          "legendFormat": "perdidas {{type}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (type) (rate(prometheus_tsdb_out_of_order_samples_total[5m]))",
+          "legendFormat": "fora de ordem {{type}}",
+          "refId": "B"
+        }
+      ],
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Bytes em blocos",
+      "description": "**O que mostra:** Espaço em disco dos blocos persistidos do TSDB do Prometheus (`prometheus_tsdb_storage_blocks_bytes`), sem a head e o WAL.\n\n**Normal:** Cresce em degraus a cada compactação e se estabiliza com a retenção de 7 dias.\n\n**Sinais de anomalia:** Crescimento acima do ritmo habitual indica cardinalidade nova; confirme em Séries na head.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(prometheus_tsdb_storage_blocks_bytes)",
+          "legendFormat": "bytes",
+          "refId": "A"
+        }
+      ],
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória residente dos componentes",
+      "description": "**O que mostra:** Memória residente (RSS) de Prometheus, Loki, Tempo e Grafana (`process_resident_memory_bytes` do scrape de cada um, por job).\n\n**Normal:** Estável sob tráfego constante; o Prometheus cresce com as séries na head e o Tempo com os traces vivos.\n\n**Sinais de anomalia:** Crescimento contínuo sem aumento de séries ou traces indica vazamento ou consulta pesada (painel com intervalo longo); veja OOM na janela e Memória em uso no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (job) (process_resident_memory_bytes{job=~\"prometheus|loki|tempo|grafana\"})",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "id": 26,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      }
+    }
+  ],
+  "version": 1
+}

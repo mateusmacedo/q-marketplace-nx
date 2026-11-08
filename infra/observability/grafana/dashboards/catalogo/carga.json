@@ -1,0 +1,1292 @@
+{
+  "uid": "marketplace-catalog-load",
+  "title": "Marketplace · Catálogo · Carga",
+  "description": "Execuções da suíte de carga do catálogo (tools/load), filtradas por testid: taxa, VUs, latência por cenário, falhas, disputa e último item, desfechos de negócio e respostas inesperadas por cenário e atraso da outbox.",
+  "tags": [
+    "marketplace",
+    "catalogo"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "testid",
+        "label": "Execução",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(sort_desc(max by (testid) (max_over_time(timestamp(k6_vus)[$__range:15s]))))",
+          "refId": "testid"
+        },
+        "definition": "query_result(sort_desc(max by (testid) (max_over_time(timestamp(k6_vus)[$__range:15s]))))",
+        "regex": "/testid=\"([^\"]+)\"/",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 26,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** acompanhar uma execução da suíte de carga do catálogo (`tools/load`, ADR 022) e decidir se ela passou: invariantes, último item, outbox, descartes, latência e falhas por cenário.\n\n**De onde vêm os dados:** métricas do k6 enviadas por remote write ao Prometheus a cada 2 s, com native histograms e a tag `testid`; as séries do serviço (Micrometer de `/q/metrics`) aparecem só na janela da execução escolhida. No fim, as séries do k6 recebem stale markers, por isso os indicadores usam `last_over_time` e `max_over_time` sobre o intervalo do painel: escolha um intervalo que cubra a execução inteira.\n\n**Variáveis:** `testid` (Execução) é o `TESTID` da execução, `<perfil>-<UTC>`, com as mais recentes primeiro; só aparecem execuções com VUs dentro do intervalo escolhido. O `run.sh` imprime o link com o `testid` e o intervalo.\n\n**Triagem rápida:**\n1. Invariantes abaixo de 100% ou último item diferente de 20: procure `invariante violada` no `k6.log` de `tools/load/results/<testid>/`.\n2. Falhas acima de 0: veja Requisições de negócio por status e Respostas inesperadas por cenário para achar o status e o cenário.\n3. Latência por cenário subindo: compare com Latência no serviço; se só o k6 sobe, o custo está fora do caso de uso.\n4. Iterações descartadas acima de 0: gerador ou alvo saturado; veja CPU por contêiner no dashboard Contêineres.\n5. Atraso da outbox perto de 10 s ou fila sem esvaziar: veja a seção Eventos do dashboard Negócio."
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Resumo da execução",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Invariantes",
+      "description": "**O que mostra:** Fração das conferências do `teardown` (saldo dos grupos, expiração, estados da massa, vitrine, KYB) e das importações que passaram; Rate `inventory_invariants` do k6, menor valor da execução.\n\n**Normal:** 100% em todo perfil: 342 de 342 no smoke e 377 de 377 no average.\n\n**Sinais de anomalia:** Abaixo de 100% reprova a execução; procure `invariante violada: <id>` no `k6.log` de `tools/load/results/<testid>/`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min(last_over_time(k6_inventory_invariants_rate{testid=\"$testid\"}[$__range]))",
+          "legendFormat": "Invariantes"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Último item: aceitas",
+      "description": "**O que mostra:** Reservas 201 aceitas na rajada do cenário `last_unit` (contador `last_unit_accepted` do k6), acumuladas na execução.\n\n**Normal:** Exatamente `LAST_UNIT_STOCK`, 20 por padrão, em qualquer perfil: a rajada tenta o dobro do estoque, até 10 ao mesmo tempo.\n\n**Sinais de anomalia:** Acima do estoque é venda sem saldo; abaixo, recusa indevida; os dois reprovam. Compare com Recusas por falta de saldo e Invariantes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(max_over_time(k6_last_unit_accepted_total{testid=\"$testid\"}[$__range])) or on() vector(0)",
+          "legendFormat": "Último item: aceitas"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Recusas por falta de saldo",
+      "description": "**O que mostra:** Recusas 409 `insufficient-stock` contadas pelo k6 no último item, no SKU disputado e na reserva espalhada, somadas na execução.\n\n**Normal:** No modo `contend` (padrão), só o último item recusa: tentativas − estoque, 20 por execução. Com `HOT_MODE=exhaust`, o disputado esgota e recusa o resto (399 no smoke).\n\n**Sinais de anomalia:** Acima de 20 no `contend` é 409 onde o estoque é folgado, também resposta inesperada; veja Disputa e recusas por falta de saldo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(max_over_time(k6_last_unit_refused_total{testid=\"$testid\"}[$__range])) or on() vector(0)) + (sum(max_over_time(k6_hot_sku_refused_total{testid=\"$testid\"}[$__range])) or on() vector(0)) + (sum(max_over_time(k6_spread_refused_total{testid=\"$testid\"}[$__range])) or on() vector(0))",
+          "legendFormat": "Recusas por falta de saldo"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Maior atraso da outbox",
+      "description": "**O que mostra:** Maior `catalog_outbox_publish_lag_seconds_max` (da gravação na outbox à confirmação do Kafka) lido pela sonda do k6 em `/q/metrics` a cada `PROBE_INTERVAL_S` (5 s) e no `teardown`.\n\n**Normal:** Abaixo de 10 s (`OUTBOX_LAG_MAX_S`, critério do PRD); 2,0 s no smoke e no average.\n\n**Sinais de anomalia:** Perto de 10 s reprova o limite e antecede o alerta CatalogOutboxBacklog; abra Atraso de publicação da outbox e Fila pendente da outbox.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(max_over_time(k6_outbox_lag_seconds{testid=\"$testid\"}[$__range]))",
+          "legendFormat": "Maior atraso da outbox"
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Outbox esvaziada",
+      "description": "**O que mostra:** Se `catalog_outbox_pending` voltou a 0 em até `OUTBOX_DRAIN_S` (30 s) depois da carga, conferido no `teardown` (Rate `outbox_drained` do k6): 1 sim, 0 não.\n\n**Normal:** 1 em todo perfil; a fila zerou em 0,1 s no average e 0,2 s no smoke. Fica vazio até o `teardown` terminar.\n\n**Sinais de anomalia:** 0 significa eventos presos; veja Fila pendente da outbox, Falhas de publicação no dashboard Negócio e os logs do worker no Loki.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "não"
+                },
+                "1": {
+                  "text": "sim"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min(last_over_time(k6_outbox_drained_rate{testid=\"$testid\"}[$__range]))",
+          "legendFormat": "Outbox esvaziada"
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Iterações descartadas",
+      "description": "**O que mostra:** Iterações que o `ramping-arrival-rate` do k6 não iniciou por falta de VU livre (`dropped_iterations`), total da execução.\n\n**Normal:** 0 no smoke, no average e no soak, onde o limite exige `count==0`; no stress, no spike e no breakpoint pode aparecer.\n\n**Sinais de anomalia:** Acima de 0, gerador, `MAX_VUS` ou alvo saturados; veja o cenário em Iterações por cenário e CPU por contêiner (inclusive a do k6) no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(max_over_time(k6_dropped_iterations_total{testid=\"$testid\"}[$__range])) or on() vector(0)",
+          "legendFormat": "Iterações descartadas"
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 2
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Taxa e VUs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "VUs",
+      "description": "**O que mostra:** VUs ativos (executando iteração) e alocados pelo k6 (`k6_vus` e `k6_vus_max`), somados entre os cenários.\n\n**Normal:** Os alocados partem dos pré-alocados (pico × 0,5 s) e só crescem; os ativos acompanham taxa × latência. No average, de 90 a 139 alocados.\n\n**Sinais de anomalia:** Ativos encostando nos alocados indicam iterações mais lentas; se os alocados param no teto, surgem descartes. Compare com Latência por cenário.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_vus{testid=\"$testid\"})",
+          "legendFormat": "ativos"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_vus_max{testid=\"$testid\"})",
+          "legendFormat": "alocados"
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Iterações por cenário",
+      "description": "**O que mostra:** Iterações iniciadas por segundo em cada cenário, sem a sonda da outbox, e as descartadas (`descartadas <cenário>`), de `k6_iterations_total` e `k6_dropped_iterations_total`.\n\n**Normal:** Cada cenário segue a forma do perfil sobre a taxa base (no average a 1×: 20/s no disputado e na espalhada, 10/s na vitrine e no ajuste); sem série de descartadas.\n\n**Sinais de anomalia:** Cenário abaixo da taxa ou série `descartadas` surgindo indica falta de VU; a rota lenta aparece em Latência por rota.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (scenario) (rate(k6_iterations_total{testid=\"$testid\",scenario!=\"outbox_probe\"}[$__rate_interval]))",
+          "legendFormat": "{{scenario}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (scenario) (rate(k6_dropped_iterations_total{testid=\"$testid\"}[$__rate_interval]))",
+          "legendFormat": "descartadas {{scenario}}"
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requisições de negócio por status",
+      "description": "**O que mostra:** Requisições por segundo ao catálogo com a tag `kind=api` (sem login, preparo da massa e leitura de `/q/metrics`), por status HTTP; 0 é falha de transporte (sem resposta em 10 s).\n\n**Normal:** Cerca de 160/s no platô do average; quase tudo 200, 201 e 202, mais 404 da vitrine, 403 da navegação do moderador e 409 do último item.\n\n**Sinais de anomalia:** Série 5xx ou 0 é falha do servidor ou de transporte (503 nas reservas sugere pool SQL esgotado); veja Falhas e Traces com erro no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (status) (rate(k6_http_reqs_total{testid=\"$testid\",kind=\"api\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 7
+      }
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Latência",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência por cenário (p95, p99)",
+      "description": "**O que mostra:** P95 e p99 de `http_req_duration` do k6 por cenário (`kind=api`), calculados dos native histograms enviados por remote write.\n\n**Normal:** No average de `docs/validacao.md` (sem cache), p99 de 31,8 ms (vitrine) a 82,2 ms (rajada do último item), longe do limite de 500 ms por cenário do average e do soak.\n\n**Sinais de anomalia:** Degrau ou subida contínua num cenário; abra Latência por rota para achar a rota e Latência no serviço para separar o caso de uso de rede e serialização.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (scenario) (rate(k6_http_req_duration_seconds{testid=\"$testid\",kind=\"api\"}[$__rate_interval])))",
+          "legendFormat": "p99 {{scenario}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (scenario) (rate(k6_http_req_duration_seconds{testid=\"$testid\",kind=\"api\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{scenario}}"
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência por rota (p99)",
+      "description": "**O que mostra:** P99 de `http_req_duration` do k6 por método e rota (tag `name`, com o modelo da rota, como `POST /inventory/reservations`), só requisições de negócio.\n\n**Normal:** Não há medida por rota em `docs/validacao.md`; como referência, os p99 por cenário do average ficaram entre 32 e 82 ms.\n\n**Sinais de anomalia:** Uma rota destoando aponta o gargalo; busque os spans dela no Tempo, por exemplo `{ resource.service.name = \"catalog-inventory-api\" && name = \"POST /inventory/reservations\" }`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (method, name) (rate(k6_http_req_duration_seconds{testid=\"$testid\",kind=\"api\"}[$__rate_interval])))",
+          "legendFormat": "{{method}} {{name}}"
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência no serviço (p99)",
+      "description": "**O que mostra:** P99 de `catalog.inventory.update.latency` (Micrometer da api) por operação, só na janela em que a execução reporta VUs; mede o caso de uso, sem rede, filtros e serialização (ADR 017).\n\n**Normal:** No average, 38,5 ms na reserva, 19,5 ms na liberação, 16,6 ms na confirmação, 35,6 ms no ajuste e 39,3 ms na oferta.\n\n**Sinais de anomalia:** Sobe junto com o k6 quando o gargalo é o banco (veja Locks por modo no PostgreSQL); k6 alto com serviço baixo aponta custo fora do caso de uso.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, operation) (rate(catalog_inventory_update_latency_seconds_bucket{job=\"catalog-inventory\",operation=~\"reserve|release|commit|extend|adjust_stock|define_offer|schedule_promotion|cancel_promotion\"}[$__rate_interval]))) and on() count_over_time(k6_vus{testid=\"$testid\"}[$__rate_interval])",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Falhas e estoque",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Falhas",
+      "description": "**O que mostra:** Fração das requisições de negócio com 5xx ou falha de transporte e com status fora do esperado pelo k6 (`expected_response=false`); conta também a série que nasce na janela, que o `rate` perderia.\n\n**Normal:** 0 no smoke, no average e no soak (limites `rate==0`); até 1% no stress e no breakpoint e 5% no spike.\n\n**Sinais de anomalia:** Acima de 0 no average reprova; veja o status em Requisições de negócio por status e o cenário em Respostas inesperadas por cenário.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum((increase(k6_http_reqs_total{testid=\"$testid\",kind=\"api\",status=~\"5..|0\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\",status=~\"5..|0\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\",kind=\"api\",status=~\"5..|0\"} unless k6_http_reqs_total{testid=\"$testid\",kind=\"api\",status=~\"5..|0\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\",status=~\"5..|0\"} * 0)) / clamp_min(sum((increase(k6_http_reqs_total{testid=\"$testid\",kind=\"api\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} unless k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} * 0)), 1) or on() vector(0)",
+          "legendFormat": "5xx ou transporte"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum((increase(k6_http_reqs_total{testid=\"$testid\",kind=\"api\",expected_response=\"false\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\",expected_response=\"false\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\",kind=\"api\",expected_response=\"false\"} unless k6_http_reqs_total{testid=\"$testid\",kind=\"api\",expected_response=\"false\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\",expected_response=\"false\"} * 0)) / clamp_min(sum((increase(k6_http_reqs_total{testid=\"$testid\",kind=\"api\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} unless k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\",kind=\"api\"} * 0)), 1) or on() vector(0)",
+          "legendFormat": "inesperada"
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Disputa e recusas por falta de saldo",
+      "description": "**O que mostra:** Contadores acumulados do k6: reservas aceitas no SKU disputado e no último item, e recusas 409 `insufficient-stock` no último item, no disputado e na reserva espalhada.\n\n**Normal:** No `contend`, as aceitas do disputado crescem em linha (6.600 no average, cada uma liberada em seguida); o último item para em 20 aceitas e 20 recusas; o resto fica em 0.\n\n**Sinais de anomalia:** Recusa no disputado ou na espalhada no `contend` é 409 inesperado; no `exhaust`, aceitas acima de `HOT_STOCK` é venda sem saldo. Veja Invariantes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_hot_sku_accepted_total{testid=\"$testid\"})",
+          "legendFormat": "aceitas no SKU disputado"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_last_unit_accepted_total{testid=\"$testid\"})",
+          "legendFormat": "aceitas no último item"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_last_unit_refused_total{testid=\"$testid\"})",
+          "legendFormat": "recusadas no último item"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_hot_sku_refused_total{testid=\"$testid\"})",
+          "legendFormat": "recusadas no SKU disputado"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(k6_spread_refused_total{testid=\"$testid\"})",
+          "legendFormat": "recusadas na reserva espalhada"
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      }
+    },
+    {
+      "id": 22,
+      "type": "row",
+      "title": "Cenários de negócio",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Desfechos de negócio",
+      "description": "**O que mostra:** Desfechos acumulados por tipo (contador `outcomes` do k6): vitrine visível e oculta, aprovação, recusa e arquivamento, bloqueio e desbloqueio, promoção cancelada, reservas, categoria movida e importação concluída.\n\n**Normal:** Cada série cresce em ritmo constante, proporcional à taxa do cenário; no average, 33 importações concluídas.\n\n**Sinais de anomalia:** Série que para de crescer com o cenário rodando indica passo falhando antes do desfecho; veja Respostas inesperadas por cenário.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (outcome) (k6_outcomes_total{testid=\"$testid\"})",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Respostas inesperadas por cenário",
+      "description": "**O que mostra:** Fração acumulada das respostas fora do esperado em cada cenário (status, corpo ou recusa prevista), a métrica `unexpected_responses{scenario}` que os limites avaliam.\n\n**Normal:** 0 em todos os cenários no smoke, no average e no soak; até 1% no stress e 5% no spike.\n\n**Sinais de anomalia:** Cenário acima de 0 aponta o passo quebrado: o `k6.log` traz a mensagem do check, e Traces com erro no Ponta a ponta mostra o lado do serviço (recusas 4xx não marcam erro).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (scenario) (k6_unexpected_responses_rate{testid=\"$testid\"})",
+          "legendFormat": "{{scenario}}"
+        }
+      ],
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      }
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "Outbox",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Atraso de publicação da outbox",
+      "description": "**O que mostra:** Maior atraso entre a gravação na outbox e a confirmação do Kafka, pela sonda do k6 e pelo scrape do worker (`catalog_outbox_publish_lag_seconds_max`), este só na janela da execução.\n\n**Normal:** Abaixo de 10 s (critério do PRD); 2,0 s no smoke e no average. O máximo do Micrometer decai em cerca de 2 min, então a linha desce devagar.\n\n**Sinais de anomalia:** Subida contínua indica relay sem vazão; acima de 10 s por 2 min dispara CatalogOutboxBacklog. Veja Kafka: publicação e consumo no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(k6_outbox_lag_seconds{testid=\"$testid\"})",
+          "legendFormat": "sonda do k6"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(catalog_outbox_publish_lag_seconds_max{job=\"catalog-inventory\"}) and on() count_over_time(k6_vus{testid=\"$testid\"}[$__rate_interval])",
+          "legendFormat": "serviço"
+        }
+      ],
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Fila pendente da outbox",
+      "description": "**O que mostra:** Eventos gravados e ainda não publicados (`catalog_outbox_pending`), pela sonda do k6 e pelo scrape do worker, na janela da execução.\n\n**Normal:** Perto de zero e de volta a 0 logo depois da carga: no average, no máximo 31 eventos e zerada em 0,1 s.\n\n**Sinais de anomalia:** Fila crescendo sem voltar indica relay parado ou lento; confira Outbox esvaziada, Falhas de publicação no Negócio e o worker no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(k6_outbox_pending{testid=\"$testid\"})",
+          "legendFormat": "sonda do k6"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(catalog_outbox_pending{job=\"catalog-inventory\"}) and on() count_over_time(k6_vus{testid=\"$testid\"}[$__rate_interval])",
+          "legendFormat": "serviço"
+        }
+      ],
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      }
+    }
+  ]
+}

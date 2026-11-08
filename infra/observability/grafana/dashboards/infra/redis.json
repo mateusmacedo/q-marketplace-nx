@@ -1,0 +1,767 @@
+{
+  "uid": "marketplace-infra-redis",
+  "title": "Marketplace · Redis",
+  "description": "O Redis do cache do catálogo (ADR 024) pelo redis-exporter: memória, evicções, comandos, latência e clientes. Só no Compose: no Kubernetes o Redis é externo ao chart.",
+  "tags": [
+    "marketplace",
+    "infra"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "id": 16,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 17,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** acompanhar o Redis do cache da vitrine e da taxonomia do catálogo (ADR 024): disponibilidade, memória, chaves, comandos, latência no servidor, acertos de chave, evicções, erros, clientes, rede e logs.\n\n**De onde vêm os dados:** redis-exporter (profile `observability`), que lê `INFO` e o commandstats como o usuário `exporter` da ACL e é raspado pelo Prometheus a cada 15 s (job `redis`); logs pelo Alloy, no Loki. No compose, o Redis 7.4 não persiste, tem `maxmemory` de 64 MiB com `allkeys-lru`, 1 CPU e 128 MiB de memória, e a ACL só tem os usuários `catalog` e `exporter`. O cache fica desligado por padrão: sem tráfego do catálogo, só aparecem o healthcheck e o exporter, o que é normal.\n\n**Variáveis:** nenhuma; há um só Redis. A visão do cliente (acerto por área, desvios ao banco, gravações, invalidações e duração no cliente) fica na linha do cache do dashboard Serviço.\n\n**Triagem rápida:**\n1. Redis no ar em 0: veja Logs do Redis; o catálogo segue respondendo do banco (`bypass` no Serviço).\n2. Memória sobre maxmemory perto de 100% ou evicções acima de 0: chaves removidas viram faltas; veja Chaves.\n3. Comandos Redis do serviço lentos com Latência média por comando em microssegundos: o gargalo está no cliente, na rede ou na CPU (dashboard Contêineres).\n4. Erros acima de 0 fora do `NOSCRIPT` da partida: veja Logs do Redis e a ACL em `infra/local/compose/redis.yml`."
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Disponibilidade e memória",
+      "collapsed": false,
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Redis no ar",
+      "description": "**O que mostra:** `redis_up` do redis-exporter: 1 quando ele conecta e autentica no Redis como o usuário `exporter` da ACL, 0 quando não.\n\n**Normal:** 1 sempre que o Redis do compose está no ar; ele sobe nos profiles `infra`, `catalog` e `all`, mesmo com o cache do catálogo desligado (padrão).\n\n**Sinais de anomalia:** 0: Redis fora ou ACL recusando o `exporter`; veja Logs do Redis. Sem dados, o exporter está fora (profile `observability`); `redis_up` em 0 por 1 min dispara RedisDown, e o exporter fora, ObservabilityTargetDown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "fora",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "no ar",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_up)",
+          "legendFormat": "redis_up",
+          "refId": "A"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Memória sobre maxmemory",
+      "description": "**O que mostra:** Memória usada pelo Redis sobre o limite `maxmemory` (64 MiB no compose), de `redis_memory_used_bytes` e `redis_memory_max_bytes` do redis-exporter.\n\n**Normal:** Poucos por cento: o pico na validação do cache foi de 2,5 MB, cerca de 4%, sem evicções. Amarelo a partir de 80% e vermelho a partir de 95%.\n\n**Sinais de anomalia:** Perto de 100%, o `allkeys-lru` remove chaves, inclusive gerações, e as leituras viram falta; veja Evicções e expirações e a Taxa de acerto do cache no Serviço.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_memory_used_bytes) / clamp_min(max(redis_memory_max_bytes), 1)",
+          "legendFormat": "uso",
+          "refId": "A"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória",
+      "description": "**O que mostra:** Memória usada pelo Redis e o limite `maxmemory`, em bytes, dos gauges do redis-exporter (`redis_memory_used_bytes` e `redis_memory_max_bytes`).\n\n**Normal:** Usada estável entre 1,5 e 2 MiB, com o cache ligado ou não (pico de 2,5 MB na validação), e o limite em 64 MiB (`--maxmemory 64mb`); o contêiner tem teto de 128 MiB.\n\n**Sinais de anomalia:** Usada subindo sem parar com o cache ligado indica conteúdo maior ou mais chaves (compare com Chaves); encostando no limite, começam as evicções.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_memory_used_bytes)",
+          "legendFormat": "usada",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_memory_max_bytes)",
+          "legendFormat": "maxmemory",
+          "refId": "B"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Chaves",
+      "description": "**O que mostra:** Chaves somadas nos bancos (`redis_db_keys`) e as que têm validade (`redis_db_keys_expiring`); o catálogo usa só o banco 0, com o prefixo `catalog:`.\n\n**Normal:** As duas linhas iguais: o retrato vale 60 s, e gerações e mapa produto→loja, 24 h. Com o cache, até cerca de 1.100 chaves; desligado, as que sobraram vencem em até 24 h.\n\n**Sinais de anomalia:** Chaves acima das com validade indicam gravação sem `PX`, fora da ADR 024; queda brusca a 0 com o cache ligado, Redis reiniciado (não persiste).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(redis_db_keys)",
+          "legendFormat": "chaves",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(redis_db_keys_expiring)",
+          "legendFormat": "com validade",
+          "refId": "B"
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 2
+      }
+    },
+    {
+      "type": "row",
+      "title": "Carga",
+      "collapsed": false,
+      "id": 6,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Comandos por segundo",
+      "description": "**O que mostra:** Comandos por segundo no servidor, por comando (`redis_commands_total`, do commandstats), contando também os chamados dentro dos scripts Lua.\n\n**Normal:** Com o cache desligado, só o healthcheck (`auth` e `ping`, a cada 5 s) e o exporter (`info`, `config|get`, `slowlog`), cada um abaixo de 0,3/s. Ligado, no average: `get` 58/s, `evalsha` 33/s, `set` 16/s e `exists` 14/s.\n\n**Sinais de anomalia:** `eval` só aparece depois de um `NOSCRIPT` (script ausente); comando recusado pela ACL aparece em Erros e conexões recusadas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cmd) (rate(redis_commands_total[$__rate_interval]))",
+          "legendFormat": "{{cmd}}",
+          "refId": "A"
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência média por comando",
+      "description": "**O que mostra:** Tempo médio de execução de cada comando no servidor (`redis_commands_duration_seconds_total` sobre `redis_commands_total`), sem rede nem fila do cliente.\n\n**Normal:** Microssegundos: no average com cache, `evalsha` em cerca de 49 µs e `get`, `set` e `exists` abaixo de 10 µs; `info` e `config|get` do exporter, 0,2 a 0,3 ms.\n\n**Sinais de anomalia:** Servidor em microssegundos e Comandos Redis do serviço em milissegundos apontam pool, rede ou CPU do cliente; servidor lento, CPU por contêiner (teto de 1 núcleo).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cmd) (rate(redis_commands_duration_seconds_total[$__rate_interval])) / (sum by (cmd) (rate(redis_commands_total[$__rate_interval])) > 0)",
+          "legendFormat": "{{cmd}}",
+          "refId": "A"
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Acertos e faltas de chave",
+      "description": "**O que mostra:** Leituras por segundo que acharam ou não a chave (`redis_keyspace_hits_total` e `_misses_total`), inclusive dentro dos scripts; contam conteúdo e gerações, então não é a taxa de acerto do cache.\n\n**Normal:** 0 com o cache desligado. Ligado, no average: cerca de 53 acertos e 19 faltas por segundo; a taxa por área fica em Taxa de acerto do cache, no dashboard Serviço.\n\n**Sinais de anomalia:** Faltas subindo com Chaves caindo indicam evicções ou Redis reiniciado, que volta vazio; veja Evicções e expirações e Redis no ar.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_keyspace_hits_total[$__rate_interval]))",
+          "legendFormat": "acertos",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_keyspace_misses_total[$__rate_interval]))",
+          "legendFormat": "faltas",
+          "refId": "B"
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Evicções e expirações",
+      "description": "**O que mostra:** Chaves removidas por segundo por falta de memória (`allkeys-lru`, `redis_evicted_keys_total`) e por validade vencida (`redis_expired_keys_total`).\n\n**Normal:** Evicções em 0, como em toda a validação. Expirações só com o cache ligado: até cerca de 1/s no average, dos retratos de 60 s; as gerações vencem 24 h depois.\n\n**Sinais de anomalia:** Evicção acima de 0: memória no limite, e cada chave removida vira falta; veja Memória sobre maxmemory e Chaves.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_evicted_keys_total[$__rate_interval]))",
+          "legendFormat": "evicções",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_expired_keys_total[$__rate_interval]))",
+          "legendFormat": "expirações",
+          "refId": "B"
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Erros e conexões recusadas",
+      "description": "**O que mostra:** Comandos com falha ou recusados por segundo, por comando (`redis_commands_failed_calls_total` mais `_rejected_calls_total`, inclusive `NOPERM`), só acima de 0, e conexões recusadas.\n\n**Normal:** Vazio, exceto o `NOSCRIPT` do primeiro `evalsha` de cada partida do catálogo, quando o cliente cai para `eval`, e os `NOPERM` provocados na validação da ACL.\n\n**Sinais de anomalia:** Falha recorrente num comando do catálogo aparece como `bypass` ou `failed` no Serviço; `NOPERM` indica a ACL do compose sem o comando. Veja Logs do Redis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cmd) (rate(redis_commands_failed_calls_total[$__rate_interval]) + rate(redis_commands_rejected_calls_total[$__rate_interval])) > 0",
+          "legendFormat": "{{cmd}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_rejected_connections_total[$__rate_interval]))",
+          "legendFormat": "conexões recusadas",
+          "refId": "B"
+        }
+      ],
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Clientes",
+      "description": "**O que mostra:** Conexões abertas no servidor (`redis_connected_clients`) e clientes parados em comandos de espera (`redis_blocked_clients`), do redis-exporter.\n\n**Normal:** Com o cache desligado, 1 (o exporter, no scrape); ligado, os pools da api e do worker (até 16 cada) mais o exporter: até 18 no average. Bloqueados em 0, porque o cache não usa comando de espera.\n\n**Sinais de anomalia:** Conexões caindo a 1 com o cache ligado: papéis sem Redis (veja `bypass` no Serviço); subida contínua, conexões vazando rumo ao `maxclients` de 10.000.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_connected_clients)",
+          "legendFormat": "conectados",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_blocked_clients)",
+          "legendFormat": "bloqueados",
+          "refId": "B"
+        }
+      ],
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rede",
+      "description": "**O que mostra:** Bytes por segundo recebidos e enviados pelo servidor Redis (`redis_net_input_bytes_total` e `redis_net_output_bytes_total`), do redis-exporter.\n\n**Normal:** Com o cache desligado, cerca de 35 B/s de entrada e 1,2 kB/s de saída (o `info` do exporter); ligado, no average, cerca de 17 kB/s de entrada e 22 kB/s de saída.\n\n**Sinais de anomalia:** Saída crescendo bem acima dos comandos indica retratos maiores; entrada parada com o cache ligado, catálogo sem falar com o Redis. Compare com Comandos por segundo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_net_input_bytes_total[$__rate_interval]))",
+          "legendFormat": "entrada",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_net_output_bytes_total[$__rate_interval]))",
+          "legendFormat": "saída",
+          "refId": "B"
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      }
+    },
+    {
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "id": 14,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "Logs do Redis",
+      "description": "**O que mostra:** Linhas do contêiner `redis` lidas pelo Alloy do socket do Docker (label `compose_service`, que só existe no Compose), guardadas no Loki.\n\n**Normal:** Só as linhas da partida, com o aviso de que o usuário `default` está desligado, esperado pela ACL; sem persistência, não há linhas de save.\n\n**Sinais de anomalia:** OOM, `MISCONF`, erro de ACL ou partida nova fora de uma recriação; cruze o horário com Redis no ar e com Início do container no dashboard Contêineres.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{compose_service=\"redis\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      }
+    }
+  ],
+  "version": 1
+}

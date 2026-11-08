@@ -1,0 +1,26 @@
+# Um provider por pasta, cada um com folderUid fixo: um provider na raiz leria as subpastas e duplicaria os uid.
+apiVersion: 1
+
+providers:
+  - name: marketplace-catalogo
+    orgId: 1
+    folder: Marketplace · Catálogo
+    folderUid: marketplace-catalogo
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/catalogo
+      foldersFromFilesStructure: false
+  - name: marketplace-infra
+    orgId: 1
+    folder: Marketplace · Infra
+    folderUid: marketplace-infra
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/infra
+      foldersFromFilesStructure: false

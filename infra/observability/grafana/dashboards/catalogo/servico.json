@@ -1,0 +1,1642 @@
+{
+  "uid": "marketplace-catalog-service",
+  "title": "Marketplace · Catálogo · Serviço",
+  "description": "Tráfego HTTP, processo, pools, Kafka, cache Redis, logs e traces dos papéis api e worker do catálogo.",
+  "tags": [
+    "marketplace",
+    "catalogo"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "Instância",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"catalog-inventory\"}, instance)",
+          "refId": "instance"
+        },
+        "definition": "label_values(up{job=\"catalog-inventory\"}, instance)",
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 34,
+      "type": "row",
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 35,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** acompanhar a saúde técnica dos dois papéis do catálogo (api e worker, ADR 020): tráfego HTTP, processo, tarefas agendadas, pools, Kafka e o cache Redis (ADR 024), com logs e traces para descer ao detalhe.\n\n**De onde vêm os dados:** Micrometer de `/q/metrics` na porta de gestão (9000) dos dois papéis, raspado pelo Prometheus a cada 15 s (job `catalog-inventory`); só a api tem tráfego HTTP de negócio, e só o worker roda as tarefas e o Kafka. A Latência por rota (todos os spans) vem do spanmetrics do Collector, os logs do Loki (OTLP) e os traces do Tempo. O cache fica desligado por padrão em dev, compose, produção e chart, e a linha do cache fica sem dados: é o normal.\n\n**Variáveis:** `instance` (Instância) escolhe `catalog-api:9000`, `catalog-worker:9000` ou os dois; pools e contadores somam as instâncias escolhidas, e a memória separa por papel. Latência por rota (todos os spans), Instâncias no ar, logs e traces não seguem a variável.\n\n**Triagem rápida:**\n1. Instâncias no ar abaixo de 2 ou Tempo no ar perto de 0: um papel caiu ou reiniciou; veja os Logs do catálogo e o dashboard Contêineres.\n2. Taxa de erro 5xx acima de 0: veja Pool do cliente SQL e Espera por conexão SQL; fila alta aponta o banco (Locks por modo no PostgreSQL).\n3. Latência subindo: compare Latência média por rota com CPU e Espera por conexão SQL. Latência por rota (todos os spans) zerada com tráfego é anomalia: se `sum(increase(traces_spanmetrics_calls_total[2m])) == 0 and sum(increase(traces_service_graph_request_total[2m])) > 0` der resultado, o spanmetrics congelou; reinicie o Collector e veja a ADR 021. Depois de recriar um papel, o esperado é série nova com outro `instance` e a antiga sumindo em até 5 min.\n4. Outbox ou importação atrasando: veja Execuções por tarefa, Duração média por tarefa e Envio do produtor Kafka.\n5. Com o cache ligado: `bypass`, gravações ou invalidações com `failed` levam ao dashboard Redis."
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Tráfego HTTP",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Requisições por rota",
+      "description": "**O que mostra:** Requisições por segundo da api por método e rota (o modelo, como `/products/{id}`), de `http_server_requests_seconds_count`; só a api atende HTTP de negócio, e a porta de gestão fica fora.\n\n**Normal:** Sem carga, perto de 0; no platô do average, cerca de 160/s no total, com a reserva (48/s) e a liberação (41/s) na frente, depois o ajuste de saldo e a vitrine (10 a 11/s).\n\n**Sinais de anomalia:** Rota zerada com o k6 chamando indica cenário parado; todas zeradas, api fora (Instâncias no ar). Compare com Respostas por status.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{method}} {{uri}}",
+          "exemplar": true
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Respostas por status",
+      "description": "**O que mostra:** Requisições por segundo da api por código HTTP (`http_server_requests_seconds_count`), somando rotas e métodos, nas instâncias escolhidas.\n\n**Normal:** No platô do average, cerca de 100/s de 200 e 49/s de 201, mais 404 da vitrine (produto oculto, 5/s), 403 da navegação do moderador, 202 da importação e 409 do último item; nenhum 5xx.\n\n**Sinais de anomalia:** Série 5xx é falha técnica (503 com o pool SQL esgotado, por exemplo); veja Taxa de erro 5xx e Traces com erro.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}",
+          "exemplar": true
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Taxa de erro 5xx",
+      "description": "**O que mostra:** Fração das respostas da api com 5xx sobre todas, por `$__rate_interval`, de `http_server_requests_seconds_count`; mesma base do SLO de disponibilidade (ADR 021), mas na janela do painel.\n\n**Normal:** 0: nenhum 5xx no smoke e no average. O SLO de 30 dias aceita 0,1% (99,9% sem 5xx).\n\n**Sinais de anomalia:** 1,44% em 1 h e em 5 min dispara CatalogApiAvailabilityBudgetBurnFast (crítico); 503 em todas as rotas com a fila do pool SQL alta já reprovou o average. Veja Pool do cliente SQL e Locks por modo no PostgreSQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\",status=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "5xx",
+          "exemplar": true
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência média por rota",
+      "description": "**O que mostra:** Duração média por método e rota (soma sobre contagem de `http_server_requests_seconds`); a família não tem buckets (ADR 017), então não há percentil.\n\n**Normal:** No average sem cache (212349), de 2,2 ms (`/inventory/reservations/{id}`) a 13,9 ms (desbloqueio na moderação), com a reserva em 8,4 ms.\n\n**Sinais de anomalia:** Uma rota subindo sozinha aponta o caso de uso; todas juntas, banco ou máquina (Espera por conexão SQL e CPU). Percentis em Latência por rota (todos os spans).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (method, uri) (rate(http_server_requests_seconds_sum{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (method, uri) (rate(http_server_requests_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "{{method}} {{uri}}",
+          "exemplar": true
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência máxima por rota",
+      "description": "**O que mostra:** Maior duração de cada rota na janela deslizante do Micrometer (`http_server_requests_seconds_max`), por método, filtrada pela variável Instância.\n\n**Normal:** Picos isolados: no A/B do average, o maior máximo foi 114 ms sem cache e 145 ms com cache, abaixo dos 500 ms da política `slow` da amostragem de cauda.\n\n**Sinais de anomalia:** Acima de 500 ms numa rota, o trace aparece em Traces lentos no Ponta a ponta. Máximos altos em todas as rotas ao mesmo tempo sugerem pausa da máquina ou do banco.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (method, uri) (http_server_requests_seconds_max{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "{{method}} {{uri}}",
+          "exemplar": true
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência por rota (todos os spans)",
+      "description": "**O que mostra:** P99 por rota dos spans SERVER da api, do spanmetrics antes da amostragem (buckets de 5 ms a 10 s); ignora a variável Instância.\n\n**Normal:** De 23 a 180 ms por rota no average sem cache. Papel recriado gera série com outro `instance`, e a antiga some em até 5 min, sem quebrar a curva.\n\n**Sinais de anomalia:** Zerado com tráfego: se `sum(increase(traces_spanmetrics_calls_total[2m])) == 0 and sum(increase(traces_service_graph_request_total[2m])) > 0` der resultado, o spanmetrics congelou; reinicie o Collector e veja a ADR 021.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, span_name) (rate(traces_spanmetrics_duration_seconds_bucket{service_name=\"catalog-inventory-api\",span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])))",
+          "legendFormat": "{{span_name}}",
+          "exemplar": true
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requisições e conexões abertas",
+      "description": "**O que mostra:** Requisições HTTP em andamento (`http_server_active_requests`) e conexões abertas (`http_server_active_connections`), somadas nas instâncias escolhidas pela variável Instância.\n\n**Normal:** Requisições perto de taxa × latência, de 2 a 4 no platô do average; as conexões seguem os VUs do k6, que as mantêm abertas: 89 no A/B. Sem carga, perto de 0.\n\n**Sinais de anomalia:** Requisições acumulando sem a taxa subir indicam espera (pool SQL, banco travado): veja Pool do cliente SQL. Conexões a 0 com o k6 rodando, api fora ou rede.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(http_server_active_requests{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "requisições",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(http_server_active_connections{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "conexões",
+          "exemplar": true
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      }
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Processo",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Instâncias no ar",
+      "description": "**O que mostra:** Papéis do catálogo no ar e fora do ar pelo `up` do job `catalog-inventory`, raspado a cada 15 s na porta de gestão da api e do worker; não segue a variável Instância.\n\n**Normal:** 2 no ar e 0 fora do ar, em verde (ADR 020).\n\n**Sinais de anomalia:** Fora do ar em vermelho: um papel caiu, e `up` = 0 por 1 min dispara CatalogInventoryDown (crítico); veja Início do container no dashboard Contêineres e os Logs do catálogo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "no ar"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(up{job=\"catalog-inventory\"})",
+          "legendFormat": "no ar"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(up{job=\"catalog-inventory\"} == 0) or vector(0)",
+          "legendFormat": "fora do ar"
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tempo no ar",
+      "description": "**O que mostra:** Menor `process_uptime_seconds` entre as instâncias escolhidas, ou seja, o tempo desde a partida mais recente de um dos papéis.\n\n**Normal:** Cresce sem parar desde a última subida do compose ou recriação dos papéis.\n\n**Sinais de anomalia:** Volta a perto de 0 sem recriação: um processo reiniciou (falha, OOM, healthcheck). Veja Início do container e OOM na janela no dashboard Contêineres e os Logs do catálogo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min(process_uptime_seconds{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 11,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 43
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Arquivos abertos",
+      "description": "**O que mostra:** Maior número de descritores abertos entre as instâncias escolhidas (`process_files_open_files`): sockets de HTTP, banco, Kafka e OTLP, mais arquivos.\n\n**Normal:** Em repouso, 35 na api e 62 no worker; no average, até 152 na api, com as conexões do k6. O limite do processo é 524.288.\n\n**Sinais de anomalia:** Crescimento que não volta depois da carga indica conexão vazando; compare com Requisições e conexões abertas e com Pool do cliente SQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(process_files_open_files{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 12,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Threads vivas",
+      "description": "**O que mostra:** Maior número de threads vivas entre as instâncias escolhidas (`jvm_threads_live_threads`) no executável nativo: event loops do Vert.x, pool de workers e threads dos clientes.\n\n**Normal:** Em repouso, 22 na api e 31 no worker; no average, até 38 na api, e o worker fica em 31.\n\n**Sinais de anomalia:** Subida contínua indica thread presa ou trabalho bloqueante acumulando; veja Pool de workers e Duração média por tarefa.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(jvm_threads_live_threads{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU",
+      "description": "**O que mostra:** Uso de CPU do processo (`process_cpu_usage`) e da máquina (`system_cpu_usage`) por instância, de 0 a 1 sobre todos os núcleos do host.\n\n**Normal:** Sem carga, o processo perto de 0. No platô do average, a api em cerca de 0,05 (0,37 núcleo dos 8 do host), o worker abaixo de 0,01 e a máquina entre 0,3 e 0,7.\n\n**Sinais de anomalia:** Máquina perto de 1 deixa as latências da carga incomparáveis; processo subindo sem tráfego sugere laço. Veja CPU por contêiner no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (process_cpu_usage{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "processo {{instance}}",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (system_cpu_usage{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "sistema {{instance}}",
+          "exemplar": true
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 47
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória",
+      "description": "**O que mostra:** Memória usada por papel e área (`jvm_memory_used_bytes`, heap e nonheap) nas instâncias escolhidas; no executável nativo só o heap tem valor, e o nonheap fica em 0.\n\n**Normal:** De 24 a 41 MiB de heap por papel em repouso e no average, oscilando com as coletas.\n\n**Sinais de anomalia:** Heap de um papel crescendo sem cair depois das coletas indica vazamento: rode o perfil `soak` e compare com Memória em uso no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role, area) (jvm_memory_used_bytes{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "{{role}} {{area}}",
+          "exemplar": true
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 47
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Tarefas agendadas (worker)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Execuções por tarefa",
+      "description": "**O que mostra:** Execuções por segundo de cada tarefa agendada (`scheduled_methods_seconds_count`): `relay` (outbox), `run` (importação), `sweep` (varredor), `refresh` (SKUs) e `purge` (limpeza).\n\n**Normal:** No worker, `relay` e `run` perto de 1/s, `sweep` em 0,2/s, `refresh` uma por minuto e `purge` uma por hora; a api não agenda nada (ADR 020).\n\n**Sinais de anomalia:** Tarefa zerada com o worker no ar indica agendador parado ou execução presa (`SKIP` pula as seguintes); veja Duração média por tarefa e Atraso de publicação no Negócio.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (method) (rate(scheduled_methods_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{method}}",
+          "exemplar": true
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Duração média por tarefa",
+      "description": "**O que mostra:** Duração média de cada execução por tarefa agendada, soma sobre contagem do timer `scheduled.methods` do Micrometer, filtrada pela variável Instância.\n\n**Normal:** Em repouso, de 1 a 8 ms. No average, `relay` em cerca de 127 ms (publica o lote e espera o Kafka), `sweep` em 38 ms, `refresh` em 11 a 15 ms e `run` em 5 a 6 ms.\n\n**Sinais de anomalia:** `relay` encostando em 1 s atrasa a outbox e leva a CatalogOutboxBacklog (acima de 10 s); `sweep` subindo indica banco lento. Veja Atraso de publicação no Negócio.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (method) (rate(scheduled_methods_seconds_sum{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (method) (rate(scheduled_methods_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "{{method}}",
+          "exemplar": true
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      }
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "Pools, banco e Kafka",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Pool do cliente SQL",
+      "description": "**O que mostra:** Conexões em uso e livres e pedidos na fila do pool reativo do PostgreSQL (`sql_pool_active`, `_idle` e `_queue_size`), somados nas instâncias escolhidas.\n\n**Normal:** 20 conexões por papel (o padrão do Quarkus), 40 com os dois; no average, até 2 em uso na api e fila sempre em 0.\n\n**Sinais de anomalia:** Fila acima de 0 por 5 min dispara CatalogSqlPoolSaturated; fila alta já acompanhou 503 em todas as rotas. Veja Locks por modo e Transação mais longa no PostgreSQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(sql_pool_active{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "em uso",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(sql_pool_idle{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "livres",
+          "exemplar": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(sql_pool_queue_size{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "na fila",
+          "exemplar": true
+        }
+      ],
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 65
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Espera por conexão SQL",
+      "description": "**O que mostra:** Tempo médio que um pedido espera na fila do pool reativo antes de receber conexão, soma sobre contagem de `sql_pool_queue_delay_seconds`, nas instâncias escolhidas.\n\n**Normal:** Microssegundos: cerca de 15 µs nas duas execuções do A/B do average.\n\n**Sinais de anomalia:** Milissegundos ou mais indicam pool esgotado, junto com a fila em Pool do cliente SQL, e antecedem os 503; veja Locks por modo no PostgreSQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(sql_pool_queue_delay_seconds_sum{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(sql_pool_queue_delay_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "média",
+          "exemplar": true
+        }
+      ],
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 65
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Pool de workers",
+      "description": "**O que mostra:** Tarefas bloqueantes em execução e na fila do pool de workers do Vert.x (`worker_pool_active` e `worker_pool_queue_size`), somadas nas instâncias escolhidas.\n\n**Normal:** 1 ou 2 em execução e fila em 0, em repouso e no average.\n\n**Sinais de anomalia:** Fila crescendo indica código bloqueante segurando as threads; veja Threads vivas e Duração média por tarefa.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(worker_pool_active{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "em execução",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(worker_pool_queue_size{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "na fila",
+          "exemplar": true
+        }
+      ],
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 65
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lag do consumidor KYB/KYC",
+      "description": "**O que mostra:** Maior lag de `kyb-kyc.seller.v1` medido pelo próprio cliente Kafka do worker (`kafka_consumer_fetch_manager_records_lag_max`, consumidor dos vereditos do KYB/KYC).\n\n**Normal:** 0 no smoke e no average, com os vereditos lidos assim que chegam; sem mensagem recente, o cliente informa NaN e o gráfico fica vazio.\n\n**Sinais de anomalia:** Acima de 100 por 10 min dispara CatalogKybConsumerLag; veja os Logs do catálogo e o grupo do consumidor no Redpanda Console.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(kafka_consumer_fetch_manager_records_lag_max{job=\"catalog-inventory\",instance=~\"$instance\",client_id=\"kafka-consumer-kyb-seller-verdicts\"})",
+          "legendFormat": "lag",
+          "exemplar": true
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 73
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Envio do produtor Kafka",
+      "description": "**O que mostra:** Registros enviados e com erro por segundo por produtor (`kafka_producer_record_send_total` e `_error_total`): eventos da outbox (`kafka-producer-catalog-events`) e fila de descarte dos vereditos.\n\n**Normal:** No average, cerca de 143 eventos/s e nenhum erro; a fila de descarte fica em 0.\n\n**Sinais de anomalia:** Erros acima de 0 seguram eventos na outbox (CatalogOutboxPublishFailures); envio à fila de descarte dispara CatalogKybDeadLetters. Veja a seção Eventos do Negócio.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (client_id) (rate(kafka_producer_record_send_total{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "enviados {{client_id}}",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (client_id) (rate(kafka_producer_record_error_total{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "erros {{client_id}}",
+          "exemplar": true
+        }
+      ],
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 73
+      }
+    },
+    {
+      "id": 28,
+      "type": "row",
+      "title": "Cache Redis (vitrine e taxonomia)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Taxa de acerto do cache",
+      "description": "**O que mostra:** Acertos (`hit`) sobre todas as leituras de `catalog_cache_requests_total` por área (`storefront` e `taxonomy`), nas instâncias escolhidas.\n\n**Normal:** Sem dados com o cache desligado, o padrão (ADR 024), e isso é normal. Ligado, no A/B do average: 38% na vitrine (404 conta como falta e nunca é guardado) e 61% na taxonomia.\n\n**Sinais de anomalia:** Queda com `bypass` em Leituras do cache por resultado indica Redis fora ou lento; sem `bypass`, invalidações demais ou memória cheia (Evicções e expirações no Redis).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cache) (rate(catalog_cache_requests_total{job=\"catalog-inventory\",instance=~\"$instance\",result=\"hit\"}[$__rate_interval])) / (sum by (cache) (rate(catalog_cache_requests_total{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{cache}}",
+          "exemplar": true
+        }
+      ],
+      "id": 29,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 82
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Leituras do cache por resultado",
+      "description": "**O que mostra:** Leituras do cache por segundo, por área e resultado: `hit` (do Redis), `miss` (carga do banco, com gravação sem espera) e `bypass` (Redis com falha ou acima de 100 ms, direto ao banco).\n\n**Normal:** Sem dados com o cache desligado (padrão), o que é normal. Ligado, no average: vitrine com 3,9 `hit` e 6,1 `miss` por segundo, taxonomia com 5,4 e 3,4, e `bypass` em 0.\n\n**Sinais de anomalia:** `bypass` acima de 0 manda a leitura ao banco; veja Comandos Redis do serviço e Redis no ar no dashboard Redis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cache, result) (rate(catalog_cache_requests_total{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{cache}} {{result}}",
+          "exemplar": true
+        }
+      ],
+      "id": 30,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 82
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Invalidações do cache",
+      "description": "**O que mostra:** Incrementos de geração por segundo depois das escritas no banco (`catalog_cache_invalidations_total`), por área e resultado (`ok` ou `failed`), com prazo de 1 s e uma nova tentativa.\n\n**Normal:** Sem dados com o cache desligado (padrão), o que é normal. Ligado, no average: cerca de 13,6/s na vitrine e 0,6/s na taxonomia, todos `ok`.\n\n**Sinais de anomalia:** `failed` deixa o conteúdo velho no ar, até produto bloqueado, por até 60 s (`catalog.cache.ttl`) e deixa log `WARN`; veja os Logs do catálogo e Comandos Redis do serviço.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cache, result) (rate(catalog_cache_invalidations_total{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{cache}} {{result}}",
+          "exemplar": true
+        }
+      ],
+      "id": 31,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 82
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Comandos Redis do serviço",
+      "description": "**O que mostra:** Duração média e máxima dos comandos pelo cliente Redis do Quarkus (`redis_commands_duration_seconds`), medida no cliente, com a rede.\n\n**Normal:** Sem dados com o cache desligado (padrão), o que é normal. Ligado, média de 1,3 a 2,4 ms no average, conforme a ocupação da máquina, contra cerca de 73 µs no servidor.\n\n**Sinais de anomalia:** Média perto de 100 ms leva leituras a `bypass` e gravações a `failed`; servidor rápido em Latência média por comando (Redis) e cliente lento apontam pool, rede ou CPU.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(redis_commands_duration_seconds_sum{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])) / (sum(rate(redis_commands_duration_seconds_count{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval])) > 0)",
+          "legendFormat": "duração média",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(redis_commands_duration_seconds_max{job=\"catalog-inventory\",instance=~\"$instance\"})",
+          "legendFormat": "máxima",
+          "exemplar": true
+        }
+      ],
+      "id": 32,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 82
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Gravações do cache",
+      "description": "**O que mostra:** Gravações por segundo do retrato após uma falta (`catalog_cache_writes_total`), por área e resultado; a resposta não espera, e só este contador mostra se o cache enche.\n\n**Normal:** Sem dados com o cache desligado (padrão), o que é normal. Ligado, no average: 0,6/s na vitrine (404 e falta sem o mapa produto→loja não gravam) e 3,4/s na taxonomia, todas `ok`.\n\n**Sinais de anomalia:** `failed` (prazo de 100 ms, Redis fora) mantém as faltas e o acerto não sobe; veja Comandos Redis do serviço e o span `CatalogCache.write`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (cache, result) (rate(catalog_cache_writes_total{job=\"catalog-inventory\",instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{cache}} {{result}}",
+          "exemplar": true
+        }
+      ],
+      "id": 33,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 90
+      }
+    },
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Logs e traces",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 98
+      },
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "Logs do catálogo",
+      "description": "**O que mostra:** Linhas de log da api e do worker exportadas por OTLP ao Loki (`service_name` `catalog-inventory-api` ou `-worker`), com o MDC como structured metadata; não segue a variável Instância.\n\n**Normal:** Uma linha de acesso por requisição e uma por evento de domínio; no smoke e no average, nenhum ERROR nem aviso `WARN` nos dois papéis.\n\n**Sinais de anomalia:** WARN de invalidação do cache, ERROR de banco ou Kafka, ou problema RFC 9457 inesperado; o `trace_id` da linha abre o trace no Tempo.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=~\"catalog-inventory-.*\"}"
+        }
+      ],
+      "id": 26,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 99
+      }
+    },
+    {
+      "type": "table",
+      "title": "Traces com erro",
+      "description": "**O que mostra:** Traces da api e do worker no Tempo com algum span de status erro (`status=error`), que a amostragem de cauda sempre guarda; recusas previstas (4xx) não marcam erro (ADR 021).\n\n**Normal:** Vazio com o sistema saudável; a gravação do cache com falha também não marca erro (ADR 024).\n\n**Sinais de anomalia:** Cada linha é falha técnica (banco, Kafka, prazo ou 5xx): abra o trace, leia o evento de exceção e siga aos logs pelo `trace_id`. Compare com Taxa de erro 5xx.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=~\"catalog-inventory-.*\" && status=error}",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "id": 27,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 109
+      }
+    }
+  ]
+}

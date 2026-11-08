@@ -1,0 +1,1090 @@
+{
+  "uid": "marketplace-catalog-business",
+  "title": "Marketplace · Catálogo · Negócio",
+  "description": "Indicadores do PRD, reservas, eventos da outbox e do KYB/KYC, moderação e importação.",
+  "tags": [
+    "marketplace",
+    "catalogo"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 22,
+      "type": "row",
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 23,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** acompanhar os indicadores de negócio pedidos pelo PRD (ADR 017): rejeição na moderação, procura sem estoque, SKUs ativos e vendáveis e P99 das atualizações de inventário; e o fluxo dos eventos pela outbox até o Kafka (ADR 013).\n\n**De onde vêm os dados:** Micrometer dos dois papéis em `/q/metrics`, raspado pelo Prometheus a cada 15 s, sem tag de tenant nem de loja. A api publica moderação, produtos, reservas e escritas de inventário; o worker, outbox, varredor, importação, gauges de SKU e vereditos do KYB/KYC (ADR 020). Indicadores marcados com (24 h) ou (1 h) olham essa janela fixa, até o fim do intervalo escolhido.\n\n**Variáveis:** nenhuma; tudo agrega o marketplace inteiro.\n\n**Triagem rápida:**\n1. Idade do mais antigo acima de 10 s: veja Falhas de publicação e os logs do worker; o alerta CatalogOutboxBacklog dispara em 2 min.\n2. Procura sem estoque disparando: confira no dashboard Carga se houve execução com `HOT_MODE=exhaust` antes de tratar como demanda real.\n3. P99 da atualização de inventário subindo: identifique a operação e veja Locks por modo no dashboard PostgreSQL.\n4. SKUs ativos ou vendáveis em 0: worker reiniciado ou contagem falhando; veja Início do container no dashboard Contêineres.\n5. Vereditos do KYB/KYC parados: veja Lag do consumidor KYB/KYC no dashboard Serviço."
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Indicadores do PRD (ADR 017)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Rejeição na moderação (24 h)",
+      "description": "**O que mostra:** Rejeitados sobre aprovados mais rejeitados nas últimas 24 h, de `catalog_moderation_decisions_total` (api), que sobe só depois de a decisão concluir; bloqueios e desbloqueios ficam fora (ADR 017).\n\n**Normal:** Sem meta no PRD; na carga, o ciclo do produto alterna aprovação e recusa e o preparo da massa só aprova: abaixo de 50%; sem decisões, 0.\n\n**Sinais de anomalia:** Salto sem mudança de política indica produtos chegando incompletos ou recusa em massa; veja Decisões de moderação e Traces do produto no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(catalog_moderation_decisions_total{decision=\"rejected\"}[1d])) / clamp_min(sum(increase(catalog_moderation_decisions_total{decision=~\"approved|rejected\"}[1d])), 1)",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Procura sem estoque (24 h)",
+      "description": "**O que mostra:** Reservas recusadas com `reason=\"insufficient-stock\"` nas últimas 24 h (`catalog_reservations_refused_total`, api); a ruptura em si é impedida pelo banco (ADR 012), então não há contador de ruptura.\n\n**Normal:** Cada execução da carga no modo `contend` soma exatamente 20, as recusas do último item; fora da carga, a procura real por SKU sem saldo.\n\n**Sinais de anomalia:** Dezenas de milhares indicam carga com `HOT_MODE=exhaust` (53.527 em 24 h no baseline antigo, ADR 022) ou SKU esgotado com demanda; compare com Reservas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(catalog_reservations_refused_total{reason=\"insufficient-stock\"}[1d]))",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "SKUs ativos",
+      "description": "**O que mostra:** SKUs de produtos com status `ACTIVE` (gauge `catalog_skus_active`), recalculados pelo worker a cada 60 s numa consulta agregada; cada pod worker publica o total, por isso `max` (ADR 017).\n\n**Normal:** Muda com aprovações, arquivamentos e bloqueios; cada execução da carga deixa a massa no banco e soma SKUs ativos.\n\n**Sinais de anomalia:** Queda a 0 indica worker reiniciado (o gauge vale 0 até a primeira contagem); valor parado com o catálogo mudando indica contagem falhando, com aviso no log do worker.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(catalog_skus_active)",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "SKUs vendáveis",
+      "description": "**O que mostra:** Dos SKUs ativos, os de loja `APPROVED` na elegibilidade do KYB/KYC (sem linha vale `PENDING`) e com saldo disponível, `on_hand − reserved > 0` (gauge `catalog_skus_sellable`, worker, a cada 60 s).\n\n**Normal:** Menor ou igual a SKUs ativos; cai quando o estoque zera ou uma loja é reprovada.\n\n**Sinais de anomalia:** Queda brusca sem queda dos ativos indica loja reprovada ou estoque zerado em massa; veja Vereditos do KYB/KYC e Reservas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(catalog_skus_sellable)",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "P99 da atualização de inventário",
+      "description": "**O que mostra:** P99 por operação (reserve, release, commit, extend, adjust_stock, define_offer e promoções) do timer `catalog_inventory_update_latency_seconds` da api, sucesso e falha juntos; mede o caso de uso (ADR 017).\n\n**Normal:** No average, de 16,6 ms (confirmação) a 39,3 ms (oferta), longe dos 500 ms do SLO de latência.\n\n**Sinais de anomalia:** Operação subindo sozinha (reserve, release) indica disputa de trava; acima de 500 ms gasta o SLO (alertas CatalogInventoryLatencyBudgetBurnFast e Slow). Veja Locks por modo no PostgreSQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, operation) (rate(catalog_inventory_update_latency_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{operation}}",
+          "exemplar": true
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Reservas",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Reservas",
+      "description": "**O que mostra:** Reservas por segundo: criadas (api), expiradas pelo varredor do worker e recusadas por motivo (`reason`), dos contadores `catalog_reservations_*`.\n\n**Normal:** No average, criadas perto da soma das taxas dos cenários de reserva (cerca de 47/s) e expiradas em rajadas a cada 5 s, cerca de 2/s; recusas só na rajada do último item.\n\n**Sinais de anomalia:** Recusas `insufficient-stock` contínuas indicam SKU esgotado; expiradas zeradas com reservas curtas criadas, varredor parado (Etapas do worker no Ponta a ponta).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(catalog_reservations_created_total[$__rate_interval]))",
+          "legendFormat": "criadas",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(catalog_reservations_expired_total[$__rate_interval]))",
+          "legendFormat": "expiradas",
+          "exemplar": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (reason) (rate(catalog_reservations_refused_total[$__rate_interval]))",
+          "legendFormat": "recusadas {{reason}}",
+          "exemplar": true
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência das reservas",
+      "description": "**O que mostra:** P50, P95 e P99 da criação de reservas com sucesso (`operation=\"reserve\"`, `outcome=\"success\"` do timer `catalog_inventory_update_latency_seconds`).\n\n**Normal:** P99 de 38,5 ms no average, com P50 e P95 abaixo.\n\n**Sinais de anomalia:** P99 se afastando do P50 indica espera pela trava do SKU disputado ou pelo pool SQL (alerta CatalogSqlPoolSaturated); acima de 500 ms gasta o SLO. Veja Locks por modo no PostgreSQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(catalog_inventory_update_latency_seconds_bucket{operation=\"reserve\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "P50",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(catalog_inventory_update_latency_seconds_bucket{operation=\"reserve\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "P95",
+          "exemplar": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(catalog_inventory_update_latency_seconds_bucket{operation=\"reserve\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "P99",
+          "exemplar": true
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Operações de inventário por resultado",
+      "description": "**O que mostra:** Escritas por segundo de saldo, oferta, promoção e reserva por operação e resultado (`success` ou `failure`), da contagem do timer `catalog_inventory_update_latency_seconds`; `failure` inclui recusas de negócio.\n\n**Normal:** `success` domina; `failure` aparece em `reserve` na rajada do último item e nas recusas previstas.\n\n**Sinais de anomalia:** `failure` crescendo numa operação aponta recusa nova ou falha técnica; separe pelo motivo em Reservas e por Traces com erro no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (operation, outcome) (rate(catalog_inventory_update_latency_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{operation}} {{outcome}}",
+          "exemplar": true
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      }
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Eventos",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Pendentes na outbox",
+      "description": "**O que mostra:** Eventos gravados na outbox e ainda não publicados no Kafka (gauge `catalog_outbox_pending` do worker, atualizado pelo relay a cada 1 s).\n\n**Normal:** Perto de 0; no average, chegou a 31 eventos e zerou 0,1 s depois da carga. Laranja a partir de 1.000.\n\n**Sinais de anomalia:** Valor crescendo sem descer indica relay parado ou Kafka fora; com o mais antigo acima de 10 s por 2 min, dispara CatalogOutboxBacklog. Veja Idade do mais antigo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(catalog_outbox_pending)",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 12,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 32
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Idade do mais antigo",
+      "description": "**O que mostra:** Há quantos segundos espera o evento pendente mais antigo da outbox (gauge `catalog_outbox_oldest_age_seconds` do worker).\n\n**Normal:** Perto de 0 e sempre abaixo de 10 s, o prazo do PRD para preço e estoque refletirem na busca.\n\n**Sinais de anomalia:** Acima de 10 s por 2 min dispara CatalogOutboxBacklog (crítico); veja Falhas de publicação, os logs do worker no Loki e o Kafka no Redpanda Console (`localhost:8090`).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(catalog_outbox_oldest_age_seconds)",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 32
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Falhas de publicação (1 h)",
+      "description": "**O que mostra:** Envios ao Kafka recusados ou sem confirmação no prazo na última hora (`catalog_outbox_failures_total` do relay); o evento fica na outbox e volta na próxima execução.\n\n**Normal:** 0.\n\n**Sinais de anomalia:** Acima de 0 com falhas por 5 min dispara CatalogOutboxPublishFailures; veja os logs do worker no Loki (`{service_name=\"catalog-inventory-worker\"} |= \"outbox\"`) e o Kafka no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(catalog_outbox_failures_total[1h]))",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 32
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Publicados (1 h)",
+      "description": "**O que mostra:** Eventos confirmados pelo Kafka na última hora (`catalog_outbox_published_total` do relay do worker).\n\n**Normal:** Acompanha as escritas: reserva, ajuste, troca de preço, transição de produto e veredito aplicado gravam evento; sem tráfego, 0.\n\n**Sinais de anomalia:** 0 com escritas acontecendo (Operações de inventário por resultado subindo) indica relay parado; veja Pendentes na outbox e Falhas de publicação.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(catalog_outbox_published_total[1h]))",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 32
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Atraso de publicação",
+      "description": "**O que mostra:** Tempo entre a gravação do evento na outbox e a confirmação do Kafka (timer `catalog.outbox.publish.lag` do worker): média por janela e máximo da janela do Micrometer, que decai em cerca de 2 min.\n\n**Normal:** Máximo abaixo de 10 s: 2,0 s no average e 1,00 s no roteiro ponta a ponta; a média fica abaixo e acompanha o intervalo de 1 s do relay.\n\n**Sinais de anomalia:** Média subindo junto com Pendentes na outbox indica relay sem vazão; acima de 10 s, veja Idade do mais antigo e o alerta CatalogOutboxBacklog.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(catalog_outbox_publish_lag_seconds_sum[$__rate_interval])) / clamp_min(sum(rate(catalog_outbox_publish_lag_seconds_count[$__rate_interval])), 1e-9)",
+          "legendFormat": "média",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(catalog_outbox_publish_lag_seconds_max)",
+          "legendFormat": "máximo",
+          "exemplar": true
+        }
+      ],
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Vereditos do KYB/KYC",
+      "description": "**O que mostra:** Vereditos de `kyb-kyc.seller.v1` consumidos por segundo, por resultado: `applied`, `duplicate` (repetido) e `stale` (mais antigo que o último aplicado), de `catalog_kyb_verdicts_total` do worker.\n\n**Normal:** Na carga, uma rodada de 6 vereditos a cada 5 s, quase tudo `applied`; fora dela, os vereditos reais.\n\n**Sinais de anomalia:** Série parando com o KYB enviando indica consumidor travado (CatalogKybConsumerLag); mensagem inválida vai à fila de descarte (CatalogKybDeadLetters). Veja Lag do consumidor KYB/KYC no Serviço.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (outcome) (rate(catalog_kyb_verdicts_total[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "exemplar": true
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Moderação e importação",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Decisões de moderação",
+      "description": "**O que mostra:** Decisões de moderação concluídas por tipo (`approved`, `rejected`, `blocked`, `unblocked`) por intervalo, de `catalog_moderation_decisions_total` da api; recusas 409, 412 e 422 não contam.\n\n**Normal:** Na carga, aprovações e rejeições do ciclo do produto (0,5/s, alternando) e bloqueios e desbloqueios da moderação (1/s).\n\n**Sinais de anomalia:** Tipo zerado com o cenário rodando indica decisão falhando (Respostas inesperadas por cenário na Carga); rejeições disparando, veja Rejeição na moderação.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (decision) (increase(catalog_moderation_decisions_total[$__rate_interval]))",
+          "legendFormat": "{{decision}}",
+          "exemplar": true
+        }
+      ],
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Produtos criados",
+      "description": "**O que mostra:** Produtos criados por intervalo pelo `POST /products` da api (`catalog_products_created_total`); a importação por CSV não sobe este contador, e as linhas que ela cria aparecem em Linhas importadas.\n\n**Normal:** Na carga, 120 de uma vez no preparo da massa e depois 0,5/s do ciclo do produto; fora dela, os cadastros reais.\n\n**Sinais de anomalia:** Zerado com o ciclo do produto rodando indica criação falhando (422, 5xx); veja Respostas inesperadas por cenário na Carga e Traces com erro no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(catalog_products_created_total[$__rate_interval]))",
+          "legendFormat": "criados",
+          "exemplar": true
+        }
+      ],
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Linhas importadas",
+      "description": "**O que mostra:** Linhas de CSV processadas pelo worker por intervalo, por resultado: `CREATED`, `UPDATED`, `UNCHANGED` e `FAILED` (`catalog_imports_lines_total`).\n\n**Normal:** Na carga, 0,1 importação/s com 4 linhas cada: 2 `CREATED` e 2 `UPDATED`, sem `FAILED`.\n\n**Sinais de anomalia:** `FAILED` surgindo indica linha recusada (atributo inválido, categoria desconhecida); tudo parado com envios indica worker parado. Abra o lote em Traces do lote de importação no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (outcome) (increase(catalog_imports_lines_total[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "exemplar": true
+        }
+      ],
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 45
+      }
+    }
+  ]
+}

@@ -1,0 +1,1028 @@
+{
+  "uid": "marketplace-catalog-flow",
+  "title": "Marketplace · Catálogo · Ponta a ponta",
+  "description": "Mapa de serviços, tráfego por papel, banco, Kafka, etapas do worker, SLOs e o ciclo de vida de cada agregado.",
+  "tags": [
+    "marketplace",
+    "catalogo"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "product",
+        "label": "Produto",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      },
+      {
+        "name": "reservation",
+        "label": "Reserva",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      },
+      {
+        "name": "import",
+        "label": "Lote",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 24,
+      "type": "row",
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 25,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** seguir as operações do catálogo de ponta a ponta (api, worker, banco, Redis e Kafka), acompanhar os SLOs de 30 dias e reconstruir o ciclo de vida de um produto, reserva ou lote pelas chaves de negócio (ADR 021).\n\n**De onde vêm os dados:** volume, erros e latência por span saem dos conectores spanmetrics e servicegraph do OpenTelemetry Collector, sobre todos os spans, antes da amostragem; os SLOs, das regras `slo:*` sobre o Micrometer (`catalog-inventory-slo.yaml`); as tabelas, de TraceQL no Tempo (7 dias); os logs, do Loki, com o MDC como structured metadata.\n\n**Variáveis:** `product`, `reservation` e `import` (Produto, Reserva e Lote) recebem o UUID do agregado; preenchidas, as tabelas de traces e os logs mostram só o que tocou aquele id. Vazias, esses painéis ficam vazios. Traces lentos e com erro não dependem delas.\n\n**Triagem rápida:**\n1. Consumo do orçamento acima de 1 (vermelho a partir de 14,4): abra Traces com erro (disponibilidade) ou Traces lentos (latência).\n2. Erros por papel subindo: abra Traces com erro e siga do trace aos logs pelo `trace_id`.\n3. P99 das consultas subindo: veja Locks por modo e Transação mais longa no dashboard PostgreSQL.\n4. Publicação no Kafka parada: veja a seção Eventos do dashboard Negócio.\n5. Dúvida sobre um item: cole o id na variável e leia traces e logs em ordem de tempo."
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Mapa e tráfego",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "nodeGraph",
+      "title": "Mapa de serviços",
+      "description": "**O que mostra:** Chamadas entre `user`, api, worker, banco e Redis, com taxa, erros e latência por aresta, do conector servicegraph do Collector sobre todos os spans, antes da amostragem (séries `traces_service_graph_*`).\n\n**Normal:** `user` → api, e api e worker → `postgresql` e `redis`, pelo `db.system`; o Kafka não aparece, porque nenhum consumidor instrumentado dos eventos existe ainda.\n\n**Sinais de anomalia:** Aresta com erros ou latência alta aponta o trecho; nó faltando indica papel parado (veja Spans por papel e tipo).",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "serviceMap"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Spans por papel e tipo",
+      "description": "**O que mostra:** Spans por segundo por papel e tipo (SERVER, CLIENT de SQL e Redis, PRODUCER e CONSUMER do Kafka, INTERNAL), do spanmetrics, somando o `instance` de cada contêiner.\n\n**Normal:** A api segue o tráfego HTTP, com vários CLIENT e INTERNAL por SERVER, e o worker, cada tarefa. Papel recriado ganha outro `instance`, e a antiga some em até 5 min.\n\n**Sinais de anomalia:** Zerado com tráfego: compare com `traces_service_graph_request_total`; se só o spanmetrics parou, reinicie o Collector (ADR 021); senão, veja Pipeline de telemetria.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, span_kind) (rate(traces_spanmetrics_calls_total{service_name=~\"catalog-inventory-.*\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} {{span_kind}}",
+          "exemplar": true
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Erros por papel",
+      "description": "**O que mostra:** Fração dos spans com status de erro (`STATUS_CODE_ERROR`) sobre todos os spans de cada papel, do spanmetrics do Collector.\n\n**Normal:** Perto de 0: recusa prevista (4xx) não marca erro, só fica com `marketplace.outcome=refused`; só falha técnica marca (ADR 021).\n\n**Sinais de anomalia:** Degrau num papel indica falha técnica (banco, Kafka, Redis, prazo, 503); abra Traces com erro e a Taxa de erro 5xx no dashboard Serviço.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total{service_name=~\"catalog-inventory-.*\",status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval])) / clamp_min(sum by (service_name) (rate(traces_spanmetrics_calls_total{service_name=~\"catalog-inventory-.*\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "{{service_name}}",
+          "exemplar": true
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      }
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "Banco, Kafka e etapas do worker",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "P99 das consultas",
+      "description": "**O que mostra:** P99 de cada span CLIENT por papel e nome: comandos SQL (como `UPDATE inventory_level`) e, desde o cache (ADR 024), Redis (como `evalsha 0`), pelos buckets de 5 ms a 10 s do spanmetrics.\n\n**Normal:** Cada comando fica abaixo da operação que o contém (p99 da reserva no serviço, 38,5 ms no average); o p99 vem interpolado entre buckets.\n\n**Sinais de anomalia:** UPDATE de `inventory_level` ou `inventory_reservation` subindo indica espera pela trava da linha (Locks por modo no PostgreSQL); Redis acima de 100 ms vira bypass ao banco.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, service_name, span_name) (rate(traces_spanmetrics_duration_seconds_bucket{service_name=~\"catalog-inventory-.*\",span_kind=\"SPAN_KIND_CLIENT\"}[$__rate_interval])))",
+          "legendFormat": "{{service_name}} {{span_name}}",
+          "exemplar": true
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka: publicação e consumo",
+      "description": "**O que mostra:** Spans por segundo de publicação (`<tópico> publish`, do relay do worker) e de consumo (`kyb-kyc.seller.v1 receive`, dos vereditos do KYB/KYC), por tópico, do spanmetrics.\n\n**Normal:** A publicação acompanha as escritas (reserva, ajuste, preço e transição gravam evento); o consumo chega em lotes, a cada 5 s na carga.\n\n**Sinais de anomalia:** Publicação zerada com escritas indica relay parado (alerta CatalogOutboxBacklog); consumo parado com vereditos enviados, lag (CatalogKybConsumerLag).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service_name=~\"catalog-inventory-.*\",span_kind=~\"SPAN_KIND_(PRODUCER|CONSUMER)\"}[$__rate_interval]))",
+          "legendFormat": "{{span_name}}",
+          "exemplar": true
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Etapas do worker",
+      "description": "**O que mostra:** Etapas por segundo do worker: cada reserva expirada pelo varredor (`reservation expire`) e cada lote de importação processado (`product-import process`), spans filhos da execução da tarefa (ADR 021).\n\n**Normal:** Na carga, cerca de 2 expirações/s em rajadas a cada varredura de 5 s e 0,1 lote/s; sem carga, perto de 0.\n\n**Sinais de anomalia:** Expirações paradas com reservas curtas criadas indicam varredor parado; lotes parados com importações enviadas deixam a carga esperando `IMPORT_WAIT_S`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service_name=\"catalog-inventory-worker\",span_name=~\"reservation expire|product-import process\"}[$__rate_interval]))",
+          "legendFormat": "{{span_name}}",
+          "exemplar": true
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "P99 das etapas do worker",
+      "description": "**O que mostra:** P99 de cada etapa do worker (`reservation expire` e `product-import process`), pelos buckets do spanmetrics (5 ms a 10 s).\n\n**Normal:** A expiração é uma transação curta por reserva; o lote leva mais, mas conclui em segundos (lote `COMPLETED` em segundos no roteiro de `docs/validacao.md`).\n\n**Sinais de anomalia:** Subida contínua indica banco lento ou travado; acima de 500 ms, o trace entra em Traces lentos. Abra a etapa pelo id em Traces da reserva ou Traces do lote.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, span_name) (rate(traces_spanmetrics_duration_seconds_bucket{service_name=\"catalog-inventory-worker\",span_name=~\"reservation expire|product-import process\"}[$__rate_interval])))",
+          "legendFormat": "{{span_name}}",
+          "exemplar": true
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "SLOs (30 dias)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Disponibilidade da api (24 h)",
+      "description": "**O que mostra:** 1 menos a fração das requisições de negócio da api com 5xx nas últimas 24 h (regra `slo:catalog_api_availability:error_ratio_rate1d`, de `http_server_requests_seconds_count` do Micrometer).\n\n**Normal:** 99,9% ou mais, o objetivo de 30 dias (ADR 021); sem tráfego em 24 h, fica sem dados.\n\n**Sinais de anomalia:** Abaixo de 99,9% gasta o orçamento acima do ritmo; abaixo de 99,7% (3 vezes) também em 2 h, dispara CatalogApiAvailabilityBudgetBurnSlow. Veja Consumo do orçamento por janela.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - slo:catalog_api_availability:error_ratio_rate1d",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 11,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 40
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Escritas em até 500 ms (24 h)",
+      "description": "**O que mostra:** Fração das escritas de inventário e oferta bem-sucedidas em até 500 ms nas últimas 24 h, pelo bucket exato de 500 ms de `catalog.inventory.update.latency` (regra `slo:catalog_inventory_latency:error_ratio_rate1d`).\n\n**Normal:** 99% ou mais, o objetivo de 30 dias; com p99 de 16,6 a 39,3 ms por operação no average, perto de 100%.\n\n**Sinais de anomalia:** Abaixo de 99% gasta o orçamento acima do ritmo; abaixo de 97% (3 vezes) também em 2 h, dispara CatalogInventoryLatencyBudgetBurnSlow. Veja o P99 por operação no Negócio.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - slo:catalog_inventory_latency:error_ratio_rate1d",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 12,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 40
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Consumo do orçamento: disponibilidade (1 h)",
+      "description": "**O que mostra:** Fração de 5xx da api em 1 h dividida pelo orçamento de 0,1% (regra `slo:catalog_api_availability:error_ratio_rate1h`); 1 é gastar o orçamento de 30 dias em exatamente 30 dias.\n\n**Normal:** Abaixo de 1; sem 5xx, 0.\n\n**Sinais de anomalia:** Laranja a partir de 6 e vermelho a partir de 14,4: com a janela de 5 min também acima de 14,4, CatalogApiAvailabilityBudgetBurnFast (crítico) dispara em 2 min. Abra Traces com erro.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 6
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_api_availability:error_ratio_rate1h / 0.001",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 40
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Consumo do orçamento: latência (1 h)",
+      "description": "**O que mostra:** Fração das escritas de inventário bem-sucedidas acima de 500 ms em 1 h, dividida pelo orçamento de 1% (regra `slo:catalog_inventory_latency:error_ratio_rate1h`).\n\n**Normal:** Abaixo de 1; sem escritas lentas, 0.\n\n**Sinais de anomalia:** A partir de 14,4 com a janela de 5 min também alta, ou de 6 em 6 h e 30 min, dispara CatalogInventoryLatencyBudgetBurnFast; veja Traces lentos e Locks por modo no PostgreSQL.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 6
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_inventory_latency:error_ratio_rate1h / 0.01",
+          "legendFormat": "",
+          "instant": false
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 40
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Consumo do orçamento por janela",
+      "description": "**O que mostra:** Múltiplos do orçamento consumidos em 1 h, 6 h e 3 dias para disponibilidade (orçamento de 0,1%) e latência (1%); 1 é gastar o orçamento de 30 dias em exatamente 30 dias.\n\n**Normal:** Todas as linhas abaixo de 1; a de 1 h reage primeiro e as de 6 h e 3 dias suavizam.\n\n**Sinais de anomalia:** 1 h acima de 14,4 ou 6 h acima de 6 levam aos alertas Fast (críticos); 3 dias acima de 1, com 6 h também, ao aviso Slow. Linha de 3 dias subindo devagar é degradação crônica.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_api_availability:error_ratio_rate1h / 0.001",
+          "legendFormat": "disponibilidade 1h",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_api_availability:error_ratio_rate6h / 0.001",
+          "legendFormat": "disponibilidade 6h",
+          "exemplar": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_api_availability:error_ratio_rate3d / 0.001",
+          "legendFormat": "disponibilidade 3d",
+          "exemplar": true
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_inventory_latency:error_ratio_rate1h / 0.01",
+          "legendFormat": "latência 1h",
+          "exemplar": true
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_inventory_latency:error_ratio_rate6h / 0.01",
+          "legendFormat": "latência 6h",
+          "exemplar": true
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:catalog_inventory_latency:error_ratio_rate3d / 0.01",
+          "legendFormat": "latência 3d",
+          "exemplar": true
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Ciclo de vida por agregado",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Traces do produto",
+      "description": "**O que mostra:** Até 20 traces no Tempo com algum span de `marketplace.product.id` igual à variável Produto: criação, alterações, oferta, moderação e vitrine, cada passo no próprio trace.\n\n**Normal:** Um trace por operação do ciclo; vazio sem id. O Tempo local guarda 7 dias e, no compose, todos os traces (amostragem de cauda a 100%).\n\n**Sinais de anomalia:** Passo faltando na sequência ou trace com erro; abra o trace e siga aos logs pelo `trace_id`, ou leia Logs do agregado.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ span.marketplace.product.id = \"$product\" }",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 53
+      }
+    },
+    {
+      "type": "table",
+      "title": "Traces da reserva",
+      "description": "**O que mostra:** Até 20 traces com `marketplace.reservation.id` igual à variável Reserva: criação na api, confirmação, liberação ou prorrogação, e a expiração pelo varredor (etapa `reservation expire` no worker).\n\n**Normal:** Criação seguida de um desfecho; a expiração aparece no worker poucos segundos depois do prazo, numa varredura de 5 s.\n\n**Sinais de anomalia:** Reserva vencida sem trace de expiração indica varredor parado; trace com erro mostra a consulta que falhou. Confira os mesmos passos em Logs do agregado.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ span.marketplace.reservation.id = \"$reservation\" }",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 53
+      }
+    },
+    {
+      "type": "table",
+      "title": "Traces do lote de importação",
+      "description": "**O que mostra:** Até 20 traces com `marketplace.import.id` igual à variável Lote: o envio do CSV (`POST /products/imports`, 202) na api e o processamento na etapa `product-import process` do worker.\n\n**Normal:** Dois traces, o envio e o processamento logo depois (importação serial, um lote por segundo).\n\n**Sinais de anomalia:** Só o envio, sem processamento, indica worker parado ou fila de lotes; processamento com erro mostra a falha. Veja Linhas importadas no Negócio.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ span.marketplace.import.id = \"$import\" }",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 53
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Logs do agregado",
+      "description": "**O que mostra:** Linhas de log da api e do worker (OTLP, com o MDC como structured metadata) cujo `marketplace_product_id`, `marketplace_reservation_id` ou `marketplace_import_id` é o valor das variáveis.\n\n**Normal:** Uma linha de acesso por requisição e uma por evento de domínio; a reserva expirada do roteiro deixou 4 linhas nos dois papéis.\n\n**Sinais de anomalia:** WARN ou ERROR, problema RFC 9457 inesperado ou evento faltando; o `trace_id` da linha abre o trace no Tempo.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=~\"catalog-inventory-.*\"} | (marketplace_product_id != \"\" and marketplace_product_id = \"$product\") or (marketplace_reservation_id != \"\" and marketplace_reservation_id = \"$reservation\") or (marketplace_import_id != \"\" and marketplace_import_id = \"$import\")"
+        }
+      ],
+      "id": 20,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 61
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "Traces lentos e com erro",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 71
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Traces lentos",
+      "description": "**O que mostra:** Até 20 traces da api e do worker com algum span acima de 500 ms (`{ resource.service.name =~ \"catalog-inventory-.*\" && duration > 500ms }`), no intervalo do painel.\n\n**Normal:** Vazio ou raro com o sistema saudável; 500 ms é o limite do SLO de latência e da política `slow` da amostragem de cauda.\n\n**Sinais de anomalia:** Vários traces da mesma rota indicam gargalo: abra o trace, veja qual consulta ou passagem concentra o tempo e cruze com Locks por modo no PostgreSQL.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"catalog-inventory-.*\" && duration > 500ms }",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      }
+    },
+    {
+      "type": "table",
+      "title": "Traces com erro",
+      "description": "**O que mostra:** Até 20 traces da api e do worker com algum span de status erro (`status = error`); recusas previstas (4xx) não entram, porque não marcam erro (ADR 021).\n\n**Normal:** Vazio com o sistema saudável.\n\n**Sinais de anomalia:** Cada trace aqui é falha técnica (banco, Kafka, Redis, prazo ou 5xx): abra o trace, leia o evento de exceção e siga aos logs pelo `trace_id`. Compare com Erros por papel.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"catalog-inventory-.*\" && status = error }",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      }
+    }
+  ]
+}

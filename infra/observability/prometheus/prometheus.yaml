@@ -1,0 +1,70 @@
+# Os serviços entram por scrape de /q/metrics (Micrometer); o receptor OTLP, ligado por flag no comando, recebe do
+# Collector as séries derivadas de todos os spans, e o de remote write recebe as do k6.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+otlp:
+  translation_strategy: UnderscoreEscapingWithSuffixes
+  promote_resource_attributes:
+    - service.name
+    - service.namespace
+    - service.version
+  keep_identifying_resource_attributes: true
+
+storage:
+  tsdb:
+    # A entrega OTLP e a do remote write chegam em lote e podem vir fora de ordem.
+    out_of_order_time_window: 30m
+
+rule_files:
+  - /etc/prometheus/rules/*.yaml
+
+scrape_configs:
+  # Os dois papéis do catálogo na porta de gestão (ADR 020). service_name repete o service.name dos traces, o que liga
+  # métrica, trace e log no Grafana.
+  - job_name: catalog-inventory
+    metrics_path: /q/metrics
+    # WHY: sem text/plain no Accept, o Quarkus responde OpenMetrics, o único formato que leva os exemplars.
+    scrape_protocols: [OpenMetricsText1.0.0]
+    static_configs:
+      - targets: ['catalog-api:9000']
+        labels:
+          service_name: catalog-inventory-api
+          role: api
+      - targets: ['catalog-worker:9000']
+        labels:
+          service_name: catalog-inventory-worker
+          role: worker
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: otel-collector
+    static_configs:
+      - targets: ['otel-collector:8888']
+
+  - job_name: tempo
+    static_configs:
+      - targets: ['tempo:3200']
+
+  - job_name: loki
+    static_configs:
+      - targets: ['loki:3100']
+
+  - job_name: grafana
+    static_configs:
+      - targets: ['grafana:3000']

@@ -1,0 +1,114 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  # WHY: guarda todo trace com erro ou lento e uma fração dos demais; a fração vem de TAIL_SAMPLING_PERCENTAGE
+  # (100 no compose, para depuração; baixe em ambientes com tráfego real).
+  tail_sampling:
+    decision_wait: 10s
+    policies:
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: slow
+        type: latency
+        latency:
+          threshold_ms: ${env:TAIL_SAMPLING_LATENCY_MS:-500}
+      - name: baseline
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: ${env:TAIL_SAMPLING_PERCENTAGE:-10}
+  batch:
+    send_batch_size: 2048
+    send_batch_max_size: 2048
+  # WORKAROUND(quarkusio/quarkus@a806bd6e09): nos spans SQL, o Quarkus 3.x grava em db.system o nome do banco e deixa
+  # db.namespace vazio; corrigido só na linha 4.0. Remover ao atualizar o Quarkus.
+  transform/sql:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        conditions:
+          - instrumentation_scope.name == "io.quarkus.opentelemetry" and attributes["db.statement"] != nil and attributes["db.namespace"] == nil and attributes["db.system"] != "postgresql"
+        statements:
+          - set(attributes["db.namespace"], attributes["db.system"])
+          - set(attributes["db.system"], "postgresql")
+
+# Latência, volume e erros por span e o mapa de serviços saem de todos os spans, antes da amostragem, então os
+# percentis não dependem da fração guardada no Tempo (ADR 021).
+connectors:
+  span_metrics:
+    namespace: traces.spanmetrics
+    histogram:
+      unit: s
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+    dimensions:
+      - name: http.request.method
+      - name: http.response.status_code
+      - name: messaging.destination.name
+    exemplars:
+      enabled: true
+    metrics_flush_interval: 15s
+    # WHY: sem expiração, o connector reexporta para sempre o estado de um contêiner que morreu (ADR 021).
+    metrics_expiration: 5m
+  service_graph:
+    latency_histogram_buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+    # Banco, Redis e Kafka entram no mapa como nós virtuais, pelo primeiro atributo presente no span de cliente ou
+    # produtor. WHY: db.system antes de db.namespace, porque no Redis o namespace é o índice do banco ("0").
+    virtual_node_peer_attributes: [peer.service, db.system, messaging.system, db.namespace, db.name, server.address]
+    store:
+      ttl: 2s
+      max_items: 10000
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlp_http/prometheus:
+    endpoint: http://prometheus:9090/api/v1/otlp
+    tls:
+      insecure: true
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+service:
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/sql, tail_sampling, batch]
+      exporters: [otlp_grpc/tempo]
+    traces/all:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/sql]
+      exporters: [span_metrics, service_graph]
+    metrics:
+      receivers: [otlp, span_metrics, service_graph]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/loki]

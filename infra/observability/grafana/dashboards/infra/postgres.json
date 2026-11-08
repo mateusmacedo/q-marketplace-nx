@@ -1,0 +1,868 @@
+{
+  "uid": "marketplace-infra-postgres",
+  "title": "Marketplace · PostgreSQL",
+  "description": "O PostgreSQL compartilhado (banco marketplace, um schema por contexto) pelo postgres-exporter: conexões, volume transacional, cache, locks e WAL. Só no Compose: o Kubernetes não tem postgres-exporter.",
+  "tags": [
+    "marketplace",
+    "infra"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Painéis do marketplace",
+      "type": "dashboards",
+      "tags": [
+        "marketplace"
+      ],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datname",
+        "label": "Banco",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(pg_stat_database_xact_commit{datname!~\"template.*|postgres\"}, datname)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".+",
+        "current": {
+          "text": [
+            "marketplace"
+          ],
+          "value": [
+            "marketplace"
+          ]
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 19,
+      "title": "Como ler este dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [
+        {
+          "id": 20,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 14,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Para que serve:** acompanhar o PostgreSQL compartilhado da plataforma (contêiner `postgres`, banco `marketplace`, um schema por contexto): disponibilidade, conexões, volume transacional, contenção (locks, transações longas e deadlocks) e uso de disco.\n\n**De onde vêm os dados:** postgres-exporter (job `postgres`, role `exporter` com `pg_monitor`), que lê `pg_stat_activity`, `pg_stat_database`, `pg_locks` e `pg_settings` a cada scrape de 15 s; logs do contêiner `postgres` pelo Alloy no Loki. Os contadores de `pg_stat_database` são cumulativos por banco, e os gráficos mostram a taxa.\n\n**Variáveis:** `datname` (Banco) filtra os bancos de aplicação, sem `template*` nem `postgres`, e começa em `marketplace`, o único. Os contextos dividem esse banco por schema, então as estatísticas por banco somam todos eles; Conexões por role e estado separa cada contexto pelo role de runtime (hoje só `catalog_inventory`). Postgres no ar, Conexões sobre max_connections e WAL e checkpoints valem para o servidor inteiro.\n\n**Triagem rápida:**\n1. Postgres no ar em 0: o alerta PostgresDown dispara em 1 min; veja os Logs do Postgres.\n2. Conexões acima de 70%: veja Conexões por role e estado e procure `idle in transaction`.\n3. Reservas lentas: veja Locks por modo e Transação mais longa.\n4. Deadlocks acima de 0: procure `deadlock detected` nos Logs do Postgres."
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Disponibilidade e conexões",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Postgres no ar",
+      "description": "**O que mostra:** 1 quando o postgres-exporter conecta ao `postgres` (banco `marketplace`), 0 quando não (`pg_up`); o exporter não depende do banco e responde 0 até ele subir.\n\n**Normal:** 1 sempre que o profile `infra`, `catalog` ou `all` está no ar.\n\n**Sinais de anomalia:** 0 por 1 min dispara PostgresDown (crítico); veja os Logs do Postgres e o Início do container no dashboard Contêineres. Sem dados, o exporter está fora (ObservabilityTargetDown).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "fora",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "no ar",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(pg_up)",
+          "legendFormat": "pg_up",
+          "refId": "A"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Conexões sobre max_connections",
+      "description": "**O que mostra:** Todas as conexões do servidor (`pg_stat_activity_count`, todos os bancos e estados) sobre `max_connections` (`pg_settings_max_connections`, hoje 100).\n\n**Normal:** Abaixo de 70% (amarelo a partir de 70%, vermelho a partir de 90%); o uso vem dos pools da api e do worker de cada contexto e do exporter.\n\n**Sinais de anomalia:** Subida até o vermelho indica pool grande demais ou conexão vazando; em 100%, novas conexões falham. Veja Conexões por role e estado e Espera por conexão SQL no dashboard Serviço.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(pg_stat_activity_count) / max(pg_settings_max_connections)",
+          "legendFormat": "uso",
+          "refId": "A"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 2
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Conexões por role e estado",
+      "description": "**O que mostra:** Conexões por role e estado (`active`, `idle`, `idle in transaction`…) de `pg_stat_activity_count`; cada contexto usa o próprio role de runtime (hoje `catalog_inventory`).\n\n**Normal:** Quase tudo `idle` (pool aberto esperando trabalho), algumas `active` sob carga, `idle in transaction` raro e breve e uma conexão do `exporter`.\n\n**Sinais de anomalia:** `idle in transaction` persistente segura locks, e o role aponta o contexto; `_migrator` conectado fora do boot é migration presa. Veja Transação mais longa e Locks por modo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (usename, state) (pg_stat_activity_count{datname=~\"$datname\", usename!=\"\"}) > 0",
+          "legendFormat": "{{usename}} {{state}}",
+          "refId": "A"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 2
+      }
+    },
+    {
+      "type": "row",
+      "id": 5,
+      "title": "Volume transacional",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Commits por banco",
+      "description": "**O que mostra:** Transações confirmadas por segundo em cada banco (rate de `pg_stat_database_xact_commit`), filtradas pela variável Banco; no `marketplace`, somam todos os contextos.\n\n**Normal:** Acompanha leituras e escritas do serviço e as tarefas do worker (relay a cada 1 s, varredor a cada 5 s); sobe na carga e cai a quase 0 sem tráfego.\n\n**Sinais de anomalia:** Queda brusca com tráfego constante indica serviço sem acesso ao banco; salto sem tráfego novo, tarefa em laço. Compare com Requisições de negócio por status na Carga.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname) (rate(pg_stat_database_xact_commit{datname=~\"$datname\"}[$__rate_interval]))",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rollbacks por banco",
+      "description": "**O que mostra:** Transações desfeitas por segundo em cada banco (rate de `pg_stat_database_xact_rollback`).\n\n**Normal:** Baixo em relação aos commits; recusas de negócio dentro de transação podem gerar rollbacks legítimos.\n\n**Sinais de anomalia:** Rollbacks crescendo junto com Deadlocks na janela ou com 5xx indicam falha de escrita; veja os Logs do Postgres e Traces com erro no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname) (rate(pg_stat_database_xact_rollback{datname=~\"$datname\"}[$__rate_interval]))",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tuplas escritas por banco",
+      "description": "**O que mostra:** Linhas inseridas, atualizadas e removidas por segundo, somadas, em cada banco (`pg_stat_database_tup_*`), inclusive as da outbox e da inbox, que o relay marca e a limpeza remove.\n\n**Normal:** Proporcional às escritas do catálogo: cada evento soma a inserção na outbox e a marcação pelo relay.\n\n**Sinais de anomalia:** Escrita alta sem tráfego indica tarefa em laço ou importação grande; queda a 0 com tráfego, escrita falhando. Compare com Commits por banco e Rollbacks por banco.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname) (rate(pg_stat_database_tup_inserted{datname=~\"$datname\"}[$__rate_interval]) + rate(pg_stat_database_tup_updated{datname=~\"$datname\"}[$__rate_interval]) + rate(pg_stat_database_tup_deleted{datname=~\"$datname\"}[$__rate_interval]))",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 9
+      }
+    },
+    {
+      "type": "row",
+      "id": 9,
+      "title": "Desempenho e contenção",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Acerto de cache",
+      "description": "**O que mostra:** Fração das leituras de bloco servidas do shared_buffers (`blks_hit` sobre `blks_hit + blks_read`, em 5 min), por banco.\n\n**Normal:** Perto de 100% com o banco local pequeno; quedas curtas ao ler dados frios.\n\n**Sinais de anomalia:** Queda sustentada indica conjunto de trabalho maior que o shared_buffers ou varredura sequencial nova; procure a consulta em P99 das consultas no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "max": 1,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname) (rate(pg_stat_database_blks_hit{datname=~\"$datname\"}[5m])) / clamp_min(sum by (datname) (rate(pg_stat_database_blks_hit{datname=~\"$datname\"}[5m]) + rate(pg_stat_database_blks_read{datname=~\"$datname\"}[5m])), 1e-9)",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Locks por modo",
+      "description": "**O que mostra:** Locks mantidos ou esperados por banco e modo (`pg_locks_count`); só aparecem os modos com pelo menos um lock.\n\n**Normal:** `accesssharelock` das leituras e `rowexclusivelock` das escritas, em número que acompanha as conexões ativas.\n\n**Sinais de anomalia:** `sharelock` acumulando indica transações esperando a trava de linha de outra, como no SKU disputado (a 200 escritas/s a espera passou de 2 s, ADR 022); veja Transação mais longa.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname, mode) (pg_locks_count{datname=~\"$datname\"}) > 0",
+          "legendFormat": "{{datname}} {{mode}}",
+          "refId": "A"
+        }
+      ],
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Transação mais longa",
+      "description": "**O que mostra:** Duração da transação aberta há mais tempo, por banco e estado (`pg_stat_activity_max_tx_duration`).\n\n**Normal:** Frações de segundo: as transações do catálogo são curtas (p99 das escritas abaixo de 40 ms no average).\n\n**Sinais de anomalia:** Valor crescendo sem parar, sobretudo em `idle in transaction`, segura locks e impede o vacuum; procure a conexão em `pg_stat_activity` e o trace em Traces lentos no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (datname, state) (pg_stat_activity_max_tx_duration{datname=~\"$datname\"})",
+          "legendFormat": "{{datname}} {{state}}",
+          "refId": "A"
+        }
+      ],
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Deadlocks na janela",
+      "description": "**O que mostra:** Deadlocks detectados pelo PostgreSQL por banco em todo o intervalo do painel (increase de `pg_stat_database_deadlocks`).\n\n**Normal:** 0: a ordem canônica de travamento dos SKUs evita deadlock nas reservas (ADR 012), e a carga average não registrou nenhum.\n\n**Sinais de anomalia:** Qualquer valor acima de 0: procure `deadlock detected` nos Logs do Postgres, com as duas consultas envolvidas, e o trace com erro no Ponta a ponta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname) (increase(pg_stat_database_deadlocks{datname=~\"$datname\"}[$__range]))",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Arquivos temporários",
+      "description": "**O que mostra:** Bytes por segundo gravados em arquivos temporários (rate de 5 min de `pg_stat_database_temp_bytes`), usados quando uma ordenação ou hash passa de `work_mem`.\n\n**Normal:** 0 ou picos raros: as consultas do catálogo são por chave e paginadas.\n\n**Sinais de anomalia:** Escrita contínua indica consulta que ordena ou agrega muitos dados; veja P99 das consultas no Ponta a ponta e Escrita em disco do `postgres` no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (datname) (rate(pg_stat_database_temp_bytes{datname=~\"$datname\"}[5m]))",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 26
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tamanho do banco",
+      "description": "**O que mostra:** Tamanho em disco de cada banco (`pg_database_size_bytes`); o `marketplace` soma os schemas de todos os contextos.\n\n**Normal:** Cresce devagar: cada execução da carga deixa a massa e o que os cenários criam, e a limpeza do worker remove outbox e inbox antigas a cada 1 h.\n\n**Sinais de anomalia:** Salto grande numa execução ou crescimento sem carga indica tabela inchando (outbox sem limpeza, por exemplo); veja Tuplas escritas por banco.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (datname) (pg_database_size_bytes{datname=~\"$datname\"})",
+          "legendFormat": "{{datname}}",
+          "refId": "A"
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 26
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "WAL e checkpoints",
+      "description": "**O que mostra:** Tamanho dos segmentos WAL em disco (`pg_wal_size_bytes`, eixo da esquerda) e checkpoints por segundo, por tempo e por pedido somados (eixo da direita).\n\n**Normal:** WAL estável, reciclado a cada checkpoint; checkpoints no ritmo do `checkpoint_timeout`.\n\n**Sinais de anomalia:** WAL crescendo sem cair ou checkpoints bem acima desse ritmo indicam escrita acima do `max_wal_size`; veja Tuplas escritas por banco e Escrita em disco no dashboard Contêineres.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ops"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(pg_wal_size_bytes)",
+          "legendFormat": "WAL",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_stat_bgwriter_checkpoints_timed_total[5m])) + sum(rate(pg_stat_bgwriter_checkpoints_req_total[5m]))",
+          "legendFormat": "checkpoints/s",
+          "refId": "B"
+        }
+      ],
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 26
+      }
+    },
+    {
+      "type": "row",
+      "id": 17,
+      "title": "Logs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "Logs do Postgres",
+      "description": "**O que mostra:** Logs do serviço `postgres` do Compose, lidos pelo Alloy do socket do Docker; o `postgres-init` termina antes de o Alloy descobri-lo (veja `docker compose logs postgres-init`).\n\n**Normal:** Checkpoints e mensagens de partida, sem ERROR; a carga confere os logs do período e reprova com ERROR.\n\n**Sinais de anomalia:** ERROR (`deadlock detected`, violação de constraint, `permission denied` de role fora do próprio schema), FATAL ou `too many clients already`; cruze o horário com Deadlocks na janela e Conexões sobre max_connections.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{compose_service=\"postgres\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      }
+    }
+  ],
+  "version": 1
+}
