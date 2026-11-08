@@ -1,0 +1,8 @@
+{
+  "name": "settlement-payout-contracts",
+  "projectType": "library",
+  "tags": [
+    "scope:settlement-payout",
+    "layer:contract"
+  ]
+}
