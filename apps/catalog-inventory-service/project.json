@@ -25,7 +25,7 @@
         "native"
       ],
       "options": {
-        "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=catalog-inventory-service -t marketplace/catalog-inventory:local ."
+        "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=catalog-inventory-service -t marketplace-nx/catalog-inventory:local ."
       }
     }
   }
