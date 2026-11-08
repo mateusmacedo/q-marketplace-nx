@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@nx/gradle": "24.0.4",
+    "@nx/js": "24.0.4",
     "nx": "24.0.4"
   }
 }

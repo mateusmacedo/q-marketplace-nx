@@ -65,5 +65,42 @@
       "cache": false
     }
   },
+  "release": {
+    "projectsRelationship": "independent",
+    "groups": {
+      "apps": {
+        "projectsRelationship": "independent",
+        "projects": ["tag:layer:service"]
+      },
+      "libs": {
+        "projectsRelationship": "independent",
+        "projects": ["tag:layer:domain", "tag:layer:application"]
+      },
+      "contracts": {
+        "projectsRelationship": "independent",
+        "projects": ["tag:layer:contract"]
+      }
+    },
+    "releaseTag": {
+      "pattern": "{projectName}@{version}"
+    },
+    "version": {
+      "conventionalCommits": true,
+      "fallbackCurrentVersionResolver": "disk",
+      "updateDependents": "always"
+    },
+    "changelog": {
+      "automaticFromRef": true,
+      "projectChangelogs": {
+        "file": "{projectRoot}/CHANGELOG.md",
+        "createRelease": "github"
+      }
+    },
+    "git": {
+      "commit": true,
+      "tag": true,
+      "commitMessage": "chore(release): publish"
+    }
+  },
   "analytics": true
 }
