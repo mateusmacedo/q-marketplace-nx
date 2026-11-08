@@ -26,7 +26,9 @@ public final class ProductCsv {
     /** Colunas que o SKU já existente na loja usa; erro só nas demais não o afeta. */
     private static final Set<String> PRICE_AND_STOCK_COLUMNS = Set.of("seller_sku", "currency", "list_price",
             "sale_price", "on_hand");
-    private static final Pattern DECIMAL = Pattern.compile("-?\\d+(\\.\\d+)?");
+    // WHY: o limite de dígitos vem antes do new BigDecimal, que tem custo quadrático no tamanho da entrada; 17 dígitos
+    // inteiros cobrem o Money.MAX.
+    private static final Pattern DECIMAL = Pattern.compile("-?\\d{1,17}(\\.\\d{1,4})?");
     private static final Pattern INTEGER = Pattern.compile("-?\\d{1,9}");
     private static final int SHOWN_MAX_LENGTH = 64;
 

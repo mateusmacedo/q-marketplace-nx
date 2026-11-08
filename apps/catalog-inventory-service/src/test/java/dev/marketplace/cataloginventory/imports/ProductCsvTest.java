@@ -3,6 +3,7 @@ package dev.marketplace.cataloginventory.imports;
 import dev.marketplace.cataloginventory.application.ImportRow;
 import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -41,6 +42,17 @@ class ProductCsvTest {
         assertEquals(new BigDecimal("30.5"), row.lengthCm());
         assertEquals(new BigDecimal("79.90"), row.listPrice());
         assertEquals(5, row.onHand());
+    }
+
+    @Test
+    void decimalsHaveBoundedDigits() {
+        assertEquals(new BigDecimal("12345678901234567.1234"),
+                onlyRow(",,,,,CAM-P,,,,,,,BRL,,12345678901234567.1234,0").salePrice());
+        assertTrue(onlyRow(",,,,,CAM-P,,,,,,,BRL,,123456789012345678,0").error().contains("sale_price:"));
+        assertTrue(onlyRow(",,,,,CAM-P,,,,,,,BRL,,1.12345,0").error().contains("sale_price:"));
+        String huge = "9".repeat(900_000);
+        assertTimeoutPreemptively(Duration.ofSeconds(1),
+                () -> assertTrue(onlyRow(",,,,,CAM-P,,,,,,,BRL,," + huge + ",0").error().contains("sale_price:")));
     }
 
     @Test
