@@ -3,11 +3,12 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "types": [
-      "vitest/globals"
+      "vitest/globals",
+      "@vitest/browser-playwright"
     ]
   },
   "include": [
-    "src/**/*.ts",
+    "src/**/*.spec.ts",
     "src/**/*.d.ts"
   ]
 }

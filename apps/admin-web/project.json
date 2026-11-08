@@ -18,31 +18,44 @@
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/admin-web",
+        "index": "apps/admin-web/src/index.html",
         "browser": "apps/admin-web/src/main.ts",
         "tsConfig": "apps/admin-web/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
         "assets": [
           {
             "glob": "**/*",
-            "input": "apps/admin-web/public"
+            "input": "apps/admin-web/src/assets/",
+            "output": "/assets/"
+          },
+          {
+            "glob": "favicon.ico",
+            "input": "apps/admin-web/src/assets/",
+            "output": "/"
+          },
+          {
+            "glob": "*.svg",
+            "input": "node_modules/@coreui/icons/sprites/",
+            "output": "/assets/icons/"
           }
         ],
         "styles": [
-          "apps/admin-web/src/styles.scss"
-        ]
+          "apps/admin-web/src/scss/styles.scss"
+        ],
+        "scripts": []
       },
       "configurations": {
         "production": {
           "budgets": [
             {
               "type": "initial",
-              "maximumWarning": "500kb",
-              "maximumError": "1mb"
+              "maximumWarning": "1.5mb",
+              "maximumError": "2mb"
             },
             {
               "type": "anyComponentStyle",
-              "maximumWarning": "4kb",
-              "maximumError": "8kb"
+              "maximumWarning": "2kb",
+              "maximumError": "4kb"
             }
           ],
           "outputHashing": "all"
@@ -73,6 +86,10 @@
     "test": {
       "executor": "@angular/build:unit-test",
       "options": {
+        "tsConfig": "apps/admin-web/tsconfig.spec.json",
+        "browsers": [
+          "ChromiumHeadless"
+        ],
         "watch": false
       }
     },
