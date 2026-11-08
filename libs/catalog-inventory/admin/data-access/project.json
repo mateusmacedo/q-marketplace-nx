@@ -10,7 +10,29 @@
     "framework:angular",
     "lang:ts"
   ],
-  "targets": {},
+  "targets": {
+    "codegen": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/contracts/catalog-inventory/openapi.json",
+        "{projectRoot}/openapi-ts.config.ts",
+        "{projectRoot}/src/client-config.ts",
+        {
+          "externalDependencies": [
+            "@hey-api/openapi-ts"
+          ]
+        }
+      ],
+      "outputs": [
+        "{projectRoot}/src/generated"
+      ],
+      "options": {
+        "command": "openapi-ts -f openapi-ts.config.ts -s",
+        "cwd": "{projectRoot}"
+      }
+    }
+  },
   "implicitDependencies": [
     "catalog-inventory-contracts"
   ]
