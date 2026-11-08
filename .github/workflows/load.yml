@@ -1,0 +1,89 @@
+name: Load (k6)
+
+# Só manual e sobre o compose do próprio runner: a guarda do alvo recusa qualquer endereço fora de localhost (ADR 022).
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Perfil de carga"
+        required: true
+        type: choice
+        default: smoke
+        options: [smoke, average, stress, spike, soak, breakpoint]
+      duration:
+        description: "DURATION: platô, como 10m (vazio usa o padrão do perfil); o job tem teto de 6 h"
+        required: false
+        type: string
+        default: ""
+      seed:
+        description: "SEED: semente do sorteio (vazio usa 1, a mesma entre execuções comparáveis)"
+        required: false
+        type: string
+        default: ""
+      runner:
+        description: "Label do runner; um runner dedicado torna as execuções comparáveis"
+        required: true
+        type: string
+        default: ubuntu-24.04
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-${{ inputs.runner }}
+  cancel-in-progress: false
+
+jobs:
+  load:
+    name: Carga (${{ inputs.profile }})
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 360
+    env:
+      PROFILE: ${{ inputs.profile }}
+      DURATION: ${{ inputs.duration }}
+      SEED: ${{ inputs.seed }}
+      COMPOSE: docker compose -f infra/local/docker-compose.yml --profile catalog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
+      - name: Node, Java e Gradle
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Validar os parâmetros
+        run: bash tools/load/run.sh --check "$PROFILE"
+
+      - name: Executável nativo
+        run: npx nx run catalog-inventory-service:native
+
+      - name: Subir o compose
+        run: $COMPOSE up -d --build --wait
+
+      - name: Rodar a carga
+        run: npm run "load:$PROFILE"
+
+      - name: Publicar o resultado
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: load-${{ inputs.profile }}-${{ github.run_id }}
+          path: tools/load/results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Anexar o resumo ao job
+        if: ${{ !cancelled() }}
+        run: |
+          for summary in tools/load/results/*/summary.md; do
+            if [ -f "$summary" ]; then
+              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Derrubar o compose
+        if: always()
+        run: $COMPOSE down -v
