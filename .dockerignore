@@ -1,2 +1,4 @@
 **
 !apps/*/build/*-runner
+!dist/apps/admin-web/browser/**
+!infra/docker/admin-web/nginx.conf

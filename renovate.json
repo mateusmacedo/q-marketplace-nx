@@ -91,7 +91,8 @@
       "description": "Imagem construída neste repositório, sem registro de origem",
       "matchPackageNames": [
         "marketplace-nx/catalog-inventory",
-        "marketplace/catalog-inventory"
+        "marketplace/catalog-inventory",
+        "marketplace-nx/admin-web"
       ],
       "enabled": false
     },
