@@ -42,3 +42,6 @@ Thumbs.db
 .env.*
 !.env.example
 *.log
+
+# Planos de trabalho, temporários e locais
+plans/
