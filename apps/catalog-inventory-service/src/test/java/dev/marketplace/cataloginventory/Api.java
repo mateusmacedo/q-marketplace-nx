@@ -113,6 +113,23 @@ final class Api {
         return this;
     }
 
+    /** Catálogo de motivos do tenant, criado pelo admin como num tenant real; o tenant novo não tem nenhum. */
+    Api withModerationReasons() {
+        reason("wrong-category", "Categoria incorreta", "REJECT");
+        reason("misleading-description", "Descrição incompleta ou enganosa", "REJECT", "BLOCK");
+        reason("inconsistent-attributes", "Atributos inconsistentes com os SKUs", "REJECT");
+        reason("price-out-of-range", "Preço fora do padrão", "REJECT", "BLOCK");
+        reason("prohibited-item", "Item proibido na plataforma", "BLOCK");
+        return this;
+    }
+
+    /** Cria o motivo ativo no fim do catálogo do tenant. */
+    void reason(String code, String label, String... decisions) {
+        String list = String.join(",", Arrays.stream(decisions).map(d -> "\"" + d + "\"").toList());
+        as(admin).body("{\"code\":\"%s\",\"label\":\"%s\",\"decisions\":[%s]}".formatted(code, label, list))
+                .post("/moderation/reasons").then().statusCode(201);
+    }
+
     Api approvedStore() {
         return kybVerdict("SellerApproved", "APPROVED");
     }

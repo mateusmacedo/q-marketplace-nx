@@ -17,10 +17,10 @@ database "\n$I_POSTGRES\nPostgreSQL" as pg
 end box
 queue "$I_KAFKA\nkyb-kyc.seller.v1" as topico
 
-cli -> res : GET /stores/{storeId}/eligibility\n(papel seller ou catalog-admin)
+cli -> res : GET /stores/{storeId}/eligibility\n(MANAGE_OWN_PRODUCTS ou READ_SELLER_ELIGIBILITY:\nseller, catalog-admin ou catalog-moderator)
 alt #FFEBEE token ausente ou inválido
   res --> cli : <color:#C62828>401</color>
-else #FFEBEE papel diferente de seller e catalog-admin
+else #FFEBEE sem nenhuma das duas capacidades (@PermissionsAllowed)
   res --> cli : <color:#C62828>403</color>
 else #FFEBEE claim tenant_id ausente, ou tenant_id e store_id fora do formato UUID
   res --> cli : <color:#C62828>403 tenant-not-authorized</color>
@@ -29,7 +29,7 @@ end
 res -> svc : get(actor, storeId)
 svc -> svc : actor.ownsStore(storeId):\nclaim store_id do token é igual a storeId?
 alt loja do token diferente de storeId, ou token sem loja
-  svc -> svc : actor.require(READ_SELLER_ELIGIBILITY)\n(concedida ao papel catalog-admin)
+  svc -> svc : actor.require(READ_SELLER_ELIGIBILITY)\n(concedida a catalog-admin e catalog-moderator)
   alt #FFEBEE chamador sem a capacidade (seller consultando outra loja)
     res --> cli : <color:#C62828>403 access-denied</color>
   end
@@ -43,7 +43,7 @@ alt nenhuma linha (loja sem veredito registrado)
 else linha encontrada
   repo --> svc : APPROVED | REJECTED | PENDING
 end
-res --> cli : 200 {storeId, status}
+res --> cli : 200 {storeId, status, canPublish, visibleInStorefront}\n(efeitos derivados de SellerStatus no servidor)
 note over res, pg : Leitura direta do banco, sem cache e sem outbox: o decorator\nSellerCacheInvalidation só atua na gravação do veredito
 
 newpage record: consumo de kyb-kyc.seller.v1 (SellerEligibilityService.record)

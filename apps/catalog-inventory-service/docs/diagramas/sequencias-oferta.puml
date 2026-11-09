@@ -40,7 +40,7 @@ box "Infraestrutura" #F7F9FA
 end box
 
 reader -> res : GET /offers/{skuId}
-res -> res : @RolesAllowed (seller, catalog-admin, catalog-moderator); CallerContext.actor()
+res -> res : @PermissionsAllowed (MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS); CallerContext.actor()
 == Aplicação e regras de domínio ==
 res -> svc : get(actor, skuId)
 svc -> prod : ProductAccess.visibleBySku: findBySku(tenant, skuId)
@@ -59,7 +59,7 @@ else #FAFAFA visível
   end
 end
 note over res, repo
-  Comum às páginas: 401 token ausente ou inválido; 403 papel fora do @RolesAllowed
+  Comum às páginas: 401 token ausente ou inválido; 403 sem nenhuma capacidade do @PermissionsAllowed
   ou claim de tenant ausente (tenant-not-authorized); 400 validation-failed e malformed-body;
   503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
   Leituras (ofSku, ofProduct) passam direto pelo decorator; só insert e update invalidam o cache,
@@ -72,7 +72,7 @@ newpage PUT /offers/{skuId}: criar a oferta ou trocar o preço (OfferService.def
 autonumber 1
 seller -> res : PUT /offers/{skuId} {listPrice?, salePrice} + If-Match (obrigatório só na troca)
 note over res, pg : A criação inicial também aparece em sequencia-publicacao-produto.puml (seção "Oferta por SKU")
-res -> res : @RolesAllowed(seller); @Valid PriceDto (MoneyDto: valor >= 0, até 2 casas, moeda ISO 4217);\nETags.optional(If-Match); PriceDto.toDomain: Money e Price
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid PriceDto (MoneyDto: valor >= 0, até 2 casas, moeda ISO 4217);\nETags.optional(If-Match); PriceDto.toDomain: Money e Price
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -158,7 +158,7 @@ $legenda_sequencia()
 newpage POST /offers/{skuId}/promotions: agendar promoção (OfferService.schedulePromotion)
 autonumber 1
 seller -> res : POST /offers/{skuId}/promotions {salePrice, startsAt, endsAt} + If-Match opcional
-res -> res : @RolesAllowed(seller); @Valid PromotionRequest; ETags.optional(If-Match);\npromotionId = UUID.randomUUID(); salePrice.toDomain
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid PromotionRequest; ETags.optional(If-Match);\npromotionId = UUID.randomUUID(); salePrice.toDomain
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -222,7 +222,7 @@ $legenda_sequencia()
 newpage DELETE /offers/{skuId}/promotions/{promotionId}: cancelar promoção (OfferService.cancelPromotion)
 autonumber 1
 seller -> res : DELETE /offers/{skuId}/promotions/{promotionId} + If-Match opcional
-res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end

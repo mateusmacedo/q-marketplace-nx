@@ -33,6 +33,9 @@ package "<$tag,scale=0.6,color=#EF6C00> OfferModels <<final>>" as offerModels {
     salePrice : MoneyDto
     startsAt : Instant
     endsAt : Instant
+    phase : PromotionPhase
+    --
+    {static} of(promotion, now) : PromotionResponse
   }
   class EffectivePriceDto <<record>> <<resposta>> {
     listPrice : MoneyDto
@@ -127,6 +130,7 @@ package "<$file_csv,scale=0.6,color=#EF6C00> ProductImportModels <<final>>" as i
     code : String
     message : String
     productId : UUID
+    reasonDetails : List<Problem.ReasonDetail>
   }
   class ImportResponse <<record>> <<resposta>> {
     id : UUID
@@ -137,10 +141,11 @@ package "<$file_csv,scale=0.6,color=#EF6C00> ProductImportModels <<final>>" as i
     createdAt : Instant
     startedAt : Instant
     finishedAt : Instant
-    lines : List<ImportLineResponse>
+    lines : List<ImportLineResponse> (nulo com lines=false)
     --
     {static} of(job, lines) : ImportResponse
     {static} of(report) : ImportResponse
+    {static} of(summary) : ImportResponse
   }
 }
 
@@ -148,6 +153,7 @@ class "domain.Money" as Money <<dominio>> #line.dashed
 class "domain.Price" as Price <<dominio>> #line.dashed
 class "domain.RequestedItem" as RequestedItem <<dominio>> #line.dashed
 class "application.ProductImportService.Report" as Report <<serviço>> #line.dashed
+class "application.ProductImportRepository.Summary" as Summary <<serviço>> #line.dashed
 
 PriceDto --> MoneyDto
 PromotionRequest --> MoneyDto
@@ -166,6 +172,7 @@ MoneyDto ..> Money : toDomain
 PriceDto ..> Price : toDomain
 ItemRequest ..> RequestedItem : toDomain
 ImportResponse ..> Report : of
+ImportResponse ..> Summary : of
 
 note bottom of importModels
   Mesma convenção dos DTOs de catálogo: classes finais com construtor privado, entrada

@@ -14,13 +14,17 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @ApplicationScoped
 @Traced
 public class PgSellerEligibilityRepository implements SellerEligibilityRepository {
     private static final String SELECT = "SELECT status FROM seller_eligibility WHERE tenant_id = $1 AND store_id = $2";
+    private static final String SELECT_MANY = "SELECT store_id, status FROM seller_eligibility WHERE tenant_id = $1 AND store_id = ANY ($2::uuid[])";
     private static final String DELIVERED = "INSERT INTO inbox_message (consumer, event_id, processed_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING";
     // WHY: consulta separada do upsert; uma CTE com FOR UPDATE só seria lida depois
     // da própria atualização e viria vazia.
@@ -50,6 +54,20 @@ public class PgSellerEligibilityRepository implements SellerEligibilityRepositor
     public Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId) {
         return pg.bounded(pool.preparedQuery(SELECT).execute(Tuple.of(tenantId, storeId)))
                 .map(PgSellerEligibilityRepository::status);
+    }
+
+    @Override
+    public Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds) {
+        if (storeIds.isEmpty())
+            return Uni.createFrom().item(Map.of());
+        return pg.bounded(pool.preparedQuery(SELECT_MANY).execute(Tuple.of(tenantId, storeIds.toArray(UUID[]::new))))
+                .map(rows -> {
+                    Map<UUID, SellerStatus> statuses = new HashMap<>();
+                    storeIds.forEach(store -> statuses.put(store, SellerStatus.PENDING));
+                    rows.forEach(row -> statuses.put(row.getUUID("store_id"),
+                            SellerStatus.valueOf(row.getString("status"))));
+                    return statuses;
+                });
     }
 
     @Override

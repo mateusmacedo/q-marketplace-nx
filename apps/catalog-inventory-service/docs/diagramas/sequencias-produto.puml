@@ -69,9 +69,13 @@ opt #FFEBEE SKU do seller já usado em outro produto da loja (sku_store_seller_s
 end
 res -[#2E7D32]-> seller : <color:#2E7D32><b>201</b></color> Created + Location /products/{id} + ETag da versão 0\n(catalog.products.created++)
 note over res, repo
-  Comum às páginas: 401 token ausente ou inválido; 403 papel fora do @RolesAllowed
-  ou claim de tenant ausente (tenant-not-authorized); 400 validation-failed e malformed-body;
+  Comum às páginas: 401 token ausente ou inválido; 403 sem nenhuma capacidade do @PermissionsAllowed
+  ou claim de tenant ausente (tenant-not-authorized); 400 validation-failed (inclusive texto do corpo
+  com U+0000, recusado na leitura do JSON pelo NullCharacterGuard) e malformed-body;
   503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+  Nas gravações, a resposta vem de ProductResponses.saved/savedOk: se a leitura do saldo depois do
+  COMMIT falhar, ela sai com o status gravado, sem o OUT_OF_STOCK calculado, e os SKUs sem saldo;
+  a leitura sem gravação (GET) continua respondendo 503.
   Leituras (findById, find, history) passam direto pelo decorator; só insert e update
   invalidam o cache, também quando a escrita falha.
 end note
@@ -87,10 +91,16 @@ svc -> svc : ProductAccess.requireVisible: READ_TENANT_CATALOG ou MODERATE_PRODU
 alt #FFEBEE produto inexistente ou fora do alcance do chamador
   res -[#C62828]-> reader : <color:#C62828>404 not-found (não revela se o produto existe)</color>
 else #E8F5E9 visível
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.ok(actor, product)
   resp -> pg : SELECT sku_id, on_hand, reserved, sold, version FROM inventory_level\nWHERE tenant_id AND sku_id = ANY (SKUs do produto)
   resp -> resp : Product.effectiveStatus: ACTIVE sem saldo disponível vira OUT_OF_STOCK\n(derivado na leitura, nunca gravado)
-  res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> + ETag (versão do produto)
+  opt status editável (fora de BLOCKED e ARCHIVED)
+    resp -> svc : publishingIssues(product, SKUs com oferta)
+    svc -> ctx : chain(categoria do produto) (pelo cache da taxonomia)
+    svc -> dom : publishingIssues(efetivos, usable, ofertados): motivo e campo de cada pendência
+  end
+  resp -> resp : ProductActions.of(actor, product, situação da loja, pendências):\nactions, blockedActions (motivo no formato de reasonDetails) e saveReturnsToModeration
+  res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> + ETag (versão do produto), com actions e publishingIssues
 end
 note over res, resp
   GET /products/{id}/skus/{skuId} reutiliza ProductService.get e devolve só o SKU, com o ETag
@@ -102,7 +112,7 @@ $legenda_sequencia()
 newpage GET /products: listar produtos com cursor (ProductService.list)
 autonumber 1
 reader -> res : GET /products?status=&storeId=&cursor=&limit=
-res -> res : @RolesAllowed (seller, catalog-admin, catalog-moderator);\n@Min(1) @Max(100) em limit; status(): ProductStatus.valueOf;\nQueryParams.uuid(storeId); Cursors.decodeUuid(cursor)
+res -> res : @PermissionsAllowed (MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS);\n@Min(1) @Max(100) em limit; status(): ProductStatus.valueOf;\nQueryParams.uuid(storeId); Cursors.decodeUuid(cursor)
 opt #FFEBEE limit fora de 1 a 100
   res -[#C62828]-> reader : <color:#C62828>400 validation-failed</color>
 end
@@ -122,9 +132,38 @@ end
 svc -> repo : find(tenant, loja?, status?, afterId, limit + 1)
 repo -> pg : SELECT product WHERE tenant_id [AND store_id] [AND status] [AND id > cursor]\nORDER BY id LIMIT limit + 1, com LEFT JOIN sku
 svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = id do último item da página
-res -> resp : ProductResponses.page(page)
+res -> resp : ProductResponses.page(actor, page)
 resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs da página)\n(uma consulta; página sem SKUs não consulta)
-res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> {items, nextCursor em base64url, ausente na última página}
+resp -> ctx : ProductActions.eligibility: statusesOf(tenant, lojas cujas ações dependem do KYB/KYC)
+ctx -> pg : SELECT store_id, status FROM seller_eligibility WHERE tenant_id AND store_id = ANY (lojas)\n(uma consulta por página; nenhuma se nada depende da loja)
+resp -> resp : ProductActions.of por item; a listagem não calcula publishingIssues
+res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> {items com actions e blockedActions, nextCursor em base64url, ausente na última página}
+$legenda_sequencia()
+
+newpage POST /products/{id}/check: conferir o rascunho sem gravar (ProductService.check)
+autonumber 1
+seller -> res : POST /products/{id}/check {categoryId, attributes}
+res -> svc : check(actor, id, categoryId, attributes)
+svc -> repo : findById(tenant, id) (ProductAccess.owned: só o seller dono)
+alt #FFEBEE outra loja, categoria fora do tenant
+  res -[#C62828]-> seller : <color:#C62828>404 not-found</color>
+else #E8F5E9 produto da loja
+  par
+    svc -> ctx : chain(categoria do rascunho)
+  else
+    svc -> ctx : chain(categoria atual), só se ela muda
+  else
+    svc -> ctx : ofProduct(tenant, id): SKUs com oferta
+  end
+  svc -> dom : draftIssues(attributes, efetivos, usable, ofertados)
+  alt #FFEBEE BLOCKED ou ARCHIVED
+    res -[#C62828]-> seller : <color:#C62828>409 invalid-transition</color>
+  end
+  opt categoria muda
+    svc -> dom : categoryChange(attributes, efetivos atuais, efetivos novos):\natributos que somem, obrigatórios novos e SKUs com variação recusada
+  end
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> {publishingIssues, categoryChange}; nada é gravado
+end
 $legenda_sequencia()
 
 newpage GET /products/{id}/history: histórico de transições (ProductService.history)
@@ -145,7 +184,7 @@ $legenda_sequencia()
 newpage PUT /products/{id}: revisar conteúdo (ProductService.reviseContent)
 autonumber 1
 seller -> res : PUT /products/{id} {categoryId, title, description, attributes} + If-Match
-res -> res : @RolesAllowed(seller); @Valid ReviseProductRequest; ETags.required(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid ReviseProductRequest; ETags.required(If-Match)
 opt #FFEBEE If-Match ausente, vazio ou *
   res -[#C62828]-> seller : <color:#C62828>428 precondition-required</color>
 end
@@ -201,16 +240,16 @@ else #E8F5E9 ok
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE: INCR catalog:gen:product:{tenant}:{produto};\nrenova catalog:product-store; uma nova tentativa se falhar
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
-  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1); status efetivo (OUT_OF_STOCK se ACTIVE sem saldo)
+  res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1); status efetivo (OUT_OF_STOCK se ACTIVE sem saldo)\nou o gravado, se o saldo não pôde ser lido
 end
 $legenda_sequencia()
 
 newpage POST /products/{id}/skus: adicionar SKU (ProductService.addSku)
 autonumber 1
 seller -> res : POST /products/{id}/skus {sellerSku, variantAttributes, physical, dimensions}\n+ If-Match opcional
-res -> res : @RolesAllowed(seller); @Valid SkuRequest; ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid SkuRequest; ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -265,7 +304,7 @@ else #E8F5E9 ok
     opt cache ligado
       dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
     end
-    res -> resp : ProductResponses.of(product)
+    res -> resp : ProductResponses.saved(product)
     resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
     res -[#2E7D32]-> seller : <color:#2E7D32><b>201</b></color> Created + Location /products/{id}/skus/{skuId} + ETag (versão + 1)
   end
@@ -275,7 +314,7 @@ $legenda_sequencia()
 newpage PUT /products/{id}/skus/{skuId}: revisar SKU (ProductService.reviseSku)
 autonumber 1
 seller -> res : PUT /products/{id}/skus/{skuId} {variantAttributes, physical, dimensions} + If-Match
-res -> res : @RolesAllowed(seller); @Valid ReviseSkuRequest; ETags.required(If-Match);\nDimensionsDto.domainOf
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid ReviseSkuRequest; ETags.required(If-Match);\nDimensionsDto.domainOf
 opt #FFEBEE If-Match ausente, vazio ou *
   res -[#C62828]-> seller : <color:#C62828>428 precondition-required</color>
 end
@@ -328,7 +367,7 @@ else #E8F5E9 ok
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)
 end
@@ -337,7 +376,7 @@ $legenda_sequencia()
 newpage DELETE /products/{id}/skus/{skuId}: remover SKU (ProductService.removeSku)
 autonumber 1
 seller -> res : DELETE /products/{id}/skus/{skuId} + If-Match opcional
-res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -383,7 +422,7 @@ else #E8F5E9 ok
     opt cache ligado
       dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
     end
-    res -> resp : ProductResponses.ok(product)
+    res -> resp : ProductResponses.savedOk(product)
     resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs que ficaram)
     res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)
   end
@@ -421,7 +460,7 @@ $legenda_sequencia()
 newpage POST /products/{id}/pause: pausar produto (ProductService.pause)
 autonumber 1
 seller -> res : POST /products/{id}/pause (If-Match opcional)
-res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -461,7 +500,7 @@ else #E8F5E9 ok
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto});\no produto sai da vitrine antes da resposta
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status PAUSED_BY_SELLER
 end
@@ -470,7 +509,7 @@ $legenda_sequencia()
 newpage POST /products/{id}/resume: reativar produto pausado (ProductService.resume)
 autonumber 1
 seller -> res : POST /products/{id}/resume (If-Match opcional)
-res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -514,7 +553,7 @@ else #E8F5E9 ok
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status ACTIVE (OUT_OF_STOCK se sem saldo)
 end
@@ -523,7 +562,7 @@ $legenda_sequencia()
 newpage DELETE /products/{id}: arquivar produto (ProductService.archive)
 autonumber 1
 seller -> res : DELETE /products/{id} (If-Match opcional)
-res -> res : @RolesAllowed(seller); ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color>
 end
@@ -563,7 +602,7 @@ else #E8F5E9 ok
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status ARCHIVED
 end

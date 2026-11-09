@@ -29,20 +29,21 @@ O serviço mantém, por tenant, a taxonomia, os produtos e SKUs, as ofertas, a m
 | Repositórios PostgreSQL e outbox | [`persistence`](../src/main/java/dev/marketplace/cataloginventory/persistence) |
 | Relay da outbox, limpeza da mensageria, consumo do KYB/KYC | [`messaging`](../src/main/java/dev/marketplace/cataloginventory/messaging) |
 | Contratos de evento, tradução dos eventos de domínio e mensagem da outbox | [`outbox`](../src/main/java/dev/marketplace/cataloginventory/outbox) |
-| Cache Redis da vitrine e da taxonomia | [`cache`](../src/main/java/dev/marketplace/cataloginventory/cache) |
+| Cache Redis da vitrine, da taxonomia e dos motivos de moderação | [`cache`](../src/main/java/dev/marketplace/cataloginventory/cache) |
 | Importação CSV em segundo plano | [`imports`](../src/main/java/dev/marketplace/cataloginventory/imports) |
 | Métricas, spans, interceptores e correlação | [`observability`](../src/main/java/dev/marketplace/cataloginventory/observability) |
 | Montagem dos casos de uso | [`CatalogBeans`](../src/main/java/dev/marketplace/cataloginventory/CatalogBeans.java) |
 | Configuração tipada (`catalog.*`) | [`config`](../src/main/java/dev/marketplace/cataloginventory/config) ([`CatalogConfig`](../src/main/java/dev/marketplace/cataloginventory/config/CatalogConfig.java)) |
 | Varredor de reservas vencidas | [`ReservationSweeper`](../src/main/java/dev/marketplace/cataloginventory/ReservationSweeper.java) |
 
-Os casos de uso (`ProductService`, `ModerationService`, `OfferService`, `InventoryService`, `ReservationService`, `CategoryService`, `StorefrontService`, `SellerEligibilityService`, `ProductImportService`) são classes Java puras instanciadas em `CatalogBeans`. As portas e suas implementações:
+Os casos de uso (`ProductService`, `ModerationService`, `ModerationReasonService`, `OfferService`, `InventoryService`, `ReservationService`, `CategoryService`, `StorefrontService`, `SellerEligibilityService`, `ProductImportService`) são classes Java puras instanciadas em `CatalogBeans`. As portas e suas implementações:
 
 | Porta | Implementação | Decorator de cache |
 |---|---|---|
 | `ProductRepository` | `PgProductRepository` | `ProductCacheInvalidation` |
 | `OfferRepository` | `PgOfferRepository` | `OfferCacheInvalidation` |
 | `CategoryRepository` | `PgCategoryRepository` | `CategoryCacheInvalidation`; leituras por `TaxonomyCache` |
+| `ModerationReasonRepository` | `PgModerationReasonRepository` | `ModerationReasonCacheInvalidation`; leituras por `ModerationReasonCache` |
 | `InventoryRepository` | `PgInventoryRepository` | nenhum |
 | `ReservationRepository` | `PgReservationRepository` | nenhum |
 | `SellerEligibilityRepository` | `PgSellerEligibilityRepository` | `SellerCacheInvalidation` |
@@ -94,6 +95,7 @@ Legenda da coluna If-Match: **obrigatório** (sem ele, 428), **opcional** (se vi
 | PUT | `/products/{id}` | seller | obrigatório | 200 + `ETag` |
 | DELETE | `/products/{id}` (arquiva) | seller | opcional | 200 + `ETag` |
 | GET | `/products/{id}/history` | seller, catalog-admin, catalog-moderator | — | 200 |
+| POST | `/products/{id}/check` (rascunho, não grava) | seller | — | 200 |
 | POST | `/products/{id}/submit` | seller | opcional | 200 + `ETag` |
 | POST | `/products/{id}/pause` | seller | opcional | 200 + `ETag` |
 | POST | `/products/{id}/resume` | seller | opcional | 200 + `ETag` |
@@ -102,26 +104,44 @@ Legenda da coluna If-Match: **obrigatório** (sem ele, 428), **opcional** (se vi
 | PUT | `/products/{id}/skus/{skuId}` | seller | obrigatório | 200 + `ETag` |
 | DELETE | `/products/{id}/skus/{skuId}` | seller | opcional | 200 + `ETag` |
 
-`status=OUT_OF_STOCK` na listagem responde 400: esse estado é calculado na leitura e nunca gravado.
+`status=OUT_OF_STOCK` na listagem responde 400: esse estado é calculado na leitura e nunca gravado. Nas escritas de um item, aqui e em `/moderation/products/{id}/*`, a resposta lê o saldo depois do commit; se essa leitura falhar, a resposta sai com sucesso, o status gravado, sem o `OUT_OF_STOCK` calculado, e os SKUs sem `stock`, como no lote ([`ProductResponses`](../src/main/java/dev/marketplace/cataloginventory/api/ProductResponses.java)). A leitura seguinte corrige o status. Se falhar outra leitura da resposta (ofertas, última rejeição, situação da loja ou a categoria das pendências), a resposta sai com sucesso e o produto gravado, sem `actions`, `blockedActions`, `publishingIssues`, `lastRejection` e a oferta dos SKUs, e o cliente relê o produto.
+
+Toda resposta de produto, inclusive os itens da listagem e da fila de moderação, traz o que o chamador pode fazer, calculado por `ProductActions` com as regras que os endpoints de escrita aplicam: `actions` (códigos em lista aberta, como `EDIT`, `ADD_SKU`, `SUBMIT`, `RESUME`, `APPROVE`), `blockedActions` (ação que vale no status, mas que um motivo impede agora, como `seller-not-eligible` ou `sku-removal-requires-draft`, no formato de `reasonDetails`) e `saveReturnsToModeration`. A situação das lojas que as ações pedem é lida numa consulta por página. A leitura de um produto em status editável traz também `publishingIssues` (`code`, `params`, `message` e `field`); a listagem não as calcula. `POST /products/{id}/check` recebe `categoryId` e `attributes` do formulário ainda não salvo e devolve as pendências e, quando a categoria muda, o efeito da troca (`removedAttributes`, `newRequired` e `blockingSkus`), com o alcance da edição: 404 fora da loja e 409 em `BLOCKED` e `ARCHIVED`. O 409 e o 422 das escritas continuam sendo a palavra final.
 
 ### Importação — [`ProductImportResource`](../src/main/java/dev/marketplace/cataloginventory/api/ProductImportResource.java)
 
 | Método | Caminho | Papel | If-Match | Sucesso |
 |---|---|---|---|---|
 | POST | `/products/imports` (`text/csv`, até 1 MB) | seller | — | 202 + `Location` |
-| GET | `/products/imports/{id}` | seller | — | 200 |
+| GET | `/products/imports/{id}` (`lines`, padrão `true`; com `false`, só status e contagens, `lines` nulo) | seller | — | 200 |
 
 ### Moderação — [`ModerationResource`](../src/main/java/dev/marketplace/cataloginventory/api/ModerationResource.java)
 
-Todas as rotas exigem o papel `catalog-moderator`.
+Todas as rotas exigem o papel `catalog-moderator`. Rejeitar e bloquear levam `reasonCodes` (motivos ativos do catálogo do tenant) e `note` (complemento de até 500 caracteres); o histórico guarda os códigos, os rótulos da época e o complemento separados (ADR 030).
 
 | Método | Caminho | If-Match | Sucesso |
 |---|---|---|---|
 | GET | `/moderation/products` (fila, `cursor`, `limit`) | — | 200 |
 | POST | `/moderation/products/{id}/approve` | opcional | 200 + `ETag` |
-| POST | `/moderation/products/{id}/reject` (`reason`) | opcional | 200 + `ETag` |
-| POST | `/moderation/products/{id}/block` (`reason`) | opcional | 200 + `ETag` |
+| POST | `/moderation/products/{id}/reject` (`reasonCodes`, `note`) | opcional | 200 + `ETag` |
+| POST | `/moderation/products/{id}/block` (`reasonCodes`, `note`) | opcional | 200 + `ETag` |
 | POST | `/moderation/products/{id}/unblock` | opcional | 200 + `ETag` |
+| POST | `/moderation/products/batch` | por item (`version`) | 200 |
+
+### Motivos de moderação — [`ModerationReasonResource`](../src/main/java/dev/marketplace/cataloginventory/api/ModerationReasonResource.java)
+
+Catálogo por tenant (ADR 030), sem exclusão: o código fica no histórico e nos eventos. O tenant novo começa sem motivos.
+
+| Método | Caminho | Papéis | If-Match | Sucesso |
+|---|---|---|---|---|
+| GET | `/moderation/reasons` (`decision`, `includeInactive`) | catalog-moderator, catalog-admin | — | 200 |
+| GET | `/moderation/reasons/{code}` | catalog-admin | — | 200 + `ETag` |
+| POST | `/moderation/reasons` | catalog-admin | — | 201 + `ETag` + `Location` |
+| PUT | `/moderation/reasons/{code}` (rótulo, decisões, posição) | catalog-admin | obrigatório | 200 + `ETag` |
+| POST | `/moderation/reasons/{code}/activate` | catalog-admin | obrigatório | 200 + `ETag` |
+| POST | `/moderation/reasons/{code}/deactivate` | catalog-admin | obrigatório | 200 + `ETag` |
+
+O moderador recebe só os ativos; `includeInactive=true` exige `MANAGE_MODERATION_REASONS`. O motivo inativo é recusado na decisão nova com `reason-inactive`, e o de outro tenant, com `unknown-reason`.
 
 ### Categorias — [`CategoryResource`](../src/main/java/dev/marketplace/cataloginventory/api/CategoryResource.java)
 
@@ -129,7 +149,8 @@ Todas as rotas exigem o papel `catalog-moderator`.
 |---|---|---|---|---|
 | POST | `/categories` | catalog-admin | — | 201 + `ETag` + `Location` |
 | GET | `/categories/{id}` | seller, catalog-admin, catalog-moderator | — | 200 + `ETag` |
-| GET | `/categories` (`parentId`, `cursor`, `limit`) | seller, catalog-admin, catalog-moderator | — | 200 |
+| GET | `/categories` (`parentId`, `cursor`, `limit`; ou `ids`, até 100, sem os outros) | seller, catalog-admin, catalog-moderator | — | 200 |
+| GET | `/categories/tree` (`usable`, `cursor`, `limit` até 1000, padrão 1000) | seller, catalog-admin, catalog-moderator | — | 200 |
 | PUT | `/categories/{id}` | catalog-admin | obrigatório | 200 + `ETag` |
 | PUT | `/categories/{id}/parent` | catalog-admin | obrigatório | 200 + `ETag` |
 
@@ -168,10 +189,13 @@ Todas as rotas exigem o papel `catalog-reservations` (contas de serviço do chec
 | Método | Caminho | Papel | Sucesso | Classe |
 |---|---|---|---|---|
 | GET | `/storefront/{tenantId}/products/{productId}` | anônimo (`@PermitAll`) | 200 + `Cache-Control: no-cache` | [`StorefrontResource`](../src/main/java/dev/marketplace/cataloginventory/api/StorefrontResource.java) |
-| GET | `/stores/{storeId}/eligibility` | seller, catalog-admin | 200 | [`StoreEligibilityResource`](../src/main/java/dev/marketplace/cataloginventory/api/StoreEligibilityResource.java) |
+| GET | `/stores/{storeId}/eligibility` | seller, catalog-admin, catalog-moderator | 200 | [`StoreEligibilityResource`](../src/main/java/dev/marketplace/cataloginventory/api/StoreEligibilityResource.java) |
+| GET | `/me` | qualquer usuário autenticado com tenant | 200 | [`SessionResource`](../src/main/java/dev/marketplace/cataloginventory/api/SessionResource.java) |
 | GET | `/internal/info` | anônimo, fora do OpenAPI | 200 | [`ServiceInfoResource`](../src/main/java/dev/marketplace/cataloginventory/ServiceInfoResource.java) |
 
-Na elegibilidade, o seller lê a própria loja; para ler outra, precisa de `READ_SELLER_ELIGIBILITY` (papel `catalog-admin`).
+Na elegibilidade, o seller lê a própria loja; para ler outra, precisa de `READ_SELLER_ELIGIBILITY` (papéis `catalog-admin` e `catalog-moderator`). A resposta traz os efeitos da situação, calculados no servidor: `canPublish` (produtos podem ser aprovados e reativados) e `visibleInStorefront` (produtos ativos aparecem na vitrine).
+
+`GET /me` devolve `subject`, `tenantId`, `storeId` (só do seller), `capabilities` (nomes de `Capability`, lista aberta que o cliente lê ignorando valor desconhecido) e `can`, as permissões compostas calculadas por `Actor` (hoje `readTenantCatalog`). Papel que o catálogo não conhece resulta em `capabilities` vazia.
 
 ### ETag e If-Match
 
@@ -188,7 +212,7 @@ Implementação em [`ETags`](../src/main/java/dev/marketplace/cataloginventory/a
 
 - Cursor opaco em base64url com a chave de ordenação, até 128 caracteres ([`Cursors`](../src/main/java/dev/marketplace/cataloginventory/api/Cursors.java)).
 - Produtos ordenam pelo `id`; categorias, pelo `code`.
-- `limit` de 1 a 100, padrão 50. O repositório busca `limit + 1` itens para saber se há próxima página.
+- `limit` de 1 a 100, padrão 50; na árvore de categorias (`GET /categories/tree`), de 1 a 1000, padrão 1000, porque quem a lê quer a árvore inteira e cada página refaz a recursão. O repositório busca `limit + 1` itens para saber se há próxima página.
 
 ### Idempotency-Key
 
@@ -200,18 +224,18 @@ Só em `POST /inventory/reservations`. A chave segue `[\x21-\x7E]{1,255}` e é �
 
 ### Problemas RFC 9457
 
-Respostas de erro usam `application/problem+json` com `type = https://marketplace.dev/problems/<código>`, mais as extensões `errors[]` (campos inválidos) e `reasons[]` (motivos estáveis). Mapeamento em [`ProblemMappers`](../src/main/java/dev/marketplace/cataloginventory/api/ProblemMappers.java).
+Respostas de erro usam `application/problem+json` com `type = https://marketplace.dev/problems/<código>`, mais as extensões `errors[]` (campos inválidos), `reasons[]` (motivos estáveis, como `missing-offer:CAM-P`) e `reasonDetails[]`, com `code`, `params` e `message` de cada motivo (ou, sem `reasons`, da própria recusa). A `message` é a que o emissor escreveu, quando escreveu, ou o texto do código em [`i18n/ReasonMessages.properties`](../src/main/resources/i18n/ReasonMessages.properties), com os parâmetros. Mapeamento em [`ProblemMappers`](../src/main/java/dev/marketplace/cataloginventory/api/ProblemMappers.java).
 
 | Status | Códigos |
 |---|---|
-| 400 | `invalid-request`, `validation-failed`, `malformed-body`, `invalid-import-file` |
+| 400 | `invalid-request`, `validation-failed`, `malformed-body`, `invalid-import-file`. Texto do corpo JSON com o caractere U+0000, valor ou chave de mapa em qualquer nível, sai como `validation-failed`, com o caminho do campo em `errors` (`title`, `skus[0].variantAttributes[tamanho]`): o [`NullCharacterGuard`](../src/main/java/dev/marketplace/cataloginventory/api/NullCharacterGuard.java) o recusa na leitura do JSON, porque o PostgreSQL não o guarda em `text` (SQLSTATE 22021), e a validação dos demais campos não chega a rodar |
 | 403 | `access-denied`, `tenant-not-authorized` |
 | 404 | `not-found` |
 | 409 | `concurrent-update`; duplicados (`duplicate-seller-sku`, `duplicate-category-code` e outros da `DuplicateException`); transição inválida (`invalid-transition`); recusas de reserva (`insufficient-stock`, `price-changed`, `seller-not-eligible`, `reservation-expired`, `reservation-not-active` e outros); conflitos de estoque (`stock-below-reserved`, `sku-has-stock`) |
 | 412 | `version-mismatch` |
 | 422 | demais regras de domínio (`DomainRuleViolation`), por exemplo `product-not-publishable`, `seller-not-eligible`, `category-cycle`, `sku-removal-requires-draft`, `idempotency-key-reused`. O mesmo `seller-not-eligible` sai como 422 em `approve` e `resume` e como 409 na reserva, porque ali é uma `ReservationRefusal`: com esse código quando é o único motivo, ou como `reservation-refused`, com o motivo em `reasons[]`, quando há motivos de outros tipos |
 | 428 | `precondition-required` |
-| 503 | `service-unavailable`, quando o banco não responde em `catalog.persistence.timeout` (2 s); vem com `Retry-After: 1` |
+| 503 | `service-unavailable`, quando o banco não responde em `catalog.persistence.timeout` (2 s); vem com `Retry-After: 1`. As leituras que montam a resposta de uma gravação de produto, de um item ou em lote, são exceção: a gravação já valeu, e a falha vira aviso no log. Sem o saldo, a resposta sai no status gravado, sem o `OUT_OF_STOCK` calculado e, na resposta de um item, com os SKUs sem `stock`; sem outra leitura, sai sem `actions` e o que depende delas |
 | 500 | `internal-error`, sem detalhe; a causa vai só para o log. Inclui a violação das invariantes de saldo e de reserva do domínio (`StockLevel`, `Reservation`), que lança `IllegalStateException` em vez de uma recusa |
 | outros | `http-<status>` para `WebApplicationException` do framework |
 
@@ -219,14 +243,14 @@ Respostas de erro usam `application/problem+json` com `type = https://marketplac
 
 - **Token:** MicroProfile JWT valida emissor (`CATALOG_JWT_ISSUER`), audiência (`CATALOG_JWT_AUDIENCE`) e assinatura pelo JWKS (`CATALOG_JWT_JWKS_URL`). [`SecurityConfigCheck`](../src/main/java/dev/marketplace/cataloginventory/security/SecurityConfigCheck.java) impede a partida sem esses três valores.
 - **Claims:** `tenant_id` (obrigatório, UUID) e `store_id`, com nomes configuráveis em `catalog.security.tenant-claim` e `store-claim`. Tenant e loja nunca vêm de cabeçalho ou corpo. Sem `tenant_id` válido, a resposta é 403 `tenant-not-authorized` ([`CallerContext`](../src/main/java/dev/marketplace/cataloginventory/security/CallerContext.java)).
-- **Papéis:** lidos do claim apontado por `CATALOG_JWT_GROUPS_PATH` (padrão `groups`; no compose, `realm_access/roles`). [`CallerContext`](../src/main/java/dev/marketplace/cataloginventory/security/CallerContext.java) os traduz em capacidades da aplicação:
+- **Papéis:** lidos do claim apontado por `CATALOG_JWT_GROUPS_PATH` (padrão `groups`; no compose, `realm_access/roles`). [`CallerContext`](../src/main/java/dev/marketplace/cataloginventory/security/CallerContext.java) os traduz em capacidades da aplicação. É o único lugar com papel: cada endpoint declara a capacidade que exige (`@PermissionsAllowed`, com os nomes de [`Capabilities`](../src/main/java/dev/marketplace/cataloginventory/security/Capabilities.java)), e o [`CapabilityAugmentor`](../src/main/java/dev/marketplace/cataloginventory/security/CapabilityAugmentor.java) dá à identidade autenticada as capacidades do `CallerContext`. A coluna Papel das tabelas de rotas mostra quem recebe a capacidade hoje:
 
 | Papel ([`Roles`](../src/main/java/dev/marketplace/cataloginventory/security/Roles.java)) | Capacidades |
 |---|---|
 | `seller` | `MANAGE_OWN_PRODUCTS` |
-| `catalog-moderator` | `MODERATE_PRODUCTS` |
+| `catalog-moderator` | `MODERATE_PRODUCTS`, `READ_SELLER_ELIGIBILITY` |
 | `catalog-reservations` | `MANAGE_RESERVATIONS` |
-| `catalog-admin` | `MANAGE_TAXONOMY`, `READ_TENANT_CATALOG`, `READ_SELLER_ELIGIBILITY` |
+| `catalog-admin` | `MANAGE_TAXONOMY`, `MANAGE_MODERATION_REASONS`, `READ_TENANT_CATALOG`, `READ_SELLER_ELIGIBILITY` |
 
 - **Keycloak local:** [`infra/keycloak/marketplace-realm.json`](../../../infra/keycloak/marketplace-realm.json) cria o realm `marketplace` com os quatro papéis, o cliente público `marketplace-cli` (direct grants) com audiência `catalog-inventory` e mappers de `tenant_id` e `store_id`, e os usuários `seller-demo`, `admin-demo`, `moderator-demo` e `checkout-demo`.
 
@@ -252,7 +276,7 @@ PostgreSQL pelo Reactive SQL Client nas requisições; o JDBC existe só para o 
 | [V4](../src/main/resources/db/migration/V4__messaging.sql) | `outbox_event` | PK `seq` (identity), `id` único, `topic`, `message_key`, `event_type`, `payload`, `trace_parent`, `published_at`, `attempts`, `last_error` | — |
 | V4 | `inbox_message` | PK (`consumer`, `event_id`), `processed_at` | — |
 | [V5](../src/main/resources/db/migration/V5__product_import.sql) | `product_import` | `id`, `status`, `content text`, `total_lines`, `started_at` | índice parcial dos lotes `PENDING`/`PROCESSING` |
-| V5 | `product_import_line` | PK (`import_id`, `line_number`), `outcome`, `code`, `message`, `product_id` | `import_id` → `product_import` (CASCADE) |
+| V5 | `product_import_line` | PK (`import_id`, `line_number`), `outcome`, `code`, `message`, `reasons` (jsonb), `product_id` | `import_id` → `product_import` (CASCADE) |
 | [V6](../src/main/resources/db/migration/V6__outbox_retry.sql) | `outbox_event` | `next_attempt_at`, `parked_at` | índice parcial dos pendentes não estacionados por `seq`; índice parcial dos pendentes por (`topic`, `message_key`, `seq`) |
 
 O diagrama [dados-er.puml](diagramas/dados-er.puml) mostra as mesmas tabelas com PK e FK.
@@ -362,7 +386,8 @@ ADR 024. Desligado por padrão: `%prod` e `%dev` usam `${CATALOG_CACHE_ENABLED:f
 | Retrato da vitrine (produto visível, SKUs, ofertas e todas as promoções) | `catalog:storefront:v1:{tenant}:{produto}` |
 | Cadeia de categorias até a raiz | `catalog:taxonomy:v1:{tenant}:chain:{categoria}` |
 | Página de subcategorias | `catalog:taxonomy:v1:{tenant}:children:{pai\|root}:{limit}:{cursor}` |
-| Gerações | `catalog:gen:product:{tenant}:{produto}`, `catalog:gen:store:{tenant}:{loja}`, `catalog:gen:taxonomy:{tenant}` |
+| Catálogo de motivos de moderação do tenant, ativos e inativos | `catalog:moderation-reasons:v1:{tenant}` |
+| Gerações | `catalog:gen:product:{tenant}:{produto}`, `catalog:gen:store:{tenant}:{loja}`, `catalog:gen:taxonomy:{tenant}`, `catalog:gen:moderation-reasons:{tenant}` |
 | Mapa produto → loja | `catalog:product-store:{tenant}:{produto}` |
 
 - **Leitura:** um script Lua (`EVALSHA`, com `EVAL` de reserva) confere conteúdo e gerações numa ida e devolve `HIT`, `MISS` (com as gerações atuais), `UNMAPPED` (sem o mapa produto → loja) ou `BYPASS` (Redis indisponível ou acima de 100 ms). Ver [`CatalogCache`](../src/main/java/dev/marketplace/cataloginventory/cache/CatalogCache.java) e [`StorefrontCache`](../src/main/java/dev/marketplace/cataloginventory/cache/StorefrontCache.java).
@@ -370,7 +395,8 @@ ADR 024. Desligado por padrão: `%prod` e `%dev` usam `${CATALOG_CACHE_ENABLED:f
 - **Invalidação:** decorators CDI nas portas incrementam a geração depois da escrita, também quando ela falha, com prazo de 1 s e uma nova tentativa ([`CacheInvalidation`](../src/main/java/dev/marketplace/cataloginventory/cache/CacheInvalidation.java)):
   - `ProductRepository.insert/update` e `OfferRepository.insert/update` → geração do produto;
   - `SellerEligibilityRepository.apply` com resultado `APPLIED` ou com falha → geração da loja;
-  - `CategoryRepository.insert/update/move` → geração da taxonomia.
+  - `CategoryRepository.insert/update/move` → geração da taxonomia;
+  - `ModerationReasonRepository.insert/update` (criar, revisar, ativar e desativar) → geração dos motivos do tenant, e o motivo desativado deixa de valer na decisão seguinte.
 - **Não é cacheado:** estoque (lido do banco a cada chamada da vitrine), preço vigente (calculado no instante da leitura), resposta 404, listas de produtos, reservas, ofertas e estoque fora da vitrine.
 
 ## Observabilidade
@@ -514,10 +540,10 @@ Arquivos PlantUML em [`diagramas/`](diagramas). Os C4 usam a biblioteca embutida
 | [classes-api.puml](diagramas/classes-api.puml) | Resources, filtros, `ProblemMappers` (com a tabela de status HTTP) e classes de apoio do pacote `api`. |
 | [classes-api-modelos.puml](diagramas/classes-api-modelos.puml) | DTOs de produto, categoria e vitrine. |
 | [classes-api-modelos-operacao.puml](diagramas/classes-api-modelos-operacao.puml) | DTOs de oferta, estoque, reserva e importação. |
-| [classes-persistencia.puml](diagramas/classes-persistencia.puml) | Os 7 repositórios `Pg*`, `PgOutbox`, `PgSupport`, `PgCatalogMetrics` e as portas que implementam. |
+| [classes-persistencia.puml](diagramas/classes-persistencia.puml) | Os 8 repositórios `Pg*`, `PgOutbox`, `PgSupport`, `PgCatalogMetrics` e as portas que implementam. |
 | [classes-mensageria.puml](diagramas/classes-mensageria.puml) | `IntegrationEvents`, `OutboxRelay`, `MessagingHousekeeping`, `SellerVerdictConsumer`, `Correlation` e `EventOrigin`. |
-| [classes-mensageria-contrato.puml](diagramas/classes-mensageria-contrato.puml) | `EventContracts` v1 e os 13 records publicados. |
-| [classes-cache.puml](diagramas/classes-cache.puml) | `CatalogCache`, os 4 decorators de invalidação, `StorefrontCache`, `TaxonomyCache` e `Snapshots`. |
+| [classes-mensageria-contrato.puml](diagramas/classes-mensageria-contrato.puml) | `EventContracts` v1 e os 14 records publicados. |
+| [classes-cache.puml](diagramas/classes-cache.puml) | `CatalogCache`, os 5 decorators de invalidação, `StorefrontCache`, `TaxonomyCache`, `ModerationReasonCache` e `Snapshots`. |
 | [classes-importacao.puml](diagramas/classes-importacao.puml) | `CsvParser`, `ProductCsv`, `Offload`, `InvalidImportFileException` e `ProductImportWorker`. |
 | [classes-seguranca-observabilidade.puml](diagramas/classes-seguranca-observabilidade.puml) | Pacotes `security` e `observability`. |
 | [classes-raiz.puml](diagramas/classes-raiz.puml) | `CatalogConfig` (com as interfaces aninhadas), `CatalogBeans`, `ReservationSweeper` e `ServiceInfoResource`. |

@@ -6,9 +6,8 @@ import dev.marketplace.cataloginventory.application.OfferService;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
 import dev.marketplace.cataloginventory.observability.InventoryLatency;
 import dev.marketplace.cataloginventory.security.CallerContext;
-import dev.marketplace.cataloginventory.security.Roles;
 import io.smallrye.mutiny.Uni;
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.PermissionsAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.*;
@@ -24,6 +23,10 @@ import org.jboss.resteasy.reactive.RestPath;
 import org.jboss.resteasy.reactive.RestResponse;
 import java.time.Clock;
 import java.util.UUID;
+
+import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_OWN_PRODUCTS;
+import static dev.marketplace.cataloginventory.security.Capabilities.MODERATE_PRODUCTS;
+import static dev.marketplace.cataloginventory.security.Capabilities.READ_TENANT_CATALOG;
 
 /**
  * Oferta de cada SKU: preço de/por e promoções, com versão própria. Mudar preço
@@ -55,7 +58,7 @@ public class OfferResource {
          * não tem oferta.
          */
         @GET
-        @RolesAllowed({ Roles.SELLER, Roles.CATALOG_ADMIN, Roles.CATALOG_MODERATOR })
+        @PermissionsAllowed({ MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS })
         @Operation(operationId = "getOffer", summary = "Consulta a oferta do SKU com o preço vigente; ETag carrega a versão")
         @APIResponse(responseCode = "200", description = "Oferta")
         public Uni<RestResponse<OfferResponse>> get(@RestPath UUID skuId) {
@@ -70,10 +73,10 @@ public class OfferResource {
          * ainda não existe. Produto arquivado congela a oferta (409).
          */
         @PUT
-        @RolesAllowed(Roles.SELLER)
+        @PermissionsAllowed(MANAGE_OWN_PRODUCTS)
         @Operation(operationId = "defineOffer", summary = "Cria a oferta do SKU na moeda do produto, ou troca o preço da existente (troca exige If-Match)")
         @APIResponse(responseCode = "200", description = "Preço trocado")
-        @APIResponse(responseCode = "201", description = "Oferta criada")
+        @APIResponse(responseCode = "201", description = "Oferta criada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = OfferResponse.class)))
         public Uni<RestResponse<OfferResponse>> define(@RestPath UUID skuId, @RestHeader("If-Match") String ifMatch,
                         @NotNull @Valid PriceDto request, UriInfo uri) {
                 return latency.timed("define_offer",
@@ -94,9 +97,9 @@ public class OfferResource {
          */
         @POST
         @Path("/promotions")
-        @RolesAllowed(Roles.SELLER)
+        @PermissionsAllowed(MANAGE_OWN_PRODUCTS)
         @Operation(operationId = "schedulePromotion", summary = "Agenda preço promocional [startsAt, endsAt)")
-        @APIResponse(responseCode = "201", description = "Promoção agendada")
+        @APIResponse(responseCode = "201", description = "Promoção agendada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = OfferResponse.class)))
         public Uni<RestResponse<OfferResponse>> schedulePromotion(@RestPath UUID skuId,
                         @RestHeader("If-Match") String ifMatch,
                         @NotNull @Valid PromotionRequest request, UriInfo uri) {
@@ -117,7 +120,7 @@ public class OfferResource {
          */
         @DELETE
         @Path("/promotions/{promotionId}")
-        @RolesAllowed(Roles.SELLER)
+        @PermissionsAllowed(MANAGE_OWN_PRODUCTS)
         @Operation(operationId = "cancelPromotion", summary = "Cancela promoção ainda não encerrada")
         @APIResponse(responseCode = "200", description = "Oferta atualizada")
         public Uni<RestResponse<OfferResponse>> cancelPromotion(@RestPath UUID skuId, @RestPath UUID promotionId,

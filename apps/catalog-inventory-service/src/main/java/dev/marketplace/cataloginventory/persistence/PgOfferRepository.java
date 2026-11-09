@@ -75,6 +75,15 @@ public class PgOfferRepository implements OfferRepository {
         }
 
         @Override
+        public Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds) {
+                if (skuIds.isEmpty())
+                        return Uni.createFrom().item(Map.of());
+                String sql = "SELECT " + OFFER_COLUMNS + " FROM offer WHERE tenant_id = $1 AND sku_id = ANY ($2::uuid[])";
+                return pg.bounded(pool.preparedQuery(sql).execute(Tuple.of(tenantId, skuIds.toArray(UUID[]::new)))
+                                .flatMap(rows -> assemble(pool, rows)));
+        }
+
+        @Override
         public Uni<Void> insert(Offer offer) {
                 List<OutboxMessage> messages = events.fromOffer(offer.tenantId(), offer.drainEvents(),
                                 EventOrigin.current());

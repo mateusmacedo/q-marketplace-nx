@@ -21,10 +21,10 @@ end box
 
 seller -> res : POST /products/imports (Content-Type: text/csv, até 1 MB)
 note over res, pg : Fluxo detalhado em sequencia-importacao-csv.puml (seção "Envio")
-res -> res : @RolesAllowed(seller); CallerContext.actor()
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); CallerContext.actor()
 res -> csv : validate(corpo, maxRows = 5000) (Offload.cpu)
 alt #FFEBEE arquivo recusado
-  res --> seller : <color:#C62828>400 invalid-import-file + reasons: empty-file, invalid-encoding,</color>\n<color:#C62828>malformed-csv:{linha}, duplicate-column:{coluna}, unknown-column:{coluna},</color>\n<color:#C62828>missing-column:{coluna}, column-order, no-rows, too-many-rows:{máximo}</color>
+  res --> seller : <color:#C62828>400 invalid-import-file + reasons: empty-file, invalid-encoding,</color>\n<color:#C62828>malformed-csv:{linha}, duplicate-column:{coluna}, unknown-column:{coluna},</color>\n<color:#C62828>missing-column:{coluna}, column-order, no-rows, too-many-rows:{máximo}</color>\n<color:#C62828>e reasonDetails com código, parâmetros e texto de cada motivo</color>
 else #E8F5E9 arquivo válido
   res -> svc : submit(actor, conteúdo sem BOM, totalLines)
   svc -> svc : ProductAccess.requireSeller;\nProductImport.pending(id, tenant, loja, subject, totalLines, agora)
@@ -44,7 +44,7 @@ end note
 newpage GET /products/imports/{id}: consultar lote e resultado por linha (ProductImportService.get)
 autonumber 1
 seller -> res : GET /products/imports/{id}
-res -> res : @RolesAllowed(seller); CallerContext.actor()
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); CallerContext.actor()
 res -> svc : get(actor, id)
 svc -> svc : ProductAccess.requireSeller
 opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
@@ -56,7 +56,7 @@ alt #FFEBEE lote inexistente, de outra loja ou de outro tenant
   res --> seller : <color:#C62828>404 not-found (Lote de importação)</color>
 else #E8F5E9 lote da loja do seller
   svc -> repo : results(job.id)
-  repo -> pg : SELECT line_number, seller_sku, outcome, code, message, product_id\nFROM product_import_line WHERE import_id ORDER BY line_number
+  repo -> pg : SELECT line_number, seller_sku, outcome, code, message, reasons, product_id\nFROM product_import_line WHERE import_id ORDER BY line_number
   svc -> svc : Report(job, linhas)
   res -> res : ImportResponse.of: counts por resultado (CREATED, UPDATED, UNCHANGED, FAILED);\nprocessedLines = linhas com resultado
   res --> seller : 200 {status PENDING, PROCESSING ou COMPLETED, totalLines, processedLines,\ncounts, createdAt, startedAt, finishedAt, lines} (sem ETag)

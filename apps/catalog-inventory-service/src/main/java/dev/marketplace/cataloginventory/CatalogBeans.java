@@ -2,6 +2,7 @@ package dev.marketplace.cataloginventory;
 
 import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.*;
+import dev.marketplace.cataloginventory.cache.ModerationReasonCache;
 import dev.marketplace.cataloginventory.cache.TaxonomyCache;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
@@ -9,7 +10,8 @@ import java.time.Clock;
 
 /**
  * Raiz de composição: liga os casos de uso (sem framework) aos adaptadores. As leituras de categoria passam pelo cache
- * da taxonomia ({@link TaxonomyCache}); as invalidações ficam nos decorators das portas.
+ * da taxonomia ({@link TaxonomyCache}) e as do catálogo de motivos, pelo {@link ModerationReasonCache}; as invalidações
+ * ficam nos decorators das portas.
  */
 public class CatalogBeans {
     // WHY: @Singleton evita client proxy; os serviços de aplicação são finais e não
@@ -38,8 +40,17 @@ public class CatalogBeans {
     @Singleton
     ModerationService moderationService(ProductRepository products, CategoryRepository categories,
             SellerEligibilityRepository sellers,
-            OfferRepository offers, TaxonomyCache taxonomy, Clock clock) {
-        return new ModerationService(products, taxonomy.over(categories), sellers, offers, clock);
+            OfferRepository offers, ModerationReasonRepository reasons, TaxonomyCache taxonomy,
+            ModerationReasonCache reasonCache, Clock clock) {
+        return new ModerationService(products, taxonomy.over(categories), sellers, offers, reasonCache.over(reasons),
+                clock);
+    }
+
+    @Produces
+    @Singleton
+    ModerationReasonService moderationReasonService(ModerationReasonRepository reasons,
+            ModerationReasonCache reasonCache, Clock clock) {
+        return new ModerationReasonService(reasonCache.over(reasons), clock);
     }
 
     @Produces
@@ -65,9 +76,21 @@ public class CatalogBeans {
 
     @Produces
     @Singleton
+    CatalogStatsService catalogStatsService(CatalogStatsRepository stats, Clock clock) {
+        return new CatalogStatsService(stats, clock);
+    }
+
+    @Produces
+    @Singleton
     StorefrontService storefrontService(ProductRepository products, SellerEligibilityRepository sellers,
             OfferRepository offers) {
         return new StorefrontService(products, sellers, offers);
+    }
+
+    @Produces
+    @Singleton
+    ProductActions productActions(SellerEligibilityRepository sellers) {
+        return new ProductActions(sellers);
     }
 
     @Produces

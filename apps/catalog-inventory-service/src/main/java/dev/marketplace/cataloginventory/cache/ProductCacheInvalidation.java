@@ -1,8 +1,8 @@
 package dev.marketplace.cataloginventory.cache;
 
+import dev.marketplace.cataloginventory.application.ProductQuery;
 import dev.marketplace.cataloginventory.application.ProductRepository;
 import dev.marketplace.cataloginventory.domain.product.Product;
-import dev.marketplace.cataloginventory.domain.product.ProductStatus;
 import dev.marketplace.cataloginventory.domain.product.StatusChange;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.Priority;
@@ -57,9 +57,18 @@ public class ProductCacheInvalidation implements ProductRepository {
     }
 
     @Override
-    public Uni<List<Product>> find(UUID tenantId, Optional<UUID> storeId, Optional<ProductStatus> status,
-            Optional<String> afterId, int limit) {
-        return delegate.find(tenantId, storeId, status, afterId, limit);
+    public Uni<List<Product>> moderationQueue(UUID tenantId, Optional<QueuePosition> after, int limit) {
+        return delegate.moderationQueue(tenantId, after, limit);
+    }
+
+    @Override
+    public Uni<List<Product>> search(UUID tenantId, ProductQuery query, int limit) {
+        return delegate.search(tenantId, query, limit);
+    }
+
+    @Override
+    public Uni<Map<UUID, StatusChange>> lastChanges(UUID tenantId, Collection<UUID> productIds) {
+        return delegate.lastChanges(tenantId, productIds);
     }
 
     @Override

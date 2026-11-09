@@ -21,8 +21,9 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Cache da vitrine e da taxonomia (ADR 024): a leitura repetida vem do Redis, cada escrita no produto, na oferta, na
- * loja ou na categoria aparece na leitura seguinte, e o estoque segue lido do banco com o produto em cache.
+ * Cache da vitrine, da taxonomia e dos motivos de moderação (ADR 024): a leitura repetida vem do Redis, cada escrita no
+ * produto, na oferta, na loja, na categoria ou no motivo aparece na leitura seguinte, e o estoque segue lido do banco
+ * com o produto em cache.
  */
 @QuarkusTest
 class CacheTest {
@@ -58,7 +59,7 @@ class CacheTest {
         String id = api.activeProduct(sku("CCH-P", "P", "50"));
         loadedRead(api, id);
         cachedRead(api, id);
-        as(api.moderator).body("{\"reason\":\"Produto proibido\"}").post("/moderation/products/" + id + "/block")
+        as(api.moderator).body("{\"note\":\"Produto proibido\"}").post("/moderation/products/" + id + "/block")
                 .then().statusCode(200);
         api.storefront(id).then().statusCode(404);
     }
@@ -148,6 +149,30 @@ class CacheTest {
                 .body("{\"name\":\"Camisetas e regatas\",\"active\":true,\"attributes\":[]}").put(path).then()
                 .statusCode(200);
         as(api.admin).get(path).then().statusCode(200).body("name", is("Camisetas e regatas")).body("version", is(1));
+
+        String caps = as(api.admin).get("/categories").then().extract().path("items.find { it.code == 'bones' }.id");
+        as(api.admin).header("If-Match", "\"0\"").delete("/categories/" + caps).then().statusCode(204);
+        as(api.admin).get("/categories").then().statusCode(200).body("items.code", contains("camisetas"));
+        as(api.admin).get("/categories/" + caps).then().statusCode(404);
+    }
+
+    /** O catálogo de motivos vem do cache, e desativar um motivo vale já na leitura e na decisão seguintes. */
+    @Test
+    void deactivatedReasonLeavesTheCachedCatalogAndTheNextDecision() {
+        Api api = new Api().withCategory().withModerationReasons();
+        as(api.moderator).get("/moderation/reasons").then().statusCode(200).body("code", hasItem("wrong-category"));
+        awaitStored(CacheContents.moderationReasons(api.tenant));
+        double hits = requests("moderation-reasons", "hit");
+        as(api.moderator).get("/moderation/reasons").then().statusCode(200).body("code", hasItem("wrong-category"));
+        assertEquals(hits + 1, requests("moderation-reasons", "hit"), "o catálogo vem do cache");
+
+        api.post(api.admin, "/moderation/reasons/wrong-category/deactivate", "\"0\"").then().statusCode(200);
+        as(api.moderator).get("/moderation/reasons").then().statusCode(200)
+                .body("code", not(hasItem("wrong-category")));
+        String id = api.createProduct(sku("CCH-R", "P", "50"));
+        api.submit(id).then().statusCode(200);
+        as(api.moderator).body("{\"reasonCodes\":[\"wrong-category\"]}").post("/moderation/products/" + id + "/reject")
+                .then().statusCode(422).body("reasons", contains("reason-inactive:wrong-category"));
     }
 
     /**

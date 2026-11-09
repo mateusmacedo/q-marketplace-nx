@@ -13,7 +13,9 @@ import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -63,6 +65,11 @@ class SellerVerdictConsumerTest {
         SellerEligibilityRepository unavailable = new SellerEligibilityRepository() {
             @Override
             public Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId) {
+                return Uni.createFrom().failure(new IllegalStateException("banco indisponível"));
+            }
+
+            @Override
+            public Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds) {
                 return Uni.createFrom().failure(new IllegalStateException("banco indisponível"));
             }
 

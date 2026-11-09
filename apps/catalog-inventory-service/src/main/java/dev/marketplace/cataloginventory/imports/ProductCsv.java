@@ -1,6 +1,7 @@
 package dev.marketplace.cataloginventory.imports;
 
 import dev.marketplace.cataloginventory.application.ImportRow;
+import dev.marketplace.cataloginventory.domain.Reason;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import static dev.marketplace.cataloginventory.imports.ImportFileReasons.*;
 
 /**
  * Planilha de importação de produtos: CSV RFC 4180 em UTF-8 (BOM opcional)
@@ -51,16 +53,16 @@ public final class ProductCsv {
             records = CsvParser.parse(content);
         } catch (CsvParser.SyntaxException e) {
             throw new InvalidImportFileException("CSV malformado. " + e.getMessage(),
-                    List.of("malformed-csv:" + e.line()));
+                    List.of(Reason.of(MALFORMED_CSV, e.line())));
         }
         if (records.isEmpty())
-            throw new InvalidImportFileException("Arquivo vazio", List.of("empty-file"));
-        List<String> reasons = new ArrayList<>(headerReasons(records.getFirst().fields()));
+            throw new InvalidImportFileException("Arquivo vazio", List.of(Reason.of(EMPTY_FILE)));
+        List<Reason> reasons = new ArrayList<>(headerReasons(records.getFirst().fields()));
         int rows = records.size() - 1;
         if (rows == 0)
-            reasons.add("no-rows");
+            reasons.add(Reason.of(NO_ROWS));
         if (rows > maxRows)
-            reasons.add("too-many-rows:" + maxRows);
+            reasons.add(Reason.of(TOO_MANY_ROWS, maxRows));
         if (!reasons.isEmpty())
             throw new InvalidImportFileException("Arquivo de importação inválido. Cabeçalho esperado: "
                     + String.join(",", COLUMNS) + "; de 1 a " + maxRows + " linhas de dados", reasons);
@@ -74,17 +76,18 @@ public final class ProductCsv {
 
     private static String decode(byte[] body) {
         if (body == null || body.length == 0)
-            throw new InvalidImportFileException("Arquivo vazio", List.of("empty-file"));
+            throw new InvalidImportFileException("Arquivo vazio", List.of(Reason.of(EMPTY_FILE)));
         String text;
         try {
             text = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(body)).toString();
         } catch (CharacterCodingException e) {
-            throw new InvalidImportFileException("O arquivo deve estar em UTF-8", List.of("invalid-encoding"));
+            throw new InvalidImportFileException("O arquivo deve estar em UTF-8", List.of(Reason.of(INVALID_ENCODING)));
         }
         // WHY: o PostgreSQL não armazena o caractere NUL em colunas text.
         if (text.indexOf('\0') >= 0)
-            throw new InvalidImportFileException("O arquivo contém o caractere NUL", List.of("invalid-encoding"));
+            throw new InvalidImportFileException("O arquivo contém o caractere NUL",
+                    List.of(Reason.of(INVALID_ENCODING)));
         return text.startsWith("\uFEFF") ? text.substring(1) : text;
     }
 
@@ -92,22 +95,22 @@ public final class ProductCsv {
      * Motivos de um cabeçalho diferente de {@link #COLUMNS}: coluna repetida,
      * desconhecida ou ausente, ou {@code column-order} quando só a ordem difere.
      */
-    private static List<String> headerReasons(List<String> header) {
+    private static List<Reason> headerReasons(List<String> header) {
         List<String> names = header.stream().map(String::strip).toList();
         if (names.equals(COLUMNS))
             return List.of();
-        List<String> reasons = new ArrayList<>();
+        List<Reason> reasons = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (String name : names) {
             if (!seen.add(name))
-                reasons.add("duplicate-column:" + shown(name));
+                reasons.add(Reason.of(DUPLICATE_COLUMN, shown(name)));
             else if (!COLUMNS.contains(name))
-                reasons.add("unknown-column:" + shown(name));
+                reasons.add(Reason.of(UNKNOWN_COLUMN, shown(name)));
         }
-        COLUMNS.stream().filter(column -> !names.contains(column)).forEach(column -> reasons.add("missing-column:"
-                + column));
+        COLUMNS.stream().filter(column -> !names.contains(column))
+                .forEach(column -> reasons.add(Reason.of(MISSING_COLUMN, column)));
         if (reasons.isEmpty())
-            reasons.add("column-order");
+            reasons.add(Reason.of(COLUMN_ORDER));
         return reasons;
     }
 

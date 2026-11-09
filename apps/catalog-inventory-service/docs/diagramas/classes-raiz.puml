@@ -75,7 +75,8 @@ package "<$server,scale=0.55,color=#455A64> raiz (dev.marketplace.cataloginvento
     <<@Produces @Singleton>> clock() : Clock
     <<@Produces @Singleton>> categoryService(categories, taxonomy) : CategoryService
     <<@Produces @Singleton>> productService(products, categories, sellers, offers, taxonomy, clock)
-    <<@Produces @Singleton>> moderationService(products, categories, sellers, offers, taxonomy, clock)
+    <<@Produces @Singleton>> moderationService(products, categories, sellers, offers, reasons, taxonomy, reasonCache, clock)
+    <<@Produces @Singleton>> moderationReasonService(reasons, reasonCache, clock)
     <<@Produces @Singleton>> offerService(products, offers, clock)
     <<@Produces @Singleton>> inventoryService(inventory, products, clock)
     <<@Produces @Singleton>> productImportService(imports, products, categories, offers, ...)
@@ -97,8 +98,9 @@ package "<$server,scale=0.55,color=#455A64> raiz (dev.marketplace.cataloginvento
 }
 
 class "application.ReservationService" as ReservationService <<serviço>> #line.dashed
-class "application: demais casos de uso (8)" as UseCases <<serviço>> #line.dashed
+class "application: demais casos de uso (9)" as UseCases <<serviço>> #line.dashed
 class "cache.TaxonomyCache" as TaxonomyCache <<saida>> #line.dashed
+class "cache.ModerationReasonCache" as ModerationReasonCache <<saida>> #line.dashed
 class "observability.Lifecycle" as Lifecycle <<infra>> #line.dashed
 
 CatalogConfig +-- CfgSecurity
@@ -110,6 +112,7 @@ CatalogConfig +-- CfgMetrics
 CatalogConfig +-- CfgCache
 CatalogBeans ..> CatalogConfig : reservationService
 CatalogBeans ..> TaxonomyCache : over()
+CatalogBeans ..> ModerationReasonCache : over()
 CatalogBeans ..> ReservationService : produz
 CatalogBeans ..> UseCases : produz
 ReservationSweeper --> ReservationService : expireDue(sweepBatch)
@@ -121,8 +124,9 @@ ReservationSweeper -[hidden]right- ServiceInfoResource
 CatalogBeans -[hidden]down- CatalogConfig
 
 note bottom of CatalogBeans
-  Monta os nove casos de uso da aplicação (Java puro) e injeta nos que usam taxonomia
-  o CategoryRepository devolvido por TaxonomyCache.over(). Todos os pacotes do serviço
+  Monta os dez casos de uso da aplicação (Java puro) e injeta nos que usam taxonomia
+  o CategoryRepository devolvido por TaxonomyCache.over() e, na moderação e no catálogo de
+  motivos, o ModerationReasonRepository de ModerationReasonCache.over(). Todos os pacotes do serviço
   dependem do pacote config por CatalogConfig; nenhum pacote importa a raiz.
 end note
 

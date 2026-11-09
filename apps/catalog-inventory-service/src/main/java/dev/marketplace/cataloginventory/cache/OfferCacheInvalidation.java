@@ -7,7 +7,9 @@ import jakarta.annotation.Priority;
 import jakarta.decorator.Decorator;
 import jakarta.decorator.Delegate;
 import jakarta.inject.Inject;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,5 +46,10 @@ public class OfferCacheInvalidation implements OfferRepository {
     @Override
     public Uni<List<Offer>> ofProduct(UUID tenantId, UUID productId) {
         return delegate.ofProduct(tenantId, productId);
+    }
+
+    @Override
+    public Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds) {
+        return delegate.ofSkus(tenantId, skuIds);
     }
 }

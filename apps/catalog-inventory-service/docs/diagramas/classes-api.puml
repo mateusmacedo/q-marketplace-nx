@@ -24,6 +24,7 @@ class ProductResource <<@Path("/products")>> <<entrada>> {
   PUT /{id} : revise(If-Match, ReviseProductRequest)
   DELETE /{id} : archive(If-Match)
   GET /{id}/history : history(id)
+  POST /{id}/check : check(ProductCheckRequest)
   POST /{id}/submit : submit(If-Match)
   POST /{id}/pause : pause(If-Match)
   POST /{id}/resume : resume(If-Match)
@@ -32,17 +33,29 @@ class ProductResource <<@Path("/products")>> <<entrada>> {
   PUT /{id}/skus/{skuId} : reviseSku(If-Match, ReviseSkuRequest)
   DELETE /{id}/skus/{skuId} : removeSku(If-Match)
 }
-class ModerationResource <<@Path("/moderation/products")>> <<entrada>> {
+class ModerationResource <<@Path("/moderation")>> <<entrada>> {
   -moderation : ModerationService
   -responses : ProductResponses
   -caller : CallerContext
   -approved, rejected, blocked, unblocked : Counter
   --
-  GET / : queue(cursor, limit)
-  POST /{id}/approve : approve(If-Match)
-  POST /{id}/reject : reject(If-Match, ReasonRequest)
-  POST /{id}/block : block(If-Match, ReasonRequest)
-  POST /{id}/unblock : unblock(If-Match)
+  GET /products : queue(cursor, limit)
+  POST /products/{id}/approve : approve(If-Match)
+  POST /products/{id}/reject : reject(If-Match, DecisionRequest)
+  POST /products/{id}/block : block(If-Match, DecisionRequest)
+  POST /products/{id}/unblock : unblock(If-Match)
+  POST /products/batch : batch(ModerationBatchRequest)
+}
+class ModerationReasonResource <<@Path("/moderation/reasons")>> <<entrada>> {
+  -reasons : ModerationReasonService
+  -caller : CallerContext
+  --
+  GET / : list(includeInactive, decision)
+  GET /{code} : get(code)
+  POST / : create(CreateModerationReasonRequest)
+  PUT /{code} : revise(If-Match, ReviseModerationReasonRequest)
+  POST /{code}/activate : activate(If-Match)
+  POST /{code}/deactivate : deactivate(If-Match)
 }
 class CategoryResource <<@Path("/categories")>> <<entrada>> {
   -categories : CategoryService
@@ -50,7 +63,8 @@ class CategoryResource <<@Path("/categories")>> <<entrada>> {
   --
   POST / : create(CreateCategoryRequest)
   GET /{id} : get(id)
-  GET / : list(parentId, cursor, limit)
+  GET / : list(parentId, cursor, limit, ids)
+  GET /tree : tree(usable, cursor, limit até 1000)
   PUT /{id} : revise(If-Match, ReviseCategoryRequest)
   PUT /{id}/parent : move(If-Match, MoveCategoryRequest)
 }
@@ -62,7 +76,7 @@ class ProductImportResource <<@Path("/products/imports")>> <<entrada>> {
   -lifecycle : Lifecycle
   --
   POST / : submit(byte[] CSV) 202 + Location
-  GET /{id} : get(id)
+  GET /{id} : get(id, lines)
 }
 class OfferResource <<@Path("/offers/{skuId}")>> <<entrada>> {
   -offers : OfferService
@@ -104,6 +118,8 @@ class StoreEligibilityResource <<@Path("/stores/{storeId}/eligibility")>> <<entr
 class "StoreEligibilityResource.EligibilityResponse" as EligibilityResponse <<record>> <<entrada>> {
   storeId : UUID
   status : SellerStatus
+  canPublish : boolean
+  visibleInStorefront : boolean
 }
 class StorefrontResource <<@Path("/storefront/{tenantId}/products/{productId}"), @PermitAll>> <<entrada>> {
   -storefront : StorefrontService
@@ -113,9 +129,23 @@ class StorefrontResource <<@Path("/storefront/{tenantId}/products/{productId}"),
   --
   GET / : get(tenantId, productId)
 }
+class SessionResource <<@Path("/me"), @Authenticated>> <<entrada>> {
+  -caller : CallerContext
+  --
+  GET / : me()
+}
+class "SessionResource.SessionResponse" as SessionResponse <<record>> <<entrada>> {
+  subject : String
+  tenantId : UUID
+  storeId : UUID
+  capabilities : List<String>
+  can : Actor.Permissions
+}
 
 class "application.ProductService" as ProductService <<serviço>> #line.dashed
+class "application.ProductActions" as ProductActions <<serviço>> #line.dashed
 class "application.ModerationService" as ModerationService <<serviço>> #line.dashed
+class "application.ModerationReasonService" as ModerationReasonService <<serviço>> #line.dashed
 class "application.CategoryService" as CategoryService <<serviço>> #line.dashed
 class "application.ProductImportService" as ProductImportService <<serviço>> #line.dashed
 class "application.OfferService" as OfferService <<serviço>> #line.dashed
@@ -133,8 +163,15 @@ package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros 
     invalidTransition() / reservationRefused() / stockConflict()
     businessRule() / accessDenied() / tenantNotAuthorized()
     invalidInput() / invalidImportFile()
-    constraintViolation() / unreadableBody() / mismatchedBody()
+    constraintViolation() / nullCharacter()
+    unreadableBody() / mismatchedBody()
     persistenceTimeout() / webApplication() / unexpected()
+  }
+  class NullCharacterGuard <<ObjectMapperCustomizer>> <<entrada>> {
+    customize(mapper)
+    --
+    texto e chave de mapa com U+0000
+    lançam Rejected, com o caminho do campo
   }
   class Problem <<record, RFC 9457>> <<exceção>> {
     type : String
@@ -144,12 +181,24 @@ package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros 
     instance : String
     errors : List<FieldError>
     reasons : List<String>
+    reasonDetails : List<ReasonDetail>
     --
     {static} MEDIA_TYPE = "application/problem+json"
   }
   class "Problem.FieldError" as FieldError <<record>> <<exceção>> {
     field : String
     message : String
+  }
+  class "Problem.ReasonDetail" as ReasonDetail <<record>> <<exceção>> {
+    code : String
+    params : List<String>
+    message : String
+  }
+  class ReasonMessages <<utilitário>> <<exceção>> {
+    {static} BUNDLE = "i18n/ReasonMessages.properties"
+    --
+    {static} resolve(reason, fallback) : String
+    {static} details(reasons, fallback) : List<ReasonDetail>
   }
   class CorrelationFilter <<@ServerRequestFilter, @ServerResponseFilter>> <<entrada>> {
     bind(request) <<preMatching>>
@@ -163,10 +212,15 @@ package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros 
 package "<$tools,scale=0.6,color=#EF6C00> Apoio (pacote privado)" as apoio <<entrada>> {
   class ProductResponses <<@ApplicationScoped>> <<entrada>> {
     -inventory : InventoryService
+    -offers : OfferService
+    -products : ProductService
+    -actions : ProductActions
     --
-    of(product) : Uni<ProductResponse>
-    ok(product) : Uni<RestResponse<ProductResponse>>
-    page(page) : Uni<ProductPage>
+    ok(actor, product) : Uni<RestResponse<ProductResponse>>
+    saved(actor, product) : Uni<ProductResponse>
+    savedOk(actor, product) : Uni<RestResponse<ProductResponse>>
+    page(actor, page) : Uni<ProductPage>
+    batch(outcomes, path) : Uni<ProductBatchResponse>
   }
   class ETags <<utilitário>> <<entrada>> {
     {static} of(version) : EntityTag
@@ -183,11 +237,14 @@ package "<$tools,scale=0.6,color=#EF6C00> Apoio (pacote privado)" as apoio <<ent
   }
   class QueryParams <<utilitário>> <<entrada>> {
     {static} uuid(value) : Optional<UUID>
+    {static} uuids(values) : List<UUID>
   }
 }
 
 ProductResource -right-> ProductService
 ModerationResource -right-> ModerationService
+ModerationReasonResource -right-> ModerationReasonService
+ModerationResource -[hidden]down- ModerationReasonResource
 CategoryResource -right-> CategoryService
 ProductImportResource -right-> ProductImportService
 OfferResource -right-> OfferService
@@ -196,6 +253,8 @@ ReservationResource -right-> ReservationService
 StoreEligibilityResource -right-> SellerEligibilityService
 StorefrontResource -right-> StorefrontService
 StoreEligibilityResource +-- EligibilityResponse
+SessionResource +-- SessionResponse
+StorefrontResource -[hidden]down- SessionResource
 
 ProductService -[hidden]right- ModerationResource
 ModerationService -[hidden]right- CategoryResource
@@ -214,7 +273,8 @@ StorefrontResource -[hidden]down- ProductResponses
 
 ProductResource ..> ProductResponses
 ModerationResource ..> ProductResponses
-ProductResponses ..> InventoryService : stockOf
+ProductResponses ..> InventoryService : stockOf (em saved e batch, a falha\nvira o estado gravado, sem OUT_OF_STOCK)
+ProductResponses ..> ProductActions : eligibility (uma por página) e of
 ProductResponses ..> ETags
 ProductResponses ..> Cursors
 Cursors ..> Page
@@ -225,6 +285,10 @@ ProductResource ..> QueryParams
 OpenApiDescriptions ..|> OASFilter
 ProblemMappers ..> Problem : produz
 Problem "1" *-- "0..*" FieldError : errors
+Problem "1" *-- "0..*" ReasonDetail : reasonDetails
+ProblemMappers ..> ReasonMessages : texto dos motivos
+ReasonMessages ..> ReasonDetail : produz
+ProblemMappers ..> NullCharacterGuard : Rejected
 
 note right of ProblemMappers
   |= Exceção |= Status |= type |
@@ -240,10 +304,14 @@ note right of ProblemMappers
   | InvalidInputException | 400 | invalid-request |
   | InvalidImportFileException | 400 | invalid-import-file |
   | ConstraintViolationException | 400 | validation-failed |
+  | NullCharacterGuard.Rejected (U+0000 em texto do corpo) | 400 | validation-failed |
   | JsonProcessingException, MismatchedInputException | 400 | malformed-body |
   | TimeoutException (Mutiny) | 503 + Retry-After: 1 | service-unavailable |
   | WebApplicationException | status original | http-{status} |
   | Exception | 500 | internal-error |
+  Na família DomainRuleViolation e em InvalidImportFileException,
+  reasonDetails traz cada motivo com o texto: o do emissor, quando ele
+  escreveu, ou o do catálogo de mensagens com os parâmetros.
 end note
 
 note bottom of ETags
@@ -254,11 +322,19 @@ note bottom of ETags
 end note
 
 note as ROLES
-  Todos os resources são @Traced(entry = true). Papéis (constantes de security.Roles):
-  leitura de produto, oferta, estoque e categoria: seller, catalog-admin e catalog-moderator;
-  escrita de produto, oferta, estoque e importação: seller; escrita de categoria: catalog-admin;
-  ModerationResource: catalog-moderator; ReservationResource: catalog-reservations;
-  StoreEligibilityResource: seller e catalog-admin; StorefrontResource: anônimo (@PermitAll),
+  Todos os resources são @Traced(entry = true). Cada endpoint exige capacidades com
+  @PermissionsAllowed (nomes de security.Capabilities; basta uma), e o papel que dá cada uma
+  fica só em security.CallerContext. Leitura de produto, oferta e estoque: MANAGE_OWN_PRODUCTS,
+  READ_TENANT_CATALOG ou MODERATE_PRODUCTS; leitura de categoria: essas e MANAGE_TAXONOMY;
+  escrita de produto, oferta, estoque e importação: MANAGE_OWN_PRODUCTS; escrita de categoria:
+  MANAGE_TAXONOMY; ModerationResource: MODERATE_PRODUCTS; ModerationReasonResource: leitura dos
+  ativos com MODERATE_PRODUCTS ou MANAGE_MODERATION_REASONS, inativos e escrita com
+  MANAGE_MODERATION_REASONS; ReservationResource: MANAGE_RESERVATIONS; StoreEligibilityResource:
+  MANAGE_OWN_PRODUCTS (a própria loja) ou READ_SELLER_ELIGIBILITY (catalog-admin e catalog-moderator);
+  StatsResource: MANAGE_OWN_PRODUCTS (/store), MODERATE_PRODUCTS (/moderation e /moderation/queue)
+  e MANAGE_TAXONOMY (/categories);
+  SessionResource: qualquer usuário autenticado (@Authenticated; papel desconhecido sai sem
+  capacidades); StorefrontResource: anônimo (@PermitAll),
   estoque lido do banco e produto com ofertas via cache.StorefrontCache.
   Colaboradores de outros pacotes: security.CallerContext, config.CatalogConfig,
   observability.Lifecycle e InventoryLatency, cache.StorefrontCache, observability.Correlation

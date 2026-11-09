@@ -286,7 +286,7 @@ export function productLifecycle(data) {
     if (!step(resumed, resumed.status === 200 && jsonOf(resumed, 'status') === 'ACTIVE', 'product_lifecycle: retomada 200')) return;
     outcomes.add(1, { outcome: 'product_approved' });
   } else {
-    const rejected = api(data, 'moderator', 'POST', `/moderation/products/${id}/reject`, { reason: 'Carga: recusa de teste' },
+    const rejected = api(data, 'moderator', 'POST', `/moderation/products/${id}/reject`, { note: 'Carga: recusa de teste' },
       'POST /moderation/products/{id}/reject', EXPECT_OK);
     if (!step(rejected, rejected.status === 200 && jsonOf(rejected, 'status') === 'DRAFT', 'product_lifecycle: recusa 200')) return;
     outcomes.add(1, { outcome: 'product_rejected' });
@@ -314,7 +314,7 @@ export function moderation(data) {
   const ifMatch = { 'If-Match': etagOf(current) };
   const res = unblock
     ? api(data, 'moderator', 'POST', `/moderation/products/${product.id}/unblock`, null, 'POST /moderation/products/{id}/unblock', EXPECT_OK, ifMatch)
-    : api(data, 'moderator', 'POST', `/moderation/products/${product.id}/block`, { reason: 'Carga: bloqueio de teste' },
+    : api(data, 'moderator', 'POST', `/moderation/products/${product.id}/block`, { note: 'Carga: bloqueio de teste' },
       'POST /moderation/products/{id}/block', EXPECT_OK, ifMatch);
   const expected = unblock ? 'PENDING_MODERATION' : 'BLOCKED';
   if (step(res, res.status === 200 && jsonOf(res, 'status') === expected, unblock ? 'moderation: desbloqueio 200' : 'moderation: bloqueio 200')) {

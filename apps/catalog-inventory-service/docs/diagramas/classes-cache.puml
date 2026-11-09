@@ -1,6 +1,6 @@
 @startuml classes-cache
 !include ../../../../docs/diagramas/tema-catalogo.iuml
-title $I_REDIS Pacote cache: Redis com gerações, decorators de invalidação das portas, vitrine e taxonomia em cache
+title $I_REDIS Pacote cache: Redis com gerações, decorators de invalidação das portas, vitrine, taxonomia e motivos de moderação em cache
 
 hide empty members
 hide <<entrada>> stereotype
@@ -14,6 +14,7 @@ interface "application.ProductRepository" as ProductRepository <<porta>> #line.d
 interface "application.OfferRepository" as OfferRepository <<porta>> #line.dashed
 interface "application.CategoryRepository" as CategoryRepository <<porta>> #line.dashed
 interface "application.SellerEligibilityRepository" as SellerEligibilityRepository <<porta>> #line.dashed
+interface "application.ModerationReasonRepository" as ModerationReasonRepository <<porta>> #line.dashed
 class "application.StorefrontService.StorefrontProduct" as StorefrontProduct <<record>> <<serviço>> #line.dashed
 class "CatalogBeans" as CatalogBeans <<infra>> #line.dashed
 class "api.StorefrontResource" as StorefrontResource <<entrada>> #line.dashed
@@ -50,9 +51,17 @@ class "<$broom,scale=0.55,color=#6A1B9A> SellerCacheInvalidation" as SellerCache
   @Inject cache : CatalogCache
   --
   apply(consumer, verdict) : invalida a loja se o veredito for APPLIED ou a escrita falhar
-  <<statusOf delega>>
+  <<statusOf e statusesOf delegam>>
 }
 
+class "<$broom,scale=0.55,color=#6A1B9A> ModerationReasonCacheInvalidation" as ModerationReasonCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
+  @Inject @Delegate delegate : ModerationReasonRepository
+  @Inject cache : CatalogCache
+  --
+  insert(reason) : invalida os motivos do tenant
+  update(reason, expectedVersion) : invalida os motivos do tenant
+  <<leituras delegam>>
+}
 class CacheInvalidation <<utilitário>> {
   {static} PRIORITY = 100
   {static} after(cache, write, invalidate) : Uni<T>
@@ -62,6 +71,7 @@ class CacheInvalidation <<utilitário>> {
 class "<$redis,scale=0.4,color=#D82C20> CatalogCache" as CatalogCache <<@ApplicationScoped, @Traced>> <<saida>> {
   {static} STOREFRONT = "storefront"
   {static} TAXONOMY = "taxonomy"
+  {static} MODERATION_REASONS = "moderation-reasons"
   {static} REQUESTS, INVALIDATIONS, WRITES : métricas catalog.cache.*
   {static} READ, INVALIDATE : Script
   -enabled : boolean
@@ -77,6 +87,7 @@ class "<$redis,scale=0.4,color=#D82C20> CatalogCache" as CatalogCache <<@Applica
   productChanged(tenantId, productId, storeId) : Uni<Void>
   storeChanged(tenantId, storeId) : Uni<Void>
   taxonomyChanged(tenantId) : Uni<Void>
+  moderationReasonsChanged(tenantId) : Uni<Void>
   {static} detach(write)
 }
 class "CatalogCache.Lookup" as Lookup <<record>> {
@@ -102,6 +113,8 @@ class CacheKeys <<utilitário>> {
   {static} storeGenerationPrefix(tenantId) : String
   {static} storeGeneration(tenantId, storeId) : String
   {static} taxonomyGeneration(tenantId) : String
+  {static} moderationReasonsGeneration(tenantId) : String
+  {static} moderationReasons(tenantId) : String
   {static} productStore(tenantId, productId) : String
   {static} storefront(tenantId, productId) : String
   {static} chain(tenantId, categoryId) : String
@@ -127,6 +140,18 @@ class "TaxonomyCache.Cached" as Cached <<privada>> <<saida>> {
   children(tenantId, parentId, afterCode, limit) : cache da página
   <<idByCode, descendantAttributeCodes, subtreeHeight, insert, update e move delegam>>
 }
+class "<$gavel,scale=0.55,color=#6A1B9A> ModerationReasonCache" as ModerationReasonCache <<@ApplicationScoped>> <<saida>> {
+  -cache : CatalogCache
+  -json : ObjectMapper
+  --
+  over(reasons) : ModerationReasonRepository
+}
+class "ModerationReasonCache.Cached" as ReasonsCached <<privada>> <<saida>> {
+  -reasons : ModerationReasonRepository
+  --
+  catalog(tenantId) : cache do catálogo do tenant
+  <<findByCode, insert e update delegam>>
+}
 class Snapshots <<final, @RegisterForReflection>> {
   Storefront(product : ProductSnapshot, offers : List<OfferSnapshot>)
   ProductSnapshot(id, tenantId, storeId, categoryId, currency, title, description, attributes, status, version, createdAt, updatedAt, skus : List<SkuSnapshot>)
@@ -137,6 +162,8 @@ class Snapshots <<final, @RegisterForReflection>> {
   Categories(items : List<CategorySnapshot>)
   CategorySnapshot(id, tenantId, ancestry, code, name, attributes : List<AttributeSnapshot>, active, version)
   AttributeSnapshot(code, label, type, required, variant, options)
+  ModerationReasons(items : List<ModerationReasonSnapshot>)
+  ModerationReasonSnapshot(tenantId, code, label, decisions, active, position, version, createdAt, updatedAt)
   --
   <<cada record tem of(...) e restore()>>
 }
@@ -146,6 +173,7 @@ OfferRepository <|.. OfferCacheInvalidation
 CategoryRepository <|.. CategoryCacheInvalidation
 SellerEligibilityRepository <|.. SellerCacheInvalidation
 CategoryRepository <|.. Cached
+ModerationReasonRepository <|.. ReasonsCached
 
 ProductCacheInvalidation ..> CacheInvalidation : after
 OfferCacheInvalidation ..> CacheInvalidation : after
@@ -165,6 +193,14 @@ StorefrontCache ..> Snapshots : serializa Storefront
 TaxonomyCache ..> Snapshots : serializa Categories
 TaxonomyCache +-- Cached
 TaxonomyCache ..> Cached : over() cria
+ModerationReasonCache --> CatalogCache
+ModerationReasonCache ..> CacheKeys
+ModerationReasonCache ..> Snapshots : serializa ModerationReasons
+ModerationReasonCache +-- ReasonsCached
+ModerationReasonCache ..> ReasonsCached : over() cria
+ModerationReasonRepository <|.. ModerationReasonCacheInvalidation
+ModerationReasonCacheInvalidation ..> CacheInvalidation : after
+ModerationReasonCacheInvalidation --> CatalogCache
 StorefrontCache ..> StorefrontProduct
 CatalogCache --> Redis
 CatalogCache ..> CatalogConfig : cache()
@@ -175,6 +211,7 @@ CatalogCache ..> CacheKeys
 
 StorefrontResource ..> StorefrontCache : get(load)
 CatalogBeans ..> TaxonomyCache : over(CategoryRepository)
+CatalogBeans ..> ModerationReasonCache : over(ModerationReasonRepository)
 
 ProductRepository -[hidden]right- OfferRepository
 OfferRepository -[hidden]right- CategoryRepository
@@ -188,7 +225,8 @@ end note
 
 note right of CatalogBeans
   Passa o resultado de TaxonomyCache.over() para CategoryService, ProductService,
-  ModerationService e ProductImportService. Com o cache desligado, over() devolve a própria porta.
+  ModerationService e ProductImportService, e o de ModerationReasonCache.over() para ModerationService e
+  ModerationReasonService. Com o cache desligado, over() devolve a própria porta.
 end note
 
 note bottom of SellerCacheInvalidation

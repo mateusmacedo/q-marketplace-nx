@@ -16,6 +16,7 @@ import io.vertx.mutiny.sqlclient.Pool;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -61,17 +62,19 @@ class TelemetryTest {
     final List<Logged> logged = new CopyOnWriteArrayList<>();
     final Handler capture = new Handler() {
         @Override
-        public void publish(LogRecord record) {
-            if (record instanceof ExtLogRecord ext)
-                logged.add(new Logged(ext.getFormattedMessage(), ext.getMdcCopy()));
+        public void publish(LogRecord logRecord) {
+            if (logRecord instanceof ExtLogRecord ext)
+                logged.add(new Logged(ext.getMessage(), ext.getMdcCopy()));
         }
 
         @Override
         public void flush() {
+            // The capture handler does not buffer log entries.
         }
 
         @Override
         public void close() {
+            // The capture handler does not own external resources.
         }
     };
 
@@ -185,6 +188,29 @@ class TelemetryTest {
     }
 
     @Test
+    void queueReadsTheEligibilityOfEveryStoreOfThePageInOneQuery() {
+        Api api = new Api().withCategory();
+        for (int i = 0; i < 3; i++) {
+            String owner = TestTokens.seller(api.tenant, UUID.randomUUID());
+            String id = as(owner).body(api.productBody("Acme", sku("CAM-P", "P", "50"))).post("/products").then()
+                    .statusCode(201).extract().path("id");
+            String skuId = as(owner).get("/products/" + id).then().extract().path("skus[0].id");
+            as(owner).body(Api.price("50")).put("/offers/" + skuId).then().statusCode(201);
+            as(owner).post("/products/" + id + "/submit").then().statusCode(200);
+        }
+        String traceId = newTraceId();
+        as(api.moderator).header("traceparent", traceParent(traceId)).get("/moderation/products").then()
+                .statusCode(200);
+
+        SpanData handler = spans.await(span -> span.getTraceId().equals(traceId)
+                && span.getName().equals("ModerationResource.queue"));
+        spans.await(child(handler, "PgSellerEligibilityRepository.statusesOf"));
+        assertEquals(1, spans.all(child(handler, "PgSellerEligibilityRepository.statusesOf")).size(),
+                "uma consulta para as três lojas da página");
+        assertTrue(spans.all(child(handler, "PgSellerEligibilityRepository.statusOf")).isEmpty());
+    }
+
+    @Test
     void parallelReadsStaySiblingsAndTheConsumerIsAnEntry() {
         Api api = new Api().withCategory().approvedStore();
         String productId = api.activeProduct(sku("CAM-V", "P", "50"));
@@ -243,7 +269,9 @@ class TelemetryTest {
                 .then().statusCode(201).extract().path("id");
         assertEquals(id, attribute(spans.await(server(traceId, "POST /inventory/reservations")),
                 "marketplace.reservation.id"), "a criação leva a chave da reserva");
-        Thread.sleep(1200);
+        Awaitility.await().atMost(WAIT).until(() -> scalar(pool,
+                "SELECT count(*) AS n FROM inventory_reservation WHERE id = $1 AND expires_at <= now()",
+                "n", Long.class, UUID.fromString(id)) > 0);
 
         onVertx(sweeper::sweep);
 
@@ -260,7 +288,7 @@ class TelemetryTest {
     }
 
     @Test
-    void importProcessingIsAStepWithTheImportKey() throws Exception {
+    void importProcessingIsAStepWithTheImportKey() {
         Api api = new Api().withCategory();
         String traceId = newTraceId();
         String location = ProductImportResourceTest.csv(api.seller, ProductImportResourceTest.HEADER + "\n"
@@ -293,7 +321,7 @@ class TelemetryTest {
                 adapter.getName().startsWith("PgOutbox.") && span.getSpanId().equals(adapter.getParentSpanId()))
                 .stream().flatMap(adapter -> queriesOf(adapter).stream())
                 .collect(java.util.stream.Collectors.toSet()).containsAll(List.of("SELECT", "SELECT outbox_event")));
-        assertTrue(relay.getAttributes().get(AttributeKey.longKey("marketplace.outbox.published")) != null,
+        assertNotNull(relay.getAttributes().get(AttributeKey.longKey("marketplace.outbox.published")),
                 "a execução registra quantos eventos publicou");
     }
 
@@ -311,7 +339,7 @@ class TelemetryTest {
 
     Logged awaitLog(java.util.function.Predicate<Logged> match) {
         return Awaitility.await().atMost(WAIT).until(() -> logged.stream().filter(match).findFirst().orElse(null),
-                line -> line != null);
+                Objects::nonNull);
     }
 
     static java.util.function.Predicate<SpanData> server(String traceId, String name) {

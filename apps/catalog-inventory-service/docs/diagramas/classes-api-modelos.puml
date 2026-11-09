@@ -77,8 +77,36 @@ package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModel
     createdAt : Instant
     updatedAt : Instant
     skus : List<SkuResponse>
+    lastRejection : RejectionResponse
+    actions : List<String> (aberta)
+    blockedActions : List<BlockedActionResponse>
+    saveReturnsToModeration : boolean
+    publishingIssues : List<PublishingIssueResponse> (só na leitura de um produto)
     --
-    {static} of(product, stock) : ProductResponse
+    {static} of(product, readings) : ProductResponse
+  }
+  class BlockedActionResponse <<record>> <<resposta>> {
+    action : String
+    reason : Problem.ReasonDetail
+  }
+  class PublishingIssueResponse <<record>> <<resposta>> {
+    code : String
+    params : List<String>
+    message : String
+    field : String
+  }
+  class ProductCheckRequest <<record>> <<requisicao>> {
+    categoryId : UUID
+    attributes : Map<String, String>
+  }
+  class ProductCheckResponse <<record>> <<resposta>> {
+    publishingIssues : List<PublishingIssueResponse>
+    categoryChange : CategoryChangeResponse
+  }
+  class CategoryChangeResponse <<record>> <<resposta>> {
+    removedAttributes : List<RemovedAttributeResponse>
+    newRequired : List<NewRequiredAttributeResponse>
+    blockingSkus : List<BlockingSkuResponse>
   }
   class ProductPage <<record>> <<resposta>> {
     items : List<ProductResponse>
@@ -89,10 +117,25 @@ package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModel
     from : ProductStatus
     to : ProductStatus
     actor : String
-    reason : String
+    reason : String (derivado)
+    reasonCodes : List<String>
+    reasonLabels : List<ReasonLabelResponse>
+    note : String
     at : Instant
     --
     {static} of(change) : StatusChangeResponse
+  }
+  class RejectionResponse <<record>> <<resposta>> {
+    reason : String (derivado)
+    reasonCodes : List<String>
+    reasonLabels : List<ReasonLabelResponse>
+    note : String
+    actor : String
+    at : Instant
+  }
+  class ReasonLabelResponse <<record>> <<resposta>> {
+    code : String
+    label : String (rótulo da época)
   }
 }
 
@@ -184,7 +227,14 @@ SkuRequest --> DimensionsDto
 ReviseSkuRequest --> DimensionsDto
 SkuResponse --> DimensionsDto
 ProductResponse "1" *-- "0..*" SkuResponse
+ProductResponse "1" *-- "0..1" RejectionResponse : lastRejection
+RejectionResponse "1" *-- "0..*" ReasonLabelResponse
+StatusChangeResponse "1" *-- "0..*" ReasonLabelResponse
 ProductPage "1" *-- "0..*" ProductResponse
+ProductResponse "1" *-- "0..*" BlockedActionResponse
+ProductResponse "1" *-- "0..*" PublishingIssueResponse
+ProductCheckResponse "1" *-- "0..*" PublishingIssueResponse
+ProductCheckResponse "1" *-- "0..1" CategoryChangeResponse
 CreateCategoryRequest "1" *-- "0..*" AttributeDto
 ReviseCategoryRequest "1" *-- "0..*" AttributeDto
 CategoryResponse "1" *-- "0..*" AttributeDto

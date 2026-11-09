@@ -178,6 +178,48 @@
         }
       }
     },
+    "reasonCodes": {
+      "type": "array",
+      "description": "Códigos dos motivos prontos da moderação, do catálogo do tenant (GET /moderation/reasons), na ordem do catálogo no momento da decisão; vazio fora da rejeição e do bloqueio ou quando só há complemento livre.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]+(-[a-z]+)*$"
+      },
+      "uniqueItems": true
+    },
+    "reasonLabels": {
+      "type": "array",
+      "description": "Motivos prontos da decisão com o rótulo que tinham nela, na ordem de reasonCodes; renomear ou desativar o motivo depois não muda o que foi publicado. Vazio fora da rejeição e do bloqueio. Ausente nos eventos publicados antes deste campo.",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "label"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z]+(-[a-z]+)*$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      }
+    },
+    "note": {
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Complemento livre do moderador na rejeição ou no bloqueio; nulo sem complemento e nas demais transições. Ausente nos eventos publicados antes deste campo."
+    },
     "ProductCreated": {
       "allOf": [
         {
@@ -267,6 +309,7 @@
             "from",
             "to",
             "reason",
+            "reasonCodes",
             "visible"
           ],
           "properties": {
@@ -321,11 +364,20 @@
                   "type": "null"
                 }
               ],
-              "description": "Presente em rejeição e bloqueio."
+              "description": "Presente em rejeição e bloqueio. Texto único derivado dos rótulos da época e do complemento, mantido para os consumidores da v1; passando de 500 caracteres, termina abreviado com reticências, e o conteúdo inteiro está em reasonLabels e note."
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/reasonCodes"
             },
             "visible": {
               "type": "boolean",
               "description": "O novo estado aparece na vitrine quando a loja está aprovada."
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            },
+            "reasonLabels": {
+              "$ref": "#/$defs/reasonLabels"
             }
           }
         }
@@ -349,7 +401,8 @@
           "required": [
             "productId",
             "storeId",
-            "reason"
+            "reason",
+            "reasonCodes"
           ],
           "properties": {
             "productId": {
@@ -362,7 +415,17 @@
             },
             "reason": {
               "type": "string",
-              "maxLength": 500
+              "maxLength": 500,
+              "description": "Texto único derivado dos rótulos da época e do complemento, mantido para os consumidores da v1; passando de 500 caracteres, termina abreviado com reticências, e o conteúdo inteiro está em reasonLabels e note."
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/reasonCodes"
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            },
+            "reasonLabels": {
+              "$ref": "#/$defs/reasonLabels"
             }
           }
         }

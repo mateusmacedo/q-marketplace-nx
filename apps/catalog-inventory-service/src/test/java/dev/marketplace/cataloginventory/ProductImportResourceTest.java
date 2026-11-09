@@ -75,6 +75,9 @@ class ProductImportResourceTest {
         assertEquals(List.of("CREATED", "CREATED", "UPDATED", "FAILED"), result.getList("lines.outcome"));
         assertEquals(List.of(2, 3, 4, 5), result.getList("lines.lineNumber"));
         assertEquals("invalid-row", result.getString("lines[3].code"));
+        assertEquals("invalid-row", result.getString("lines[3].reasonDetails[0].code"));
+        assertEquals(result.getString("lines[3].message"), result.getString("lines[3].reasonDetails[0].message"));
+        assertNull(result.get("lines[0].reasonDetails"));
         assertEquals(4, result.getInt("totalLines"));
         assertEquals(4, result.getInt("processedLines"));
         assertEquals(2, result.getInt("counts.created"));
@@ -82,6 +85,11 @@ class ProductImportResourceTest {
         assertEquals(1, result.getInt("counts.failed"));
         assertNotNull(result.getString("finishedAt"));
         assertEquals(existing, result.getString("lines[2].productId"));
+        as(api.seller).queryParam("lines", false).get(location).then().statusCode(200)
+                .body("status", is("COMPLETED")).body("totalLines", is(4)).body("processedLines", is(4))
+                .body("counts.created", is(2)).body("counts.updated", is(1)).body("counts.unchanged", is(0))
+                .body("counts.failed", is(1)).body("finishedAt", is(result.getString("finishedAt")))
+                .body("$", hasKey("lines")).body("lines", nullValue());
 
         String imported = result.getString("lines[0].productId");
         assertEquals(imported, result.getString("lines[1].productId"));
@@ -106,7 +114,10 @@ class ProductImportResourceTest {
         csv(api.seller, "sku,price\nA,1\n").post("/products/imports").then().statusCode(400)
                 .contentType(containsString("application/problem+json"))
                 .body("type", endsWith("/invalid-import-file"))
-                .body("reasons", hasItems("unknown-column:sku", "missing-column:product_ref"));
+                .body("reasons", hasItems("unknown-column:sku", "missing-column:product_ref"))
+                .body("reasonDetails.find { it.code == 'unknown-column' }.params", contains("sku"))
+                .body("reasonDetails.find { it.code == 'unknown-column' }.message",
+                        is("A coluna sku não faz parte do modelo."));
         csv(api.seller, HEADER + "\n").post("/products/imports").then().statusCode(400)
                 .body("reasons", contains("no-rows"));
         given().auth().oauth2(api.seller).contentType("text/csv").body(new byte[] { 'a', (byte) 0xC3, 0x28 })
@@ -114,12 +125,46 @@ class ProductImportResourceTest {
     }
 
     @Test
+    void storeImportsAreListedNewestFirstWithCountsByCursor() {
+        Api api = new Api().withCategory();
+        String first = upload(api.seller, HEADER + "\n" + line("basica", "LST-P", "P", "", "59.90", 5) + "\n"
+                + "outra,camisetas,Regata,,marca=Acme,REG-P,tamanho=P,true,3,25,30,200,BRL,,abc,1\n");
+        processed(api.seller, first);
+        String second = upload(api.seller, HEADER + "\n" + line("x", "LST-M", "M", "", "10", 1));
+        String third = upload(api.seller, HEADER + "\n" + line("y", "LST-G", "G", "", "10", 1));
+        upload(api.otherStoreSeller(), HEADER + "\n" + line("z", "LST-X", "P", "", "10", 1));
+
+        JsonPath page = as(api.seller).queryParam("limit", 2).get("/products/imports").then().statusCode(200)
+                .extract().jsonPath();
+        assertEquals(List.of(Api.idFrom(third), Api.idFrom(second)), page.getList("items.id"));
+        assertNull(page.get("items[0].lines"));
+        String cursor = page.getString("nextCursor");
+        JsonPath last = as(api.seller).queryParam("limit", 2).queryParam("cursor", cursor).get("/products/imports")
+                .then().statusCode(200).body("nextCursor", nullValue()).extract().jsonPath();
+        assertEquals(List.of(Api.idFrom(first)), last.getList("items.id"));
+        assertEquals("COMPLETED", last.getString("items[0].status"));
+        assertEquals(2, last.getInt("items[0].totalLines"));
+        assertEquals(2, last.getInt("items[0].processedLines"));
+        assertEquals(1, last.getInt("items[0].counts.created"));
+        assertEquals(1, last.getInt("items[0].counts.failed"));
+        assertNotNull(last.getString("items[0].finishedAt"));
+
+        as(api.seller).queryParam("cursor", "!!").get("/products/imports").then().statusCode(400);
+        as(api.seller).queryParam("limit", 0).get("/products/imports").then().statusCode(400);
+        as(api.admin).get("/products/imports").then().statusCode(403);
+    }
+
+    @Test
     void onlyTheSubmittingStoreSeesTheImport() {
         Api api = new Api();
         String location = upload(api.seller, HEADER + "\n" + line("x", "X-1", "P", "", "10", 1));
         as(api.otherStoreSeller()).get(location).then().statusCode(404);
+        as(api.otherStoreSeller()).queryParam("lines", false).get(location).then().statusCode(404);
         as(api.otherTenantSeller()).get(location).then().statusCode(404);
         as(api.admin).get(location).then().statusCode(403);
+        as(api.seller).queryParam("lines", false).get(location).then().statusCode(200).body("status", is("PENDING"))
+                .body("processedLines", is(0)).body("counts.created", is(0)).body("lines", nullValue());
+        as(api.seller).queryParam("lines", true).get(location).then().statusCode(200).body("lines", empty());
         csv(api.admin, HEADER + "\n" + line("x", "X-1", "P", "", "10", 1)).post("/products/imports").then()
                 .statusCode(403);
         as(api.seller).get(location).then().statusCode(200).body("totalLines", is(1));

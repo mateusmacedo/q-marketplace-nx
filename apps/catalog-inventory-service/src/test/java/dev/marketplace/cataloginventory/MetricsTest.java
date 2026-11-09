@@ -32,7 +32,7 @@ class MetricsTest {
         api.approve(toApprove).then().statusCode(200);
         String toReject = api.createProduct(sku("MOD-R", "M", "50"));
         api.submit(toReject).then().statusCode(200);
-        as(api.moderator).body("{\"reason\":\"Fotos fora do padrão\"}")
+        as(api.moderator).body("{\"note\":\"Fotos fora do padrão\"}")
                 .post("/moderation/products/" + toReject + "/reject").then().statusCode(200);
         assertEquals(approved + 1, decisions("approved"));
         assertEquals(rejected + 1, decisions("rejected"));

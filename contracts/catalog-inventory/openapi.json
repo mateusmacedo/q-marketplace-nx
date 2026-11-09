@@ -1,29 +1,65 @@
 {
   "openapi" : "3.1.0",
-  "tags" : [ {
-    "name" : "Categories",
-    "description" : "Árvore de categorias e atributos do tenant"
-  }, {
-    "name" : "Inventory",
-    "description" : "Saldo por SKU e reservas de estoque"
-  }, {
-    "name" : "Moderation",
-    "description" : "Trust & Safety: fila, aprovação, rejeição e bloqueio de produtos"
-  }, {
-    "name" : "Offers",
-    "description" : "Preço de/por e promoções de cada SKU da loja autenticada"
-  }, {
-    "name" : "Products",
-    "description" : "Conteúdo, SKUs e publicação dos produtos da loja autenticada"
-  }, {
-    "name" : "Storefront",
-    "description" : "Consulta pública e autoritativa de produtos, com preço vigente e disponibilidade"
-  }, {
-    "name" : "Stores",
-    "description" : "Situação KYB/KYC da loja, recebida do contexto KYB/KYC"
-  } ],
   "components" : {
     "schemas" : {
+      "ActivityPointResponse" : {
+        "description" : "Transições num balde da série",
+        "type" : "object",
+        "properties" : {
+          "period" : {
+            "$ref" : "#/components/schemas/LocalDate",
+            "description" : "Início do balde",
+            "type" : "string"
+          },
+          "submitted" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Entradas na fila de moderação: envio, edição de produto publicado e desbloqueio"
+          },
+          "approved" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "rejected" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "blocked" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "ActivityResponse" : {
+        "type" : "object",
+        "properties" : {
+          "granularity" : {
+            "type" : "string",
+            "enum" : [ "day", "month", "year" ]
+          },
+          "from" : {
+            "$ref" : "#/components/schemas/LocalDate",
+            "description" : "Primeiro dia do primeiro balde",
+            "type" : "string"
+          },
+          "to" : {
+            "$ref" : "#/components/schemas/LocalDate",
+            "description" : "Último dia do último balde",
+            "type" : "string"
+          },
+          "timeZone" : {
+            "type" : "string",
+            "description" : "Fuso dos baldes"
+          },
+          "points" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ActivityPointResponse"
+            },
+            "description" : "Um ponto por balde, inclusive sem transição"
+          }
+        }
+      },
       "AdjustStockRequest" : {
         "type" : "object",
         "required" : [ "onHand" ],
@@ -72,6 +108,158 @@
       "AttributeType" : {
         "type" : "string",
         "enum" : [ "TEXT", "INTEGER", "DECIMAL", "BOOLEAN", "OPTION" ]
+      },
+      "BatchItemRequest" : {
+        "type" : "object",
+        "required" : [ "id" ],
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "version" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Versão lida do registro; faz o papel do If-Match do endpoint de um item, e ausente dispensa a checagem"
+          }
+        }
+      },
+      "BatchOutcome" : {
+        "description" : "SUCCEEDED quando o item foi gravado; FAILED com o problem que o endpoint de um item responderia",
+        "type" : "string",
+        "enum" : [ "SUCCEEDED", "FAILED" ]
+      },
+      "BlockedActionResponse" : {
+        "description" : "Ação que vale no status e para o chamador, mas que um motivo impede agora; o cliente a mostra desabilitada, com o motivo",
+        "type" : "object",
+        "properties" : {
+          "action" : {
+            "type" : "string",
+            "description" : "Código da ação, como em actions"
+          },
+          "reason" : {
+            "$ref" : "#/components/schemas/ReasonDetail",
+            "description" : "Motivo, no formato de reasonDetails do corpo de erro",
+            "type" : "object"
+          }
+        }
+      },
+      "BlockingSkuResponse" : {
+        "description" : "SKU cuja variação a categoria nova não tem ou não aceita; impede a troca, que a gravação recusaria com invalid-attributes",
+        "type" : "object",
+        "properties" : {
+          "sellerSku" : {
+            "type" : "string"
+          },
+          "reasons" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReasonDetail"
+            },
+            "description" : "Motivos, no formato de reasonDetails do corpo de erro"
+          }
+        }
+      },
+      "CategoryAncestor" : {
+        "description" : "Categoria no caminho, da raiz até o pai",
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CategoryBatchAction" : {
+        "type" : "string",
+        "enum" : [ "ACTIVATE", "DEACTIVATE", "DELETE" ]
+      },
+      "CategoryBatchRequest" : {
+        "description" : "Ação do administrador em lote, com as regras do endpoint de um item",
+        "type" : "object",
+        "required" : [ "action", "items" ],
+        "properties" : {
+          "action" : {
+            "$ref" : "#/components/schemas/CategoryBatchAction"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BatchItemRequest"
+            },
+            "minItems" : 1,
+            "maxItems" : 100
+          }
+        }
+      },
+      "CategoryBatchResponse" : {
+        "type" : "object",
+        "properties" : {
+          "results" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryBatchResult"
+            }
+          }
+        }
+      },
+      "CategoryBatchResult" : {
+        "description" : "Desfecho de uma categoria do lote, na posição em que veio no pedido",
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "outcome" : {
+            "$ref" : "#/components/schemas/BatchOutcome"
+          },
+          "active" : {
+            "type" : [ "boolean", "null" ],
+            "description" : "Situação nova; ausente na falha e na exclusão"
+          },
+          "version" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Versão nova, para o próximo If-Match; ausente na falha e na exclusão"
+          },
+          "problem" : {
+            "description" : "Problema que o endpoint de um item responderia; ausente no sucesso",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Problem"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
+      },
+      "CategoryChangeResponse" : {
+        "description" : "Efeito de trocar a categoria, pela regra que a gravação aplica",
+        "type" : "object",
+        "properties" : {
+          "removedAttributes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/RemovedAttributeResponse"
+            }
+          },
+          "newRequired" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NewRequiredAttributeResponse"
+            }
+          },
+          "blockingSkus" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BlockingSkuResponse"
+            }
+          }
+        }
       },
       "CategoryPage" : {
         "type" : "object",
@@ -123,9 +311,50 @@
           "effectiveAttributes" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/AttributeDto"
+              "$ref" : "#/components/schemas/EffectiveAttributeDto"
             },
-            "description" : "Atributos próprios mais os herdados dos ancestrais"
+            "description" : "Atributos herdados dos ancestrais, da raiz para baixo, e depois os próprios"
+          },
+          "ancestors" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryAncestor"
+            },
+            "description" : "Caminho da raiz até o pai; vazio na raiz"
+          },
+          "level" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Nível na árvore: 1 na raiz"
+          },
+          "childCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Subcategorias diretas; só a categoria sem nenhuma pode ser excluída"
+          }
+        }
+      },
+      "CategoryStatsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "roots" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Categorias sem pai"
+          },
+          "inactive" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Categorias desativadas, sem contar as que só têm um ancestral inativo"
+          },
+          "withProducts" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Categorias com algum produto, inclusive arquivado"
           }
         }
       },
@@ -147,9 +376,35 @@
           "active" : {
             "type" : "boolean"
           },
+          "usable" : {
+            "type" : "boolean",
+            "description" : "Falso quando a categoria ou um ancestral está inativo"
+          },
           "version" : {
             "type" : "integer",
             "format" : "int64"
+          },
+          "ancestors" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryAncestor"
+            },
+            "description" : "Caminho da raiz até o pai; vazio na raiz"
+          },
+          "level" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Nível na árvore: 1 na raiz"
+          },
+          "childCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Subcategorias diretas"
+          },
+          "attributeCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Atributos próprios, sem os herdados"
           }
         }
       },
@@ -184,6 +439,39 @@
           }
         },
         "required" : [ "code", "name" ]
+      },
+      "CreateModerationReasonRequest" : {
+        "description" : "Motivo novo, ativo; sem position, entra no fim da lista",
+        "type" : "object",
+        "required" : [ "code", "label", "decisions" ],
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Código estável em kebab-case, só com letras; não muda depois",
+            "pattern" : "^[a-z]+(-[a-z]+)*$",
+            "maxLength" : 60
+          },
+          "label" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 120
+          },
+          "decisions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ModerationDecision"
+            },
+            "description" : "REJECT, BLOCK ou as duas",
+            "minItems" : 1,
+            "maxItems" : 2
+          },
+          "position" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "maximum" : 9999,
+            "minimum" : 0
+          }
+        }
       },
       "CreateProductRequest" : {
         "type" : "object",
@@ -246,6 +534,25 @@
         },
         "required" : [ "items" ]
       },
+      "DecisionRequest" : {
+        "description" : "Motivo da rejeição ou do bloqueio: ao menos um motivo pronto ativo do catálogo do tenant ou o complemento. O histórico guarda os códigos, a cópia dos rótulos da época e o complemento separados",
+        "type" : "object",
+        "properties" : {
+          "reasonCodes" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string",
+              "pattern" : "\\S"
+            },
+            "description" : "Códigos de GET /moderation/reasons, ativos e válidos para a decisão"
+          },
+          "note" : {
+            "type" : [ "string", "null" ],
+            "description" : "Complemento livre; o limite vale só para ele, com quantos motivos houver",
+            "maxLength" : 500
+          }
+        }
+      },
       "DimensionsDto" : {
         "type" : "object",
         "required" : [ "heightCm", "widthCm", "lengthCm", "weightGrams" ],
@@ -266,6 +573,39 @@
             "type" : "integer",
             "format" : "int32",
             "exclusiveMinimum" : 0
+          }
+        }
+      },
+      "EffectiveAttributeDto" : {
+        "description" : "Atributo efetivo, com a categoria que o define: a própria ou um ancestral",
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "type" : {
+            "$ref" : "#/components/schemas/AttributeType"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "variant" : {
+            "type" : "boolean",
+            "description" : "Valor pertence a cada SKU (ex.: cor, tamanho)"
+          },
+          "options" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "categoryId" : {
+            "$ref" : "#/components/schemas/UUID",
+            "description" : "Categoria que define o atributo",
+            "type" : "string"
           }
         }
       },
@@ -302,6 +642,14 @@
           },
           "status" : {
             "$ref" : "#/components/schemas/SellerStatus"
+          },
+          "canPublish" : {
+            "type" : "boolean",
+            "description" : "Produtos da loja podem ser aprovados e reativados"
+          },
+          "visibleInStorefront" : {
+            "type" : "boolean",
+            "description" : "Produtos ativos da loja aparecem na vitrine"
           }
         }
       },
@@ -379,12 +727,34 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "reasonDetails" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "$ref" : "#/components/schemas/ReasonDetail"
+            },
+            "description" : "Motivos da recusa de regra de negócio, no formato de reasonDetails do corpo de erro; só em FAILED"
           }
         }
       },
       "ImportOutcome" : {
         "type" : "string",
         "enum" : [ "CREATED", "UPDATED", "UNCHANGED", "FAILED" ]
+      },
+      "ImportPage" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ImportSummaryResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Cursor opaco da próxima página; ausente na última"
+          }
+        }
       },
       "ImportResponse" : {
         "type" : "object",
@@ -430,17 +800,90 @@
             } ]
           },
           "lines" : {
-            "type" : "array",
+            "type" : [ "array", "null" ],
             "items" : {
               "$ref" : "#/components/schemas/ImportLineResponse"
             },
-            "description" : "Resultados em ordem de linha"
+            "description" : "Resultados em ordem de linha; nulo com lines=false, que não os lê"
           }
         }
       },
       "ImportStatus" : {
         "type" : "string",
         "enum" : [ "PENDING", "PROCESSING", "COMPLETED" ]
+      },
+      "ImportSummaryResponse" : {
+        "description" : "Lote da lista de importações, sem o resultado de cada linha",
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ImportStatus"
+          },
+          "totalLines" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Linhas de dados do arquivo, sem o cabeçalho"
+          },
+          "processedLines" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Linhas que já têm resultado"
+          },
+          "counts" : {
+            "$ref" : "#/components/schemas/ImportCounts"
+          },
+          "createdAt" : {
+            "$ref" : "#/components/schemas/Instant"
+          },
+          "startedAt" : {
+            "description" : "Início ou último progresso do processamento",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Instant"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "finishedAt" : {
+            "description" : "Conclusão do processamento",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Instant"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
+      },
+      "IndicatorResponse" : {
+        "description" : "Indicador com o valor atual, a variação em relação ao fim do mês anterior e os últimos 7 meses",
+        "type" : "object",
+        "properties" : {
+          "value" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "previous" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Valor no fim do mês anterior; ausente quando não há histórico"
+          },
+          "change" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "value menos previous; ausente quando não há histórico"
+          },
+          "months" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MonthValueResponse"
+            },
+            "description" : "Do mês mais antigo ao corrente"
+          }
+        }
       },
       "Instant" : {
         "type" : "string",
@@ -467,6 +910,120 @@
           }
         }
       },
+      "LocalDate" : {
+        "type" : "string",
+        "format" : "date",
+        "examples" : [ "2022-03-10" ]
+      },
+      "ModerationBatchRequest" : {
+        "description" : "Decisão em lote: rejeitar e bloquear usam o mesmo motivo para todos os itens, e aprovar não leva motivo",
+        "type" : "object",
+        "required" : [ "action", "items" ],
+        "properties" : {
+          "action" : {
+            "$ref" : "#/components/schemas/ModerationDecision"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BatchItemRequest"
+            },
+            "minItems" : 1,
+            "maxItems" : 100
+          },
+          "reasonCodes" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string",
+              "pattern" : "\\S"
+            },
+            "description" : "Códigos de GET /moderation/reasons, como no endpoint de um item"
+          },
+          "note" : {
+            "type" : [ "string", "null" ],
+            "description" : "Complemento livre, como no endpoint de um item",
+            "maxLength" : 500
+          }
+        }
+      },
+      "ModerationDecision" : {
+        "type" : "string",
+        "enum" : [ "APPROVE", "REJECT", "BLOCK" ]
+      },
+      "ModerationQueueResponse" : {
+        "description" : "Tamanho atual da fila de moderação, sem histórico",
+        "type" : "object",
+        "properties" : {
+          "count" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Produtos em PENDING_MODERATION no tenant"
+          }
+        }
+      },
+      "ModerationReasonResponse" : {
+        "description" : "Motivo pronto de rejeição ou bloqueio do catálogo do tenant",
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Código estável, enviado em reasonCodes; não muda depois de criado"
+          },
+          "label" : {
+            "type" : "string",
+            "description" : "Rótulo em PT-BR; as decisões passadas guardam o rótulo da época"
+          },
+          "decisions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ModerationDecision"
+            },
+            "description" : "Decisões em que o motivo vale: REJECT, BLOCK ou as duas"
+          },
+          "position" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Ordem de exibição e de composição do texto; o código desempata"
+          },
+          "active" : {
+            "type" : "boolean",
+            "description" : "Inativo não aparece para o moderador e é recusado nas decisões novas"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Versão do motivo, a mesma do ETag"
+          }
+        }
+      },
+      "ModerationStatsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "queue" : {
+            "$ref" : "#/components/schemas/IndicatorResponse",
+            "description" : "Produtos em PENDING_MODERATION; nos meses anteriores, no fim do mês",
+            "type" : "object"
+          },
+          "approved" : {
+            "$ref" : "#/components/schemas/IndicatorResponse",
+            "description" : "Aprovações no mês",
+            "type" : "object"
+          },
+          "rejected" : {
+            "$ref" : "#/components/schemas/IndicatorResponse",
+            "description" : "Rejeições no mês",
+            "type" : "object"
+          },
+          "blocked" : {
+            "$ref" : "#/components/schemas/IndicatorResponse",
+            "description" : "Bloqueios no mês",
+            "type" : "object"
+          },
+          "activity" : {
+            "$ref" : "#/components/schemas/ActivityResponse"
+          }
+        }
+      },
       "MoneyDto" : {
         "type" : "object",
         "required" : [ "amount", "currency" ],
@@ -482,6 +1039,21 @@
           }
         }
       },
+      "MonthValueResponse" : {
+        "type" : "object",
+        "properties" : {
+          "month" : {
+            "$ref" : "#/components/schemas/LocalDate",
+            "description" : "Primeiro dia do mês",
+            "type" : "string"
+          },
+          "value" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Valor no fim do mês, ou agora no mês corrente; ausente quando não há histórico"
+          }
+        }
+      },
       "MoveCategoryRequest" : {
         "type" : "object",
         "required" : [ "parentId" ],
@@ -494,6 +1066,22 @@
             }, {
               "type" : "null"
             } ]
+          }
+        }
+      },
+      "NewRequiredAttributeResponse" : {
+        "type" : "object",
+        "description" : "Atributo obrigatório da categoria nova que a atual não exigia; vira pendência e não impede a troca",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "variant" : {
+            "type" : "boolean",
+            "description" : "Valor pertence a cada SKU"
           }
         }
       },
@@ -528,6 +1116,14 @@
             "type" : "integer",
             "format" : "int64",
             "description" : "Versão da oferta, usada no If-Match"
+          }
+        }
+      },
+      "Permissions" : {
+        "type" : "object",
+        "properties" : {
+          "readTenantCatalog" : {
+            "type" : "boolean"
           }
         }
       },
@@ -581,6 +1177,118 @@
             "items" : {
               "type" : "string"
             }
+          },
+          "reasonDetails" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReasonDetail"
+            },
+            "description" : "Motivos da recusa de regra de negócio para mostrar ao usuário: um por item de reasons, na mesma ordem, ou, sem reasons, o da própria recusa"
+          }
+        }
+      },
+      "ProductBatchAction" : {
+        "type" : "string",
+        "enum" : [ "SUBMIT", "PAUSE", "RESUME", "ARCHIVE" ]
+      },
+      "ProductBatchRequest" : {
+        "description" : "Ação do seller em lote, com as regras do endpoint de um item",
+        "type" : "object",
+        "required" : [ "action", "items" ],
+        "properties" : {
+          "action" : {
+            "$ref" : "#/components/schemas/ProductBatchAction"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BatchItemRequest"
+            },
+            "minItems" : 1,
+            "maxItems" : 100
+          }
+        }
+      },
+      "ProductBatchResponse" : {
+        "type" : "object",
+        "properties" : {
+          "results" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ProductBatchResult"
+            }
+          }
+        }
+      },
+      "ProductBatchResult" : {
+        "description" : "Desfecho de um produto do lote, na posição em que veio no pedido",
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "outcome" : {
+            "$ref" : "#/components/schemas/BatchOutcome"
+          },
+          "status" : {
+            "description" : "Estado novo, como a resposta do produto o mostra, ou o gravado se o saldo não pôde ser lido depois do lote; ausente na falha",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ProductStatus"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "version" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Versão nova, para o próximo If-Match; ausente na falha"
+          },
+          "problem" : {
+            "description" : "Problema que o endpoint de um item responderia; ausente no sucesso",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Problem"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
+      },
+      "ProductCheckRequest" : {
+        "description" : "Rascunho do conteúdo ainda não salvo; os SKUs são os gravados",
+        "type" : "object",
+        "required" : [ "categoryId" ],
+        "properties" : {
+          "categoryId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "attributes" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "ProductCheckResponse" : {
+        "type" : "object",
+        "properties" : {
+          "publishingIssues" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PublishingIssueResponse"
+            },
+            "description" : "Pendências de publicação do rascunho, como ficariam depois de salvar"
+          },
+          "categoryChange" : {
+            "description" : "Efeito da troca; ausente quando a categoria do rascunho é a atual",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CategoryChangeResponse"
+            }, {
+              "type" : "null"
+            } ]
           }
         }
       },
@@ -628,7 +1336,7 @@
           },
           "status" : {
             "$ref" : "#/components/schemas/ProductStatus",
-            "description" : "ACTIVE sem saldo disponível aparece como OUT_OF_STOCK",
+            "description" : "ACTIVE sem saldo disponível aparece como OUT_OF_STOCK; na resposta de uma gravação, se o saldo não pôde ser lido depois dela, sai o estado gravado",
             "type" : "string"
           },
           "version" : {
@@ -641,11 +1349,54 @@
           "updatedAt" : {
             "$ref" : "#/components/schemas/Instant"
           },
+          "moderationQueuedAt" : {
+            "description" : "Entrada na fila de moderação, que ordena a fila; presente só em PENDING_MODERATION",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Instant"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "skus" : {
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/SkuResponse"
             }
+          },
+          "lastRejection" : {
+            "description" : "Presente no rascunho cuja última transição foi a rejeição na moderação; ausente também quando actions está ausente",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/RejectionResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "actions" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string"
+            },
+            "description" : "Ações que o chamador pode executar agora (EDIT, CHANGE_CATEGORY, ADD_SKU, REMOVE_SKU, EDIT_OFFER, EDIT_STOCK, SUBMIT, PAUSE, RESUME, ARCHIVE, APPROVE, REJECT, BLOCK, UNBLOCK). Lista aberta: o cliente ignora o código que não conhece. Ausente só na resposta de uma gravação cujas leituras posteriores falharam: a gravação valeu, e o cliente relê o produto"
+          },
+          "blockedActions" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "$ref" : "#/components/schemas/BlockedActionResponse"
+            },
+            "description" : "Ações que valem no status e para o chamador, mas que um motivo impede agora; ausente quando actions está ausente"
+          },
+          "saveReturnsToModeration" : {
+            "type" : "boolean",
+            "description" : "Salvar conteúdo ou SKU devolve o produto publicado à moderação; falso quando o chamador não edita ou quando actions está ausente"
+          },
+          "publishingIssues" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "$ref" : "#/components/schemas/PublishingIssueResponse"
+            },
+            "description" : "Pendências de publicação, na ordem da política; presente na leitura de um produto em status editável e ausente na listagem, na fila, nos status BLOCKED e ARCHIVED e quando actions está ausente"
           }
         }
       },
@@ -656,6 +1407,10 @@
       "ProductTransition" : {
         "type" : "string",
         "enum" : [ "CREATE", "SUBMIT", "APPROVE", "REJECT", "BLOCK", "UNBLOCK", "PAUSE", "RESUME", "ARCHIVE", "REVIEW_REQUIRED" ]
+      },
+      "PromotionPhase" : {
+        "type" : "string",
+        "enum" : [ "SCHEDULED", "ACTIVE", "ENDED" ]
       },
       "PromotionRequest" : {
         "type" : "object",
@@ -686,17 +1441,126 @@
           },
           "endsAt" : {
             "$ref" : "#/components/schemas/Instant"
+          },
+          "phase" : {
+            "$ref" : "#/components/schemas/PromotionPhase",
+            "description" : "Fase no instante da resposta, pelo relógio do servidor: agendada, vigente ou encerrada; só a encerrada não pode ser cancelada",
+            "type" : "string"
           }
         }
       },
-      "ReasonRequest" : {
+      "PublishingIssueResponse" : {
+        "description" : "Pendência de publicação e o campo do produto onde ela se resolve",
         "type" : "object",
-        "required" : [ "reason" ],
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Código estável do motivo, sem os parâmetros (missing-offer)"
+          },
+          "params" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "description" : "Valores do caso na ordem do texto, como o SKU e o atributo"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "Texto em português para mostrar ao usuário"
+          },
+          "field" : {
+            "type" : "string",
+            "description" : "Campo do produto onde a pendência se resolve: categoryId, attributes.<código>, skus, skus[<sku>].offer, skus[<sku>].variantAttributes ou skus[<sku>].variantAttributes.<código>"
+          }
+        }
+      },
+      "ReasonDetail" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Código estável do motivo, sem os parâmetros (missing-variant-attribute)"
+          },
+          "params" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "description" : "Valores do caso na ordem do texto, como o SKU, o atributo ou o limite vigente"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "Texto em português para mostrar ao usuário"
+          }
+        }
+      },
+      "ReasonLabelResponse" : {
+        "description" : "Motivo pronto marcado na decisão, com o rótulo que tinha nela",
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Código estável do motivo"
+          },
+          "label" : {
+            "type" : "string",
+            "description" : "Rótulo da época da decisão; renomear o motivo depois não o muda"
+          }
+        }
+      },
+      "RejectionResponse" : {
+        "description" : "Rejeição que devolveu o produto ao rascunho",
+        "type" : "object",
         "properties" : {
           "reason" : {
             "type" : "string",
-            "pattern" : "\\S",
-            "maxLength" : 500
+            "description" : "Texto único derivado dos rótulos da época e do complemento, para quem só exibe uma linha"
+          },
+          "reasonCodes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "description" : "Códigos dos motivos prontos (GET /moderation/reasons); vazio quando só houve complemento"
+          },
+          "reasonLabels" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReasonLabelResponse"
+            },
+            "description" : "Motivos prontos com o rótulo da época, na ordem do catálogo de então"
+          },
+          "note" : {
+            "type" : [ "string", "null" ],
+            "description" : "Complemento livre do moderador"
+          },
+          "actor" : {
+            "type" : "string"
+          },
+          "at" : {
+            "$ref" : "#/components/schemas/Instant"
+          }
+        }
+      },
+      "RemovedAttributeResponse" : {
+        "type" : "object",
+        "description" : "Atributo do produto que a categoria nova não tem ou cujo valor ela não aceita; sai do rascunho na troca",
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string",
+            "description" : "Rótulo na categoria atual; o código quando ela também não o tem"
+          },
+          "value" : {
+            "type" : "string",
+            "description" : "Valor que se perde"
+          },
+          "reason" : {
+            "$ref" : "#/components/schemas/ReasonDetail",
+            "description" : "Motivo, no formato de reasonDetails do corpo de erro",
+            "type" : "object"
           }
         }
       },
@@ -779,6 +1643,33 @@
           }
         }
       },
+      "ReviseModerationReasonRequest" : {
+        "description" : "Revisão do motivo: rótulo, decisões e posição; o código e a situação não mudam aqui",
+        "type" : "object",
+        "required" : [ "label", "decisions", "position" ],
+        "properties" : {
+          "label" : {
+            "type" : "string",
+            "pattern" : "\\S",
+            "maxLength" : 120
+          },
+          "decisions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ModerationDecision"
+            },
+            "description" : "REJECT, BLOCK ou as duas",
+            "minItems" : 1,
+            "maxItems" : 2
+          },
+          "position" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 9999,
+            "minimum" : 0
+          }
+        }
+      },
       "ReviseProductRequest" : {
         "type" : "object",
         "required" : [ "categoryId", "title" ],
@@ -823,6 +1714,78 @@
       "SellerStatus" : {
         "type" : "string",
         "enum" : [ "PENDING", "APPROVED", "REJECTED" ]
+      },
+      "SessionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "subject" : {
+            "type" : "string",
+            "description" : "Subject do token"
+          },
+          "tenantId" : {
+            "$ref" : "#/components/schemas/UUID",
+            "description" : "Tenant do token",
+            "type" : "string"
+          },
+          "storeId" : {
+            "description" : "Loja do token; só existe para o seller",
+            "type" : [ "string", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/UUID"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "capabilities" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "description" : "Capacidades de negócio do chamador. Lista aberta: o cliente ignora o valor que não conhece"
+          },
+          "can" : {
+            "$ref" : "#/components/schemas/Permissions",
+            "description" : "Permissões que combinam capacidades, resolvidas pelo servidor",
+            "type" : "object"
+          }
+        }
+      },
+      "SkuOfferResponse" : {
+        "description" : "Oferta do SKU no instante da leitura; as promoções ficam em GET /offers/{skuId}",
+        "type" : "object",
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "listPrice" : {
+            "description" : "Preço \"de\" (riscado)",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/MoneyDto"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "salePrice" : {
+            "$ref" : "#/components/schemas/MoneyDto",
+            "description" : "Preço \"por\", sem promoção",
+            "type" : "object"
+          },
+          "effectivePrice" : {
+            "$ref" : "#/components/schemas/MoneyDto",
+            "description" : "Preço vigente: o da promoção ativa ou o \"por\"",
+            "type" : "object"
+          },
+          "onPromotion" : {
+            "type" : "boolean",
+            "description" : "Indica se o preço vigente vem de uma promoção"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Versão da oferta, usada no If-Match"
+          }
+        }
       },
       "SkuRequest" : {
         "type" : "object",
@@ -872,6 +1835,24 @@
           },
           "dimensions" : {
             "$ref" : "#/components/schemas/DimensionsDto"
+          },
+          "offer" : {
+            "description" : "Ausente enquanto o SKU não tem oferta",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/SkuOfferResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "stock" : {
+            "description" : "Saldo do SKU; ausente se o SKU foi removido entre as leituras ou, na resposta de uma gravação, se o saldo não pôde ser lido depois dela",
+            "type" : [ "object", "null" ],
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/StockResponse"
+            }, {
+              "type" : "null"
+            } ]
           }
         }
       },
@@ -887,14 +1868,80 @@
           "to" : {
             "$ref" : "#/components/schemas/ProductStatus"
           },
-          "actor" : {
+          "actorSide" : {
+            "$ref" : "#/components/schemas/TransitionSide",
+            "description" : "Lado que fez a mudança, pela transição: a loja ou a moderação; a pessoa fica só no registro interno",
             "type" : "string"
           },
+          "byCaller" : {
+            "type" : "boolean",
+            "description" : "A mudança foi feita por quem consulta o histórico"
+          },
           "reason" : {
-            "type" : "string"
+            "type" : [ "string", "null" ],
+            "description" : "Na rejeição e no bloqueio, o texto único derivado dos rótulos da época e do complemento"
+          },
+          "reasonCodes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "description" : "Códigos dos motivos prontos da rejeição ou do bloqueio; vazio nas demais transições"
+          },
+          "reasonLabels" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReasonLabelResponse"
+            },
+            "description" : "Motivos prontos com o rótulo da época; vazio nas demais transições"
+          },
+          "note" : {
+            "type" : [ "string", "null" ],
+            "description" : "Complemento livre do moderador"
           },
           "at" : {
             "$ref" : "#/components/schemas/Instant"
+          }
+        }
+      },
+      "StatusCountsResponse" : {
+        "description" : "Produtos da loja por status, como a resposta do produto o mostra",
+        "type" : "object",
+        "properties" : {
+          "draft" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "pendingModeration" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "active" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "ACTIVE com saldo disponível"
+          },
+          "outOfStock" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "ACTIVE sem saldo disponível"
+          },
+          "pausedBySeller" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "blocked" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "archived" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Todos os produtos da loja menos os arquivados"
           }
         }
       },
@@ -924,6 +1971,36 @@
             "type" : "integer",
             "format" : "int64",
             "description" : "Versão do saldo, usada no If-Match do ajuste"
+          }
+        }
+      },
+      "StoreStatsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "storeId" : {
+            "$ref" : "#/components/schemas/UUID"
+          },
+          "counts" : {
+            "$ref" : "#/components/schemas/StatusCountsResponse"
+          },
+          "active" : {
+            "$ref" : "#/components/schemas/IndicatorResponse",
+            "description" : "Valor: ACTIVE com saldo, como counts.active. Meses: o ACTIVE gravado, com ou sem saldo, no fim de cada mês e agora no corrente. Sem previous nem change, porque o saldo não guarda passado",
+            "type" : "object"
+          },
+          "draft" : {
+            "$ref" : "#/components/schemas/IndicatorResponse"
+          },
+          "outOfStock" : {
+            "$ref" : "#/components/schemas/IndicatorResponse",
+            "description" : "Sem histórico: o saldo não guarda passado, então só o mês corrente tem valor",
+            "type" : "object"
+          },
+          "blocked" : {
+            "$ref" : "#/components/schemas/IndicatorResponse"
+          },
+          "activity" : {
+            "$ref" : "#/components/schemas/ActivityResponse"
           }
         }
       },
@@ -994,6 +2071,10 @@
           }
         }
       },
+      "TransitionSide" : {
+        "type" : "string",
+        "enum" : [ "STORE", "MODERATION" ]
+      },
       "UUID" : {
         "type" : "string",
         "format" : "uuid",
@@ -1009,10 +2090,39 @@
       }
     }
   },
+  "tags" : [ {
+    "name" : "Categories",
+    "description" : "Árvore de categorias e atributos do tenant"
+  }, {
+    "name" : "Inventory",
+    "description" : "Saldo por SKU e reservas de estoque"
+  }, {
+    "name" : "Moderation",
+    "description" : "Trust & Safety: fila, aprovação, rejeição e bloqueio de produtos"
+  }, {
+    "name" : "Offers",
+    "description" : "Preço de/por e promoções de cada SKU da loja autenticada"
+  }, {
+    "name" : "Products",
+    "description" : "Conteúdo, SKUs e publicação dos produtos da loja autenticada"
+  }, {
+    "name" : "Session",
+    "description" : "Identidade e permissões do chamador no catálogo"
+  }, {
+    "name" : "Stats",
+    "description" : "Números da página inicial do painel, por papel"
+  }, {
+    "name" : "Storefront",
+    "description" : "Consulta pública e autoritativa de produtos, com preço vigente e disponibilidade"
+  }, {
+    "name" : "Stores",
+    "description" : "Situação KYB/KYC da loja, recebida do contexto KYB/KYC"
+  } ],
   "paths" : {
     "/categories" : {
       "get" : {
         "summary" : "Lista filhos de uma categoria (ou as raízes) em ordem de código",
+        "description" : "Com `ids`, devolve só essas categorias, em ordem de código e numa página só, sem `nextCursor`; id repetido aparece uma vez, e o que não existe no tenant fica de fora. `ids` não combina com `parentId` nem com `cursor` (400), e `limit` não se aplica a ele.",
         "operationId" : "listCategories",
         "tags" : [ "Categories" ],
         "parameters" : [ {
@@ -1021,6 +2131,19 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "description" : "Ids das categorias, até 100, separados por vírgula; repetir o parâmetro também vale",
+          "explode" : false,
+          "schema" : {
+            "type" : "array",
+            "maxItems" : 100,
+            "items" : {
+              "$ref" : "#/components/schemas/UUID"
+            }
+          },
+          "style" : "form",
+          "name" : "ids",
+          "in" : "query"
         }, {
           "name" : "limit",
           "in" : "query",
@@ -1077,7 +2200,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "post" : {
@@ -1116,7 +2239,14 @@
             }
           },
           "201" : {
-            "description" : "Categoria criada"
+            "description" : "Categoria criada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
           },
           "401" : {
             "description" : "Token ausente, expirado ou inválido"
@@ -1129,7 +2259,143 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-admin" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/categories/batch" : {
+      "post" : {
+        "summary" : "Ativa, desativa ou exclui até 100 categorias, cada uma isolada",
+        "description" : "Cada item exige `version`, como o If-Match do endpoint de um item; sem ela, o item falha com 428. Ativar ou desativar a categoria que já está na situação pedida não grava nada. A exclusão roda das subcategorias para as categorias pai, para que um ramo vazio saia inteiro, e cada item recusa como `DELETE /categories/{id}`.",
+        "operationId" : "batchCategories",
+        "tags" : [ "Categories" ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CategoryBatchRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Resultado de cada categoria, na ordem do pedido",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryBatchResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/categories/tree" : {
+      "get" : {
+        "summary" : "Lista todas as categorias do tenant na ordem da árvore",
+        "description" : "O pai vem antes das subcategorias, e os irmãos seguem a ordem de código, como numa árvore aberta; cada item traz o caminho desde a raiz. Com `usable=true`, só as categorias que aceitam produtos novos (ela e os ancestrais ativos). A página tem até 1000 itens, que é também o padrão, para quem lê a árvore inteira fazer poucas leituras.",
+        "operationId" : "listCategoryTree",
+        "tags" : [ "Categories" ],
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 1000,
+            "minimum" : 1,
+            "default" : 1000
+          }
+        }, {
+          "description" : "Só as categorias ativas com todos os ancestrais ativos",
+          "name" : "usable",
+          "in" : "query",
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Página de categorias",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryPage"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1204,7 +2470,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-admin" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "get" : {
@@ -1258,7 +2524,61 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
+        } ]
+      },
+      "delete" : {
+        "summary" : "Exclui a categoria vazia (exige If-Match)",
+        "description" : "Vale só para a categoria sem subcategorias e sem nenhum produto, nem arquivado. Recusa com 409 `category-has-children` ou `category-has-products`, com o mesmo código em `reasons`, inclusive quando a subcategoria ou o produto é gravado ao mesmo tempo.",
+        "operationId" : "deleteCategory",
+        "tags" : [ "Categories" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "204" : {
+            "description" : "Categoria excluída"
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1334,7 +2654,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-admin" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1384,7 +2704,14 @@
             }
           },
           "201" : {
-            "description" : "Reserva criada"
+            "description" : "Reserva criada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            }
           },
           "200" : {
             "description" : "Repetição idempotente (cabeçalho Idempotent-Replayed)",
@@ -1407,7 +2734,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-reservations" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1463,7 +2790,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-reservations" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1519,7 +2846,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-reservations" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1588,7 +2915,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-reservations" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1644,7 +2971,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-reservations" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1700,7 +3027,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "put" : {
@@ -1773,13 +3100,61 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/me" : {
+      "get" : {
+        "summary" : "Consulta o chamador: tenant, loja, capacidades e permissões compostas",
+        "operationId" : "getSession",
+        "tags" : [ "Session" ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Sessão do chamador",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
     "/moderation/products" : {
       "get" : {
-        "summary" : "Produtos aguardando moderação",
+        "summary" : "Produtos aguardando moderação, em ordem de chegada",
         "operationId" : "moderationQueue",
         "tags" : [ "Moderation" ],
         "parameters" : [ {
@@ -1838,7 +3213,68 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-moderator" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/moderation/products/batch" : {
+      "post" : {
+        "summary" : "Aprova, rejeita ou bloqueia até 100 produtos, cada um isolado",
+        "operationId" : "batchModerateProducts",
+        "tags" : [ "Moderation" ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationBatchRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Desfecho de cada produto, na ordem do pedido",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductBatchResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1900,7 +3336,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -1927,7 +3363,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/ReasonRequest"
+                "$ref" : "#/components/schemas/DecisionRequest"
               }
             }
           },
@@ -1975,13 +3411,13 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
     "/moderation/products/{id}/reject" : {
       "post" : {
-        "summary" : "Rejeita e devolve ao rascunho com motivo",
+        "summary" : "Rejeita e devolve ao rascunho com motivos prontos e complemento",
         "operationId" : "rejectProduct",
         "tags" : [ "Moderation" ],
         "parameters" : [ {
@@ -2002,7 +3438,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/ReasonRequest"
+                "$ref" : "#/components/schemas/DecisionRequest"
               }
             }
           },
@@ -2050,7 +3486,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2112,7 +3548,390 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "catalog-moderator" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/moderation/reasons" : {
+      "get" : {
+        "summary" : "Motivos prontos de rejeição e bloqueio do tenant",
+        "description" : "Lista na ordem de `position` e, no empate, de `code`, que é também a ordem dos rótulos no texto da decisão. Tenant sem motivos responde lista vazia, e o moderador decide só com o complemento.",
+        "operationId" : "listModerationReasons",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "description" : "Só os motivos que valem para a decisão",
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "REJECT", "BLOCK" ]
+          },
+          "name" : "decision",
+          "in" : "query"
+        }, {
+          "description" : "Inclui os inativos; exige MANAGE_MODERATION_REASONS",
+          "name" : "includeInactive",
+          "in" : "query",
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Catálogo de motivos",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ModerationReasonResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      },
+      "post" : {
+        "summary" : "Cria motivo de moderação no catálogo do tenant",
+        "description" : "O código é imutável e só vale neste tenant. Recusa com 409 `duplicate-moderation-reason-code` o código já usado, inclusive por um motivo inativo. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos (desativar um abre a vaga) e com 422 `moderation-reason-catalog-limit` quando o catálogo, contando os inativos, chegou ao teto de proteção.",
+        "operationId" : "createModerationReason",
+        "tags" : [ "Moderation" ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateModerationReasonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Motivo criado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationReasonResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/moderation/reasons/{code}" : {
+      "put" : {
+        "summary" : "Atualiza rótulo, decisões e posição do motivo (exige If-Match)",
+        "operationId" : "reviseModerationReason",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "code",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReviseModerationReasonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Motivo atualizado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationReasonResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      },
+      "get" : {
+        "summary" : "Consulta motivo de moderação; ETag carrega a versão",
+        "operationId" : "getModerationReason",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "code",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Motivo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationReasonResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/moderation/reasons/{code}/activate" : {
+      "post" : {
+        "summary" : "Volta a oferecer o motivo ao moderador (exige If-Match)",
+        "description" : "Já ativo, não grava e devolve o mesmo ETag. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos; desative outro antes.",
+        "operationId" : "activateModerationReason",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "code",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Motivo ativo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationReasonResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/moderation/reasons/{code}/deactivate" : {
+      "post" : {
+        "summary" : "Tira o motivo das decisões novas, sem apagar o histórico (exige If-Match)",
+        "operationId" : "deactivateModerationReason",
+        "tags" : [ "Moderation" ],
+        "parameters" : [ {
+          "name" : "code",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Motivo inativo",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationReasonResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2168,7 +3987,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "put" : {
@@ -2231,7 +4050,14 @@
             }
           },
           "201" : {
-            "description" : "Oferta criada"
+            "description" : "Oferta criada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OfferResponse"
+                }
+              }
+            }
           },
           "401" : {
             "description" : "Token ausente, expirado ou inválido"
@@ -2244,7 +4070,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2299,7 +4125,14 @@
             }
           },
           "201" : {
-            "description" : "Promoção agendada"
+            "description" : "Promoção agendada",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OfferResponse"
+                }
+              }
+            }
           },
           "401" : {
             "description" : "Token ausente, expirado ou inválido"
@@ -2312,7 +4145,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2381,13 +4214,13 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
     "/products" : {
       "get" : {
-        "summary" : "Lista produtos; o seller vê só a própria loja",
+        "summary" : "Lista produtos com busca e ordem; o seller vê só a própria loja",
         "operationId" : "listProducts",
         "tags" : [ "Products" ],
         "parameters" : [ {
@@ -2407,12 +4240,31 @@
             "default" : 50
           }
         }, {
+          "description" : "Trecho do título, sem diferenciar maiúsculas e acentos, ou do código do SKU do seller",
+          "name" : "q",
+          "in" : "query",
+          "schema" : {
+            "type" : "string",
+            "maxLength" : 100
+          }
+        }, {
+          "description" : "Coluna da ordem; o prefixo - inverte",
+          "schema" : {
+            "type" : "string",
+            "default" : "-updatedAt",
+            "enum" : [ "updatedAt", "-updatedAt", "createdAt", "-createdAt", "title", "-title" ]
+          },
+          "name" : "sort",
+          "in" : "query"
+        }, {
+          "description" : "Estado como a resposta o mostra; OUT_OF_STOCK é o ACTIVE sem saldo disponível, e ACTIVE exige saldo",
           "name" : "status",
           "in" : "query",
           "schema" : {
             "type" : "string"
           }
         }, {
+          "description" : "Loja; vale para moderador e admin, e o seller vê sempre a própria",
           "name" : "storeId",
           "in" : "query",
           "schema" : {
@@ -2458,7 +4310,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "post" : {
@@ -2497,7 +4349,14 @@
             }
           },
           "201" : {
-            "description" : "Produto criado"
+            "description" : "Produto criado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
           },
           "401" : {
             "description" : "Token ausente, expirado ou inválido"
@@ -2510,7 +4369,68 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/products/batch" : {
+      "post" : {
+        "summary" : "Envia, pausa, reativa ou arquiva até 100 produtos, cada um isolado",
+        "operationId" : "batchProducts",
+        "tags" : [ "Products" ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProductBatchRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Desfecho de cada produto, na ordem do pedido",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductBatchResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2563,13 +4483,77 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
+        } ]
+      },
+      "get" : {
+        "summary" : "Lista as importações da loja, da mais recente à mais antiga",
+        "operationId" : "listProductImports",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Página de importações",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ImportPage"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
     "/products/imports/{id}" : {
       "get" : {
         "summary" : "Consulta a importação e o resultado de cada linha",
+        "description" : "Com `lines=false`, traz a situação e as contagens gravadas junto do lote, sem ler o resultado de cada linha (`lines` vem nulo), para acompanhar o processamento sem trafegar até milhares de linhas a cada consulta.",
         "operationId" : "getProductImport",
         "tags" : [ "Products" ],
         "parameters" : [ {
@@ -2578,6 +4562,14 @@
           "required" : true,
           "schema" : {
             "$ref" : "#/components/schemas/UUID"
+          }
+        }, {
+          "description" : "Com false, sem o resultado de cada linha",
+          "name" : "lines",
+          "in" : "query",
+          "schema" : {
+            "type" : "boolean",
+            "default" : true
           }
         } ],
         "responses" : {
@@ -2619,7 +4611,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2694,7 +4686,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "get" : {
@@ -2748,7 +4740,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "delete" : {
@@ -2808,7 +4800,76 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/products/{id}/check" : {
+      "post" : {
+        "summary" : "Confere o rascunho sem gravar: pendências de publicação e efeito da troca de categoria",
+        "operationId" : "checkProduct",
+        "tags" : [ "Products" ],
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/UUID"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProductCheckRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Pendências e efeito da troca",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductCheckResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          },
+          "400" : {
+            "description" : "Requisição inválida"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2867,7 +4928,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2929,7 +4990,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -2991,7 +5052,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -3046,7 +5107,14 @@
             }
           },
           "201" : {
-            "description" : "SKU adicionado"
+            "description" : "SKU adicionado",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductResponse"
+                }
+              }
+            }
           },
           "401" : {
             "description" : "Token ausente, expirado ou inválido"
@@ -3059,7 +5127,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -3141,7 +5209,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "delete" : {
@@ -3208,7 +5276,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
         } ]
       },
       "get" : {
@@ -3269,7 +5337,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin", "catalog-moderator" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -3331,7 +5399,252 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller" ]
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/stats/categories" : {
+      "get" : {
+        "summary" : "Números da taxonomia: categorias, raízes, inativas e com produtos",
+        "operationId" : "getCategoryStats",
+        "tags" : [ "Stats" ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Números da taxonomia",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryStatsResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/stats/moderation" : {
+      "get" : {
+        "summary" : "Números da moderação: fila, decisões do mês e série de atividade",
+        "description" : "Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos.",
+        "operationId" : "getModerationStats",
+        "tags" : [ "Stats" ],
+        "parameters" : [ {
+          "description" : "Primeiro dia do período (ISO 8601)",
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "name" : "from",
+          "in" : "query"
+        }, {
+          "schema" : {
+            "type" : "string",
+            "default" : "month",
+            "enum" : [ "day", "month", "year" ]
+          },
+          "name" : "granularity",
+          "in" : "query"
+        }, {
+          "description" : "Último dia do período (ISO 8601)",
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "name" : "to",
+          "in" : "query"
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Números da moderação",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationStatsResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/stats/moderation/queue" : {
+      "get" : {
+        "summary" : "Tamanho atual da fila de moderação",
+        "description" : "Conta os produtos em PENDING_MODERATION agora, sem os indicadores nem a série de `/stats/moderation`, para quem só mostra o tamanho da fila e o consulta com frequência.",
+        "operationId" : "getModerationQueueStats",
+        "tags" : [ "Stats" ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Tamanho da fila",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationQueueResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
+        } ]
+      }
+    },
+    "/stats/store" : {
+      "get" : {
+        "summary" : "Números da loja: produtos por status, indicadores e série de atividade",
+        "description" : "Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos. O saldo não guarda histórico: `outOfStock` só tem o valor atual, e `active` tem como valor o ACTIVE com saldo e, nos meses, o ACTIVE gravado, com ou sem saldo, sem `previous` nem `change`.",
+        "operationId" : "getStoreStats",
+        "tags" : [ "Stats" ],
+        "parameters" : [ {
+          "description" : "Primeiro dia do período (ISO 8601)",
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "name" : "from",
+          "in" : "query"
+        }, {
+          "schema" : {
+            "type" : "string",
+            "default" : "month",
+            "enum" : [ "day", "month", "year" ]
+          },
+          "name" : "granularity",
+          "in" : "query"
+        }, {
+          "description" : "Último dia do período (ISO 8601)",
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "name" : "to",
+          "in" : "query"
+        } ],
+        "responses" : {
+          "4XX" : {
+            "description" : "Erro do cliente (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "5XX" : {
+            "description" : "Erro do servidor (RFC 9457)",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Números da loja",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StoreStatsResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token ausente, expirado ou inválido"
+          },
+          "403" : {
+            "description" : "Papel sem permissão para a operação"
+          }
+        },
+        "security" : [ {
+          "SecurityScheme" : [ ]
         } ]
       }
     },
@@ -3391,7 +5704,7 @@
     },
     "/stores/{storeId}/eligibility" : {
       "get" : {
-        "summary" : "Consulta a situação da loja (seller: só a própria)",
+        "summary" : "Consulta a situação da loja (seller: só a própria; admin e moderador: qualquer uma)",
         "operationId" : "getStoreEligibility",
         "tags" : [ "Stores" ],
         "parameters" : [ {
@@ -3441,7 +5754,7 @@
           }
         },
         "security" : [ {
-          "SecurityScheme" : [ "seller", "catalog-admin" ]
+          "SecurityScheme" : [ ]
         } ]
       }
     }

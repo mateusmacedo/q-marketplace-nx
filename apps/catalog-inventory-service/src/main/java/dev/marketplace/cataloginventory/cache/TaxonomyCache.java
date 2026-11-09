@@ -2,11 +2,14 @@ package dev.marketplace.cataloginventory.cache;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.marketplace.cataloginventory.application.CategoryNode;
 import dev.marketplace.cataloginventory.application.CategoryRepository;
 import dev.marketplace.cataloginventory.domain.category.Category;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -15,7 +18,8 @@ import org.jboss.logging.Logger;
 
 /**
  * Taxonomia em cache (ADR 024): a cadeia até a raiz e as páginas de subcategorias, por tenant, dependentes da geração
- * da taxonomia do tenant, que {@link CategoryCacheInvalidation} incrementa a cada categoria criada, revisada ou movida.
+ * da taxonomia do tenant, que {@link CategoryCacheInvalidation} incrementa a cada categoria criada, revisada, movida ou
+ * excluída.
  * As escritas seguem protegidas pela versão otimista do banco.
  */
 @ApplicationScoped
@@ -78,6 +82,27 @@ public class TaxonomyCache {
         }
 
         @Override
+        public Uni<Map<UUID, Integer>> childCounts(UUID tenantId, Collection<UUID> categoryIds) {
+            return categories.childCounts(tenantId, categoryIds);
+        }
+
+        @Override
+        public Uni<Map<UUID, Integer>> depths(UUID tenantId, Collection<UUID> categoryIds) {
+            return categories.depths(tenantId, categoryIds);
+        }
+
+        @Override
+        public Uni<List<CategoryNode>> tree(UUID tenantId, Optional<String> afterPath, boolean usableOnly,
+                int limit) {
+            return categories.tree(tenantId, afterPath, usableOnly, limit);
+        }
+
+        @Override
+        public Uni<List<CategoryNode>> byIds(UUID tenantId, Collection<UUID> categoryIds) {
+            return categories.byIds(tenantId, categoryIds);
+        }
+
+        @Override
         public Uni<Void> insert(Category category) {
             return categories.insert(category);
         }
@@ -90,6 +115,11 @@ public class TaxonomyCache {
         @Override
         public Uni<Void> move(Category category, List<UUID> previousAncestry, long expectedVersion) {
             return categories.move(category, previousAncestry, expectedVersion);
+        }
+
+        @Override
+        public Uni<Void> delete(Category category, long expectedVersion) {
+            return categories.delete(category, expectedVersion);
         }
     }
 

@@ -30,6 +30,7 @@ box "Domínio" #F6FBF6
 end box
 box "Saída" #FBF6FC
   participant "$I_REPOSITORIO\nPgCategoryRepository /\nPgOfferRepository /\nPgSellerEligibilityRepository" as ctx <<saida>>
+  participant "$I_CACHE\nModerationReasonCache /\nPgModerationReasonRepository" as cat <<saida>>
   participant "$I_CACHE\nProductCacheInvalidation\n(decorator)" as dec <<saida>>
   participant "$I_REPOSITORIO\nPgProductRepository" as repo <<saida>>
   participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
@@ -40,7 +41,7 @@ box "Infraestrutura" #F7F9FA
 end box
 
 mod -> res : GET /moderation/products?cursor=&limit=
-res -> res : @RolesAllowed(catalog-moderator) na classe; @Min(1) @Max(100) em limit;\nCursors.decodeUuid(cursor)
+res -> res : @PermissionsAllowed(MODERATE_PRODUCTS) na classe; @Min(1) @Max(100) em limit;\nCursors.decodeUuid(cursor)
 opt #FFEBEE limit fora de 1 a 100
   res -[#C62828]-> mod : <color:#C62828>400 validation-failed</color>
 end
@@ -57,13 +58,16 @@ svc -> svc : Page.fetch: requireSize(limit)
 svc -> repo : find(tenant, todas as lojas, PENDING_MODERATION, afterId, limit + 1)
 repo -> pg : SELECT product WHERE tenant_id AND status = 'PENDING_MODERATION' [AND id > cursor]\nORDER BY id LIMIT limit + 1, com LEFT JOIN sku
 svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = id do último item
-res -> resp : ProductResponses.page(page)
+res -> resp : ProductResponses.page(actor, page)
 resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs da página)\n(página sem SKUs não consulta)
-res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> {items, nextCursor em base64url, ausente na última página} (sem ETag)
+resp -> pg : SELECT store_id, status FROM seller_eligibility WHERE store_id = ANY (lojas da página)\n(uma consulta: APPROVE fica barrado com seller-not-eligible se a loja não está aprovada)
+res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> {items com actions e blockedActions, nextCursor em base64url, ausente na última página} (sem ETag)
 note over res, repo
   Comum às páginas: 401 token ausente ou inválido; 403 papel fora de catalog-moderator
   ou claim de tenant ausente (tenant-not-authorized); 400 malformed-body;
   503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+  Nas decisões de um item, se a leitura do saldo depois do COMMIT falhar, a resposta
+  sai com o status gravado, sem o OUT_OF_STOCK calculado, e os SKUs sem saldo.
   O moderador alcança produto de qualquer loja do tenant; produto de outro tenant é 404.
   Só insert e update do ProductRepository invalidam o cache, também quando a escrita falha.
 end note
@@ -100,25 +104,36 @@ alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
 else #E8F5E9 ok
   repo -> pg : INSERT product_status_change (APPROVE); INSERT outbox_event ProductStatusChanged\n(catalog-inventory.product.v1, chave productId); COMMIT
   dec -> redis : invalida a vitrine do produto antes de responder (cache ligado)
-  res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> + ETag (versão + 1)\n(catalog.moderation.decisions{decision=approved}++)
+  res -> resp : ProductResponses.savedOk(product)
+  resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
+  res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> + ETag (versão + 1); OUT_OF_STOCK se nenhum SKU tem saldo,\nou ACTIVE, o gravado, se o saldo não pôde ser lido (catalog.moderation.decisions{decision=approved}++)
 end
 $legenda_sequencia()
 
 newpage POST /moderation/products/{id}/reject: rejeitar e devolver ao rascunho (ModerationService.reject)
 autonumber 1
-mod -> res : POST /moderation/products/{id}/reject {reason} (If-Match opcional)
-res -> res : @RolesAllowed(catalog-moderator); @Valid ReasonRequest; ETags.optional(If-Match)
-opt #FFEBEE reason ausente, em branco ou acima de 500 caracteres
+mod -> res : POST /moderation/products/{id}/reject {reasonCodes, note} (If-Match opcional)
+res -> res : @PermissionsAllowed(MODERATE_PRODUCTS); @Valid DecisionRequest; ETags.optional(If-Match)
+opt #FFEBEE código em branco ou note acima de 500 caracteres
   res -[#C62828]-> mod : <color:#C62828>400 validation-failed</color>
 end
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> mod : <color:#C62828>400 invalid-request</color>
 end
 == Aplicação e regras de domínio ==
-res -> svc : reject(actor, id, ifMatch, reason)
-svc -> svc : mutateAsModerator: actor.require(MODERATE_PRODUCTS)
+res -> svc : reject(actor, id, ifMatch, reasonCodes, note)
+svc -> svc : actor.require(MODERATE_PRODUCTS)
 opt #FFEBEE sem MODERATE_PRODUCTS
   res -[#C62828]-> mod : <color:#C62828>403 access-denied</color>
+end
+opt com reasonCodes (só a nota não lê o catálogo)
+  svc -> cat : catalog(tenant) (Redis por geração; na falta, SELECT moderation_reason ORDER BY position, code)
+end
+svc -> dom : DecisionReason.of(REJECT, catálogo, reasonCodes, note), antes de ler o produto
+alt #FFEBEE código ausente do tenant, inativo ou de outra decisão
+  res -[#C62828]-> mod : <color:#C62828>422 invalid-moderation-reason (unknown-reason, reason-inactive,\nreason-not-applicable; rótulo em reasonDetails)</color>
+else #FFEBEE sem motivo nem nota, ou nota acima de 500
+  res -[#C62828]-> mod : <color:#C62828>422 invalid-value</color>
 end
 svc -> repo : findById(tenant, id) (ProductAccess.inTenant, qualquer loja do tenant)
 repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
@@ -129,11 +144,11 @@ svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checag
 opt #FFEBEE If-Match diferente da versão lida
   res -[#C62828]-> mod : <color:#C62828>412 version-mismatch</color>
 end
-svc -> dom : reject(reason, moderador, agora)
+svc -> dom : reject(decisionReason, moderador, agora)
 alt #FFEBEE produto fora de PENDING_MODERATION
   res -[#C62828]-> mod : <color:#C62828>409 invalid-transition (REJECT)</color>
 else #E8F5E9 ok
-  dom -> dom : requireReason (defesa do domínio: até 500 caracteres);\nREJECT: PENDING_MODERATION para DRAFT;\nStatusChange com reason + ProductStatusChanged(visible=false, reason)
+  dom -> dom : requireDecision (motivo da mesma decisão);\nREJECT: PENDING_MODERATION para DRAFT;\nStatusChange com rótulos da época e nota + ProductStatusChanged(visible=false, reasons, note)
 end
 == Persistência transacional ==
 svc -> dec : update(product, versão lida)
@@ -143,35 +158,44 @@ alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
   repo -> pg : ROLLBACK
   res -[#C62828]-> mod : <color:#C62828>409 concurrent-update</color>
 else #E8F5E9 ok
-  repo -> pg : INSERT product_status_change (REJECT, PENDING_MODERATION para DRAFT, ator, reason)
+  repo -> pg : INSERT product_status_change (REJECT, PENDING_MODERATION para DRAFT, ator, reason_codes, reason_labels, note)
   repo -> outbox : append(ProductStatusChanged)
   outbox -> pg : INSERT outbox_event (catalog-inventory.product.v1, chave productId)
   repo -> pg : COMMIT
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE: INCR catalog:gen:product:{tenant}:{produto};\nrenova catalog:product-store; uma nova tentativa se falhar
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status DRAFT\n(catalog.moderation.decisions{decision=rejected}++)
 end
-note over res, repo : O motivo fica em product_status_change.reason e aparece em GET /products/{id}/history.
+note over res, repo : Os códigos, os rótulos da época e a nota ficam em product_status_change e aparecem,\ncom o texto único derivado, em GET /products/{id}/history e em lastRejection.
 $legenda_sequencia()
 
 newpage POST /moderation/products/{id}/block: bloquear produto (ModerationService.block)
 autonumber 1
-mod -> res : POST /moderation/products/{id}/block {reason} (If-Match opcional)
-res -> res : @RolesAllowed(catalog-moderator); @Valid ReasonRequest; ETags.optional(If-Match)
-opt #FFEBEE reason ausente, em branco ou acima de 500 caracteres
+mod -> res : POST /moderation/products/{id}/block {reasonCodes, note} (If-Match opcional)
+res -> res : @PermissionsAllowed(MODERATE_PRODUCTS); @Valid DecisionRequest; ETags.optional(If-Match)
+opt #FFEBEE código em branco ou note acima de 500 caracteres
   res -[#C62828]-> mod : <color:#C62828>400 validation-failed</color>
 end
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> mod : <color:#C62828>400 invalid-request</color>
 end
 == Aplicação e regras de domínio ==
-res -> svc : block(actor, id, ifMatch, reason)
-svc -> svc : mutateAsModerator: actor.require(MODERATE_PRODUCTS)
+res -> svc : block(actor, id, ifMatch, reasonCodes, note)
+svc -> svc : actor.require(MODERATE_PRODUCTS)
 opt #FFEBEE sem MODERATE_PRODUCTS
   res -[#C62828]-> mod : <color:#C62828>403 access-denied</color>
+end
+opt com reasonCodes (só a nota não lê o catálogo)
+  svc -> cat : catalog(tenant) (Redis por geração; na falta, SELECT moderation_reason ORDER BY position, code)
+end
+svc -> dom : DecisionReason.of(BLOCK, catálogo, reasonCodes, note), antes de ler o produto
+alt #FFEBEE código ausente do tenant, inativo ou de outra decisão
+  res -[#C62828]-> mod : <color:#C62828>422 invalid-moderation-reason (unknown-reason, reason-inactive,\nreason-not-applicable; rótulo em reasonDetails)</color>
+else #FFEBEE sem motivo nem nota, ou nota acima de 500
+  res -[#C62828]-> mod : <color:#C62828>422 invalid-value</color>
 end
 svc -> repo : findById(tenant, id) (ProductAccess.inTenant, qualquer loja do tenant)
 repo -> pg : SELECT product LEFT JOIN sku WHERE tenant_id AND id
@@ -182,11 +206,11 @@ svc -> svc : Versions.requireMatch(If-Match, versão lida) (ausente = sem checag
 opt #FFEBEE If-Match diferente da versão lida
   res -[#C62828]-> mod : <color:#C62828>412 version-mismatch</color>
 end
-svc -> dom : block(reason, moderador, agora)
+svc -> dom : block(decisionReason, moderador, agora)
 alt #FFEBEE produto já BLOCKED ou ARCHIVED
   res -[#C62828]-> mod : <color:#C62828>409 invalid-transition (BLOCK)</color>
 else #E8F5E9 ok
-  dom -> dom : requireReason (defesa do domínio: até 500 caracteres);\nBLOCK: qualquer outro estado para BLOCKED;\nStatusChange com reason + ProductStatusChanged(visible=false) + ProductBlocked
+  dom -> dom : requireDecision (motivo da mesma decisão);\nBLOCK: qualquer outro estado para BLOCKED;\nStatusChange com rótulos da época e nota + ProductStatusChanged(visible=false) + ProductBlocked
 end
 == Persistência transacional ==
 svc -> dec : update(product, versão lida)
@@ -196,14 +220,14 @@ alt #FFEBEE nenhuma linha atualizada (outra escrita venceu)
   repo -> pg : ROLLBACK
   res -[#C62828]-> mod : <color:#C62828>409 concurrent-update</color>
 else #E8F5E9 ok
-  repo -> pg : INSERT product_status_change (BLOCK, estado anterior para BLOCKED, ator, reason)
+  repo -> pg : INSERT product_status_change (BLOCK, estado anterior para BLOCKED, ator, reason_codes, reason_labels, note)
   repo -> outbox : append(ProductStatusChanged, ProductBlocked)
   outbox -> pg : INSERT outbox_event x2 (catalog-inventory.product.v1, chave productId)
   repo -> pg : COMMIT
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE: INCR catalog:gen:product:{tenant}:{produto};\no bloqueio sai do ar antes da resposta (ADR 024)
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status BLOCKED\n(catalog.moderation.decisions{decision=blocked}++)
 end
@@ -213,7 +237,7 @@ $legenda_sequencia()
 newpage POST /moderation/products/{id}/unblock: desbloquear e devolver à fila (ModerationService.unblock)
 autonumber 1
 mod -> res : POST /moderation/products/{id}/unblock (If-Match opcional)
-res -> res : @RolesAllowed(catalog-moderator); ETags.optional(If-Match)
+res -> res : @PermissionsAllowed(MODERATE_PRODUCTS); ETags.optional(If-Match)
 opt #FFEBEE If-Match fraco (W/), sem aspas ou não numérico
   res -[#C62828]-> mod : <color:#C62828>400 invalid-request</color>
 end
@@ -253,7 +277,7 @@ else #E8F5E9 ok
   opt cache ligado
     dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:product:{tenant}:{produto})
   end
-  res -> resp : ProductResponses.ok(product)
+  res -> resp : ProductResponses.savedOk(product)
   resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs do produto)
   res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status PENDING_MODERATION\n(catalog.moderation.decisions{decision=unblocked}++)
 end

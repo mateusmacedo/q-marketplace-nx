@@ -30,6 +30,14 @@ final class CacheKeys {
         return PREFIX + "gen:taxonomy:" + tenantId;
     }
 
+    static String moderationReasonsGeneration(UUID tenantId) {
+        return PREFIX + "gen:moderation-reasons:" + tenantId;
+    }
+
+    static String moderationReasons(UUID tenantId) {
+        return PREFIX + "moderation-reasons:v1:" + tenantId;
+    }
+
     static String productStore(UUID tenantId, UUID productId) {
         return PREFIX + "product-store:" + tenantId + ":" + productId;
     }

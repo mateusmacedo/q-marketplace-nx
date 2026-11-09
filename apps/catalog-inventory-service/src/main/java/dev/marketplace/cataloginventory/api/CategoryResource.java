@@ -1,13 +1,16 @@
 package dev.marketplace.cataloginventory.api;
 
 import dev.marketplace.cataloginventory.observability.Traced;
+import dev.marketplace.cataloginventory.api.BatchModels.BatchItemRequest;
 import dev.marketplace.cataloginventory.api.CategoryModels.*;
+import dev.marketplace.cataloginventory.application.CategoryNode;
 import dev.marketplace.cataloginventory.application.CategoryService;
+import dev.marketplace.cataloginventory.application.InvalidInputException;
 import dev.marketplace.cataloginventory.application.Page;
+import dev.marketplace.cataloginventory.domain.category.Category;
 import dev.marketplace.cataloginventory.security.CallerContext;
-import dev.marketplace.cataloginventory.security.Roles;
 import io.smallrye.mutiny.Uni;
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.PermissionsAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -16,16 +19,27 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.UriInfo;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.Explode;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterStyle;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestHeader;
 import org.jboss.resteasy.reactive.RestPath;
 import org.jboss.resteasy.reactive.RestQuery;
 import org.jboss.resteasy.reactive.RestResponse;
+import org.jboss.resteasy.reactive.Separator;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_OWN_PRODUCTS;
+import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_TAXONOMY;
+import static dev.marketplace.cataloginventory.security.Capabilities.MODERATE_PRODUCTS;
+import static dev.marketplace.cataloginventory.security.Capabilities.READ_TENANT_CATALOG;
 
 @Path("/categories")
 @Produces(MediaType.APPLICATION_JSON)
@@ -35,6 +49,8 @@ import java.util.UUID;
 @APIResponse(responseCode = "5XX", description = "Erro do servidor (RFC 9457)", content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
 @Traced(entry = true)
 public class CategoryResource {
+        /** Cursor da árvore: os códigos do caminho, até 6 de até 60 caracteres, separados por espaço. */
+        private static final int TREE_CURSOR_MAX_LENGTH = Category.MAX_DEPTH * 61;
         private final CategoryService categories;
         private final CallerContext caller;
 
@@ -51,9 +67,9 @@ public class CategoryResource {
          * tenant e 422 se o pai está inativo ou o conteúdo viola regra de domínio.
          */
         @POST
-        @RolesAllowed(Roles.CATALOG_ADMIN)
+        @PermissionsAllowed(MANAGE_TAXONOMY)
         @Operation(operationId = "createCategory", summary = "Cria categoria raiz ou subcategoria")
-        @APIResponse(responseCode = "201", description = "Categoria criada")
+        @APIResponse(responseCode = "201", description = "Categoria criada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CategoryResponse.class)))
         public Uni<RestResponse<CategoryResponse>> create(@NotNull @Valid CreateCategoryRequest request, UriInfo uri) {
                 return categories
                                 .create(caller.actor(), Optional.ofNullable(request.parentId()), request.code(),
@@ -66,7 +82,7 @@ public class CategoryResource {
         /** Devolve a categoria com o ETag da versão; 404 se não existe no tenant. */
         @GET
         @Path("/{id}")
-        @RolesAllowed({ Roles.SELLER, Roles.CATALOG_ADMIN, Roles.CATALOG_MODERATOR })
+        @PermissionsAllowed({ MANAGE_OWN_PRODUCTS, MANAGE_TAXONOMY, READ_TENANT_CATALOG, MODERATE_PRODUCTS })
         @Operation(operationId = "getCategory", summary = "Consulta categoria com atributos efetivos (herdados)")
         @APIResponse(responseCode = "200", description = "Categoria")
         public Uni<RestResponse<CategoryResponse>> get(@RestPath UUID id) {
@@ -75,21 +91,87 @@ public class CategoryResource {
         }
 
         /**
-         * Pagina em ordem de código com cursor opaco; sem {@code parentId} lista as
-         * raízes.
-         * Responde 400 para {@code parentId} ou cursor malformado e 404 se o pai não
-         * existe.
+         * Pagina em ordem de código com cursor opaco; sem {@code parentId} lista as raízes. Responde 400 para
+         * {@code parentId} ou cursor malformado e 404 se o pai não existe. Com {@code ids}, só essas categorias numa
+         * página; 400 para id malformado, mais de 100 ou junto de {@code parentId} ou {@code cursor}.
          */
         @GET
-        @RolesAllowed({ Roles.SELLER, Roles.CATALOG_ADMIN, Roles.CATALOG_MODERATOR })
-        @Operation(operationId = "listCategories", summary = "Lista filhos de uma categoria (ou as raízes) em ordem de código")
+        @PermissionsAllowed({ MANAGE_OWN_PRODUCTS, MANAGE_TAXONOMY, READ_TENANT_CATALOG, MODERATE_PRODUCTS })
+        @Operation(operationId = "listCategories", summary = "Lista filhos de uma categoria (ou as raízes) em ordem de código", description = """
+                        Com `ids`, devolve só essas categorias, em ordem de código e numa página só, sem \
+                        `nextCursor`; id repetido aparece uma vez, e o que não existe no tenant fica de fora. `ids` \
+                        não combina com `parentId` nem com `cursor` (400), e `limit` não se aplica a ele.""")
         @APIResponse(responseCode = "200", description = "Página de categorias")
         public Uni<CategoryPage> list(@RestQuery String parentId, @RestQuery String cursor,
-                        @RestQuery @DefaultValue("" + Page.DEFAULT_SIZE) @Min(1) @Max(Page.MAX_SIZE) int limit) {
-                return categories
-                                .children(caller.actor(), QueryParams.uuid(parentId), Cursors.decode(cursor), limit)
-                                .map(page -> new CategoryPage(page.items().stream().map(CategorySummary::of).toList(),
-                                                Cursors.next(page)));
+                        @RestQuery @DefaultValue("" + Page.DEFAULT_SIZE) @Min(1) @Max(Page.MAX_SIZE) int limit,
+                        @Parameter(description = "Ids das categorias, até 100, separados por vírgula; repetir o parâmetro também vale", style = ParameterStyle.FORM, explode = Explode.FALSE, schema = @Schema(type = SchemaType.ARRAY, implementation = UUID.class, maxItems = CategoryService.MAX_IDS)) @RestQuery @Separator(",") List<String> ids) {
+                Optional<UUID> parent = QueryParams.uuid(parentId);
+                Optional<String> after = Cursors.decode(cursor);
+                if (!ids.isEmpty()) {
+                        if (parent.isPresent() || after.isPresent())
+                                throw new InvalidInputException("ids não combina com parentId nem com cursor");
+                        return categories.byIds(caller.actor(), QueryParams.uuids(ids))
+                                        .map(nodes -> new CategoryPage(nodes.stream().map(CategorySummary::of).toList(),
+                                                        null));
+                }
+                return categories.children(caller.actor(), parent, after, limit).map(CategoryResource::page);
+        }
+
+        /**
+         * Pagina todas as categorias do tenant na ordem da árvore, para os seletores que mostram o caminho de cada
+         * uma, em páginas de até {@link CategoryService#TREE_PAGE_SIZE}; 400 para cursor malformado.
+         */
+        @GET
+        @Path("/tree")
+        @PermissionsAllowed({ MANAGE_OWN_PRODUCTS, MANAGE_TAXONOMY, READ_TENANT_CATALOG, MODERATE_PRODUCTS })
+        @Operation(operationId = "listCategoryTree", summary = "Lista todas as categorias do tenant na ordem da árvore", description = """
+                        O pai vem antes das subcategorias, e os irmãos seguem a ordem de código, como numa árvore \
+                        aberta; cada item traz o caminho desde a raiz. Com `usable=true`, só as categorias que \
+                        aceitam produtos novos (ela e os ancestrais ativos). A página tem até 1000 itens, que é \
+                        também o padrão, para quem lê a árvore inteira fazer poucas leituras.""")
+        @APIResponse(responseCode = "200", description = "Página de categorias")
+        public Uni<CategoryPage> tree(
+                        @Parameter(description = "Só as categorias ativas com todos os ancestrais ativos") @RestQuery @DefaultValue("false") boolean usable,
+                        @RestQuery String cursor,
+                        @RestQuery @DefaultValue("" + CategoryService.TREE_PAGE_SIZE) @Min(1) @Max(CategoryService.TREE_PAGE_SIZE) int limit) {
+                return categories.tree(caller.actor(), Cursors.decode(cursor, TREE_CURSOR_MAX_LENGTH), usable, limit)
+                                .map(CategoryResource::page);
+        }
+
+        /**
+         * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu. Responde 409 se a categoria tem
+         * subcategorias ou produtos, inclusive arquivados.
+         */
+        @DELETE
+        @Path("/{id}")
+        @PermissionsAllowed(MANAGE_TAXONOMY)
+        @Operation(operationId = "deleteCategory", summary = "Exclui a categoria vazia (exige If-Match)", description = """
+                        Vale só para a categoria sem subcategorias e sem nenhum produto, nem arquivado. Recusa com 409 \
+                        `category-has-children` ou `category-has-products`, com o mesmo código em `reasons`, \
+                        inclusive quando a subcategoria ou o produto é gravado ao mesmo tempo.""")
+        @APIResponse(responseCode = "204", description = "Categoria excluída")
+        public Uni<Void> delete(@RestPath UUID id, @RestHeader("If-Match") String ifMatch) {
+                return categories.delete(caller.actor(), id, ETags.required(ifMatch));
+        }
+
+        /**
+         * Ativa, desativa ou exclui até 100 categorias, cada uma isolada, e responde 200 com o resultado de cada uma
+         * na ordem do pedido. Itens fora de 1 a 100 ou com id repetido: 400.
+         */
+        @POST
+        @Path("/batch")
+        @PermissionsAllowed(MANAGE_TAXONOMY)
+        @Operation(operationId = "batchCategories", summary = "Ativa, desativa ou exclui até 100 categorias, cada uma isolada", description = """
+                        Cada item exige `version`, como o If-Match do endpoint de um item; sem ela, o item falha com \
+                        428. Ativar ou desativar a categoria que já está na situação pedida não grava nada. A exclusão \
+                        roda das subcategorias para as categorias pai, para que um ramo vazio saia inteiro, e cada \
+                        item recusa como `DELETE /categories/{id}`.""")
+        @APIResponse(responseCode = "200", description = "Resultado de cada categoria, na ordem do pedido")
+        public Uni<CategoryBatchResponse> batch(@NotNull @Valid CategoryBatchRequest request, UriInfo uri) {
+                return categories.batch(caller.actor(), request.action(), BatchItemRequest.toItems(request.items()))
+                                .map(outcomes -> new CategoryBatchResponse(outcomes.stream()
+                                                .map(o -> CategoryBatchResult.of(request.action(), o, uri.getPath()))
+                                                .toList()));
         }
 
         /**
@@ -99,7 +181,7 @@ public class CategoryResource {
          */
         @PUT
         @Path("/{id}")
-        @RolesAllowed(Roles.CATALOG_ADMIN)
+        @PermissionsAllowed(MANAGE_TAXONOMY)
         @Operation(operationId = "reviseCategory", summary = "Atualiza nome, atributos próprios e ativação (exige If-Match)")
         @APIResponse(responseCode = "200", description = "Categoria atualizada")
         public Uni<RestResponse<CategoryResponse>> revise(@RestPath UUID id, @RestHeader("If-Match") String ifMatch,
@@ -117,7 +199,7 @@ public class CategoryResource {
          */
         @PUT
         @Path("/{id}/parent")
-        @RolesAllowed(Roles.CATALOG_ADMIN)
+        @PermissionsAllowed(MANAGE_TAXONOMY)
         @Operation(operationId = "moveCategory", summary = "Move a categoria e suas subcategorias para outro pai ou para a raiz (exige If-Match)", description = """
                         Recusa com 422 `category-cycle` (novo pai é a própria categoria ou uma subcategoria dela), \
                         `category-too-deep` (a subárvore passaria do limite de níveis) e `attribute-conflict` \
@@ -129,6 +211,10 @@ public class CategoryResource {
                 return categories
                                 .move(caller.actor(), id, ETags.required(ifMatch), Optional.ofNullable(request.parentId()))
                                 .map(view -> ETags.ok(CategoryResponse.of(view), view.category().version()));
+        }
+
+        private static CategoryPage page(Page<CategoryNode> page) {
+                return new CategoryPage(page.items().stream().map(CategorySummary::of).toList(), Cursors.next(page));
         }
 
 }

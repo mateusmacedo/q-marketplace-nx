@@ -47,13 +47,23 @@ package "$I_OUTBOX outbox (dev.marketplace.cataloginventory.outbox)" as pkg_outb
     transition : String
     from : String
     to : String
-    reason : String
+    reason : String (derivado, até 500)
+    reasonCodes : List<String>
     visible : boolean
+    note : String
+    reasonLabels : List<ReasonLabelV1>
   }
   class "<$box,scale=0.55,color=#FFA000> ProductBlockedV1" as ProductBlockedV1 <<record>> <<evento>> {
     productId : UUID
     storeId : UUID
-    reason : String
+    reason : String (derivado, até 500)
+    reasonCodes : List<String>
+    note : String
+    reasonLabels : List<ReasonLabelV1>
+  }
+  class ReasonLabelV1 <<record>> <<valor>> {
+    code : String
+    label : String
   }
   class PromotionV1 <<record>> <<valor>> {
     promotionId : UUID
@@ -117,6 +127,8 @@ Envelope o-- "data" InventoryReservedV1
 Envelope o-- "data" InventoryDepletedV1
 Envelope o-- "data" StoreEligibilityChangedV1
 ProductCreatedV1 "1" *-- "0..*" SkuV1
+ProductStatusChangedV1 "1" *-- "0..*" ReasonLabelV1
+ProductBlockedV1 "1" *-- "0..*" ReasonLabelV1
 PriceChangedV1 "1" *-- "0..*" PromotionV1
 InventoryUpdatedV1 --> StockV1
 InventoryDepletedV1 --> StockV1

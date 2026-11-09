@@ -24,6 +24,12 @@ package "<$lock,scale=0.55,color=#455A64> security" as security <<infra>> {
     {static} CATALOG_MODERATOR = "catalog-moderator"
     {static} CATALOG_RESERVATIONS = "catalog-reservations"
   }
+  class CapabilityAugmentor <<@ApplicationScoped>> {
+    augment(identity, context) : Uni<SecurityIdentity>
+  }
+  class Capabilities <<final>> {
+    {static} MANAGE_OWN_PRODUCTS ... MANAGE_MODERATION_REASONS : String
+  }
   class SecurityConfigCheck <<@Startup, @Singleton>> {
     SecurityConfigCheck(issuer, keyLocation, inlineKey, audiences)
   }
@@ -120,6 +126,9 @@ Refusal <|.. InvalidImportFileException
 CallerContext ..> Actor : cria
 CallerContext ..> Capability : papel vira capacidade
 CallerContext ..> Roles
+CapabilityAugmentor ..> CallerContext : capabilities(roles)
+CapabilityAugmentor ..> Capability : nome vira permissão
+Capabilities ..> Capability : um nome por constante
 CallerContext ..> TenantNotAuthorizedException
 CallerContext --> CatalogConfig : security()
 RequestTelemetry --> CatalogConfig : security()
@@ -148,8 +157,12 @@ Telemetry -[hidden]down- RedisClientMetricsFilter
 
 note bottom of CallerContext
   Chamador derivado só do token já validado: tenant e loja nunca vêm de cabeçalho
-  ou corpo, e os papéis do token viram capacidades de negócio. SecurityConfigCheck
-  falha a inicialização se issuer, chave pública ou audiência faltarem.
+  ou corpo, e os papéis do token viram capacidades de negócio. É o único mapa de papel
+  para capacidade: GET /me (api.SessionResource) devolve o resultado ao painel, e o
+  CapabilityAugmentor (SecurityIdentityAugmentor) dá as mesmas capacidades à identidade
+  como permissões, que o @PermissionsAllowed dos resources confere com os nomes de
+  Capabilities; nenhum resource cita papel.
+  SecurityConfigCheck falha a inicialização se issuer, chave pública ou audiência faltarem.
 end note
 
 note bottom of Lifecycle
