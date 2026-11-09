@@ -60,3 +60,6 @@ plans/
 
 # Saídas locais do servidor MCP do Playwright (capturas e snapshots)
 .playwright-mcp/
+
+# Cache local do Vitest
+.vitest/

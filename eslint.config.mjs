@@ -29,10 +29,14 @@ const layerConstraints = [
 ];
 
 // O cliente da API de outro contexto é permitido (integração por contrato, ADR 003); a feature e a ui dele, não.
-const scopeConstraints = contexts.map(context => ({
-  sourceTag: `scope:${context}`,
-  onlyDependOnLibsWithTags: [`scope:${context}`, "scope:shared", "layer:data-access"]
-}));
+// As libs comuns não dependem de contexto nenhum, nem do cliente da API.
+const scopeConstraints = [
+  ...contexts.map(context => ({
+    sourceTag: `scope:${context}`,
+    onlyDependOnLibsWithTags: [`scope:${context}`, "scope:shared", "layer:data-access"]
+  })),
+  { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] }
+];
 
 export default [
   ...nx.configs["flat/base"],
@@ -46,7 +50,9 @@ export default [
       "**/test-output",
       "**/coverage",
       "**/playwright-report",
-      "**/src/generated"
+      "**/src/generated",
+      "**/vite.config.*.timestamp*",
+      "**/vitest.config.*.timestamp*"
     ]
   },
   {

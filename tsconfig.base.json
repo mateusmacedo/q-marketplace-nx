@@ -20,6 +20,30 @@
     "paths": {
       "@marketplace/catalog-inventory-admin-data-access": [
         "./libs/catalog-inventory/admin/data-access/src/index.ts"
+      ],
+      "@marketplace/shared-admin-ui": [
+        "./libs/shared/admin-ui/src/index.ts"
+      ],
+      "@marketplace/catalog-inventory-admin-ui": [
+        "./libs/catalog-inventory/admin/ui/src/index.ts"
+      ],
+      "@marketplace/catalog-inventory-admin-feature-products": [
+        "./libs/catalog-inventory/admin/feature-products/src/index.ts"
+      ],
+      "@marketplace/catalog-inventory-admin-feature-imports": [
+        "./libs/catalog-inventory/admin/feature-imports/src/index.ts"
+      ],
+      "@marketplace/catalog-inventory-admin-feature-store": [
+        "./libs/catalog-inventory/admin/feature-store/src/index.ts"
+      ],
+      "@marketplace/catalog-inventory-admin-feature-moderation": [
+        "./libs/catalog-inventory/admin/feature-moderation/src/index.ts"
+      ],
+      "@marketplace/catalog-inventory-admin-feature-categories": [
+        "./libs/catalog-inventory/admin/feature-categories/src/index.ts"
+      ],
+      "@marketplace/shared-web-util": [
+        "./libs/shared/web-util/src/index.ts"
       ]
     }
   },
