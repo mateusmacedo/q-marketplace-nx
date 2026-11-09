@@ -108,6 +108,19 @@ npx nx run admin-web:container
 
 O `codegen` gera o cliente da API a partir de `contracts/catalog-inventory/openapi.json` com o Hey API, e o código gerado fica versionado em `libs/catalog-inventory/admin/data-access/src/generated`. Os testes unitários rodam no Chromium headless do Playwright (na primeira vez, `npx playwright install chromium`), e o e2e entra pelo Keycloak local, que precisa estar no ar. A referência dos componentes é a documentação do CoreUI em `https://coreui.io/angular/docs/llms-full.txt`.
 
+O e2e (`apps/admin-web-e2e`) roda contra a stack local com `--profile catalog` e o dev server em `4200`, que ele reaproveita se já estiver no ar. O preparo confere os serviços, aprova a loja do `seller-demo` quando ela ainda não está aprovada e entra uma vez pela tela do Keycloak com `admin-demo`, `seller-demo` e `moderator-demo`. Cada teste cria os próprios dados pela API, então a suíte roda de novo no mesmo banco. Localmente roda um teste por vez; `E2E_WORKERS=2` paraleliza. Para um spec só: `npx playwright test -c apps/admin-web-e2e/playwright.config.mts apps/admin-web-e2e/src/seller.spec.ts`.
+
+### Memória do host
+
+Com a stack, o dev server, o editor e os servidores de linguagem no ar, a máquina de 15 GiB fica sem folga, e o OOM do kernel derrubou o editor duas vezes em 09/11, com o swap esgotado. Por isso:
+
+- o Vitest das libs do painel usa no máximo 2 workers, e não um por núcleo menos um; `VITEST_MAX_WORKERS` sobrepõe;
+- o e2e roda com 1 worker localmente; `E2E_WORKERS` sobrepõe;
+- o daemon do Gradle fecha depois de 15 min ocioso (`org.gradle.daemon.idletimeout`): o `gradlew` e cada servidor de linguagem Java aberto no projeto sobem o seu, por usarem JDKs diferentes;
+- `npm run check:memory` mostra a memória disponível, os daemons do Gradle vivos e os maiores consumidores, e falha abaixo de `MEMORY_GUARD_MIN_MB` (padrão 3072); `npm run check:memory -- --stop-gradle-daemons` encerra os daemons antes de conferir.
+
+Rode o `check:memory` antes dos testes do front, do e2e e do build nativo, e uma tarefa pesada por vez.
+
 ### Clientes de banco
 
 Com o compose no ar (profiles `infra`, `catalog` ou `all`), o PostgreSQL e o Redis aceitam conexões do host em `127.0.0.1`, sem TLS, de clientes como DBeaver, pgAdmin, psql e RedisInsight. As senhas são os padrões locais; se `infra/local/.env` as trocar, valem as de lá (variáveis entre parênteses, modelo em `infra/local/.env.example`). Cada role do PostgreSQL abre no próprio schema (`search_path`), então as tabelas aparecem sem prefixo.
