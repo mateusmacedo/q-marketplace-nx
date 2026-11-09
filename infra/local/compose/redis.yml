@@ -1,8 +1,9 @@
-# Redis do cache da vitrine e da taxonomia do catálogo (ADR 024), no modelo do DMPF. Sem persistência: o conteúdo é
-# derivado do banco, e reiniciar só esvazia o cache. Na falta de memória, allkeys-lru remove qualquer chave, e perder um
-# conteúdo ou uma geração só gera uma falta, nunca dado velho. ACL sem o usuário default: o catálogo só alcança chaves
-# catalog:* e os comandos que usa (dentro dos scripts inclusive); o exporter, só leitura de estado; o inspector, só
-# leitura de chaves e estado, sem escrita nem comandos @dangerous (KEYS, CONFIG...), para clientes como o RedisInsight.
+# Redis do cache da vitrine, da taxonomia e dos motivos de moderação do catálogo (ADRs 024 e 030), no modelo do DMPF.
+# Sem persistência: o conteúdo é derivado do banco, e reiniciar só esvazia o cache. Na falta de memória, allkeys-lru
+# remove qualquer chave, e perder um conteúdo ou uma geração só gera uma falta, nunca dado velho. ACL sem o usuário
+# default: o catálogo só alcança chaves catalog:* e os comandos que usa (dentro dos scripts inclusive); o exporter, só
+# leitura de estado; o inspector, só leitura de chaves e estado, sem escrita nem comandos @dangerous (KEYS, CONFIG...),
+# para clientes como o RedisInsight.
 services:
   redis:
     image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499

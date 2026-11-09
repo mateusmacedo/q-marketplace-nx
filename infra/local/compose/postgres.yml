@@ -43,6 +43,7 @@ services:
       PGDATABASE: marketplace
       CATALOG_INVENTORY_DB_PASSWORD: ${CATALOG_INVENTORY_DB_PASSWORD:-catalog-inventory-local}
       CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD: ${CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD:-catalog-inventory-migrator-local}
+      CATALOG_INVENTORY_DB_EXTENSIONS: pg_trgm
       POSTGRES_EXPORTER_PASSWORD: ${POSTGRES_EXPORTER_PASSWORD:-exporter-local-postgres}
     volumes: ["../../postgres/provision.sh:/provision.sh:ro"]
     entrypoint: ["sh", "/provision.sh"]

@@ -2,7 +2,8 @@
 # Provisiona o PostgreSQL compartilhado (ADR 019): no banco de PGDATABASE, um schema por contexto recebido como
 # argumento, dono do role <contexto>_migrator (DDL, usado pelo Flyway), e o role <contexto> de runtime, só com DML.
 # Com POSTGRES_EXPORTER_PASSWORD, também o role exporter (pg_monitor). Conecta como superusuário pelas variáveis PG*;
-# as senhas vêm de <CONTEXTO>_DB_PASSWORD e <CONTEXTO>_DB_MIGRATOR_PASSWORD. Uso: provision.sh catalog_inventory ...
+# as senhas vêm de <CONTEXTO>_DB_PASSWORD e <CONTEXTO>_DB_MIGRATOR_PASSWORD, e as extensões opcionais do schema, de
+# <CONTEXTO>_DB_EXTENSIONS. Uso: provision.sh catalog_inventory ...
 # WHY: idempotente e reaplica senhas e grants a cada execução, para que trocar uma senha com o volume mantido funcione.
 set -eu
 
@@ -43,6 +44,15 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA :"schema" TO :"runtime";
 ALTER ROLE :"migrator" IN DATABASE :"DBNAME" SET search_path = :"schema";
 ALTER ROLE :"runtime" IN DATABASE :"DBNAME" SET search_path = :"schema";
 SQL
+  # WHY: CREATE EXTENSION pede CREATE no banco, que o migrator não tem; as extensões de <CONTEXTO>_DB_EXTENSIONS
+  # (separadas por espaço) nascem aqui, no schema do contexto, e a migration só as confere com IF NOT EXISTS.
+  for extension in $(printenv "${env_prefix}_DB_EXTENSIONS" || true); do
+    case $extension in [!a-z]* | *[!a-z0-9_]*) fail "nome de extensão inválido: '$extension'" ;; esac
+    sql -v schema="$1" -v extension="$extension" <<'SQL'
+SET client_min_messages = warning;
+CREATE EXTENSION IF NOT EXISTS :"extension" WITH SCHEMA :"schema";
+SQL
+  done
   echo "contexto $1: schema $1, $1_migrator (dono, DDL) e $1 (só DML) prontos"
 }
 
