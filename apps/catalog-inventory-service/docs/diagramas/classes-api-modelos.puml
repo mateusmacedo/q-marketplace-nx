@@ -1,7 +1,7 @@
 @startuml classes-api-modelos
 !include ../../../../docs/diagramas/tema-catalogo.iuml
 !include <tupadr3/font-awesome-5/box>
-title $I_API Pacote api: DTOs de catálogo (ProductModels, CategoryModels e StorefrontModels)
+title $I_API Pacote api: DTOs de catálogo (ProductModels, CategoryModels, ModerationModels, BatchModels e StorefrontModels)
 
 hide empty members
 hide <<requisicao>> stereotype
@@ -52,8 +52,19 @@ package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModel
     physical : boolean
     dimensions : DimensionsDto
   }
-  class ReasonRequest <<record>> <<requisicao>> {
-    reason : String
+  class ProductBatchRequest <<record>> <<requisicao>> {
+    action : ProductBatchAction
+    items : List<BatchItemRequest> (1 a 100)
+  }
+  class ProductBatchResult <<record>> <<resposta>> {
+    id : UUID
+    outcome : BatchOutcome
+    status : ProductStatus
+    version : Long
+    problem : Problem
+  }
+  class ProductBatchResponse <<record>> <<resposta>> {
+    results : List<ProductBatchResult>
   }
   class SkuResponse <<record>> <<resposta>> {
     id : UUID
@@ -61,8 +72,18 @@ package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModel
     variantAttributes : Map<String, String>
     physical : boolean
     dimensions : DimensionsDto
+    offer : SkuOfferResponse
+    stock : StockResponse
     --
-    {static} of(sku) : SkuResponse
+    {static} of(sku, readings) : SkuResponse
+  }
+  class SkuOfferResponse <<record>> <<resposta>> {
+    currency : String
+    listPrice : MoneyDto
+    salePrice : MoneyDto
+    effectivePrice : MoneyDto
+    onPromotion : boolean
+    version : long
   }
   class ProductResponse <<record>> <<resposta>> {
     id : UUID
@@ -76,9 +97,53 @@ package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModel
     version : long
     createdAt : Instant
     updatedAt : Instant
+    moderationQueuedAt : Instant
     skus : List<SkuResponse>
+    lastRejection : RejectionResponse
+    actions : List<String> (aberta)
+    blockedActions : List<BlockedActionResponse>
+    saveReturnsToModeration : boolean
+    publishingIssues : List<PublishingIssueResponse> (só na leitura de um produto)
     --
-    {static} of(product, stock) : ProductResponse
+    {static} of(product, readings) : ProductResponse
+  }
+  class BlockedActionResponse <<record>> <<resposta>> {
+    action : String
+    reason : Problem.ReasonDetail
+  }
+  class PublishingIssueResponse <<record>> <<resposta>> {
+    code : String
+    params : List<String>
+    message : String
+    field : String
+  }
+  class ProductCheckRequest <<record>> <<requisicao>> {
+    categoryId : UUID
+    attributes : Map<String, String>
+  }
+  class ProductCheckResponse <<record>> <<resposta>> {
+    publishingIssues : List<PublishingIssueResponse>
+    categoryChange : CategoryChangeResponse
+  }
+  class CategoryChangeResponse <<record>> <<resposta>> {
+    removedAttributes : List<RemovedAttributeResponse>
+    newRequired : List<NewRequiredAttributeResponse>
+    blockingSkus : List<BlockingSkuResponse>
+  }
+  class RemovedAttributeResponse <<record>> <<resposta>> {
+    code : String
+    label : String
+    value : String
+    reason : Problem.ReasonDetail
+  }
+  class NewRequiredAttributeResponse <<record>> <<resposta>> {
+    code : String
+    label : String
+    variant : boolean
+  }
+  class BlockingSkuResponse <<record>> <<resposta>> {
+    sellerSku : String
+    reasons : List<Problem.ReasonDetail>
   }
   class ProductPage <<record>> <<resposta>> {
     items : List<ProductResponse>
@@ -88,11 +153,27 @@ package "<$box,scale=0.6,color=#EF6C00> ProductModels <<final>>" as productModel
     transition : ProductTransition
     from : ProductStatus
     to : ProductStatus
-    actor : String
-    reason : String
+    actorSide : TransitionSide (STORE ou MODERATION)
+    byCaller : boolean (feita pelo chamador)
+    reason : String (derivado)
+    reasonCodes : List<String>
+    reasonLabels : List<ReasonLabelResponse>
+    note : String
     at : Instant
     --
-    {static} of(change) : StatusChangeResponse
+    {static} of(change, callerSubject) : StatusChangeResponse
+  }
+  class RejectionResponse <<record>> <<resposta>> {
+    reason : String (derivado)
+    reasonCodes : List<String>
+    reasonLabels : List<ReasonLabelResponse>
+    note : String
+    actor : String
+    at : Instant
+  }
+  class ReasonLabelResponse <<record>> <<resposta>> {
+    code : String
+    label : String (rótulo da época)
   }
 }
 
@@ -131,9 +212,24 @@ package "<$sitemap,scale=0.6,color=#EF6C00> CategoryModels <<final>>" as categor
     usable : boolean
     version : long
     attributes : List<AttributeDto>
-    effectiveAttributes : List<AttributeDto>
+    effectiveAttributes : List<EffectiveAttributeDto>
+    ancestors : List<CategoryAncestor>
+    level : int
+    childCount : int
     --
     {static} of(view) : CategoryResponse
+  }
+  class EffectiveAttributeDto <<record>> <<resposta>> {
+    code, label : String
+    type : AttributeType
+    required, variant : boolean
+    options : List<String>
+    categoryId : UUID (dona do atributo)
+  }
+  class CategoryAncestor <<record>> <<resposta>> {
+    id : UUID
+    code : String
+    name : String
   }
   class CategorySummary <<record>> <<resposta>> {
     id : UUID
@@ -141,11 +237,77 @@ package "<$sitemap,scale=0.6,color=#EF6C00> CategoryModels <<final>>" as categor
     code : String
     name : String
     active : boolean
+    usable : boolean
     version : long
+    ancestors : List<CategoryAncestor>
+    level : int
+    childCount : int
+    attributeCount : int
+    --
+    {static} of(node) : CategorySummary
   }
   class CategoryPage <<record>> <<resposta>> {
     items : List<CategorySummary>
     nextCursor : String
+  }
+  class CategoryBatchRequest <<record>> <<requisicao>> {
+    action : CategoryBatchAction
+    items : List<BatchItemRequest> (1 a 100)
+  }
+  class CategoryBatchResult <<record>> <<resposta>> {
+    id : UUID
+    outcome : BatchOutcome
+    active : Boolean
+    version : Long
+    problem : Problem
+  }
+  class CategoryBatchResponse <<record>> <<resposta>> {
+    results : List<CategoryBatchResult>
+  }
+}
+
+package "<$gavel,scale=0.6,color=#EF6C00> ModerationModels <<final>>" as moderationModels {
+  class DecisionRequest <<record>> <<requisicao>> {
+    reasonCodes : List<String>
+    note : String (até 500)
+  }
+  class ModerationBatchRequest <<record>> <<requisicao>> {
+    action : ModerationDecision
+    items : List<BatchItemRequest> (1 a 100)
+    reasonCodes : List<String>
+    note : String
+  }
+  class ModerationReasonResponse <<record>> <<resposta>> {
+    code : String
+    label : String
+    decisions : List<ModerationDecision>
+    position : int
+    active : boolean
+    version : long
+  }
+  class CreateModerationReasonRequest <<record>> <<requisicao>> {
+    code : String
+    label : String
+    decisions : List<ModerationDecision>
+    position : Integer
+  }
+  class ReviseModerationReasonRequest <<record>> <<requisicao>> {
+    label : String
+    decisions : List<ModerationDecision>
+    position : Integer
+  }
+}
+
+package "BatchModels <<final>>" as batchModels {
+  class BatchItemRequest <<record>> <<requisicao>> {
+    id : UUID
+    version : Long (If-Match do item; nulo dispensa)
+    --
+    {static} toItems(requests) : List<Batch.Item>
+  }
+  enum BatchOutcome {
+    SUCCEEDED
+    FAILED
   }
 }
 
@@ -184,7 +346,28 @@ SkuRequest --> DimensionsDto
 ReviseSkuRequest --> DimensionsDto
 SkuResponse --> DimensionsDto
 ProductResponse "1" *-- "0..*" SkuResponse
+ProductResponse "1" *-- "0..1" RejectionResponse : lastRejection
+RejectionResponse "1" *-- "0..*" ReasonLabelResponse
+StatusChangeResponse "1" *-- "0..*" ReasonLabelResponse
 ProductPage "1" *-- "0..*" ProductResponse
+ProductResponse "1" *-- "0..*" BlockedActionResponse
+ProductResponse "1" *-- "0..*" PublishingIssueResponse
+ProductCheckResponse "1" *-- "0..*" PublishingIssueResponse
+ProductCheckResponse "1" *-- "0..1" CategoryChangeResponse
+CategoryChangeResponse "1" *-- "0..*" RemovedAttributeResponse
+CategoryChangeResponse "1" *-- "0..*" NewRequiredAttributeResponse
+CategoryChangeResponse "1" *-- "0..*" BlockingSkuResponse
+SkuResponse "1" *-- "0..1" SkuOfferResponse
+ProductBatchRequest "1" *-- "1..*" BatchItemRequest
+ProductBatchResponse "1" *-- "1..*" ProductBatchResult
+ProductBatchResult --> BatchOutcome
+CategoryBatchRequest "1" *-- "1..*" BatchItemRequest
+CategoryBatchResponse "1" *-- "1..*" CategoryBatchResult
+CategoryBatchResult --> BatchOutcome
+ModerationBatchRequest "1" *-- "1..*" BatchItemRequest
+CategoryResponse "1" *-- "0..*" EffectiveAttributeDto
+CategoryResponse "1" *-- "0..*" CategoryAncestor
+CategorySummary "1" *-- "0..*" CategoryAncestor
 CreateCategoryRequest "1" *-- "0..*" AttributeDto
 ReviseCategoryRequest "1" *-- "0..*" AttributeDto
 CategoryResponse "1" *-- "0..*" AttributeDto
@@ -200,7 +383,10 @@ StorefrontSkuResponse --> OfferEffectivePrice
 note bottom of storefrontModels
   Os records ficam em classes finais com construtor privado. Os de entrada validam
   com Bean Validation e os de saída montam-se por métodos de fábrica. Os DTOs de
-  operação (oferta, estoque, reserva e importação) estão em classes-api-modelos-operacao.
+  operação (oferta, estoque, reserva, importação e indicadores) estão em
+  classes-api-modelos-operacao. Os lotes respondem 200 com um resultado por item,
+  na ordem do pedido: SUCCEEDED com o estado gravado ou FAILED com o problem que
+  o endpoint de um item responderia.
 end note
 
 legend right

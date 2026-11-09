@@ -44,9 +44,11 @@ package "$I_CSV Importação de produtos" as importacao <<aplicacao>> {
     code : String
     message : String
     productId : UUID
+    reasons : List<Reason>
     --
     ~{static} succeeded(row, outcome, productId) : ImportResult
     ~{static} failed(row, productId, code, message) : ImportResult
+    ~{static} failed(row, productId, code, message, reasons) : ImportResult
   }
   enum "ImportResult.ImportOutcome" as ImportOutcome {
     CREATED
@@ -76,6 +78,19 @@ package "$I_CSV Importação de produtos" as importacao <<aplicacao>> {
   class "ProductImportRepository.Claimed" as Claimed <<record>> {
     job : ProductImport
     content : String
+  }
+  class "ProductImportRepository.Summary" as Summary <<record>> {
+    job : ProductImport
+    created : int
+    updated : int
+    unchanged : int
+    failed : int
+    --
+    processedLines() : int
+  }
+  class "ProductImportRepository.Position" as Position <<record>> {
+    createdAt : Instant
+    id : UUID
   }
   class "ProductImportService.Report" as Report <<record>> {
     job : ProductImport
@@ -117,6 +132,7 @@ ImportResult ..> ImportRow : succeeded / failed
 ProductImport --> ImportStatus
 ProductImport ..> Actor : seller()
 Claimed --> ProductImport
+Summary --> ProductImport
 Report --> ProductImport
 Report "1" *-- "0..*" ImportResult : lines
 ProductImportService +-- Report
@@ -137,8 +153,10 @@ Prepared ..> Price
 
 note bottom of ProductImportService
   Só os tipos aninhados e as constantes de código aparecem aqui; as operações do caso de
-  uso estão descritas em portas-e-casos-de-uso. Unit agrupa as linhas do CSV: produto
-  novo, SKU já existente ou grupo rejeitado. Report e Claimed são públicos; Unit,
+  uso estão em classes-aplicacao-casos-de-uso. Unit agrupa as linhas do CSV: produto
+  novo, SKU já existente ou grupo rejeitado. Summary traz as contagens por desfecho sem
+  as linhas (GET com lines=false e a lista); Position é o cursor da lista, por createdAt
+  e id. Report, Claimed, Summary e Position são públicos; Unit,
   NewProduct, ExistingSku, Rejected e Prepared são privados do caso de uso.
 end note
 

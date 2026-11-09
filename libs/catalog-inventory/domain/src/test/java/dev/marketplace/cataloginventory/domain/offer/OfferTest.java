@@ -64,6 +64,15 @@ class OfferTest {
     }
 
     @Test
+    void promotionPhaseFollowsTheWindowWithInclusiveStartAndExclusiveEnd() {
+        Promotion promotion = promo("80", Duration.ofHours(1), Duration.ofDays(1));
+        assertEquals(PromotionPhase.SCHEDULED, promotion.phaseAt(NOW));
+        assertEquals(PromotionPhase.ACTIVE, promotion.phaseAt(promotion.startsAt()));
+        assertEquals(PromotionPhase.ACTIVE, promotion.phaseAt(promotion.endsAt().minusMillis(1)));
+        assertEquals(PromotionPhase.ENDED, promotion.phaseAt(promotion.endsAt()));
+    }
+
+    @Test
     void promotionAppliesOnlyInsideItsWindow() {
         Offer offer = offer();
         Promotion blackFriday = promo("80", Duration.ofHours(1), Duration.ofDays(1));

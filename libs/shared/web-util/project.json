@@ -1,0 +1,14 @@
+{
+  "name": "shared-web-util",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/web-util/src",
+  "projectType": "library",
+  "tags": [
+    "scope:shared",
+    "layer:util",
+    "framework:none",
+    "lang:ts"
+  ],
+  "// targets": "to see all targets run: nx show project shared-web-util --web",
+  "targets": {}
+}

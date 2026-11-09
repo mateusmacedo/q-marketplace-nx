@@ -4,8 +4,9 @@ import { OAuthService } from 'angular-oauth2-oidc';
 import { authConfig } from './auth.config';
 
 /**
- * Sessão do painel no provedor OIDC: code flow com PKCE, token no sessionStorage (padrão da biblioteca) e renovação
- * pelo refresh token (ADR 027).
+ * Login do painel no provedor OIDC: code flow com PKCE, token no sessionStorage (padrão da biblioteca) e renovação
+ * pelo refresh token (ADR 027). Só responde se há sessão; o que o usuário pode fazer vem do servidor
+ * (`SessionStore`), e o painel não decide nada pelos papéis ou claims do token; só o nome de exibição vem dele.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthSession {
@@ -32,6 +33,16 @@ export class AuthSession {
     return decodeURIComponent(state);
   }
 
+  /** Renova o access token pelo refresh token; `false` quando o provedor recusa (sessão encerrada ou revogada). */
+  async refresh(): Promise<boolean> {
+    try {
+      await this.#oauth.refreshToken();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   login(returnUrl: string): void {
     this.#oauth.initCodeFlow(returnUrl);
   }
@@ -40,6 +51,7 @@ export class AuthSession {
     this.#oauth.logOut();
   }
 
+  /** Nome exibido no cabeçalho, do token de identidade. */
   username(): string {
     const claims = this.#oauth.getIdentityClaims() as Record<string, unknown> | null;
     return typeof claims?.['preferred_username'] === 'string' ? claims['preferred_username'] : '';

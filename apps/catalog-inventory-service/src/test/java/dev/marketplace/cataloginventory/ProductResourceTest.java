@@ -34,7 +34,7 @@ class ProductResourceTest {
                                 .body("skus[0].price.salePrice.amount", is(99.90f))
                                 .body("skus[0].price.listPrice.amount", is(120.00f))
                                 .body("skus[0].inStock", is(true)).body("skus[0].dimensions.lengthCm", is(30.50f));
-                as(api.moderator).body("{\"reason\":\"Produto proibido\"}")
+                as(api.moderator).body("{\"note\":\"Produto proibido\"}")
                                 .post("/moderation/products/" + id + "/block").then()
                                 .statusCode(200).body("status", is("BLOCKED"));
                 api.storefront(id).then().statusCode(404);
@@ -191,8 +191,9 @@ class ProductResourceTest {
                                 "items",
                                 hasSize(2));
                 as(api.seller).queryParam("status", "QUALQUER").get("/products").then().statusCode(400);
-                as(api.seller).queryParam("status", "OUT_OF_STOCK").get("/products").then().statusCode(400)
-                                .body("detail", containsString("derivado do saldo"));
+                as(api.seller).queryParam("sort", "price").get("/products").then().statusCode(400)
+                                .body("detail", containsString("sort inválido"));
+                as(api.seller).queryParam("q", "x".repeat(101)).get("/products").then().statusCode(400);
                 as(api.seller).queryParam("cursor", "bm8tdXVpZA").get("/products").then().statusCode(400);
                 as(api.seller).queryParam("limit", 101).get("/products").then().statusCode(400);
         }

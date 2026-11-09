@@ -24,8 +24,8 @@ import java.util.UUID;
 import org.jboss.logging.Logger;
 
 /**
- * Redis do cache da vitrine e da taxonomia (ADR 024): conteúdo carimbado com as gerações lidas antes da carga do banco,
- * geração incrementada a cada escrita confirmada. Leitura fora do prazo vira {@link Lookup#BYPASS}, e a gravação sem
+ * Redis do cache da vitrine, da taxonomia e dos motivos de moderação (ADR 024): conteúdo carimbado com as gerações
+ * lidas antes da carga do banco, geração incrementada a cada escrita confirmada. Leitura fora do prazo vira {@link Lookup#BYPASS}, e a gravação sem
  * espera ({@link #detach}) que falha é ignorada; a invalidação tem prazo próprio e nova tentativa, e só a segunda falha
  * vai a log {@code WARN}. Nenhuma falha propaga; cada método é um span ({@link Traced}).
  */
@@ -35,6 +35,7 @@ import org.jboss.logging.Logger;
 public class CatalogCache {
     static final String STOREFRONT = "storefront";
     static final String TAXONOMY = "taxonomy";
+    static final String MODERATION_REASONS = "moderation-reasons";
     static final String REQUESTS = "catalog.cache.requests";
     static final String INVALIDATIONS = "catalog.cache.invalidations";
     static final String WRITES = "catalog.cache.writes";
@@ -133,7 +134,7 @@ public class CatalogCache {
         this.generationTtl = Long.toString(settings.generationTtl().toMillis());
         this.registry = registry;
         if (enabled)
-            for (String cache : List.of(STOREFRONT, TAXONOMY)) {
+            for (String cache : List.of(STOREFRONT, TAXONOMY, MODERATION_REASONS)) {
                 List.of("hit", "miss", "bypass").forEach(result -> requests(cache, result));
                 List.of("ok", "failed").forEach(result -> {
                     invalidations(cache, result);
@@ -223,6 +224,11 @@ public class CatalogCache {
     /** Invalida a taxonomia do tenant depois de criar, revisar ou mover uma categoria. */
     public Uni<Void> taxonomyChanged(UUID tenantId) {
         return invalidate(TAXONOMY, CacheKeys.taxonomyGeneration(tenantId), null, null);
+    }
+
+    /** Invalida o catálogo de motivos de moderação do tenant depois de criar, revisar, ativar ou desativar um motivo. */
+    public Uni<Void> moderationReasonsChanged(UUID tenantId) {
+        return invalidate(MODERATION_REASONS, CacheKeys.moderationReasonsGeneration(tenantId), null, null);
     }
 
     private Uni<Void> invalidate(String cache, String generationKey, String ownerKey, String owner) {

@@ -1,5 +1,7 @@
 package dev.marketplace.cataloginventory.persistence;
 
+import dev.marketplace.cataloginventory.domain.DomainReasons;
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.observability.Traced;
 import dev.marketplace.cataloginventory.application.InventoryRepository;
 import dev.marketplace.cataloginventory.application.NotFoundException;
@@ -90,12 +92,14 @@ public class PgInventoryRepository implements InventoryRepository {
                                                                         && expectedVersion.get() != current.version())
                                                                 throw new VersionMismatchException(current.version());
                                                         if (onHand < current.reserved())
-                                                                throw new StockConflictException("stock-below-reserved",
+                                                                throw new StockConflictException(
+                                                                                DomainReasons.STOCK_BELOW_RESERVED,
                                                                                 "Estoque físico não pode ficar abaixo do reservado ("
                                                                                                 + current.reserved()
                                                                                                 + ")",
-                                                                                List.of("stock-below-reserved:"
-                                                                                                + skuId));
+                                                                                List.of(Reason.of(
+                                                                                                DomainReasons.STOCK_BELOW_RESERVED,
+                                                                                                skuId)));
                                                         return conn.preparedQuery(SET_ON_HAND)
                                                                         .execute(Tuple.of(skuId, onHand,
                                                                                         PgSupport.utc(at)))

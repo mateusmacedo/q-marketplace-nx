@@ -177,7 +177,7 @@ public interface CatalogConfig {
         String refreshInterval();
     }
 
-    /** Cache Redis da vitrine e da taxonomia (ADR 024). */
+    /** Cache Redis da vitrine, da taxonomia e dos motivos de moderação (ADRs 024 e 030). */
     interface Cache {
         /**
          * Liga o cache; desligado, nenhuma leitura nem invalidação passa pelo Redis e o serviço lê tudo do banco.

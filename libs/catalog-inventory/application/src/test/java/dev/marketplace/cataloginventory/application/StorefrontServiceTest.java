@@ -23,7 +23,8 @@ class StorefrontServiceTest {
     @Test
     void hidesBlockedProductIneligibleSellerAndOtherTenant() {
         Product product = catalog.active(sku("CAM-P", "P"));
-        item(moderation.block(moderator(), product.id(), Optional.empty(), "Produto proibido"));
+        item(moderation.block(moderator(), product.id(), Optional.empty(), List.of("prohibited-item"),
+                Optional.empty()));
         failure(storefront.get(TENANT, product.id()), NotFoundException.class);
         item(moderation.unblock(moderator(), product.id(), Optional.empty()));
         item(moderation.approve(moderator(), product.id(), Optional.empty()));

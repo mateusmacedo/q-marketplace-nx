@@ -6,9 +6,8 @@ import dev.marketplace.cataloginventory.api.InventoryModels.StockResponse;
 import dev.marketplace.cataloginventory.application.InventoryService;
 import dev.marketplace.cataloginventory.observability.InventoryLatency;
 import dev.marketplace.cataloginventory.security.CallerContext;
-import dev.marketplace.cataloginventory.security.Roles;
 import io.smallrye.mutiny.Uni;
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.PermissionsAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.*;
@@ -22,6 +21,10 @@ import org.jboss.resteasy.reactive.RestHeader;
 import org.jboss.resteasy.reactive.RestPath;
 import org.jboss.resteasy.reactive.RestResponse;
 import java.util.UUID;
+
+import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_OWN_PRODUCTS;
+import static dev.marketplace.cataloginventory.security.Capabilities.MODERATE_PRODUCTS;
+import static dev.marketplace.cataloginventory.security.Capabilities.READ_TENANT_CATALOG;
 
 /** Saldo por SKU: físico vendável, reservado e disponível. */
 @Path("/inventory/skus/{skuId}")
@@ -48,7 +51,7 @@ public class InventoryResource {
      * existe ou não é visível ao chamador.
      */
     @GET
-    @RolesAllowed({ Roles.SELLER, Roles.CATALOG_ADMIN, Roles.CATALOG_MODERATOR })
+    @PermissionsAllowed({ MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS })
     @Operation(operationId = "getStock", summary = "Saldo do SKU; ETag carrega a versão do saldo")
     @APIResponse(responseCode = "200", description = "Saldo")
     public Uni<RestResponse<StockResponse>> get(@RestPath UUID skuId) {
@@ -63,7 +66,7 @@ public class InventoryResource {
      * o valor ficar abaixo do reservado.
      */
     @PUT
-    @RolesAllowed(Roles.SELLER)
+    @PermissionsAllowed(MANAGE_OWN_PRODUCTS)
     @Operation(operationId = "adjustStock", summary = "Define o estoque físico; nunca abaixo do reservado (If-Match opcional)")
     @APIResponse(responseCode = "200", description = "Saldo atualizado")
     public Uni<RestResponse<StockResponse>> adjust(@RestPath UUID skuId, @RestHeader("If-Match") String ifMatch,

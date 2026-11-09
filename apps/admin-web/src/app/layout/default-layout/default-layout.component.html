@@ -13,7 +13,7 @@
   </c-sidebar-header>
 
   <ng-scrollbar appearance="compact" orientation="vertical" visibility="hover" visibleOnScroll>
-    <c-sidebar-nav [navItems]="navItems" dropdownMode="close" compact />
+    <c-sidebar-nav [navItems]="navItems()" dropdownMode="close" compact />
   </ng-scrollbar>
 
   @if (!sidebar1.narrow) {
@@ -32,8 +32,31 @@
   />
   <div class="body flex-grow-1">
     <c-container breakpoint="lg" class="h-auto px-4">
-      <router-outlet />
+      @switch (sessionStatus()) {
+        @case ('loading') {
+          <app-loading-state label="Carregando suas permissões…" />
+        }
+        @case ('error') {
+          <app-error-state
+            (retry)="retrySession()"
+            [problem]="sessionProblem()"
+            message="Não foi possível carregar suas permissões."
+          />
+        }
+        @case ('expired') {
+          <app-error-state
+            (retry)="signIn()"
+            actionLabel="Entrar de novo"
+            message="Sua sessão expirou. Entre de novo para continuar."
+          />
+        }
+        @default {
+          <router-outlet />
+        }
+      }
     </c-container>
   </div>
   <app-default-footer />
 </div>
+<app-toast-host />
+<app-leave-confirm-host />

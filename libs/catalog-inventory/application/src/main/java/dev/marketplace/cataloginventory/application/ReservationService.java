@@ -2,6 +2,7 @@ package dev.marketplace.cataloginventory.application;
 
 import dev.marketplace.cataloginventory.domain.InvalidTransitionException;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.domain.inventory.*;
 import io.smallrye.mutiny.Uni;
 import java.nio.charset.StandardCharsets;
@@ -192,24 +193,27 @@ public final class ReservationService {
      */
     private static Result replay(Reservation existing, String hash) {
         if (!existing.requestHash().equals(hash))
-            throw new DomainRuleViolation("idempotency-key-reused",
+            throw new DomainRuleViolation(ApplicationReasons.IDEMPOTENCY_KEY_REUSED,
                     "Idempotency-Key já usado com outra requisição");
         return new Result(existing, true);
     }
 
     private static ReservationRefusal expired(Reservation r) {
-        return new ReservationRefusal("reservation-expired", "O prazo da reserva venceu; refaça a reserva",
-                List.of("reservation-expired:" + r.id()));
+        return new ReservationRefusal(ApplicationReasons.RESERVATION_EXPIRED,
+                "O prazo da reserva venceu; refaça a reserva",
+                List.of(Reason.of(ApplicationReasons.RESERVATION_EXPIRED, r.id())));
     }
 
     private static ReservationRefusal notActive(Reservation r) {
-        return new ReservationRefusal("reservation-not-active", "Reserva não está ativa (" + r.status() + ")",
-                List.of("reservation-not-active:" + r.id()));
+        return new ReservationRefusal(ApplicationReasons.RESERVATION_NOT_ACTIVE,
+                "Reserva não está ativa (" + r.status() + ")",
+                List.of(Reason.of(ApplicationReasons.RESERVATION_NOT_ACTIVE, r.id())));
     }
 
     private static ReservationRefusal lifetimeExceeded(Reservation r) {
-        return new ReservationRefusal("reservation-lifetime-exceeded", "A reserva atingiu o prazo máximo total",
-                List.of("reservation-lifetime-exceeded:" + r.id()));
+        return new ReservationRefusal(ApplicationReasons.RESERVATION_LIFETIME_EXCEEDED,
+                "A reserva atingiu o prazo máximo total",
+                List.of(Reason.of(ApplicationReasons.RESERVATION_LIFETIME_EXCEEDED, r.id())));
     }
 
     /**

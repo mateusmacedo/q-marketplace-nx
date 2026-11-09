@@ -1,11 +1,13 @@
 package dev.marketplace.cataloginventory.persistence;
 
 import dev.marketplace.cataloginventory.observability.Traced;
+import dev.marketplace.cataloginventory.application.CategoryNode;
 import dev.marketplace.cataloginventory.application.CategoryRepository;
 import dev.marketplace.cataloginventory.application.ConcurrentUpdateException;
 import dev.marketplace.cataloginventory.domain.category.AttributeDefinition;
 import dev.marketplace.cataloginventory.domain.category.AttributeType;
 import dev.marketplace.cataloginventory.domain.category.Category;
+import dev.marketplace.cataloginventory.domain.category.CategoryNotEmptyException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -49,7 +51,45 @@ public class PgCategoryRepository implements CategoryRepository {
     private static final String REBASE_DESCENDANTS = """
             UPDATE category SET ancestry = $3::uuid[] || ancestry[$4:cardinality(ancestry)], updated_at = now()
             WHERE tenant_id = $1 AND ancestry @> ARRAY[$2]::uuid[]""";
+    private static final String CHILD_COUNTS = """
+            SELECT parent_id, count(*) AS children FROM category WHERE tenant_id = $1 AND parent_id = ANY ($2::uuid[])
+            GROUP BY parent_id""";
+    private static final String DEPTHS = """
+            SELECT id, cardinality(ancestry) AS depth FROM category WHERE tenant_id = $1 AND id = ANY ($2::uuid[])""";
+    // WHY: a recursão desce pelo índice dos filhos montando o caminho de cada categoria, e a chave dos códigos do
+    // caminho (CategoryNode.pathKey) dá a ordem da árvore e o cursor; a contagem de filhos roda só na página. Com
+    // cursor, ela só desce na categoria que vem depois dele ou é ancestral dele: no COLLATE "C" o espaço vem antes
+    // de qualquer caractere de código, então os descendentes ficam logo depois da categoria, e os de uma anterior
+    // ao cursor que não o contém também vêm antes dele.
+    private static final String TREE = """
+            WITH RECURSIVE tree AS (
+                SELECT id, ARRAY[id] AS path_ids, ARRAY[code::text] AS path_codes, ARRAY[name::text] AS path_names,
+                       ARRAY[active] AS path_active, code::text COLLATE "C" AS path_key
+                FROM category WHERE tenant_id = $1 AND parent_id IS NULL
+                UNION ALL
+                SELECT k.id, t.path_ids || k.id, t.path_codes || k.code::text, t.path_names || k.name::text,
+                       t.path_active || k.active, (t.path_key || ' ' || k.code::text) COLLATE "C"
+                FROM tree t JOIN category k ON k.tenant_id = $1 AND k.parent_id = t.id%s)
+            SELECT c.id, c.tenant_id, c.ancestry, c.code, c.name, c.attributes, c.active, c.version, page.path_ids,
+                   page.path_codes, page.path_names, page.path_active,
+                   (SELECT count(*) FROM category k WHERE k.tenant_id = $1 AND k.parent_id = c.id) AS children
+            FROM (SELECT * FROM tree WHERE true%s ORDER BY path_key LIMIT $%d) page JOIN category c ON c.id = page.id
+            ORDER BY page.path_key""";
+    private static final String BY_IDS = """
+            SELECT c.id, c.tenant_id, c.ancestry, c.code, c.name, c.attributes, c.active, c.version, chain.path_ids,
+                   chain.path_codes, chain.path_names, chain.path_active,
+                   (SELECT count(*) FROM category k WHERE k.tenant_id = $1 AND k.parent_id = c.id) AS children
+            FROM category c CROSS JOIN LATERAL (
+                SELECT array_agg(a.id ORDER BY cardinality(a.ancestry)) AS path_ids,
+                       array_agg(a.code::text ORDER BY cardinality(a.ancestry)) AS path_codes,
+                       array_agg(a.name::text ORDER BY cardinality(a.ancestry)) AS path_names,
+                       array_agg(a.active ORDER BY cardinality(a.ancestry)) AS path_active
+                FROM category a WHERE a.tenant_id = $1 AND a.id = ANY (c.ancestry || c.id)) chain
+            WHERE c.tenant_id = $1 AND c.id = ANY ($2::uuid[])
+            ORDER BY c.code""";
+    private static final String DELETE = "DELETE FROM category WHERE tenant_id = $1 AND id = $2 AND version = $3";
     private static final String CHECK_VIOLATION = "23514";
+    private static final String FOREIGN_KEY_VIOLATION = "23503";
     private final Pool pool;
     private final PgSupport pg;
 
@@ -104,6 +144,52 @@ public class PgCategoryRepository implements CategoryRepository {
         sql.append(" ORDER BY code LIMIT $").append(params.size());
         return pg.bounded(pool.preparedQuery(sql.toString()).execute(Tuple.from(params)))
                 .map(PgCategoryRepository::categories);
+    }
+
+    @Override
+    public Uni<Map<UUID, Integer>> childCounts(UUID tenantId, Collection<UUID> categoryIds) {
+        return counts(CHILD_COUNTS, tenantId, categoryIds, "parent_id", "children");
+    }
+
+    @Override
+    public Uni<Map<UUID, Integer>> depths(UUID tenantId, Collection<UUID> categoryIds) {
+        return counts(DEPTHS, tenantId, categoryIds, "id", "depth");
+    }
+
+    @Override
+    public Uni<List<CategoryNode>> tree(UUID tenantId, Optional<String> afterPath, boolean usableOnly, int limit) {
+        List<Object> params = new ArrayList<>(List.of(tenantId));
+        String descend = "";
+        StringBuilder filters = new StringBuilder();
+        if (afterPath.isPresent()) {
+            params.add(afterPath.get());
+            String after = "$" + params.size();
+            descend = " AND (t.path_key >= " + after + " OR starts_with(" + after + ", t.path_key || ' '))";
+            filters.append(" AND path_key > ").append(after);
+        }
+        if (usableOnly)
+            filters.append(" AND false <> ALL (path_active)");
+        params.add(limit);
+        return pg.bounded(pool.preparedQuery(TREE.formatted(descend, filters, params.size()))
+                .execute(Tuple.from(params)))
+                .map(rows -> StreamSupport.stream(rows.spliterator(), false).map(PgCategoryRepository::node).toList());
+    }
+
+    @Override
+    public Uni<List<CategoryNode>> byIds(UUID tenantId, Collection<UUID> categoryIds) {
+        if (categoryIds.isEmpty())
+            return Uni.createFrom().item(List.of());
+        return pg.bounded(pool.preparedQuery(BY_IDS).execute(Tuple.of(tenantId, categoryIds.toArray(UUID[]::new))))
+                .map(rows -> StreamSupport.stream(rows.spliterator(), false).map(PgCategoryRepository::node).toList());
+    }
+
+    @Override
+    public Uni<Void> delete(Category c, long expectedVersion) {
+        return pg.bounded(pool.withTransaction(conn -> conn.preparedQuery(LOCK_TREE).execute(Tuple.of(c.tenantId()))
+                .flatMap(locked -> conn.preparedQuery(DELETE).execute(Tuple.of(c.tenantId(), c.id(), expectedVersion)))
+                .invoke(PgSupport::requireOneRow)))
+                .onFailure().transform(failure -> notEmpty(failure, c))
+                .replaceWithVoid();
     }
 
     @Override
@@ -174,11 +260,51 @@ public class PgCategoryRepository implements CategoryRepository {
         return failure;
     }
 
+    /**
+     * Traduz as chaves estrangeiras da subcategoria e do produto, que barram a exclusão mesmo quando gravados depois
+     * da leitura, na recusa da categoria que não está vazia; demais falhas seguem inalteradas.
+     */
+    private static Throwable notEmpty(Throwable failure, Category c) {
+        if (failure instanceof PgException e && FOREIGN_KEY_VIOLATION.equals(e.getSqlState())) {
+            if ("category_parent_fk".equals(e.getConstraint()))
+                return CategoryNotEmptyException.hasChildren(c.code());
+            if ("product_category_fk".equals(e.getConstraint()))
+                return CategoryNotEmptyException.hasProducts(c.code());
+        }
+        return failure;
+    }
+
+    /** Mapa de id para a contagem da consulta, que recebe o tenant e os ids. */
+    private Uni<Map<UUID, Integer>> counts(String sql, UUID tenantId, Collection<UUID> ids, String key, String value) {
+        if (ids.isEmpty())
+            return Uni.createFrom().item(Map.of());
+        return pg.bounded(pool.preparedQuery(sql).execute(Tuple.of(tenantId, ids.toArray(UUID[]::new))))
+                .map(rows -> {
+                    Map<UUID, Integer> counts = new HashMap<>();
+                    rows.forEach(row -> counts.put(row.getUUID(key), row.getLong(value).intValue()));
+                    return counts;
+                });
+    }
+
+    private static CategoryNode node(Row row) {
+        UUID[] ids = row.getArrayOfUUIDs("path_ids");
+        String[] codes = row.getArrayOfStrings("path_codes");
+        String[] names = row.getArrayOfStrings("path_names");
+        Boolean[] active = row.getArrayOfBooleans("path_active");
+        List<CategoryNode.Ancestor> ancestors = new ArrayList<>();
+        for (int i = 0; i < ids.length - 1; i++)
+            ancestors.add(new CategoryNode.Ancestor(ids[i], codes[i], names[i], active[i]));
+        return new CategoryNode(category(row), ancestors, row.getLong("children").intValue());
+    }
+
     private static List<Category> categories(Iterable<Row> rows) {
-        return StreamSupport.stream(rows.spliterator(), false).map(row -> Category.restore(row.getUUID("id"),
-                row.getUUID("tenant_id"), List.of(row.getArrayOfUUIDs("ancestry")), row.getString("code"),
-                row.getString("name"),
-                attributes(row.getJsonArray("attributes")), row.getBoolean("active"), row.getLong("version"))).toList();
+        return StreamSupport.stream(rows.spliterator(), false).map(PgCategoryRepository::category).toList();
+    }
+
+    private static Category category(Row row) {
+        return Category.restore(row.getUUID("id"), row.getUUID("tenant_id"), List.of(row.getArrayOfUUIDs("ancestry")),
+                row.getString("code"), row.getString("name"), attributes(row.getJsonArray("attributes")),
+                row.getBoolean("active"), row.getLong("version"));
     }
 
     /**

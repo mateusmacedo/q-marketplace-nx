@@ -7,6 +7,7 @@ import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.inventory.InventoryEvent;
 import dev.marketplace.cataloginventory.domain.offer.OfferEvent;
 import dev.marketplace.cataloginventory.domain.product.ProductEvent;
+import dev.marketplace.cataloginventory.domain.product.ReasonLabel;
 import dev.marketplace.cataloginventory.domain.product.SellerStatus;
 import dev.marketplace.cataloginventory.outbox.EventContracts.*;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -41,9 +42,11 @@ public class IntegrationEvents {
             case ProductEvent.ProductStatusChanged e -> product(tenantId, "ProductStatusChanged", e, origin,
                     new ProductStatusChangedV1(e.productId(), e.storeId(), e.transition().name(), e.from().name(),
                             e.to().name(),
-                            e.reason(), e.to().isVisible()));
+                            legacyReason(e.reason()), e.reasonCodes(), e.to().isVisible(), e.note(),
+                            labels(e.reasons())));
             case ProductEvent.ProductBlocked e -> product(tenantId, "ProductBlocked", e, origin,
-                    new ProductBlockedV1(e.productId(), e.storeId(), e.reason()));
+                    new ProductBlockedV1(e.productId(), e.storeId(), legacyReason(e.reason()), e.reasonCodes(),
+                            e.note(), labels(e.reasons())));
         }).toList();
     }
 
@@ -123,6 +126,26 @@ public class IntegrationEvents {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Falha ao serializar o evento " + type, e);
         }
+    }
+
+    private static List<ReasonLabelV1> labels(List<ReasonLabel> labels) {
+        return labels.stream().map(l -> new ReasonLabelV1(l.code(), l.label())).toList();
+    }
+
+    /**
+     * O texto único em {@code reason}, que o contrato v1 limita a {@link EventContracts#REASON_MAX_LENGTH} caracteres;
+     * com vários rótulos e o complemento no limite dele, sai abreviado com reticências, e o conteúdo inteiro segue em
+     * {@code reasonLabels} e {@code note}. O corte não separa um par substituto (emoji e outros caracteres fora do
+     * BMP), que viraria {@code ?} na gravação em UTF-8.
+     */
+    static String legacyReason(String text) {
+        int max = EventContracts.REASON_MAX_LENGTH;
+        if (text == null || text.length() <= max)
+            return text;
+        int end = max - 1;
+        if (Character.isHighSurrogate(text.charAt(end - 1)))
+            end--;
+        return text.substring(0, end) + "…";
     }
 
     private static StockV1 stock(InventoryEvent.SkuStock s) {

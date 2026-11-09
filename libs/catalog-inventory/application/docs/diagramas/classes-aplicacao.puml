@@ -4,7 +4,7 @@
 !include <tupadr3/font-awesome-5/list_ol>
 !include <tupadr3/font-awesome-5/user_check>
 set separator none
-title Aplicação: identidade, paginação, comandos aninhados e exceções (complemento de portas-e-casos-de-uso; importação em classes-aplicacao-importacao)
+title Aplicação: identidade, paginação, listagem, lotes, indicadores, comandos aninhados e exceções (complemento de portas-e-casos-de-uso; importação em classes-aplicacao-importacao)
 
 hide empty members
 hide <<aplicacao>> stereotype
@@ -24,9 +24,13 @@ package "$I_SEGURANCA Identidade e permissões" as identidade <<aplicacao>> {
     --
     can(capability) : boolean
     canReadTenantCatalog() : boolean
+    permissions() : Permissions
     ownsStore(store) : boolean
     require(capability)
     requireStore() : UUID
+  }
+  class "Actor.Permissions" as Permissions <<record>> {
+    readTenantCatalog : boolean
   }
   enum Capability {
     MANAGE_OWN_PRODUCTS
@@ -35,6 +39,26 @@ package "$I_SEGURANCA Identidade e permissões" as identidade <<aplicacao>> {
     READ_TENANT_CATALOG
     READ_SELLER_ELIGIBILITY
     MANAGE_RESERVATIONS
+    MANAGE_MODERATION_REASONS
+  }
+  enum ApplicationReasons {
+    INVALID_ROW
+    IDEMPOTENCY_KEY_REUSED
+    RESERVATION_EXPIRED
+    RESERVATION_NOT_ACTIVE
+    RESERVATION_LIFETIME_EXCEEDED
+    MODERATION_REASON_LIMIT
+    MODERATION_REASON_CATALOG_LIMIT
+  }
+  class ModerationReasonEntry <<record>> {
+    tenantId : UUID
+    definition : ModerationReasonDefinition
+    position : int
+    version : long
+    createdAt : Instant
+    updatedAt : Instant
+    {static} MAX_POSITION = 9999
+    code() : String
   }
 }
 
@@ -48,9 +72,93 @@ package "<$list_ol,scale=0.8,color=#1565C0> Paginação e versionamento" as pagi
     {static} requireSize(limit)
     {static} of(fetched, limit, key) : Page<T>
     ~{static} fetch(limit, search, key) : Uni<Page<T>>
+    ~{static} fetch(limit, maxSize, search, key) : Uni<Page<T>>
   }
   class Versions <<final, pacote privado>> #F1F8FF;line:64B5F6 {
     ~{static} requireMatch(expected : Optional<Long>, current : long)
+  }
+}
+
+package "$I_SERVICO Listagem, lotes e indicadores" as listagem <<aplicacao>> {
+  class ProductQuery <<record>> {
+    {static} TEXT_MAX_LENGTH = 100
+    storeId : Optional<UUID>
+    status : Optional<ProductStatus>
+    text : Optional<String>
+    sort : ProductSort
+    after : Optional<Position>
+  }
+  class "ProductQuery.Position" as QueryPosition <<record>> {
+    value : String
+    id : UUID
+  }
+  enum ProductSort {
+    UPDATED_AT, UPDATED_AT_DESC
+    CREATED_AT, CREATED_AT_DESC
+    TITLE, TITLE_DESC
+    --
+    {static} DEFAULT = UPDATED_AT_DESC
+    token() : String
+    column() : Column
+    descending() : boolean
+    {static} parse(value) : ProductSort
+  }
+  class ProductText <<final>> {
+    {static} TITLE_KEY_MAX_CODE_POINTS = 400
+    {static} normalize(text) : String
+    {static} titleKey(title) : String
+  }
+  class CategoryNode <<record>> {
+    category : Category
+    ancestors : List<Ancestor>
+    childCount : int
+    --
+    usable() : boolean
+    level() : int
+  }
+  class "CategoryNode.Ancestor" as Ancestor <<record>> {
+    id : UUID
+    code : String
+    name : String
+    active : boolean
+  }
+  class Batch <<final>> {
+    {static} MAX_ITEMS = 100
+  }
+  class "Batch.Item" as BatchItem <<record>> {
+    id : UUID
+    version : Optional<Long>
+  }
+  class "Batch.Outcome<T>" as BatchOutcome <<record>> {
+    id : UUID
+    value : Optional<T>
+    failure : Optional<Throwable>
+  }
+  enum ProductBatchAction {
+    SUBMIT
+    PAUSE
+    RESUME
+    ARCHIVE
+  }
+  enum CategoryBatchAction {
+    ACTIVATE
+    DEACTIVATE
+    DELETE
+  }
+  enum ModerationDecision {
+    APPROVE
+    REJECT
+    BLOCK
+    --
+    transition() : ProductTransition
+  }
+  enum StatsGranularity {
+    DAY
+    MONTH
+    YEAR
+    --
+    code() : String
+    {static} parse(code) : StatsGranularity
   }
 }
 
@@ -77,11 +185,56 @@ package "$I_SERVICO Comandos, views e resultados aninhados nos casos de uso" as 
     physical : boolean
     dimensions : Dimensions
   }
+  class "ProductService.ProductCheck" as ProductCheck <<record>> {
+    publishingIssues : List<PublishingIssue>
+    categoryChange : Optional<CategoryChange>
+  }
   class CategoryService <<final>> <<serviço>>
   class "CategoryService.CategoryView" as CategoryView <<record>> {
-    category : Category
-    effectiveAttributes : List<AttributeDefinition>
-    usable : boolean
+    chain : List<Category>
+    childCount : int
+    --
+    category() : Category
+    ancestors() : List<Category>
+    effectiveAttributes() : List<AttributeDefinition>
+    usable() : boolean
+    level() : int
+  }
+  class CatalogStatsService <<final>> <<serviço>>
+  class "CatalogStatsService.StoreStats" as StoreStats <<record>> {
+    storeId : UUID
+    counts : Map<ProductStatus, Long>
+    total : long
+    active, draft, outOfStock, blocked : Indicator
+    activity : Activity
+  }
+  class "CatalogStatsService.ModerationStats" as ModerationStats <<record>> {
+    queue, approved, rejected, blocked : Indicator
+    activity : Activity
+  }
+  class "CatalogStatsService.Indicator" as Indicator <<record>> {
+    value : long
+    previous : Optional<Long>
+    months : List<MonthValue>
+    --
+    change() : Optional<Long>
+  }
+  class "CatalogStatsService.MonthValue" as MonthValue <<record>> {
+    month : LocalDate
+    value : Optional<Long>
+  }
+  class "CatalogStatsService.Activity" as Activity <<record>> {
+    granularity : StatsGranularity
+    from : LocalDate
+    to : LocalDate
+    points : List<ActivityPoint>
+  }
+  class "CatalogStatsService.ActivityPoint" as ActivityPoint <<record>> {
+    period : LocalDate
+    submitted : long
+    approved : long
+    rejected : long
+    blocked : long
   }
   class OfferService <<final>> <<serviço>>
   class "OfferService.Defined" as Defined <<record>> {
@@ -154,6 +307,7 @@ Versions ..> VersionMismatchException : requireMatch
 SellerVerdict +-- VerdictOutcome
 
 ProductService +-- NewSku
+ProductService +-- ProductCheck
 CategoryService +-- CategoryView
 OfferService +-- Defined
 StorefrontService +-- StorefrontProduct
@@ -162,6 +316,22 @@ ReservationService +-- Request
 ReservationService +-- Result
 ProductSupport +-- PublicationContext
 PublicationContext --> CategoryView
+CatalogStatsService +-- StoreStats
+CatalogStatsService +-- ModerationStats
+StoreStats --> Indicator
+ModerationStats --> Indicator
+Indicator --> MonthValue
+StoreStats --> Activity
+ModerationStats --> Activity
+Activity --> ActivityPoint
+Activity --> StatsGranularity
+
+ProductQuery +-- QueryPosition
+ProductQuery --> ProductSort
+ProductSort ..> ProductText : chave do título
+CategoryNode +-- Ancestor
+Batch +-- BatchItem
+Batch +-- BatchOutcome
 Request ..> RequestedItem
 
 RuntimeException <|-- AccessDeniedException

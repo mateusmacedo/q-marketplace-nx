@@ -23,6 +23,9 @@ package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplic
     class StorefrontService <<final>>
     class SellerEligibilityService <<final>>
     class ProductImportService <<final>>
+    class ModerationReasonService <<final>>
+    class CatalogStatsService <<final>>
+    class ProductActions <<final>>
   }
 
   package "$I_SEGURANCA Apoio (pacote privado)" <<aplicacao>> {
@@ -48,6 +51,8 @@ package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplic
     interface ReservationRepository <<porta>>
     interface SellerEligibilityRepository <<porta>>
     interface ProductImportRepository <<porta>>
+    interface ModerationReasonRepository <<porta>>
+    interface CatalogStatsRepository <<porta>>
   }
 }
 
@@ -59,11 +64,15 @@ package "$I_POSTGRES catalog-inventory-service (adaptadores)" <<saida>> #FBF6FC;
   class PgReservationRepository <<saida>>
   class PgSellerEligibilityRepository <<saida>>
   class PgProductImportRepository <<saida>>
+  class PgModerationReasonRepository <<saida>>
+  class PgCatalogStatsRepository <<saida>>
   class ProductCacheInvalidation <<decorator>>
   class OfferCacheInvalidation <<decorator>>
   class CategoryCacheInvalidation <<decorator>>
   class SellerCacheInvalidation <<decorator>>
+  class ModerationReasonCacheInvalidation <<decorator>>
   class "TaxonomyCache.over()" as TaxonomyOver <<wrapper>>
+  class "ModerationReasonCache.over()" as ReasonsOver <<wrapper>>
 }
 
 ProductService --> ProductSupport
@@ -85,8 +94,12 @@ ReservationService --> ReservationRepository
 ReservationService --> InventoryRepository
 CategoryService --> CategoryRepository
 SellerEligibilityService --> SellerEligibilityRepository
+ProductActions --> SellerEligibilityRepository : statusesOf (uma consulta por página)
 
 ProductImportService --> ProductImportRepository
+ModerationService --> ModerationReasonRepository : catalog
+ModerationReasonService --> ModerationReasonRepository
+CatalogStatsService --> CatalogStatsRepository
 ProductImportService --> ProductRepository : skuIdsBySellerSku
 ProductImportService --> ProductAccess
 ProductImportService --> CategoryRepository
@@ -102,12 +115,16 @@ InventoryRepository <|.. PgInventoryRepository
 ReservationRepository <|.. PgReservationRepository
 SellerEligibilityRepository <|.. PgSellerEligibilityRepository
 ProductImportRepository <|.. PgProductImportRepository
+ModerationReasonRepository <|.. PgModerationReasonRepository
+CatalogStatsRepository <|.. PgCatalogStatsRepository
 
 ProductRepository <|.. ProductCacheInvalidation
 OfferRepository <|.. OfferCacheInvalidation
 CategoryRepository <|.. CategoryCacheInvalidation
 SellerEligibilityRepository <|.. SellerCacheInvalidation
 CategoryRepository <|.. TaxonomyOver
+ModerationReasonRepository <|.. ModerationReasonCacheInvalidation
+ModerationReasonRepository <|.. ReasonsOver
 
 note bottom of TaxonomyOver
   Montado em CatalogBeans para CategoryService,
@@ -115,6 +132,12 @@ note bottom of TaxonomyOver
   ProductImportService. Com o cache ligado,
   chain e children passam pelo Redis; com ele
   desligado, devolve a própria porta.
+end note
+
+note bottom of ReasonsOver
+  Montado em CatalogBeans para ModerationService
+  e ModerationReasonService: catalog passa pelo
+  Redis, invalidado por geração a cada escrita.
 end note
 
 legend right

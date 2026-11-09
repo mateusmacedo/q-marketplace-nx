@@ -2,7 +2,7 @@
   <c-container [fluid]="true" class="border-bottom px-4">
     <button
       [cSidebarToggle]="sidebarId()"
-      aria-label="Mostrar ou esconder o menu lateral"
+      ariaLabel="Mostrar ou esconder o menu lateral"
       cHeaderToggler
       class="btn"
       style="margin-inline-start: -14px"
@@ -10,7 +10,26 @@
     >
       <svg cIcon name="cilMenu" size="lg"></svg>
     </button>
-    <c-header-nav class="ms-auto">
+    <c-search-button
+      (trigger)="searchVisible.set(true)"
+      aria-controls="app-header-search-modal"
+      aria-label="Abrir a busca"
+      class="d-none d-sm-flex"
+      placeholder="Buscar"
+      shortcut="meta+k,ctrl+k"
+    />
+    <c-header-nav class="d-none d-md-flex ms-auto">
+      <a aria-label="Notificações" cNavLink>
+        <svg cIcon class="my-1" name="cilBell" size="lg"></svg>
+      </a>
+      <a aria-label="Tarefas" cNavLink>
+        <svg cIcon class="my-1" name="cilList" size="lg"></svg>
+      </a>
+      <a aria-label="Mensagens" cNavLink>
+        <svg cIcon class="my-1" name="cilEnvelopeOpen" size="lg"></svg>
+      </a>
+    </c-header-nav>
+    <c-header-nav class="ms-auto ms-md-0">
       <div class="nav-item py-1">
         <div class="vr h-100 mx-2 text-body text-opacity-75"></div>
       </div>
@@ -24,9 +43,51 @@
     </c-header-nav>
   </c-container>
   <c-container [fluid]="true" class="px-4">
-    <c-breadcrumb-router />
+    <c-breadcrumb class="m-0">
+      @for (crumb of crumbs(); track crumb.url; let last = $last) {
+        <c-breadcrumb-item [active]="last" [url]="last ? undefined : crumb.url">{{ crumb.label }}</c-breadcrumb-item>
+      }
+    </c-breadcrumb>
   </c-container>
 </ng-container>
+<c-modal
+  [(visible)]="searchVisible"
+  aria-labelledby="app-header-search-modal-title"
+  id="app-header-search-modal"
+  portal
+>
+  <c-modal-header>
+    <h5 cModalTitle class="w-100" id="app-header-search-modal-title">
+      <input
+        #searchInput
+        (input)="searchQuery.set(searchInput.value)"
+        [value]="searchQuery()"
+        aria-label="Buscar"
+        cFormControl
+        placeholder="Buscar"
+        type="search"
+      />
+    </h5>
+  </c-modal-header>
+  <c-modal-body>
+    <p class="text-body-secondary small mb-2">Telas</p>
+    <div cListGroup flush>
+      @for (result of searchResults(); track result.url) {
+        <button
+          (click)="openResult(result.url)"
+          cListGroupItem
+          class="d-flex justify-content-between align-items-center"
+          type="button"
+        >
+          {{ result.name }}
+          <c-badge color="secondary" shape="rounded-pill">Abrir</c-badge>
+        </button>
+      } @empty {
+        <div cListGroupItem class="text-body-secondary">Nada encontrado.</div>
+      }
+    </div>
+  </c-modal-body>
+</c-modal>
 <ng-template #userDropdown>
   <c-dropdown [popperOptions]="{ placement: 'bottom-start' }" variant="nav-item">
     <button [caret]="false" aria-label="Abrir o menu do usuário" cDropdownToggle class="py-0 pe-0">

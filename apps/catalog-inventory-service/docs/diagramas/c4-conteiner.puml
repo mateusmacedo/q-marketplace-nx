@@ -29,7 +29,7 @@ System_Boundary(catalogo, "Catálogo-inventário") {
   Container(api, "catalog-inventory-api", "Quarkus nativo, perfil prod,api", "HTTP de negócio (8080 no contêiner); grava no banco e na outbox; sem agendadores e sem Kafka", $sprite="quarkus-icon,scale=0.6", $tags="quarkus")
   Container(worker, "catalog-inventory-worker", "Quarkus nativo, perfil prod,worker", "Agendadores e consumidor KYB; só a porta de gestão 9000", $sprite="robot", $tags="quarkus")
   ContainerDb(pg, "PostgreSQL", "Schema catalog_inventory", "Catálogo, ofertas, estoque, reservas, outbox, inbox e importações", $sprite="postgresql,scale=0.6", $tags="dados")
-  ContainerDb(redis, "Redis", "Standalone, opcional", "Cache da vitrine e da taxonomia; desligado por padrão", $sprite="redis,scale=0.6", $tags="opcional")
+  ContainerDb(redis, "Redis", "Standalone, opcional", "Cache da vitrine, da taxonomia e dos motivos de moderação; desligado por padrão", $sprite="redis,scale=0.6", $tags="opcional")
 }
 
 System_Ext(kafka, "Kafka", "Tópicos catalog-inventory.*.v1, kyb-kyc.seller.v1 e DLQ", $sprite="kafka-icon,scale=0.6", $tags="mensageria")

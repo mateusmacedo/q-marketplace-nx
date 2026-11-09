@@ -1,9 +1,11 @@
 package dev.marketplace.cataloginventory.domain.product;
 
 import dev.marketplace.cataloginventory.domain.Attributes;
+import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import dev.marketplace.cataloginventory.domain.InvalidTransitionException;
 import dev.marketplace.cataloginventory.domain.Money;
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.domain.category.AttributeDefinition;
 import dev.marketplace.cataloginventory.domain.category.Category;
 import java.time.Instant;
@@ -12,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import static dev.marketplace.cataloginventory.domain.DomainRuleViolation.invalid;
@@ -30,7 +33,6 @@ public final class Product {
     public static final int TITLE_MAX_LENGTH = 200;
     public static final int DESCRIPTION_MAX_LENGTH = 5000;
     public static final int MAX_SKUS = 100;
-    public static final int REASON_MAX_LENGTH = 500;
     private final UUID id;
     private final UUID tenantId;
     private final UUID storeId;
@@ -44,6 +46,8 @@ public final class Product {
     private ProductStatus status;
     private long version;
     private Instant updatedAt;
+    // WHY: a fila de moderação sai em ordem de chegada, e o updatedAt muda a cada edição feita na fila.
+    private Instant moderationQueuedAt;
     private final List<StatusChange> newChanges = new ArrayList<>();
     private final List<ProductEvent> newEvents = new ArrayList<>();
 
@@ -55,7 +59,7 @@ public final class Product {
     private Product(UUID id, UUID tenantId, UUID storeId, UUID categoryId, String currency, String title,
             String description,
             Map<String, String> attributes, List<Sku> skus, ProductStatus status, long version,
-            Instant createdAt, Instant updatedAt) {
+            Instant createdAt, Instant updatedAt, Instant moderationQueuedAt) {
         this.id = Objects.requireNonNull(id, "id obrigatório");
         this.tenantId = Objects.requireNonNull(tenantId, "tenant obrigatório");
         this.storeId = Objects.requireNonNull(storeId, "loja obrigatória");
@@ -69,6 +73,7 @@ public final class Product {
         this.version = version;
         this.createdAt = Objects.requireNonNull(createdAt, "data de criação obrigatória");
         this.updatedAt = Objects.requireNonNull(updatedAt, "data de atualização obrigatória");
+        this.moderationQueuedAt = moderationQueuedAt;
     }
 
     /**
@@ -84,7 +89,7 @@ public final class Product {
         requireUsable(category);
         Product product = new Product(id, category.tenantId(), storeId, category.id(), currency, title, description,
                 attributes,
-                skus, DRAFT, 0, now, now);
+                skus, DRAFT, 0, now, now, null);
         requireValidValues(product.attributes, product.skus, effective);
         product.record(ProductTransition.CREATE, actor, null, now);
         product.newEvents.add(new ProductEvent.ProductCreated(id, storeId, product.categoryId, product.currency,
@@ -98,13 +103,14 @@ public final class Product {
      * Reconstrói o produto persistido preservando estado e versão, sem
      * registrar transições nem eventos. Reaplica só as validações estruturais
      * (moeda, texto e SKUs), não os valores de atributos contra a categoria.
+     * {@code moderationQueuedAt} é nulo fora de {@code PENDING_MODERATION}.
      */
     public static Product restore(UUID id, UUID tenantId, UUID storeId, UUID categoryId, String currency, String title,
             String description, Map<String, String> attributes, List<Sku> skus, ProductStatus status,
-            long version, Instant createdAt, Instant updatedAt) {
+            long version, Instant createdAt, Instant updatedAt, Instant moderationQueuedAt) {
         return new Product(id, tenantId, storeId, categoryId, currency, title, description, attributes, skus, status,
                 version,
-                createdAt, updatedAt);
+                createdAt, updatedAt, moderationQueuedAt);
     }
 
     /**
@@ -165,26 +171,91 @@ public final class Product {
      * {@code sku-not-found} se o SKU não pertencer ao produto.
      */
     public void removeSku(UUID skuId, Instant now) {
-        if (status != DRAFT)
-            throw new DomainRuleViolation("sku-removal-requires-draft",
+        skuRemovalRefusal().ifPresent(reason -> {
+            throw new DomainRuleViolation(reason,
                     "SKU só pode ser removido de produto em rascunho; pause ou arquive o produto");
+        });
         skus.remove(sku(skuId));
         touch(now);
     }
 
     /** Oferta e estoque de um produto arquivado ficam congelados. */
     public void requireNotArchived(String operation) {
-        if (status == ARCHIVED)
+        if (!acceptsOfferAndStockChanges())
             throw new InvalidTransitionException(operation, status.name());
+    }
+
+    /** Conteúdo e SKUs aceitam edição: todo estado, menos bloqueado e arquivado. */
+    public boolean acceptsEdit() {
+        return status.isEditable();
+    }
+
+    /** Oferta e estoque aceitam mudança: todo estado, menos arquivado. */
+    public boolean acceptsOfferAndStockChanges() {
+        return status != ARCHIVED;
+    }
+
+    /** Salvar conteúdo ou SKU devolve o produto à moderação: só nos estados publicados. */
+    public boolean editReturnsToModeration() {
+        return ProductTransition.REVIEW_REQUIRED.acceptsFrom(status);
+    }
+
+    /**
+     * O que impede um SKU novo além do estado: o limite de {@link #MAX_SKUS};
+     * vazio quando cabe mais um.
+     */
+    public Optional<Reason> skuAdditionRefusal() {
+        return skus.size() >= MAX_SKUS ? Optional.of(skuLimit()) : Optional.empty();
+    }
+
+    /** O que impede remover SKU: fora de {@code DRAFT}; vazio no rascunho. */
+    public Optional<Reason> skuRemovalRefusal() {
+        return status == DRAFT ? Optional.empty() : Optional.of(Reason.of(DomainReasons.SKU_REMOVAL_REQUIRES_DRAFT));
+    }
+
+    /**
+     * O que impede ativar produto da loja na situação {@code seller}, na
+     * aprovação e na retomada; vazio quando ela está {@code APPROVED}.
+     */
+    public static Optional<Reason> ineligibility(SellerStatus seller) {
+        return seller.isEligible() ? Optional.empty()
+                : Optional.of(Reason.of(DomainReasons.SELLER_NOT_ELIGIBLE, seller));
     }
 
     /**
      * {@code offeredSkus}: SKUs que já têm oferta; todo SKU precisa de uma para o
      * produto ser publicado.
      */
-    public List<String> publishingViolations(List<AttributeDefinition> effective, boolean categoryActive,
+    public List<Reason> publishingViolations(List<AttributeDefinition> effective, boolean categoryActive,
             Set<UUID> offeredSkus) {
         return PublishingPolicy.publishingViolations(attributes, skus, effective, categoryActive, offeredSkus);
+    }
+
+    /** Como {@link #publishingViolations}, com o campo onde cada pendência se resolve. */
+    public List<PublishingIssue> publishingIssues(List<AttributeDefinition> effective, boolean categoryActive,
+            Set<UUID> offeredSkus) {
+        return PublishingPolicy.publishingIssues(attributes, skus, effective, categoryActive, offeredSkus);
+    }
+
+    /**
+     * Pendências que o produto teria com os {@code attributes} do rascunho na
+     * categoria de {@code effective}, sem alterar nada; os SKUs são os gravados.
+     * Recusa com {@code invalid-transition} onde a edição não vale.
+     */
+    public List<PublishingIssue> draftIssues(Map<String, String> attributes, List<AttributeDefinition> effective,
+            boolean categoryActive, Set<UUID> offeredSkus) {
+        requireEditable();
+        return PublishingPolicy.publishingIssues(Attributes.copy(attributes), skus, effective, categoryActive,
+                offeredSkus);
+    }
+
+    /**
+     * Efeito de trocar a categoria de {@code current} para {@code target} com os
+     * {@code attributes} do rascunho e os SKUs gravados, sem alterar nada.
+     */
+    public CategoryChange categoryChange(Map<String, String> attributes, List<AttributeDefinition> current,
+            List<AttributeDefinition> target) {
+        return CategoryChange.of(Attributes.copy(attributes), skus, current, target);
     }
 
     /**
@@ -216,26 +287,24 @@ public final class Product {
     }
 
     /**
-     * Devolve o produto em moderação para {@code DRAFT}, guardando o motivo.
-     * Recusa com {@code invalid-transition} fora de {@code PENDING_MODERATION}
-     * e com {@code invalid-value} se o motivo faltar ou passar de
-     * {@link #REASON_MAX_LENGTH}.
+     * Devolve o produto em moderação para {@code DRAFT}, guardando os motivos e o
+     * complemento, já validados em {@link DecisionReason#of}. Recusa com
+     * {@code invalid-transition} fora de {@code PENDING_MODERATION}.
      */
-    public void reject(String reason, String actor, Instant now) {
+    public void reject(DecisionReason reason, String actor, Instant now) {
         requireFrom(ProductTransition.REJECT);
-        record(ProductTransition.REJECT, actor, requireReason(reason), now);
+        record(ProductTransition.REJECT, actor, requireDecision(reason, ProductTransition.REJECT), now);
     }
 
     /**
      * Bloqueia o produto, guardando o motivo e registrando
      * {@code ProductStatusChanged} e {@code ProductBlocked}. Recusa com
-     * {@code invalid-transition} se já bloqueado ou arquivado e com
-     * {@code invalid-value} se o motivo for inválido.
+     * {@code invalid-transition} se já bloqueado ou arquivado.
      */
-    public void block(String reason, String actor, Instant now) {
+    public void block(DecisionReason reason, String actor, Instant now) {
         requireFrom(ProductTransition.BLOCK);
-        record(ProductTransition.BLOCK, actor, requireReason(reason), now);
-        newEvents.add(new ProductEvent.ProductBlocked(id, storeId, reason, now));
+        record(ProductTransition.BLOCK, actor, requireDecision(reason, ProductTransition.BLOCK), now);
+        newEvents.add(new ProductEvent.ProductBlocked(id, storeId, reason.reasons(), reason.note(), now));
     }
 
     /**
@@ -301,7 +370,7 @@ public final class Product {
      */
     public Sku sku(UUID skuId) {
         return skus.stream().filter(s -> s.id().equals(skuId)).findFirst()
-                .orElseThrow(() -> new DomainRuleViolation("sku-not-found", "SKU não pertence ao produto"));
+                .orElseThrow(() -> new DomainRuleViolation(DomainReasons.SKU_NOT_FOUND, "SKU não pertence ao produto"));
     }
 
     /**
@@ -382,11 +451,19 @@ public final class Product {
     }
 
     /**
+     * Quando o produto entrou em {@code PENDING_MODERATION} (envio,
+     * desbloqueio ou volta à moderação); vazio nos demais estados.
+     */
+    public Optional<Instant> moderationQueuedAt() {
+        return Optional.ofNullable(moderationQueuedAt);
+    }
+
+    /**
      * Em produto publicado, registra {@code REVIEW_REQUIRED} e o devolve para
      * {@code PENDING_MODERATION}; nos demais só atualiza {@code updatedAt}.
      */
     private void reviewIfPublished(String actor, Instant now) {
-        if (ProductTransition.REVIEW_REQUIRED.acceptsFrom(status))
+        if (editReturnsToModeration())
             record(ProductTransition.REVIEW_REQUIRED, actor, null, now);
         else
             touch(now);
@@ -394,18 +471,21 @@ public final class Product {
 
     /**
      * Registra o {@code StatusChange} e, exceto na criação, o evento
-     * {@code ProductStatusChanged}; leva o produto ao destino da transição e
-     * atualiza {@code updatedAt}. O ator é obrigatório.
+     * {@code ProductStatusChanged}; leva o produto ao destino da transição,
+     * marca a entrada na fila de moderação e atualiza {@code updatedAt}.
      */
-    private void record(ProductTransition transition, String actor, String reason, Instant now) {
+    private void record(ProductTransition transition, String actor, DecisionReason reason, Instant now) {
         ProductStatus from = status;
         ProductStatus to = transition.to();
+        List<ReasonLabel> reasons = reason == null ? List.of() : reason.reasons();
+        String note = reason == null ? null : reason.note();
         newChanges.add(new StatusChange(UUID.randomUUID(), transition, from, to,
                 Objects.requireNonNull(actor, "ator obrigatório"),
-                reason, now));
+                reasons, note, now));
         if (transition != ProductTransition.CREATE)
-            newEvents.add(new ProductEvent.ProductStatusChanged(id, storeId, transition, from, to, reason, now));
+            newEvents.add(new ProductEvent.ProductStatusChanged(id, storeId, transition, from, to, reasons, note, now));
         this.status = to;
+        this.moderationQueuedAt = to == PENDING_MODERATION ? now : null;
         touch(now);
     }
 
@@ -423,22 +503,23 @@ public final class Product {
      * estado não aceitar edição.
      */
     private void requireEditable() {
-        if (!status.isEditable())
+        if (!acceptsEdit())
             throw new InvalidTransitionException("EDIT", status.name());
     }
 
     private void requirePublishable(List<AttributeDefinition> effective, boolean categoryActive,
             Set<UUID> offeredSkus) {
-        List<String> reasons = publishingViolations(effective, categoryActive, offeredSkus);
+        List<Reason> reasons = publishingViolations(effective, categoryActive, offeredSkus);
         if (!reasons.isEmpty())
-            throw new DomainRuleViolation("product-not-publishable", "Produto incompleto para publicação", reasons);
+            throw new DomainRuleViolation(DomainReasons.PRODUCT_NOT_PUBLISHABLE, "Produto incompleto para publicação",
+                    reasons);
     }
 
     private static void requireEligible(SellerStatus seller) {
-        if (!seller.isEligible())
-            throw new DomainRuleViolation("seller-not-eligible",
-                    "Somente lojas com KYC aprovado podem ter produtos ativos",
-                    List.of("seller-not-eligible:" + seller));
+        ineligibility(seller).ifPresent(reason -> {
+            throw new DomainRuleViolation(DomainReasons.SELLER_NOT_ELIGIBLE,
+                    "Somente lojas com KYC aprovado podem ter produtos ativos", List.of(reason));
+        });
     }
 
     /**
@@ -447,19 +528,24 @@ public final class Product {
      */
     private static void requireValidValues(Map<String, String> values, List<Sku> candidates,
             List<AttributeDefinition> effective) {
-        List<String> reasons = PublishingPolicy.valueViolations(values, candidates, effective);
+        List<Reason> reasons = PublishingPolicy.valueViolations(values, candidates, effective);
         if (!reasons.isEmpty())
-            throw new DomainRuleViolation("invalid-attributes", "Atributos inválidos para a categoria", reasons);
+            throw new DomainRuleViolation(DomainReasons.INVALID_ATTRIBUTES, "Atributos inválidos para a categoria",
+                    reasons);
     }
 
     private static void requireUsable(Category category) {
         if (!category.active())
-            throw new DomainRuleViolation("category-inactive", "Categoria " + category.code() + " está inativa");
+            throw new DomainRuleViolation(Reason.of(DomainReasons.CATEGORY_INACTIVE, category.code()),
+                    "Categoria " + category.code() + " está inativa");
     }
 
-    private static String requireReason(String reason) {
-        return requireText(reason, REASON_MAX_LENGTH,
-                "Motivo é obrigatório e tem até " + REASON_MAX_LENGTH + " caracteres");
+    /** Exige o motivo composto para a mesma decisão; outro é erro de programação. */
+    private static DecisionReason requireDecision(DecisionReason reason, ProductTransition decision) {
+        Objects.requireNonNull(reason, "motivo obrigatório");
+        if (reason.decision() != decision)
+            throw new IllegalArgumentException("Motivo de " + reason.decision() + " usado em " + decision);
+        return reason;
     }
 
     /**
@@ -484,11 +570,16 @@ public final class Product {
      */
     private static void requireSkuSet(List<Sku> candidates) {
         if (candidates.size() > MAX_SKUS)
-            throw invalid("Produto aceita até " + MAX_SKUS + " SKUs");
+            throw new DomainRuleViolation(skuLimit(), skuLimit().message());
         Set<String> sellerSkus = new HashSet<>();
         for (Sku s : candidates) {
             if (!sellerSkus.add(s.sellerSku()))
-                throw new DomainRuleViolation("duplicate-seller-sku", "SKU " + s.sellerSku() + " repetido no produto");
+                throw new DomainRuleViolation(Reason.of(DomainReasons.DUPLICATE_SELLER_SKU, s.sellerSku()),
+                        "SKU " + s.sellerSku() + " repetido no produto");
         }
+    }
+
+    private static Reason skuLimit() {
+        return Reason.of(DomainReasons.INVALID_VALUE).withMessage("Produto aceita até " + MAX_SKUS + " SKUs");
     }
 }

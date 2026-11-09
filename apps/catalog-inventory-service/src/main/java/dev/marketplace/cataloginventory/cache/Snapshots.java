@@ -1,5 +1,6 @@
 package dev.marketplace.cataloginventory.cache;
 
+import dev.marketplace.cataloginventory.application.ModerationReasonEntry;
 import dev.marketplace.cataloginventory.application.StorefrontService.StorefrontProduct;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.category.AttributeDefinition;
@@ -9,14 +10,17 @@ import dev.marketplace.cataloginventory.domain.offer.Offer;
 import dev.marketplace.cataloginventory.domain.offer.Price;
 import dev.marketplace.cataloginventory.domain.offer.Promotion;
 import dev.marketplace.cataloginventory.domain.product.Dimensions;
+import dev.marketplace.cataloginventory.domain.product.ModerationReasonDefinition;
 import dev.marketplace.cataloginventory.domain.product.Product;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
+import dev.marketplace.cataloginventory.domain.product.ProductTransition;
 import dev.marketplace.cataloginventory.domain.product.Sku;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -55,8 +59,9 @@ final class Snapshots {
         }
 
         Product restore() {
+            // WHY: só produto visível (ACTIVE) entra no cache, e fora da moderação a entrada na fila é nula.
             return Product.restore(id, tenantId, storeId, categoryId, currency, title, description, attributes,
-                    skus.stream().map(SkuSnapshot::restore).toList(), status, version, createdAt, updatedAt);
+                    skus.stream().map(SkuSnapshot::restore).toList(), status, version, createdAt, updatedAt, null);
         }
     }
 
@@ -146,6 +151,31 @@ final class Snapshots {
 
         AttributeDefinition restore() {
             return new AttributeDefinition(code, label, type, required, variant, options);
+        }
+    }
+
+    /** Catálogo de motivos de moderação de um tenant, ativos e inativos, na ordem de exibição. */
+    record ModerationReasons(List<ModerationReasonSnapshot> items) {
+        static ModerationReasons of(List<ModerationReasonEntry> reasons) {
+            return new ModerationReasons(reasons.stream().map(ModerationReasonSnapshot::of).toList());
+        }
+
+        List<ModerationReasonEntry> restore() {
+            return items.stream().map(ModerationReasonSnapshot::restore).toList();
+        }
+    }
+
+    record ModerationReasonSnapshot(UUID tenantId, String code, String label, Set<ProductTransition> decisions,
+            boolean active, int position, long version, Instant createdAt, Instant updatedAt) {
+        static ModerationReasonSnapshot of(ModerationReasonEntry r) {
+            ModerationReasonDefinition d = r.definition();
+            return new ModerationReasonSnapshot(r.tenantId(), d.code(), d.label(), d.decisions(), d.active(),
+                    r.position(), r.version(), r.createdAt(), r.updatedAt());
+        }
+
+        ModerationReasonEntry restore() {
+            return new ModerationReasonEntry(tenantId, new ModerationReasonDefinition(code, label, decisions, active),
+                    position, version, createdAt, updatedAt);
         }
     }
 

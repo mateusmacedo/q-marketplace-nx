@@ -113,7 +113,7 @@ function transitions(products, tokens) {
   step(products.filter((p) => p.state !== 'DRAFT'), (p) => ({ token: seller, method: 'POST', path: `/products/${p.id}/submit`, what: 'POST /products/{id}/submit', expected: [200] }));
   step(products.filter((p) => APPROVED_STATES.includes(p.state)), (p) => ({ token: moderator, method: 'POST', path: `/moderation/products/${p.id}/approve`, what: 'POST /moderation/products/{id}/approve', expected: [200] }));
   step(products.filter((p) => p.state === 'PAUSED_BY_SELLER'), (p) => ({ token: seller, method: 'POST', path: `/products/${p.id}/pause`, what: 'POST /products/{id}/pause', expected: [200] }));
-  step(products.filter((p) => p.state === 'BLOCKED'), (p) => ({ token: moderator, method: 'POST', path: `/moderation/products/${p.id}/block`, body: { reason: 'Massa de carga: bloqueado' }, what: 'POST /moderation/products/{id}/block', expected: [200] }));
+  step(products.filter((p) => p.state === 'BLOCKED'), (p) => ({ token: moderator, method: 'POST', path: `/moderation/products/${p.id}/block`, body: { note: 'Massa de carga: bloqueado' }, what: 'POST /moderation/products/{id}/block', expected: [200] }));
   step(products.filter((p) => p.state === 'ARCHIVED'), (p) => ({ token: seller, method: 'DELETE', path: `/products/${p.id}`, what: 'DELETE /products/{id}', expected: [200] }));
   for (const p of products) {
     const status = last[p.index] ? last[p.index].json('status') : 'DRAFT';

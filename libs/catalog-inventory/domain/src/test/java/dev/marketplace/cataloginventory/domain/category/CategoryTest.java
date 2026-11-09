@@ -64,6 +64,8 @@ class CategoryTest {
         var error = assertThrows(DomainRuleViolation.class,
                 () -> Category.childOf(deepest, UUID.randomUUID(), "n6", "N6", List.of(), List.of()));
         assertEquals("category-too-deep", error.code());
+        assertEquals(List.of(), error.reasons());
+        assertEquals(List.of(String.valueOf(Category.MAX_DEPTH)), error.reason().params());
     }
 
     @Test
@@ -148,5 +150,16 @@ class CategoryTest {
         Category moved = root("antigos");
         moved.moveUnder(List.of(archive), 0, Set.of());
         assertEquals(List.of(archive.id()), moved.ancestry());
+    }
+
+    @Test
+    void onlyCategoryWithoutChildrenIsRemovable() {
+        Category fashion = root("moda");
+        fashion.requireRemovable(0);
+        var error = assertThrows(CategoryNotEmptyException.class, () -> fashion.requireRemovable(2));
+        assertEquals(CategoryNotEmptyException.HAS_CHILDREN, error.code());
+        assertEquals(List.of(CategoryNotEmptyException.HAS_CHILDREN), error.reasons());
+        var products = CategoryNotEmptyException.hasProducts("moda");
+        assertEquals(List.of(CategoryNotEmptyException.HAS_PRODUCTS), products.reasons());
     }
 }

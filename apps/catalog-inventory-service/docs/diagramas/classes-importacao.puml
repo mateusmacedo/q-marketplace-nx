@@ -50,10 +50,22 @@ class "CsvParser.SyntaxException" as SyntaxException <<final>> <<exceção>> {
   line() : int
 }
 class InvalidImportFileException <<exceção>> {
-  -reasons : List<String>
+  -reasons : List<Reason>
   --
   InvalidImportFileException(message, reasons)
   reasons() : List<String>
+  details() : List<Reason>
+}
+enum ImportFileReasons {
+  EMPTY_FILE
+  INVALID_ENCODING
+  MALFORMED_CSV
+  NO_ROWS
+  TOO_MANY_ROWS
+  DUPLICATE_COLUMN
+  UNKNOWN_COLUMN
+  MISSING_COLUMN
+  COLUMN_ORDER
 }
 class Offload <<final>> {
   {static} cpu(work) : Uni<T>
@@ -83,6 +95,7 @@ ProductImportWorker ..> Lifecycle : job, step, nested
 ProductCsv ..> CsvParser : parse
 ProductCsv ..> ImportRow : converte cada registro
 ProductCsv ..> InvalidImportFileException : arquivo recusado
+ProductCsv ..> ImportFileReasons : motivos
 ProductCsv +-- Validated
 ProductCsv +-- Fields
 CsvParser +-- CsvRecord

@@ -15,8 +15,8 @@ box "Aplicação" #F5FAFF
 participant "$I_SERVICO\nServiço de aplicação\n(ProductService, OfferService,\nCategoryService, ...)" as svc <<aplicacao>>
 end box
 box "Saída" #FBF6FC
-participant "$I_CACHE\n{Product,Offer,Category,\nSeller}CacheInvalidation\n(decorator da porta)" as dec <<saida>>
-participant "$I_CACHE\nStorefrontCache /\nTaxonomyCache" as reader <<saida>>
+participant "$I_CACHE\n{Product,Offer,Category,\nSeller,ModerationReason}\nCacheInvalidation\n(decorator da porta)" as dec <<saida>>
+participant "$I_CACHE\nStorefrontCache /\nTaxonomyCache /\nModerationReasonCache" as reader <<saida>>
 participant "$I_REPOSITORIO\nPg*Repository" as repo <<saida>>
 participant "$I_OUTBOX\nPgOutbox" as outbox <<saida>>
 participant "$I_METRICA\nPgCatalogMetrics" as counts <<saida>>
@@ -60,7 +60,7 @@ end note
 newpage invalidação de cache: decorators *CacheInvalidation sobre as portas de escrita
 autonumber 1
 
-svc -> dec : escrita na porta decorada:\nProductRepository.insert | update,\nOfferRepository.insert | update,\nCategoryRepository.insert | update | move,\nSellerEligibilityRepository.apply
+svc -> dec : escrita na porta decorada:\nProductRepository.insert | update,\nOfferRepository.insert | update,\nCategoryRepository.insert | update | move,\nSellerEligibilityRepository.apply,\nModerationReasonRepository.insert | update
 dec -> dec : CacheInvalidation.after(cache, escrita, invalidação)\n(Seller usa CacheInvalidation.when)
 alt cache desligado (catalog.cache.enabled=false, padrão em prod e dev)
   dec -> repo : escrita
@@ -73,7 +73,7 @@ else cache ligado
   alt Seller com resultado DUPLICATE ou STALE, sem falha
     dec --> svc : resultado, sem invalidar
   else invalida (também na falha: um prazo estourado não prova que o commit não ocorreu)
-    dec -> cc : productChanged(tenant, produto, loja)\n| storeChanged(tenant, loja)\n| taxonomyChanged(tenant)
+    dec -> cc : productChanged(tenant, produto, loja)\n| storeChanged(tenant, loja)\n| taxonomyChanged(tenant)\n| moderationReasonsChanged(tenant)
     cc -> redis : EVALSHA INVALIDATE (EVAL se NOSCRIPT),\nprazo catalog.cache.invalidation-timeout (1 s)
     note over cc, redis
       Script: INCR da chave de geração se ela existir.
@@ -99,10 +99,11 @@ note over dec, redis
   ProductCacheInvalidation e OfferCacheInvalidation: productChanged => INCR catalog:gen:product:{t}:{p}
   SellerCacheInvalidation (só APPLIED ou falha): storeChanged => INCR catalog:gen:store:{t}:{loja}
   CategoryCacheInvalidation: taxonomyChanged => INCR catalog:gen:taxonomy:{t}
+  ModerationReasonCacheInvalidation: moderationReasonsChanged => INCR catalog:gen:moderation-reasons:{t}
   Geração ausente não é incrementada: a próxima leitura a recria pelo relógio do Redis.
 end note
 
-newpage leitura em cache: CatalogCache.read, write e remember (StorefrontCache e TaxonomyCache)
+newpage leitura em cache: CatalogCache.read, write e remember (StorefrontCache, TaxonomyCache e ModerationReasonCache)
 autonumber 1
 
 reader -> cc : read(cache, valueKey, generationKey,\nownerKey?, ownerGenerationPrefix?)

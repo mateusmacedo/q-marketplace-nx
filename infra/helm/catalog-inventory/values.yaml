@@ -145,8 +145,8 @@ jwt:
   # Caminho da claim de papéis; no Keycloak, realm_access/roles.
   groupsPath: groups
 
-# Cache Redis da vitrine e da taxonomia (ADR 024). O Redis é externo, standalone (sem Redis Cluster) e com um usuário
-# de ACL restrito a catalog:*; desligado, ou com o Redis fora, o serviço lê do banco.
+# Cache Redis da vitrine, da taxonomia e dos motivos de moderação (ADRs 024 e 030). O Redis é externo, standalone (sem
+# Redis Cluster) e com um usuário de ACL restrito a catalog:*; desligado, ou com o Redis fora, o serviço lê do banco.
 cache:
   enabled: false
   # OBRIGATÓRIO com enabled: usuário da ACL sem a senha, por exemplo redis://catalog@redis.example.internal:6379.

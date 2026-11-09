@@ -8,6 +8,8 @@ import jakarta.annotation.Priority;
 import jakarta.decorator.Decorator;
 import jakarta.decorator.Delegate;
 import jakarta.inject.Inject;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -33,5 +35,10 @@ public class SellerCacheInvalidation implements SellerEligibilityRepository {
     @Override
     public Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId) {
         return delegate.statusOf(tenantId, storeId);
+    }
+
+    @Override
+    public Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds) {
+        return delegate.statusesOf(tenantId, storeIds);
     }
 }

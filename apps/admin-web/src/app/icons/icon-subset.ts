@@ -1,10 +1,19 @@
 import {
   cilAccountLogout,
+  cilBell,
+  cilBuilding,
+  cilCloudUpload,
+  cilCommentSquare,
   cilContrast,
+  cilEnvelopeOpen,
   cilHome,
+  cilList,
   cilMenu,
   cilMoon,
+  cilShieldAlt,
+  cilSitemap,
   cilSun,
+  cilTags,
   cilUser
 } from '@coreui/icons';
 import { logo } from './logo';
@@ -12,11 +21,20 @@ import { signet } from './signet';
 
 export const iconSubset = {
   cilAccountLogout,
+  cilBell,
+  cilBuilding,
+  cilCloudUpload,
+  cilCommentSquare,
   cilContrast,
+  cilEnvelopeOpen,
   cilHome,
+  cilList,
   cilMenu,
   cilMoon,
+  cilShieldAlt,
+  cilSitemap,
   cilSun,
+  cilTags,
   cilUser,
   logo,
   signet

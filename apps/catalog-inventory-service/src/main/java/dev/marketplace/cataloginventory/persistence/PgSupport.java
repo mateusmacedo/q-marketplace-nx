@@ -3,8 +3,11 @@ package dev.marketplace.cataloginventory.persistence;
 import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.application.ConcurrentUpdateException;
 import dev.marketplace.cataloginventory.application.DuplicateException;
+import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -23,10 +26,16 @@ import java.util.TreeMap;
 @ApplicationScoped
 public class PgSupport {
     private static final String UNIQUE_VIOLATION = "23505";
+    private static final String QUERY_CANCELED = "57014";
+    // WHY: set_config com is_local vale só até o fim da transação, e a conexão volta ao pool como estava.
+    private static final String CUSTOM_PLAN_AND_DEADLINE = """
+            SELECT set_config('plan_cache_mode', 'force_custom_plan', true), set_config('statement_timeout', $1, true)""";
     private final Duration timeout;
+    private final String statementTimeout;
 
     PgSupport(CatalogConfig config) {
         this.timeout = config.persistence().timeout();
+        this.statementTimeout = Math.max(1, timeout.toMillis()) + "ms";
     }
 
     /**
@@ -35,6 +44,22 @@ public class PgSupport {
      */
     <T> Uni<T> bounded(Uni<T> operation) {
         return operation.ifNoItem().after(timeout).fail();
+    }
+
+    /**
+     * Como {@link #bounded}, numa transação com plano customizado e o mesmo
+     * prazo no servidor, que cancela a consulta atrasada e devolve a conexão;
+     * o cancelamento falha como o prazo do cliente.
+     */
+    Uni<RowSet<Row>> customPlan(Pool pool, String sql, Tuple params) {
+        return bounded(pool.withTransaction(conn -> conn.preparedQuery(CUSTOM_PLAN_AND_DEADLINE)
+                .execute(Tuple.of(statementTimeout))
+                .flatMap(ignored -> conn.preparedQuery(sql).execute(params))))
+                .onFailure(PgSupport::canceled).transform(failure -> new TimeoutException());
+    }
+
+    private static boolean canceled(Throwable failure) {
+        return failure instanceof PgException pg && QUERY_CANCELED.equals(pg.getSqlState());
     }
 
     /**

@@ -43,20 +43,24 @@ else há SKUs
   repo --> svc : Map de skuId para StockLevel (SKU sem saldo fica fora do mapa)
   svc --> cons : saldos atuais
 end
+opt depois de uma gravação (ProductResponses.saved, savedOk e batch)
+  cons -> cons : falha ou prazo estourado na leitura viram aviso no log;\na resposta sai com o status gravado, sem OUT_OF_STOCK, e os SKUs sem saldo
+end
 cons -> cons : ProductResponse.of: Product.effectiveStatus: ACTIVE sem saldo disponível\nvira OUT_OF_STOCK (derivado na leitura, nunca gravado, ADR 012);\nvitrine: inStock por SKU = available > 0 (onHand - reserved)
 note over cons, pg
   O saldo vem sempre do banco: não há cache de estoque nem decorator de invalidação para ele,
   e a vitrine com cache lê o saldo fora do retrato guardado.
-  Comum às páginas: 401 token ausente ou inválido; 403 papel fora do @RolesAllowed
+  Comum às páginas: 401 token ausente ou inválido; 403 sem nenhuma capacidade do @PermissionsAllowed
   ou claim de tenant ausente (tenant-not-authorized); 400 malformed-body;
-  503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
+  503 service-unavailable com Retry-After: 1 se o banco passar de 2 s, menos depois de uma
+  gravação de produto, que já valeu e responde com o status gravado.
 end note
 $legenda_sequencia()
 
 newpage GET /inventory/skus/{skuId}: consultar saldo do SKU (InventoryService.get)
 autonumber 1
 reader -> ir : GET /inventory/skus/{skuId}
-ir -> ir : @RolesAllowed (seller, catalog-admin, catalog-moderator); CallerContext.actor()
+ir -> ir : @PermissionsAllowed (MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS); CallerContext.actor()
 == Aplicação e regras de domínio ==
 ir -> svc : get(actor, skuId)
 svc -> prod : ProductAccess.visibleBySku: findBySku(tenant, skuId)
@@ -79,7 +83,7 @@ newpage PUT /inventory/skus/{skuId}: ajustar estoque físico (InventoryService.a
 autonumber 1
 seller -> ir : PUT /inventory/skus/{skuId} {onHand} + If-Match opcional
 note over ir, pg : Fluxo detalhado em sequencia-ajuste-estoque.puml
-ir -> ir : @RolesAllowed(seller); @Valid AdjustStockRequest (onHand de 0 a 1.000.000); ETags.optional(If-Match)
+ir -> ir : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid AdjustStockRequest (onHand de 0 a 1.000.000); ETags.optional(If-Match)
 opt #FFEBEE onHand ausente ou fora de 0 a 1.000.000
   ir -[#C62828]-> seller : <color:#C62828>400 validation-failed</color>
 end

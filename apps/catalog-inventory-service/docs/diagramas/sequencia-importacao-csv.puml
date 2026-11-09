@@ -49,15 +49,17 @@ loop cada unidade
     svc -> svc : <color:#C62828>FAILED (invalid-row, inconsistent-product,</color>\n<color:#C62828>category-not-found, group-rejected)</color>
   end
   svc -> repo : recordResults
-  repo -> pg : INSERT product_import_line ... ON CONFLICT DO NOTHING;\nUPDATE started_at (renova a lease)
+  repo -> pg : INSERT product_import_line ... ON CONFLICT DO NOTHING;\nUPDATE started_at (renova a lease) e as contagens por desfecho
 end
 svc -> repo : complete
 repo -> pg : UPDATE status='COMPLETED', finished_at
 worker -> worker : catalog.imports.lines{outcome} += n
 
 == Consulta ==
+seller -> res : GET /products/imports/{id}?lines=false
+res --> seller : <color:#2E7D32>200 (status e contagens gravadas com o lote, sem as linhas)</color>
 seller -> res : GET /products/imports/{id}
-res --> seller : <color:#2E7D32>200 (status e resultado por linha)</color>
+res --> seller : <color:#2E7D32>200 (status, contagens e resultado por linha)</color>
 note over uc : Os eventos são os dos próprios casos de uso\n(ProductCreated, PriceChanged, InventoryUpdated...)
 $legenda_camadas()
 @enduml

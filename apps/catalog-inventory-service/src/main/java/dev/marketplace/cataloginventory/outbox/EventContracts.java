@@ -18,6 +18,8 @@ import java.util.UUID;
 public final class EventContracts {
         public static final String SOURCE = "catalog-inventory";
         public static final int VERSION = 1;
+        /** Teto de {@code reason} nos eventos de produto, fixado pelo contrato v1 publicado. */
+        public static final int REASON_MAX_LENGTH = 500;
 
         private EventContracts() {
         }
@@ -34,16 +36,24 @@ public final class EventContracts {
                         List<SkuV1> skus) {
         }
 
-        /**
-         * {@code visible}: o novo estado aparece na vitrine quando a loja está
-         * aprovada.
-         */
-        public record ProductStatusChangedV1(UUID productId, UUID storeId, String transition, String from, String to,
-                        String reason,
-                        boolean visible) {
+        /** Motivo pronto de uma decisão, com o rótulo que ele tinha nela. */
+        public record ReasonLabelV1(String code, String label) {
         }
 
-        public record ProductBlockedV1(UUID productId, UUID storeId, String reason) {
+        /**
+         * {@code visible}: o novo estado aparece na vitrine quando a loja está
+         * aprovada. {@code reasonCodes} e {@code reasonLabels}: motivos prontos da
+         * rejeição ou do bloqueio, vazios nas demais transições; {@code note}: o
+         * complemento. {@code reason} é o texto único derivado, mantido para os
+         * consumidores da v1 e abreviado no teto dela.
+         */
+        public record ProductStatusChangedV1(UUID productId, UUID storeId, String transition, String from, String to,
+                        String reason, List<String> reasonCodes,
+                        boolean visible, String note, List<ReasonLabelV1> reasonLabels) {
+        }
+
+        public record ProductBlockedV1(UUID productId, UUID storeId, String reason, List<String> reasonCodes,
+                        String note, List<ReasonLabelV1> reasonLabels) {
         }
 
         public record PromotionV1(UUID promotionId, String salePrice, Instant startsAt, Instant endsAt) {

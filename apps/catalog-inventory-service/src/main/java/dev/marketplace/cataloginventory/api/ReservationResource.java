@@ -6,10 +6,9 @@ import dev.marketplace.cataloginventory.application.ReservationService;
 import dev.marketplace.cataloginventory.domain.inventory.ReservationRefusal;
 import dev.marketplace.cataloginventory.observability.InventoryLatency;
 import dev.marketplace.cataloginventory.security.CallerContext;
-import dev.marketplace.cataloginventory.security.Roles;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.smallrye.mutiny.Uni;
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.PermissionsAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.*;
@@ -28,6 +27,8 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
+import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_RESERVATIONS;
+
 /**
  * Reservas de estoque (PRD): o checkout reserva, o OMS confirma ou libera;
  * prazo vencido devolve o estoque.
@@ -35,7 +36,7 @@ import java.util.UUID;
 @Path("/inventory/reservations")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@RolesAllowed(Roles.CATALOG_RESERVATIONS)
+@PermissionsAllowed(MANAGE_RESERVATIONS)
 @Tag(name = "Inventory", description = "Saldo por SKU e reservas de estoque")
 @APIResponse(responseCode = "4XX", description = "Erro do cliente (RFC 9457)", content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
 @APIResponse(responseCode = "5XX", description = "Erro do servidor (RFC 9457)", content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
@@ -65,7 +66,7 @@ public class ReservationResource {
      */
     @POST
     @Operation(operationId = "createReservation", summary = "Reserva todos os itens ou nenhum; repetir a chave devolve a mesma reserva")
-    @APIResponse(responseCode = "201", description = "Reserva criada")
+    @APIResponse(responseCode = "201", description = "Reserva criada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ReservationResponse.class)))
     @APIResponse(responseCode = "200", description = "Repetição idempotente (cabeçalho Idempotent-Replayed)")
     public Uni<RestResponse<ReservationResponse>> create(
             @Parameter(description = "Chave única por tentativa de reserva", required = true) @RestHeader("Idempotency-Key") String key,

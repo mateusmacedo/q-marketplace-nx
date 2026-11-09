@@ -53,6 +53,8 @@ O `build.gradle` não declara dependência de produção. O verificador de limit
 | [`Money`](../src/main/java/dev/marketplace/cataloginventory/domain/Money.java) | VO | Valor ≥ 0, até 2 casas (normaliza para 2), máximo `99999999999999999.99`; moeda ISO 4217 (`[A-Z]{3}`). Comparar moedas diferentes recusa com `invalid-value`. |
 | [`Attributes`](../src/main/java/dev/marketplace/cataloginventory/domain/Attributes.java) | utilitário | Cópia imutável e ordenada de atributos; chave ou valor nulo recusa com `invalid-value`. |
 | [`DomainRuleViolation`](../src/main/java/dev/marketplace/cataloginventory/domain/DomainRuleViolation.java) | exceção | Recusa de negócio com `code` e `reasons`. Ver [Exceções](#exceções-e-tradução-no-serviço). |
+| [`Reason`](../src/main/java/dev/marketplace/cataloginventory/domain/Reason.java) | VO | Motivo de recusa: `code`, `params` e `message` opcional. `key()` dá a forma compacta de `reasons` (`missing-variant-attribute:CAM-P:cor`). |
+| [`ReasonCode`](../src/main/java/dev/marketplace/cataloginventory/domain/ReasonCode.java), [`DomainReasons`](../src/main/java/dev/marketplace/cataloginventory/domain/DomainReasons.java) | registro | Códigos estáveis em kebab-case, derivados do nome da constante. Código novo nasce no enum e ganha texto no catálogo de mensagens do serviço. |
 | [`InvalidTransitionException`](../src/main/java/dev/marketplace/cataloginventory/domain/InvalidTransitionException.java) | exceção | Código `invalid-transition`. |
 
 ### Categoria (`category`)
@@ -67,6 +69,7 @@ O `build.gradle` não declara dependência de produção. O verificador de limit
 | Código de atributo não se repete no caminho (ancestrais, própria, descendentes) | `attribute-conflict`, com `attribute-conflict:<código>` em `reasons` |
 | `childOf` exige pai direto ativo | `category-inactive` |
 | `moveUnder` não aceita a própria categoria nem descendente como novo pai; aceita pai inativo | `category-cycle` |
+| `requireRemovable` só exclui categoria sem subcategorias; os produtos, inclusive arquivados, são conferidos na gravação (`category-has-products`) | `category-has-children` (`CategoryNotEmptyException`) |
 
 [`AttributeDefinition`](../src/main/java/dev/marketplace/cataloginventory/domain/category/AttributeDefinition.java) (VO): `code` (`[a-z][a-z0-9_]{0,39}`), `label` (até 80), `type`, `required`, `variant`, `options`. `OPTION` exige de 1 a 100 opções distintas; os outros tipos não aceitam opções. `accepts(value)` valida o valor: `TEXT` até 500 caracteres, `INTEGER` com até 18 dígitos, `DECIMAL` com até 18 dígitos inteiros e 6 decimais, os dois em notação simples, com ponto e sem expoente, `BOOLEAN` só `true` ou `false`, `OPTION` uma das opções.
 
@@ -87,16 +90,22 @@ O `build.gradle` não declara dependência de produção. O verificador de limit
 | Edição só fora de `BLOCKED` e `ARCHIVED` (`isEditable`) | `invalid-transition` (operação `EDIT`) |
 | Remover SKU só em `DRAFT` | `sku-removal-requires-draft` |
 | SKU informado pertence ao produto | `sku-not-found` |
-| Motivo obrigatório, até 500, em `REJECT` e `BLOCK` | `invalid-value` |
+| Motivo pronto do catálogo do tenant ou complemento de até 500, em `REJECT` e `BLOCK` (`DecisionReason`) | `invalid-value`; motivo ausente, inativo ou de outra decisão: `invalid-moderation-reason` |
 | Oferta e estoque congelados com produto arquivado (`requireNotArchived`) | `invalid-transition` |
 
 [`Sku`](../src/main/java/dev/marketplace/cataloginventory/domain/product/Sku.java) (entidade interna): `id`, `sellerSku` (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`), `variantAttributes`, `physical`, `dimensions`. SKU físico sem dimensões recusa com `missing-dimensions`; SKU não físico com dimensões, com `invalid-value`.
 
 [`Dimensions`](../src/main/java/dev/marketplace/cataloginventory/domain/product/Dimensions.java) (VO): `heightCm`, `widthCm`, `lengthCm` positivos, até 1000 cm e 2 casas; `weightGrams` de 1 a 1.000.000.
 
-[`StatusChange`](../src/main/java/dev/marketplace/cataloginventory/domain/product/StatusChange.java) (VO): registro de auditoria de cada transição (`transition`, `from`, `to`, `actor`, `reason`, `at`).
+[`StatusChange`](../src/main/java/dev/marketplace/cataloginventory/domain/product/StatusChange.java) (VO): registro de auditoria de cada transição (`transition`, `from`, `to`, `actor`, `reasons`, `note`, `at`). Na rejeição e no bloqueio, `reasons` traz os motivos prontos com o rótulo da época ([`ReasonLabel`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ReasonLabel.java)) e `note`, o complemento; `reason()` deriva o texto único.
 
-Enums: [`ProductStatus`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ProductStatus.java), [`ProductTransition`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ProductTransition.java) e [`SellerStatus`](../src/main/java/dev/marketplace/cataloginventory/domain/product/SellerStatus.java). Os nomes de `ProductTransition` são gravados e publicados; não renomear.
+[`ModerationReasonDefinition`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ModerationReasonDefinition.java) (VO): motivo pronto do catálogo do tenant (`code`, `label`, `decisions`, `active`), que é dado (ADR 030). O domínio guarda só as regras: código em kebab-case só com letras, até 60 caracteres, que não muda (`revised` e `withActive` o preservam); rótulo de até 120; decisões não vazias, só `REJECT` e `BLOCK`.
+
+[`DecisionReason`](../src/main/java/dev/marketplace/cataloginventory/domain/product/DecisionReason.java) (VO): `of(decision, catalog, codes, note)` confere os códigos contra o catálogo do tenant e recusa com `invalid-moderation-reason` e os motivos `unknown-reason:<código>`, `reason-inactive:<código>` e `reason-not-applicable:<código>`; os dois últimos levam o rótulo na mensagem. Guarda os rótulos na ordem do catálogo e o complemento, de até 500 caracteres; sem motivo nem complemento, `invalid-value`.
+
+Enums: [`ProductStatus`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ProductStatus.java), [`ProductTransition`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ProductTransition.java), [`TransitionSide`](../src/main/java/dev/marketplace/cataloginventory/domain/product/TransitionSide.java) e [`SellerStatus`](../src/main/java/dev/marketplace/cataloginventory/domain/product/SellerStatus.java). Os nomes de `ProductTransition` são gravados e publicados; não renomear. `ProductTransition.side()` diz quem faz a transição: `STORE` (criar, enviar, pausar, reativar, arquivar e a volta à moderação) ou `MODERATION` (aprovar, rejeitar, bloquear e desbloquear).
+
+`Product.moderationQueuedAt` guarda quando o produto entrou em `PENDING_MODERATION` (envio, desbloqueio ou volta à moderação); fica vazio nos demais estados. A fila de moderação sai nessa ordem, que não muda com edições feitas na fila.
 
 ### Oferta (`offer`)
 
@@ -115,7 +124,7 @@ Enums: [`ProductStatus`](../src/main/java/dev/marketplace/cataloginventory/domai
 - Promoções encerradas são descartadas na próxima mudança.
 - `effectivePrice(now)` não altera a oferta.
 
-VOs: [`Price`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/Price.java) (`list-price-below-sale-price` se "de" < "por"), [`Promotion`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/Promotion.java) (início antes do fim, janela até 366 dias) e [`EffectivePrice`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/EffectivePrice.java).
+VOs: [`Price`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/Price.java) (`list-price-below-sale-price` se "de" < "por"), [`Promotion`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/Promotion.java) (início antes do fim, janela até 366 dias; `phaseAt(instante)` devolve a [`PromotionPhase`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/PromotionPhase.java): `SCHEDULED`, `ACTIVE` ou `ENDED`) e [`EffectivePrice`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/EffectivePrice.java).
 
 ### Estoque e reserva (`inventory`)
 
@@ -210,6 +219,8 @@ O enum está no domínio; o consumo dos vereditos fica no serviço ([`SellerVerd
 
 - `valueViolations`: valores presentes que a categoria não aceita. Vale para rascunho e publicado. Motivos: `unknown-attribute:<c>`, `invalid-attribute:<c>` (nos SKUs, `<sellerSku>:<c>`).
 - `publishingViolations`: tudo o que impede `SUBMIT` e `APPROVE`.
+- `valueIssues` e `publishingIssues`: os mesmos motivos, na mesma ordem, cada um como `PublishingIssue` com o campo do produto onde se resolve (`categoryId`, `attributes.<c>`, `skus`, `skus[<sellerSku>].offer`, `skus[<sellerSku>].variantAttributes` e `skus[<sellerSku>].variantAttributes.<c>`).
+- `CategoryChange.of` aplica `valueViolations` à troca de categoria sem gravar: atributos do produto que somem ou ficam com valor recusado, obrigatórios que a categoria atual não exigia e SKUs com variação recusada, que impedem a gravação. `Product.draftIssues` e `Product.categoryChange` avaliam o rascunho com os SKUs gravados.
 
 | Motivo | Causa |
 |---|---|
@@ -267,6 +278,7 @@ O enum está no domínio; o consumo dos vereditos fica no serviço ([`SellerVerd
 | `InvalidTransitionException` | transição ou edição negada pelo estado | 409 |
 | `ReservationRefusal` | reserva recusada; o cliente pode recotar | 409 |
 | `StockConflictException` | lançada pelo serviço: `stock-below-reserved`, `sku-has-stock` | 409 |
+| `CategoryNotEmptyException` | exclusão de categoria com subcategorias (`category-has-children`) ou com produtos, inclusive arquivados (`category-has-products`) | 409 |
 | `IllegalStateException` | saldo ou reserva inconsistente (falha técnica) | 500 `internal-error` |
 
 O `type` da resposta é o `code` da exceção. Mapeamento em [`ProblemMappers`](../../../../apps/catalog-inventory-service/src/main/java/dev/marketplace/cataloginventory/api/ProblemMappers.java) (ADR 008). `seller-not-eligible` sai como 422 em `approve`/`resume` e como 409 na reserva.
@@ -283,7 +295,8 @@ O `type` da resposta é o `code` da exceção. Mapeamento em [`ProblemMappers`](
 | Valor `TEXT` | 500 caracteres | `AttributeDefinition.MAX_TEXT_LENGTH` |
 | Título / descrição do produto | 200 / 5000 caracteres | `Product` |
 | SKUs por produto | 100 | `Product.MAX_SKUS` |
-| Motivo de reject e block | 500 caracteres | `Product.REASON_MAX_LENGTH` |
+| Complemento de reject e block | 500 caracteres | `DecisionReason.NOTE_MAX_LENGTH` |
+| Código / rótulo do motivo de moderação | 60 / 120 caracteres | `ModerationReasonDefinition` |
 | `sellerSku` | 64 caracteres | `Sku.SELLER_SKU_PATTERN` |
 | Medidas / peso | até 1000 cm, 2 casas / 1 a 1.000.000 g | `Dimensions` |
 | Valor monetário | `99999999999999999.99`, 2 casas | `Money.MAX` |
@@ -303,8 +316,11 @@ Testes unitários JUnit 5, sem framework, em [`src/test/java/dev/marketplace/cat
 | Arquivo | Cobre |
 |---|---|
 | `MoneyTest` | limites e normalização de `Money` |
+| `DomainRuleViolationTest` | motivos na forma compacta e detalhada; a própria recusa como detalhe |
 | `category/CategoryTest`, `category/AttributeDefinitionTest` | árvore, conflitos, ciclo, profundidade, tipos de atributo |
-| `product/ProductTest`, `product/ProductTransitionTest`, `product/SkuTest` | invariantes, publicação, transições, SKU e dimensões |
+| `product/ProductTest`, `product/ProductTransitionTest`, `product/SkuTest` | invariantes, publicação, regras de edição, pendências com o campo, transições, SKU e dimensões |
+| `product/CategoryChangeTest` | efeito da troca de categoria: atributos que somem, obrigatórios novos e SKUs que impedem a troca |
+| `product/DecisionReasonTest`, `product/ModerationReasonDefinitionTest` | motivos da decisão contra o catálogo do tenant e regras do motivo pronto |
 | `offer/OfferTest` | preço, promoções e `priceVersion` |
 | `inventory/StockLevelTest`, `inventory/ReservationPolicyTest`, `inventory/InventoryEventsTest` | saldo, abertura de reserva, `LOCK_ORDER` e derivação de eventos |
 

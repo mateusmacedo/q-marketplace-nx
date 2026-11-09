@@ -38,7 +38,7 @@ final class Fixtures {
     static Actor admin() {
         return new Actor(TENANT, Optional.empty(), "admin",
                 Set.of(Capability.MANAGE_TAXONOMY, Capability.READ_TENANT_CATALOG,
-                        Capability.READ_SELLER_ELIGIBILITY));
+                        Capability.READ_SELLER_ELIGIBILITY, Capability.MANAGE_MODERATION_REASONS));
     }
 
     static SellerVerdict verdict(UUID store, SellerStatus status) {

@@ -1,11 +1,14 @@
 package dev.marketplace.cataloginventory.application;
 
+import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.category.Category;
+import dev.marketplace.cataloginventory.domain.category.CategoryNotEmptyException;
 import dev.marketplace.cataloginventory.domain.inventory.*;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
 import dev.marketplace.cataloginventory.domain.product.*;
 import io.smallrye.mutiny.Uni;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -15,7 +18,8 @@ import java.util.function.Consumer;
  */
 final class InMemoryStore
         implements CategoryRepository, ProductRepository, OfferRepository, SellerEligibilityRepository,
-        InventoryRepository, ReservationRepository, ProductImportRepository {
+        InventoryRepository, ReservationRepository, ProductImportRepository, CatalogStatsRepository,
+        ModerationReasonRepository {
     final Map<UUID, Category> categories = new LinkedHashMap<>();
     final Map<UUID, Product> products = new LinkedHashMap<>();
     final Map<UUID, Offer> offers = new LinkedHashMap<>();
@@ -29,6 +33,11 @@ final class InMemoryStore
     final Map<UUID, ProductImport> imports = new LinkedHashMap<>();
     final Map<UUID, String> importContents = new HashMap<>();
     final Map<UUID, TreeMap<Integer, ImportResult>> importResults = new HashMap<>();
+    final Map<UUID, Map<String, ModerationReasonEntry>> moderationReasons = new HashMap<>();
+    /** Leituras do catálogo de motivos, para conferir quando a decisão dispensa a leitura. */
+    int catalogReads;
+    /** Consultas de situação de loja em lote, para conferir uma por página. */
+    int statusQueries;
     /** Roda no início de cada gravação de produto; o teste o usa para simular outro escritor. */
     Consumer<Product> beforeProductUpdate = product -> {};
 
@@ -103,6 +112,55 @@ final class InMemoryStore
         return Uni.createFrom().voidItem();
     }
 
+    public synchronized Uni<Map<UUID, Integer>> childCounts(UUID tenantId, Collection<UUID> categoryIds) {
+        Map<UUID, Integer> counts = new HashMap<>();
+        categories.values().stream().filter(c -> c.tenantId().equals(tenantId))
+                .forEach(c -> c.parentId().filter(categoryIds::contains)
+                        .ifPresent(parent -> counts.merge(parent, 1, Integer::sum)));
+        return Uni.createFrom().item(counts);
+    }
+
+    public synchronized Uni<Map<UUID, Integer>> depths(UUID tenantId, Collection<UUID> categoryIds) {
+        Map<UUID, Integer> depths = new HashMap<>();
+        categoryIds.forEach(id -> Optional.ofNullable(categories.get(id)).filter(c -> c.tenantId().equals(tenantId))
+                .ifPresent(c -> depths.put(id, c.ancestry().size())));
+        return Uni.createFrom().item(depths);
+    }
+
+    public synchronized Uni<List<CategoryNode>> tree(UUID tenantId, Optional<String> afterPath, boolean usableOnly,
+            int limit) {
+        return Uni.createFrom().item(categories.values().stream().filter(c -> c.tenantId().equals(tenantId))
+                .map(this::node)
+                .filter(node -> !usableOnly || node.usable())
+                .filter(node -> afterPath.map(after -> node.pathKey().compareTo(after) > 0).orElse(true))
+                .sorted(Comparator.comparing(CategoryNode::pathKey)).limit(limit).toList());
+    }
+
+    public synchronized Uni<List<CategoryNode>> byIds(UUID tenantId, Collection<UUID> categoryIds) {
+        return Uni.createFrom().item(categories.values().stream()
+                .filter(c -> c.tenantId().equals(tenantId) && categoryIds.contains(c.id()))
+                .sorted(Comparator.comparing(Category::code)).map(this::node).toList());
+    }
+
+    private CategoryNode node(Category c) {
+        return new CategoryNode(copy(c),
+                c.ancestry().stream().map(categories::get).map(CategoryNode.Ancestor::of).toList(),
+                (int) categories.values().stream().filter(k -> k.parentId().equals(Optional.of(c.id()))).count());
+    }
+
+    /** Recusa a categoria com subcategoria ou produto, como as chaves estrangeiras do banco. */
+    public synchronized Uni<Void> delete(Category category, long expectedVersion) {
+        Category stored = categories.get(category.id());
+        if (stored == null || stored.version() != expectedVersion)
+            return Uni.createFrom().failure(new ConcurrentUpdateException());
+        if (categories.values().stream().anyMatch(c -> c.parentId().equals(Optional.of(category.id()))))
+            return Uni.createFrom().failure(CategoryNotEmptyException.hasChildren(category.code()));
+        if (products.values().stream().anyMatch(p -> p.categoryId().equals(category.id())))
+            return Uni.createFrom().failure(CategoryNotEmptyException.hasProducts(category.code()));
+        categories.remove(category.id());
+        return Uni.createFrom().voidItem();
+    }
+
     /** Confere, como o banco, que o caminho gravado do pai é o que a categoria herdou. */
     private boolean parentPathIsCurrent(Category category) {
         return category.parentId().map(categories::get).map(parent -> path(parent).equals(category.ancestry()))
@@ -139,14 +197,66 @@ final class InMemoryStore
         return Uni.createFrom().item(found);
     }
 
-    public synchronized Uni<List<Product>> find(UUID tenantId, Optional<UUID> storeId, Optional<ProductStatus> status,
-            Optional<String> afterId, int limit) {
+    public synchronized Uni<List<Product>> moderationQueue(UUID tenantId, Optional<QueuePosition> after, int limit) {
+        Comparator<Product> order = Comparator.<Product, Instant>comparing(p -> p.moderationQueuedAt().orElseThrow())
+                .thenComparing(p -> p.id().toString());
+        return Uni.createFrom().item(products.values().stream()
+                .filter(p -> p.tenantId().equals(tenantId) && p.status() == ProductStatus.PENDING_MODERATION)
+                .filter(p -> after.map(a -> {
+                    int compared = p.moderationQueuedAt().orElseThrow().compareTo(a.queuedAt());
+                    return compared > 0 || compared == 0 && p.id().toString().compareTo(a.id().toString()) > 0;
+                }).orElse(true))
+                .sorted(order).limit(limit).map(InMemoryStore::copy).toList());
+    }
+
+    public synchronized Uni<List<Product>> search(UUID tenantId, ProductQuery query, int limit) {
+        Comparator<Product> order = Comparator.<Product, Comparable<Object>>comparing(p -> sortValue(query.sort(), p))
+                .thenComparing(p -> p.id().toString());
+        Comparator<Product> directed = query.sort().descending() ? order.reversed() : order;
         return Uni.createFrom().item(products.values().stream()
                 .filter(p -> p.tenantId().equals(tenantId))
-                .filter(p -> storeId.map(p.storeId()::equals).orElse(true))
-                .filter(p -> status.map(s -> p.status() == s).orElse(true))
-                .filter(p -> afterId.map(a -> p.id().toString().compareTo(a) > 0).orElse(true))
-                .sorted(Comparator.comparing(p -> p.id().toString())).limit(limit).map(InMemoryStore::copy).toList());
+                .filter(p -> query.storeId().map(p.storeId()::equals).orElse(true))
+                .filter(p -> query.status().map(s -> effectiveStatus(p) == s).orElse(true))
+                .filter(p -> query.text().map(t -> matches(p, t)).orElse(true))
+                .filter(p -> query.after().map(a -> afterPosition(query.sort(), p, a)).orElse(true))
+                .sorted(directed).limit(limit).map(InMemoryStore::copy).toList());
+    }
+
+    public synchronized Uni<Map<UUID, StatusChange>> lastChanges(UUID tenantId, Collection<UUID> productIds) {
+        Map<UUID, StatusChange> found = new HashMap<>();
+        productIds.forEach(id -> {
+            List<StatusChange> changes = history.getOrDefault(id, List.of());
+            if (!changes.isEmpty() && products.get(id).tenantId().equals(tenantId))
+                found.put(id, changes.get(changes.size() - 1));
+        });
+        return Uni.createFrom().item(found);
+    }
+
+    private ProductStatus effectiveStatus(Product p) {
+        return p.effectiveStatus(p.skus().stream().anyMatch(s -> stock.get(s.id()).available() > 0));
+    }
+
+    private static boolean matches(Product p, String text) {
+        return ProductText.titleKey(p.title()).contains(text)
+                || p.skus().stream().anyMatch(s -> s.sellerSku().toLowerCase(Locale.ROOT).contains(text));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Comparable<Object> sortValue(ProductSort sort, Product p) {
+        return (Comparable<Object>) (Comparable<?>) switch (sort.column()) {
+            case UPDATED_AT -> p.updatedAt();
+            case CREATED_AT -> p.createdAt();
+            case TITLE -> ProductText.titleKey(p.title());
+        };
+    }
+
+    private static boolean afterPosition(ProductSort sort, Product p, ProductQuery.Position after) {
+        Comparable<Object> value = sortValue(sort, p);
+        Object reference = sort.column() == ProductSort.Column.TITLE ? after.value() : Instant.parse(after.value());
+        int compared = value.compareTo(reference);
+        if (compared == 0)
+            compared = p.id().toString().compareTo(after.id().toString());
+        return sort.descending() ? compared < 0 : compared > 0;
     }
 
     public synchronized Uni<Void> insert(Product product) {
@@ -191,6 +301,13 @@ final class InMemoryStore
                         .map(InMemoryStore::copy).toList());
     }
 
+    public synchronized Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds) {
+        Map<UUID, Offer> found = new HashMap<>();
+        skuIds.forEach(id -> Optional.ofNullable(offers.get(id)).filter(o -> o.tenantId().equals(tenantId))
+                .ifPresent(o -> found.put(id, copy(o))));
+        return Uni.createFrom().item(found);
+    }
+
     public synchronized Uni<Void> insert(Offer offer) {
         if (offers.containsKey(offer.skuId()))
             return Uni.createFrom().failure(new DuplicateException("duplicate-offer", "SKU já tem oferta"));
@@ -210,6 +327,13 @@ final class InMemoryStore
 
     public synchronized Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId) {
         return Uni.createFrom().item(sellers.getOrDefault(storeId, SellerStatus.PENDING));
+    }
+
+    public synchronized Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds) {
+        statusQueries++;
+        Map<UUID, SellerStatus> found = new HashMap<>();
+        storeIds.forEach(store -> found.put(store, sellers.getOrDefault(store, SellerStatus.PENDING)));
+        return Uni.createFrom().item(found);
     }
 
     public synchronized Uni<SellerVerdict.Outcome> apply(String consumer, SellerVerdict verdict) {
@@ -241,7 +365,7 @@ final class InMemoryStore
             return Uni.createFrom().failure(new VersionMismatchException(current.version()));
         if (onHand < current.reserved())
             return Uni.createFrom().failure(new StockConflictException(
-                    "stock-below-reserved", "abaixo do reservado", List.of()));
+                    DomainReasons.STOCK_BELOW_RESERVED, "abaixo do reservado", List.of()));
         StockLevel next = new StockLevel(skuId, onHand, current.reserved(), current.sold(), current.version() + 1);
         stock.put(skuId, next);
         adjustments.add(actor + ":" + current.onHand() + "->" + onHand);
@@ -330,6 +454,79 @@ final class InMemoryStore
                 .filter(j -> j.tenantId().equals(tenantId) && j.storeId().equals(storeId)));
     }
 
+    public synchronized Uni<Optional<Summary>> findSummary(UUID tenantId, UUID storeId, UUID id) {
+        return findImport(tenantId, storeId, id).map(found -> found.map(this::summary));
+    }
+
+    public synchronized Uni<List<Summary>> list(UUID tenantId, UUID storeId, Optional<Position> after, int limit) {
+        Comparator<ProductImport> newestFirst = Comparator.comparing(ProductImport::createdAt)
+                .thenComparing(j -> j.id().toString()).reversed();
+        return Uni.createFrom().item(imports.values().stream()
+                .filter(j -> j.tenantId().equals(tenantId) && j.storeId().equals(storeId))
+                .filter(j -> after.map(a -> {
+                    int compared = j.createdAt().compareTo(a.createdAt());
+                    return compared < 0 || compared == 0 && j.id().toString().compareTo(a.id().toString()) < 0;
+                }).orElse(true))
+                .sorted(newestFirst).limit(limit).map(this::summary).toList());
+    }
+
+    private Summary summary(ProductImport job) {
+        Map<ImportResult.ImportOutcome, Integer> counts = new EnumMap<>(ImportResult.ImportOutcome.class);
+        importResults.getOrDefault(job.id(), new TreeMap<>()).values()
+                .forEach(r -> counts.merge(r.outcome(), 1, Integer::sum));
+        return new Summary(job, counts.getOrDefault(ImportResult.ImportOutcome.CREATED, 0),
+                counts.getOrDefault(ImportResult.ImportOutcome.UPDATED, 0),
+                counts.getOrDefault(ImportResult.ImportOutcome.UNCHANGED, 0),
+                counts.getOrDefault(ImportResult.ImportOutcome.FAILED, 0));
+    }
+
+    public synchronized Uni<StoreSnapshot> store(UUID tenantId, UUID storeId, Window months, Window activity) {
+        List<Product> scope = products.values().stream()
+                .filter(p -> p.tenantId().equals(tenantId) && p.storeId().equals(storeId)).toList();
+        Map<ProductStatus, Long> statuses = new EnumMap<>(ProductStatus.class);
+        scope.forEach(p -> statuses.merge(p.status(), 1L, Long::sum));
+        long outOfStock = scope.stream().filter(p -> p.status() == ProductStatus.ACTIVE
+                && p.skus().stream().noneMatch(s -> stock.get(s.id()).available() > 0)).count();
+        return Uni.createFrom().item(new StoreSnapshot(statuses, outOfStock, transitions(scope, months),
+                transitions(scope, activity)));
+    }
+
+    public synchronized Uni<ModerationSnapshot> moderation(UUID tenantId, Window months, Window activity) {
+        List<Product> scope = products.values().stream().filter(p -> p.tenantId().equals(tenantId)).toList();
+        long queue = scope.stream().filter(p -> p.status() == ProductStatus.PENDING_MODERATION).count();
+        return Uni.createFrom().item(new ModerationSnapshot(queue, transitions(scope, months),
+                transitions(scope, activity)));
+    }
+
+    public synchronized Uni<Long> moderationQueue(UUID tenantId) {
+        return Uni.createFrom().item(products.values().stream()
+                .filter(p -> p.tenantId().equals(tenantId) && p.status() == ProductStatus.PENDING_MODERATION)
+                .count());
+    }
+
+    public synchronized Uni<CategoryCounts> categories(UUID tenantId) {
+        List<Category> scope = categories.values().stream().filter(c -> c.tenantId().equals(tenantId)).toList();
+        return Uni.createFrom().item(new CategoryCounts(scope.size(),
+                scope.stream().filter(c -> c.parentId().isEmpty()).count(),
+                scope.stream().filter(c -> !c.active()).count(),
+                scope.stream().filter(c -> products.values().stream().anyMatch(p -> p.categoryId().equals(c.id())))
+                        .count()));
+    }
+
+    /** Transições dos produtos de {@code scope} na janela, agrupadas como no banco. */
+    private List<TransitionCount> transitions(List<Product> scope, Window window) {
+        record Key(LocalDate period, ProductTransition transition, ProductStatus from, ProductStatus to) {
+        }
+        Map<Key, Long> counts = new LinkedHashMap<>();
+        scope.forEach(p -> history.getOrDefault(p.id(), List.of()).stream()
+                .filter(c -> !c.at().isBefore(window.from()) && c.at().isBefore(window.to()))
+                .forEach(c -> counts.merge(new Key(window.granularity().truncate(
+                        LocalDate.ofInstant(c.at(), window.zone())), c.transition(), c.from(), c.to()), 1L,
+                        Long::sum)));
+        return counts.entrySet().stream().map(e -> new TransitionCount(e.getKey().period(), e.getKey().transition(),
+                e.getKey().from(), e.getKey().to(), e.getValue())).toList();
+    }
+
     public synchronized Uni<List<ImportResult>> results(UUID importId) {
         return Uni.createFrom().item(List.copyOf(importResults.getOrDefault(importId, new TreeMap<>()).values()));
     }
@@ -385,6 +582,36 @@ final class InMemoryStore
                 .filter(r -> r.tenantId().equals(tenantId) && r.idempotencyKey().equals(key)).findFirst();
     }
 
+    public synchronized Uni<List<ModerationReasonEntry>> catalog(UUID tenantId) {
+        catalogReads++;
+        return Uni.createFrom().item(moderationReasons.getOrDefault(tenantId, Map.of()).values().stream()
+                .sorted(Comparator.comparingInt(ModerationReasonEntry::position)
+                        .thenComparing(ModerationReasonEntry::code))
+                .toList());
+    }
+
+    public synchronized Uni<Optional<ModerationReasonEntry>> findByCode(UUID tenantId, String code) {
+        return Uni.createFrom().item(Optional.ofNullable(moderationReasons.getOrDefault(tenantId, Map.of()).get(code)));
+    }
+
+    public synchronized Uni<Void> insert(ModerationReasonEntry reason) {
+        Map<String, ModerationReasonEntry> tenant = moderationReasons.computeIfAbsent(reason.tenantId(),
+                t -> new HashMap<>());
+        if (tenant.containsKey(reason.code()))
+            return Uni.createFrom().failure(new DuplicateException("duplicate-moderation-reason-code", "Código já usado"));
+        tenant.put(reason.code(), reason);
+        return Uni.createFrom().voidItem();
+    }
+
+    public synchronized Uni<Void> update(ModerationReasonEntry reason, long expectedVersion) {
+        Map<String, ModerationReasonEntry> tenant = moderationReasons.getOrDefault(reason.tenantId(), Map.of());
+        ModerationReasonEntry current = tenant.get(reason.code());
+        if (current == null || current.version() != expectedVersion)
+            return Uni.createFrom().failure(new ConcurrentUpdateException());
+        tenant.put(reason.code(), reason);
+        return Uni.createFrom().voidItem();
+    }
+
     private void ensureStock(Product product) {
         product.skus().forEach(sku -> stock.putIfAbsent(sku.id(), new StockLevel(sku.id(), 0, 0, 0, 0)));
     }
@@ -401,7 +628,8 @@ final class InMemoryStore
                 .toList();
         return Product.restore(p.id(), p.tenantId(), p.storeId(), p.categoryId(), p.currency(), p.title(),
                 p.description(),
-                p.attributes(), skus, p.status(), p.version(), p.createdAt(), p.updatedAt());
+                p.attributes(), skus, p.status(), p.version(), p.createdAt(), p.updatedAt(),
+                p.moderationQueuedAt().orElse(null));
     }
 
     static Offer copy(Offer o) {

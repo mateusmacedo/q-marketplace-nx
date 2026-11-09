@@ -4,6 +4,7 @@ import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import dev.marketplace.cataloginventory.domain.category.AttributeDefinition;
 import dev.marketplace.cataloginventory.domain.category.AttributeType;
 import dev.marketplace.cataloginventory.domain.category.Category;
+import dev.marketplace.cataloginventory.domain.category.CategoryNotEmptyException;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static dev.marketplace.cataloginventory.application.Fixtures.*;
@@ -69,11 +70,140 @@ class CategoryServiceTest {
     void childrenArePaginatedByCode() {
         for (String code : List.of("c", "a", "b"))
             root(code);
-        Page<Category> first = item(service.children(admin(), Optional.empty(), Optional.empty(), 2));
-        assertEquals(List.of("a", "b"), first.items().stream().map(Category::code).toList());
-        Page<Category> second = item(service.children(admin(), Optional.empty(), first.nextCursor(), 2));
-        assertEquals(List.of("c"), second.items().stream().map(Category::code).toList());
+        Page<CategoryNode> first = item(service.children(admin(), Optional.empty(), Optional.empty(), 2));
+        assertEquals(List.of("a", "b"), first.items().stream().map(node -> node.category().code()).toList());
+        Page<CategoryNode> second = item(service.children(admin(), Optional.empty(), first.nextCursor(), 2));
+        assertEquals(List.of("c"), second.items().stream().map(node -> node.category().code()).toList());
         assertTrue(second.nextCursor().isEmpty());
+    }
+
+    @Test
+    void viewsCarryPathLevelAndChildCount() {
+        UUID fashion = root("moda").category().id();
+        UUID tShirts = child(fashion, "camisetas");
+        child(tShirts, "regatas");
+        child(tShirts, "polos");
+        var view = item(service.get(seller(UUID.randomUUID()), tShirts));
+        assertEquals(List.of("moda"), view.ancestors().stream().map(Category::code).toList());
+        assertEquals(2, view.level());
+        assertEquals(2, view.childCount());
+        CategoryNode node = item(service.children(admin(), Optional.of(fashion), Optional.empty(), 10)).items()
+                .getFirst();
+        assertEquals(List.of("moda"), node.ancestors().stream().map(CategoryNode.Ancestor::code).toList());
+        assertEquals(2, node.level());
+        assertEquals(2, node.childCount());
+        assertEquals(1, item(service.get(admin(), fashion)).childCount());
+        assertEquals(1, item(service.revise(admin(), fashion, Optional.of(0L), "Moda", List.of(), true)).childCount());
+    }
+
+    @Test
+    void treeListsWholeTenantInTreeOrderByCursor() {
+        UUID a = root("a").category().id();
+        root("a-b");
+        UUID x = child(a, "x");
+        child(x, "y");
+        Page<CategoryNode> first = item(service.tree(admin(), Optional.empty(), false, 2));
+        assertEquals(List.of("a", "x"), first.items().stream().map(n -> n.category().code()).toList());
+        assertEquals(Optional.of("a x"), first.nextCursor());
+        Page<CategoryNode> second = item(service.tree(admin(), first.nextCursor(), false, 2));
+        assertEquals(List.of("y", "a-b"), second.items().stream().map(n -> n.category().code()).toList());
+        assertEquals(List.of("a", "x"),
+                second.items().getFirst().ancestors().stream().map(CategoryNode.Ancestor::code).toList());
+        assertEquals(3, second.items().getFirst().level());
+
+        item(service.revise(admin(), a, Optional.of(0L), "A", List.of(), false));
+        Page<CategoryNode> usable = item(service.tree(admin(), Optional.empty(), true, 10));
+        assertEquals(List.of("a-b"), usable.items().stream().map(n -> n.category().code()).toList());
+        failure(service.tree(admin(), Optional.of("A B"), false, 10), InvalidInputException.class);
+        assertEquals(4, item(service.tree(admin(), Optional.empty(), false, CategoryService.TREE_PAGE_SIZE)).items()
+                .size());
+        failure(service.tree(admin(), Optional.empty(), false, CategoryService.TREE_PAGE_SIZE + 1),
+                InvalidInputException.class);
+        failure(service.children(admin(), Optional.empty(), Optional.empty(), Page.MAX_SIZE + 1),
+                InvalidInputException.class);
+    }
+
+    @Test
+    void byIdsReadsTheTenantCategoriesInCodeOrder() {
+        UUID fashion = root("moda").category().id();
+        UUID tShirts = child(fashion, "camisetas");
+        child(tShirts, "regatas");
+        UUID home = root("casa").category().id();
+        UUID foreign = item(service.create(
+                new Actor(UUID.randomUUID(), Optional.empty(), "x", Set.of(Capability.MANAGE_TAXONOMY)),
+                Optional.empty(), "outra", "Outra", List.of())).category().id();
+        List<CategoryNode> found = item(service.byIds(seller(UUID.randomUUID()),
+                List.of(tShirts, home, UUID.randomUUID(), foreign, tShirts)));
+        assertEquals(List.of("camisetas", "casa"), found.stream().map(n -> n.category().code()).toList());
+        assertEquals(List.of("moda"), found.getFirst().ancestors().stream().map(CategoryNode.Ancestor::code).toList());
+        assertEquals(1, found.getFirst().childCount());
+        assertEquals(1, found.getLast().level());
+        failure(service.byIds(admin(), List.of()), InvalidInputException.class);
+        List<UUID> tooMany = new ArrayList<>();
+        for (int i = 0; i <= CategoryService.MAX_IDS; i++)
+            tooMany.add(UUID.randomUUID());
+        failure(service.byIds(admin(), tooMany), InvalidInputException.class);
+    }
+
+    @Test
+    void deletesOnlyEmptyCategory() {
+        Catalog catalog = new Catalog();
+        UUID tShirts = catalog.category;
+        UUID tanks = item(catalog.categories.create(admin(), Optional.of(tShirts), "regatas", "Regatas", List.of()))
+                .category().id();
+        var withChild = failure(catalog.categories.delete(admin(), tShirts, Optional.of(0L)),
+                CategoryNotEmptyException.class);
+        assertEquals(CategoryNotEmptyException.HAS_CHILDREN, withChild.code());
+        failure(catalog.categories.delete(admin(), tanks, Optional.of(3L)), VersionMismatchException.class);
+        failure(catalog.categories.delete(seller(catalog.storeId), tanks, Optional.of(0L)),
+                AccessDeniedException.class);
+        item(catalog.categories.delete(admin(), tanks, Optional.of(0L)));
+        failure(catalog.categories.get(admin(), tanks), NotFoundException.class);
+
+        var product = catalog.draft(sku("CAM-P", "P"));
+        item(catalog.products.archive(catalog.seller, product.id(), Optional.empty()));
+        var withProduct = failure(catalog.categories.delete(admin(), tShirts, Optional.empty()),
+                CategoryNotEmptyException.class);
+        assertEquals(CategoryNotEmptyException.HAS_PRODUCTS, withProduct.code());
+    }
+
+    @Test
+    void batchDeletesBranchFromChildrenUpAndKeepsRequestOrder() {
+        UUID fashion = root("moda").category().id();
+        UUID tShirts = child(fashion, "camisetas");
+        UUID tanks = child(tShirts, "regatas");
+        UUID kept = root("casa").category().id();
+        var outcomes = item(service.batch(admin(), CategoryBatchAction.DELETE,
+                List.of(new Batch.Item(fashion, Optional.of(0L)), new Batch.Item(tanks, Optional.of(0L)),
+                        new Batch.Item(kept, Optional.empty()), new Batch.Item(tShirts, Optional.of(0L)))));
+        assertEquals(List.of(fashion, tanks, kept, tShirts), outcomes.stream().map(Batch.Outcome::id).toList());
+        assertTrue(outcomes.get(0).value().isPresent());
+        assertTrue(outcomes.get(1).value().isPresent());
+        assertInstanceOf(PreconditionRequiredException.class, outcomes.get(2).failure().orElseThrow());
+        assertTrue(outcomes.get(3).value().isPresent());
+        assertEquals(List.of("casa"), store.categories.values().stream().map(Category::code).toList());
+        failure(service.batch(admin(), CategoryBatchAction.DELETE,
+                List.of(new Batch.Item(kept, Optional.of(0L)), new Batch.Item(kept, Optional.of(0L)))),
+                InvalidInputException.class);
+        failure(service.batch(seller(UUID.randomUUID()), CategoryBatchAction.DELETE,
+                List.of(new Batch.Item(kept, Optional.of(0L)))), AccessDeniedException.class);
+    }
+
+    @Test
+    void batchActivationChecksVersionAndSkipsCategoryAlreadyThere() {
+        UUID fashion = root("moda").category().id();
+        UUID home = root("casa").category().id();
+        var deactivated = item(service.batch(admin(), CategoryBatchAction.DEACTIVATE,
+                List.of(new Batch.Item(fashion, Optional.of(0L)), new Batch.Item(home, Optional.of(4L)))));
+        Category done = deactivated.get(0).value().orElseThrow();
+        assertFalse(done.active());
+        assertEquals(1, done.version());
+        assertInstanceOf(VersionMismatchException.class, deactivated.get(1).failure().orElseThrow());
+        var again = item(service.batch(admin(), CategoryBatchAction.ACTIVATE,
+                List.of(new Batch.Item(fashion, Optional.of(1L)), new Batch.Item(home, Optional.of(0L)))));
+        assertEquals(2, again.get(0).value().orElseThrow().version());
+        assertTrue(again.get(1).value().orElseThrow().active());
+        assertEquals(0, again.get(1).value().orElseThrow().version());
     }
 
     static final AttributeDefinition VOLTAGE = new AttributeDefinition("voltagem", "Voltagem", AttributeType.OPTION,

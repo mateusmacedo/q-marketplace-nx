@@ -8,6 +8,7 @@ hide stereotype
 
 actor "$I_SELLER\nSeller\n(seller)" as seller
 actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
+actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderador
 actor "$I_KYB\nKYB/KYC" as kyb <<sistema>>
 
 package "<$user_check,scale=0.8,color=#1565C0> SellerEligibilityService" as SellerEligibilityService <<aplicacao>> {
@@ -17,15 +18,17 @@ package "<$user_check,scale=0.8,color=#1565C0> SellerEligibilityService" as Sell
 
 seller --> UC_get
 admin --> UC_get
+moderador --> UC_get
 UC_record <-- kyb
 
 package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
   note as N_get
     **get**
     Seller lê a própria loja sem capacidade extra; outra
-    loja exige READ_SELLER_ELIGIBILITY (catalog-admin),
-    senão <color:#C62828>AccessDenied</color> (<color:#C62828>403</color>). A API aceita só seller e
-    catalog-admin; moderador não consulta.
+    loja exige READ_SELLER_ELIGIBILITY (catalog-admin e
+    catalog-moderator, que vê a loja no detalhe da fila),
+    senão <color:#C62828>AccessDenied</color> (<color:#C62828>403</color>). A API exige uma das
+    duas capacidades (@PermissionsAllowed).
     Loja sem veredito registrado é PENDING.
   end note
   note as N_record

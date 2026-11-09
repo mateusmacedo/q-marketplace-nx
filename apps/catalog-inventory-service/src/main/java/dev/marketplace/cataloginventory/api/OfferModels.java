@@ -4,6 +4,7 @@ import dev.marketplace.cataloginventory.domain.offer.EffectivePrice;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
 import dev.marketplace.cataloginventory.domain.offer.Price;
 import dev.marketplace.cataloginventory.domain.offer.Promotion;
+import dev.marketplace.cataloginventory.domain.offer.PromotionPhase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -32,9 +33,11 @@ public final class OfferModels {
             @NotNull Instant endsAt) {
     }
 
-    public record PromotionResponse(UUID id, MoneyDto salePrice, Instant startsAt, Instant endsAt) {
-        static PromotionResponse of(Promotion p) {
-            return new PromotionResponse(p.id(), MoneyDto.of(p.salePrice()), p.startsAt(), p.endsAt());
+    public record PromotionResponse(UUID id, MoneyDto salePrice, Instant startsAt, Instant endsAt,
+            @Schema(description = "Fase no instante da resposta, pelo relógio do servidor: agendada, vigente ou encerrada; "
+                    + "só a encerrada não pode ser cancelada") PromotionPhase phase) {
+        static PromotionResponse of(Promotion p, Instant now) {
+            return new PromotionResponse(p.id(), MoneyDto.of(p.salePrice()), p.startsAt(), p.endsAt(), p.phaseAt(now));
         }
     }
 
@@ -54,7 +57,7 @@ public final class OfferModels {
         static OfferResponse of(Offer o, Instant now) {
             return new OfferResponse(o.skuId(), o.productId(), o.storeId(), o.currency(), PriceDto.of(o.price()),
                     EffectivePriceDto.of(o.effectivePrice(now)),
-                    o.promotions().stream().map(PromotionResponse::of).toList(), o.version());
+                    o.promotions().stream().map(p -> PromotionResponse.of(p, now)).toList(), o.version());
         }
     }
 }

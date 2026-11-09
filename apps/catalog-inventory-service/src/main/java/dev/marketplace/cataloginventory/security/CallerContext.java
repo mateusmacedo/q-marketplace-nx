@@ -42,9 +42,10 @@ public class CallerContext {
 
     /**
      * Traduz os papéis do token em capacidades de negócio; papel desconhecido é
-     * ignorado, e {@code
-     * catalog-admin} concede taxonomia e leitura do catálogo e da elegibilidade do
-     * tenant.
+     * ignorado. {@code catalog-admin} concede taxonomia, catálogo de motivos de
+     * moderação e leitura do catálogo e da elegibilidade do tenant, e
+     * {@code catalog-moderator}, moderação e a elegibilidade, que o detalhe da
+     * fila mostra.
      */
     static Set<Capability> capabilities(Set<String> roles) {
         Set<Capability> capabilities = EnumSet.noneOf(Capability.class);
@@ -53,11 +54,11 @@ public class CallerContext {
         if (roles.contains(Roles.SELLER))
             capabilities.add(Capability.MANAGE_OWN_PRODUCTS);
         if (roles.contains(Roles.CATALOG_MODERATOR))
-            capabilities.add(Capability.MODERATE_PRODUCTS);
+            capabilities.addAll(EnumSet.of(Capability.MODERATE_PRODUCTS, Capability.READ_SELLER_ELIGIBILITY));
         if (roles.contains(Roles.CATALOG_RESERVATIONS))
             capabilities.add(Capability.MANAGE_RESERVATIONS);
         if (roles.contains(Roles.CATALOG_ADMIN))
-            capabilities.addAll(EnumSet.of(Capability.MANAGE_TAXONOMY,
+            capabilities.addAll(EnumSet.of(Capability.MANAGE_TAXONOMY, Capability.MANAGE_MODERATION_REASONS,
                     Capability.READ_TENANT_CATALOG, Capability.READ_SELLER_ELIGIBILITY));
         return capabilities;
     }

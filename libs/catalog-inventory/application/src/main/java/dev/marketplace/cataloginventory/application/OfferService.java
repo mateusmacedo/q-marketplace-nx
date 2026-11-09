@@ -5,9 +5,13 @@ import dev.marketplace.cataloginventory.domain.offer.Offer;
 import dev.marketplace.cataloginventory.domain.offer.Price;
 import dev.marketplace.cataloginventory.domain.offer.Promotion;
 import dev.marketplace.cataloginventory.domain.product.Product;
+import dev.marketplace.cataloginventory.domain.product.Sku;
 import io.smallrye.mutiny.Uni;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -43,6 +47,17 @@ public final class OfferService {
      */
     public Uni<Offer> get(Actor actor, UUID skuId) {
         return access.visibleBySku(actor, skuId).flatMap(product -> load(product, skuId));
+    }
+
+    /**
+     * Ofertas dos SKUs de produtos já autorizados para o chamador, por SKU,
+     * numa consulta para todos; SKU sem oferta fica fora do mapa.
+     */
+    public Uni<Map<UUID, Offer>> offersOf(Collection<Product> products) {
+        List<UUID> skuIds = products.stream().flatMap(p -> p.skus().stream()).map(Sku::id).toList();
+        if (skuIds.isEmpty())
+            return Uni.createFrom().item(Map.of());
+        return offers.ofSkus(products.iterator().next().tenantId(), skuIds);
     }
 
     /**

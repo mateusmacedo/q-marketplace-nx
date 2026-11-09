@@ -7,6 +7,8 @@ image:
   tag: "0.1.0"
 
 # Servidor compartilhado: schema catalog_inventory no banco marketplace; o Secret traz o role de runtime e o migrator.
+# A extensão pg_trgm precisa existir no schema antes da primeira migration, criada por quem tem CREATE no banco, como
+# faz infra/postgres/provision.sh com CATALOG_INVENTORY_DB_EXTENSIONS=pg_trgm; o migrator não a cria.
 database:
   reactiveUrl: postgresql://postgres.example.internal:5432/marketplace
   jdbcUrl: jdbc:postgresql://postgres.example.internal:5432/marketplace

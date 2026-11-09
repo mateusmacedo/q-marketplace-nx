@@ -1282,7 +1282,7 @@
     {
       "id": 28,
       "type": "row",
-      "title": "Cache Redis (vitrine e taxonomia)",
+      "title": "Cache Redis (vitrine, taxonomia e motivos de moderação)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1295,7 +1295,7 @@
     {
       "type": "timeseries",
       "title": "Taxa de acerto do cache",
-      "description": "**O que mostra:** Acertos (`hit`) sobre todas as leituras de `catalog_cache_requests_total` por área (`storefront` e `taxonomy`), nas instâncias escolhidas.\n\n**Normal:** Sem dados com o cache desligado, o padrão (ADR 024), e isso é normal. Ligado, no A/B do average: 38% na vitrine (404 conta como falta e nunca é guardado) e 61% na taxonomia.\n\n**Sinais de anomalia:** Queda com `bypass` em Leituras do cache por resultado indica Redis fora ou lento; sem `bypass`, invalidações demais ou memória cheia (Evicções e expirações no Redis).",
+      "description": "**O que mostra:** Acertos (`hit`) sobre todas as leituras de `catalog_cache_requests_total` por área (`storefront`, `taxonomy` e `moderation-reasons`), nas instâncias escolhidas.\n\n**Normal:** Sem dados com o cache desligado, o padrão (ADR 024), e isso é normal. Ligado, no A/B do average: 38% na vitrine (404 conta como falta e nunca é guardado) e 61% na taxonomia; os motivos de moderação vieram depois do A/B e ainda não têm medida.\n\n**Sinais de anomalia:** Queda com `bypass` em Leituras do cache por resultado indica Redis fora ou lento; sem `bypass`, invalidações demais ou memória cheia (Evicções e expirações no Redis).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

@@ -4,10 +4,12 @@ import { type HttpRequest, httpResource } from '@angular/common/http';
 
 import { client } from '../client.gen';
 import type { Options } from '../sdk.gen';
-import type { AddSkuData, AdjustStockData, AdjustStockResponse, ApproveProductData, ApproveProductResponse, ArchiveProductData, ArchiveProductResponse, BlockProductData, BlockProductResponse, CancelPromotionData, CancelPromotionResponse, CommitReservationData, CommitReservationResponse, CreateCategoryData, CreateProductData, CreateReservationData, CreateReservationResponse, DefineOfferData, DefineOfferResponse, ExtendReservationData, ExtendReservationResponse, GetCategoryData, GetCategoryResponse, GetOfferData, GetOfferResponse, GetProductData, GetProductImportData, GetProductImportResponse, GetProductResponse, GetReservationData, GetReservationResponse, GetSkuData, GetSkuResponse, GetStockData, GetStockResponse, GetStoreEligibilityData, GetStoreEligibilityResponse, GetStorefrontProductData, GetStorefrontProductResponse, ImportProductsData, ListCategoriesData, ListCategoriesResponse, ListProductsData, ListProductsResponse, ModerationQueueData, ModerationQueueResponse, MoveCategoryData, MoveCategoryResponse, PauseProductData, PauseProductResponse, ProductHistoryData, ProductHistoryResponse, RejectProductData, RejectProductResponse, ReleaseReservationData, ReleaseReservationResponse, RemoveSkuData, RemoveSkuResponse, ResumeProductData, ResumeProductResponse, ReviseCategoryData, ReviseCategoryResponse, ReviseProductData, ReviseProductResponse, ReviseSkuData, ReviseSkuResponse, SchedulePromotionData, SubmitProductData, SubmitProductResponse, UnblockProductData, UnblockProductResponse } from '../types.gen';
+import type { ActivateModerationReasonData, ActivateModerationReasonResponse, AddSkuData, AddSkuResponse, AdjustStockData, AdjustStockResponse, ApproveProductData, ApproveProductResponse, ArchiveProductData, ArchiveProductResponse, BatchCategoriesData, BatchCategoriesResponse, BatchModerateProductsData, BatchModerateProductsResponse, BatchProductsData, BatchProductsResponse, BlockProductData, BlockProductResponse, CancelPromotionData, CancelPromotionResponse, CheckProductData, CheckProductResponse, CommitReservationData, CommitReservationResponse, CreateCategoryData, CreateCategoryResponse, CreateModerationReasonData, CreateModerationReasonResponse, CreateProductData, CreateProductResponse, CreateReservationData, CreateReservationResponse, DeactivateModerationReasonData, DeactivateModerationReasonResponse, DefineOfferData, DefineOfferResponse, DeleteCategoryData, DeleteCategoryResponse, ExtendReservationData, ExtendReservationResponse, GetCategoryData, GetCategoryResponse, GetCategoryStatsData, GetCategoryStatsResponse, GetModerationQueueStatsData, GetModerationQueueStatsResponse, GetModerationReasonData, GetModerationReasonResponse, GetModerationStatsData, GetModerationStatsResponse, GetOfferData, GetOfferResponse, GetProductData, GetProductImportData, GetProductImportResponse, GetProductResponse, GetReservationData, GetReservationResponse, GetSessionData, GetSessionResponse, GetSkuData, GetSkuResponse, GetStockData, GetStockResponse, GetStoreEligibilityData, GetStoreEligibilityResponse, GetStorefrontProductData, GetStorefrontProductResponse, GetStoreStatsData, GetStoreStatsResponse, ImportProductsData, ListCategoriesData, ListCategoriesResponse, ListCategoryTreeData, ListCategoryTreeResponse, ListModerationReasonsData, ListModerationReasonsResponse, ListProductImportsData, ListProductImportsResponse, ListProductsData, ListProductsResponse, ModerationQueueData, ModerationQueueResponse2, MoveCategoryData, MoveCategoryResponse, PauseProductData, PauseProductResponse, ProductHistoryData, ProductHistoryResponse, RejectProductData, RejectProductResponse, ReleaseReservationData, ReleaseReservationResponse, RemoveSkuData, RemoveSkuResponse, ResumeProductData, ResumeProductResponse, ReviseCategoryData, ReviseCategoryResponse, ReviseModerationReasonData, ReviseModerationReasonResponse, ReviseProductData, ReviseProductResponse, ReviseSkuData, ReviseSkuResponse, SchedulePromotionData, SchedulePromotionResponse, SubmitProductData, SubmitProductResponse, UnblockProductData, UnblockProductResponse } from '../types.gen';
 
 /**
  * Lista filhos de uma categoria (ou as raízes) em ordem de código
+ *
+ * Com `ids`, devolve só essas categorias, em ordem de código e numa página só, sem `nextCursor`; id repetido aparece uma vez, e o que não existe no tenant fica de fora. `ids` não combina com `parentId` nem com `cursor` (400), e `limit` não se aplica a ele.
  */
 export const listCategoriesRequest = <ThrowOnError extends boolean = false>(options?: Options<ListCategoriesData, ThrowOnError>): HttpRequest<ListCategoriesResponse> => (options?.client ?? client).requestOptions<ListCategoriesResponse, ThrowOnError>({
     responseStyle: 'data',
@@ -19,10 +21,46 @@ export const listCategoriesRequest = <ThrowOnError extends boolean = false>(opti
 /**
  * Cria categoria raiz ou subcategoria
  */
-export const createCategoryRequest = <ThrowOnError extends boolean = false>(options: Options<CreateCategoryData, ThrowOnError>): HttpRequest<unknown> => (options?.client ?? client).requestOptions<unknown, ThrowOnError>({
+export const createCategoryRequest = <ThrowOnError extends boolean = false>(options: Options<CreateCategoryData, ThrowOnError>): HttpRequest<CreateCategoryResponse> => (options?.client ?? client).requestOptions<CreateCategoryResponse, ThrowOnError>({
     responseStyle: 'data',
     method: 'POST',
     url: '/categories',
+    ...options
+});
+
+/**
+ * Ativa, desativa ou exclui até 100 categorias, cada uma isolada
+ *
+ * Cada item exige `version`, como o If-Match do endpoint de um item; sem ela, o item falha com 428. Ativar ou desativar a categoria que já está na situação pedida não grava nada. A exclusão roda das subcategorias para as categorias pai, para que um ramo vazio saia inteiro, e cada item recusa como `DELETE /categories/{id}`.
+ */
+export const batchCategoriesRequest = <ThrowOnError extends boolean = false>(options: Options<BatchCategoriesData, ThrowOnError>): HttpRequest<BatchCategoriesResponse> => (options?.client ?? client).requestOptions<BatchCategoriesResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/categories/batch',
+    ...options
+});
+
+/**
+ * Lista todas as categorias do tenant na ordem da árvore
+ *
+ * O pai vem antes das subcategorias, e os irmãos seguem a ordem de código, como numa árvore aberta; cada item traz o caminho desde a raiz. Com `usable=true`, só as categorias que aceitam produtos novos (ela e os ancestrais ativos). A página tem até 1000 itens, que é também o padrão, para quem lê a árvore inteira fazer poucas leituras.
+ */
+export const listCategoryTreeRequest = <ThrowOnError extends boolean = false>(options?: Options<ListCategoryTreeData, ThrowOnError>): HttpRequest<ListCategoryTreeResponse> => (options?.client ?? client).requestOptions<ListCategoryTreeResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/categories/tree',
+    ...options
+});
+
+/**
+ * Exclui a categoria vazia (exige If-Match)
+ *
+ * Vale só para a categoria sem subcategorias e sem nenhum produto, nem arquivado. Recusa com 409 `category-has-children` ou `category-has-products`, com o mesmo código em `reasons`, inclusive quando a subcategoria ou o produto é gravado ao mesmo tempo.
+ */
+export const deleteCategoryRequest = <ThrowOnError extends boolean = false>(options: Options<DeleteCategoryData, ThrowOnError>): HttpRequest<DeleteCategoryResponse> => (options?.client ?? client).requestOptions<DeleteCategoryResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'DELETE',
+    url: '/categories/{id}',
     ...options
 });
 
@@ -129,12 +167,32 @@ export const adjustStockRequest = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Produtos aguardando moderação
+ * Consulta o chamador: tenant, loja, capacidades e permissões compostas
  */
-export const moderationQueueRequest = <ThrowOnError extends boolean = false>(options?: Options<ModerationQueueData, ThrowOnError>): HttpRequest<ModerationQueueResponse> => (options?.client ?? client).requestOptions<ModerationQueueResponse, ThrowOnError>({
+export const getSessionRequest = <ThrowOnError extends boolean = false>(options?: Options<GetSessionData, ThrowOnError>): HttpRequest<GetSessionResponse> => (options?.client ?? client).requestOptions<GetSessionResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/me',
+    ...options
+});
+
+/**
+ * Produtos aguardando moderação, em ordem de chegada
+ */
+export const moderationQueueRequest = <ThrowOnError extends boolean = false>(options?: Options<ModerationQueueData, ThrowOnError>): HttpRequest<ModerationQueueResponse2> => (options?.client ?? client).requestOptions<ModerationQueueResponse2, ThrowOnError>({
     responseStyle: 'data',
     method: 'GET',
     url: '/moderation/products',
+    ...options
+});
+
+/**
+ * Aprova, rejeita ou bloqueia até 100 produtos, cada um isolado
+ */
+export const batchModerateProductsRequest = <ThrowOnError extends boolean = false>(options: Options<BatchModerateProductsData, ThrowOnError>): HttpRequest<BatchModerateProductsResponse> => (options?.client ?? client).requestOptions<BatchModerateProductsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/moderation/products/batch',
     ...options
 });
 
@@ -159,7 +217,7 @@ export const blockProductRequest = <ThrowOnError extends boolean = false>(option
 });
 
 /**
- * Rejeita e devolve ao rascunho com motivo
+ * Rejeita e devolve ao rascunho com motivos prontos e complemento
  */
 export const rejectProductRequest = <ThrowOnError extends boolean = false>(options: Options<RejectProductData, ThrowOnError>): HttpRequest<RejectProductResponse> => (options?.client ?? client).requestOptions<RejectProductResponse, ThrowOnError>({
     responseStyle: 'data',
@@ -175,6 +233,72 @@ export const unblockProductRequest = <ThrowOnError extends boolean = false>(opti
     responseStyle: 'data',
     method: 'POST',
     url: '/moderation/products/{id}/unblock',
+    ...options
+});
+
+/**
+ * Motivos prontos de rejeição e bloqueio do tenant
+ *
+ * Lista na ordem de `position` e, no empate, de `code`, que é também a ordem dos rótulos no texto da decisão. Tenant sem motivos responde lista vazia, e o moderador decide só com o complemento.
+ */
+export const listModerationReasonsRequest = <ThrowOnError extends boolean = false>(options?: Options<ListModerationReasonsData, ThrowOnError>): HttpRequest<ListModerationReasonsResponse> => (options?.client ?? client).requestOptions<ListModerationReasonsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/moderation/reasons',
+    ...options
+});
+
+/**
+ * Cria motivo de moderação no catálogo do tenant
+ *
+ * O código é imutável e só vale neste tenant. Recusa com 409 `duplicate-moderation-reason-code` o código já usado, inclusive por um motivo inativo. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos (desativar um abre a vaga) e com 422 `moderation-reason-catalog-limit` quando o catálogo, contando os inativos, chegou ao teto de proteção.
+ */
+export const createModerationReasonRequest = <ThrowOnError extends boolean = false>(options: Options<CreateModerationReasonData, ThrowOnError>): HttpRequest<CreateModerationReasonResponse> => (options?.client ?? client).requestOptions<CreateModerationReasonResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/moderation/reasons',
+    ...options
+});
+
+/**
+ * Consulta motivo de moderação; ETag carrega a versão
+ */
+export const getModerationReasonRequest = <ThrowOnError extends boolean = false>(options: Options<GetModerationReasonData, ThrowOnError>): HttpRequest<GetModerationReasonResponse> => (options?.client ?? client).requestOptions<GetModerationReasonResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/moderation/reasons/{code}',
+    ...options
+});
+
+/**
+ * Atualiza rótulo, decisões e posição do motivo (exige If-Match)
+ */
+export const reviseModerationReasonRequest = <ThrowOnError extends boolean = false>(options: Options<ReviseModerationReasonData, ThrowOnError>): HttpRequest<ReviseModerationReasonResponse> => (options?.client ?? client).requestOptions<ReviseModerationReasonResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'PUT',
+    url: '/moderation/reasons/{code}',
+    ...options
+});
+
+/**
+ * Volta a oferecer o motivo ao moderador (exige If-Match)
+ *
+ * Já ativo, não grava e devolve o mesmo ETag. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos; desative outro antes.
+ */
+export const activateModerationReasonRequest = <ThrowOnError extends boolean = false>(options: Options<ActivateModerationReasonData, ThrowOnError>): HttpRequest<ActivateModerationReasonResponse> => (options?.client ?? client).requestOptions<ActivateModerationReasonResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/moderation/reasons/{code}/activate',
+    ...options
+});
+
+/**
+ * Tira o motivo das decisões novas, sem apagar o histórico (exige If-Match)
+ */
+export const deactivateModerationReasonRequest = <ThrowOnError extends boolean = false>(options: Options<DeactivateModerationReasonData, ThrowOnError>): HttpRequest<DeactivateModerationReasonResponse> => (options?.client ?? client).requestOptions<DeactivateModerationReasonResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/moderation/reasons/{code}/deactivate',
     ...options
 });
 
@@ -201,7 +325,7 @@ export const defineOfferRequest = <ThrowOnError extends boolean = false>(options
 /**
  * Agenda preço promocional [startsAt, endsAt)
  */
-export const schedulePromotionRequest = <ThrowOnError extends boolean = false>(options: Options<SchedulePromotionData, ThrowOnError>): HttpRequest<unknown> => (options?.client ?? client).requestOptions<unknown, ThrowOnError>({
+export const schedulePromotionRequest = <ThrowOnError extends boolean = false>(options: Options<SchedulePromotionData, ThrowOnError>): HttpRequest<SchedulePromotionResponse> => (options?.client ?? client).requestOptions<SchedulePromotionResponse, ThrowOnError>({
     responseStyle: 'data',
     method: 'POST',
     url: '/offers/{skuId}/promotions',
@@ -219,7 +343,7 @@ export const cancelPromotionRequest = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
- * Lista produtos; o seller vê só a própria loja
+ * Lista produtos com busca e ordem; o seller vê só a própria loja
  */
 export const listProductsRequest = <ThrowOnError extends boolean = false>(options?: Options<ListProductsData, ThrowOnError>): HttpRequest<ListProductsResponse> => (options?.client ?? client).requestOptions<ListProductsResponse, ThrowOnError>({
     responseStyle: 'data',
@@ -231,10 +355,30 @@ export const listProductsRequest = <ThrowOnError extends boolean = false>(option
 /**
  * Cria produto em rascunho na loja do token
  */
-export const createProductRequest = <ThrowOnError extends boolean = false>(options: Options<CreateProductData, ThrowOnError>): HttpRequest<unknown> => (options?.client ?? client).requestOptions<unknown, ThrowOnError>({
+export const createProductRequest = <ThrowOnError extends boolean = false>(options: Options<CreateProductData, ThrowOnError>): HttpRequest<CreateProductResponse> => (options?.client ?? client).requestOptions<CreateProductResponse, ThrowOnError>({
     responseStyle: 'data',
     method: 'POST',
     url: '/products',
+    ...options
+});
+
+/**
+ * Envia, pausa, reativa ou arquiva até 100 produtos, cada um isolado
+ */
+export const batchProductsRequest = <ThrowOnError extends boolean = false>(options: Options<BatchProductsData, ThrowOnError>): HttpRequest<BatchProductsResponse> => (options?.client ?? client).requestOptions<BatchProductsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/products/batch',
+    ...options
+});
+
+/**
+ * Lista as importações da loja, da mais recente à mais antiga
+ */
+export const listProductImportsRequest = <ThrowOnError extends boolean = false>(options?: Options<ListProductImportsData, ThrowOnError>): HttpRequest<ListProductImportsResponse> => (options?.client ?? client).requestOptions<ListProductImportsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/products/imports',
     ...options
 });
 
@@ -250,6 +394,8 @@ export const importProductsRequest = <ThrowOnError extends boolean = false>(opti
 
 /**
  * Consulta a importação e o resultado de cada linha
+ *
+ * Com `lines=false`, traz a situação e as contagens gravadas junto do lote, sem ler o resultado de cada linha (`lines` vem nulo), para acompanhar o processamento sem trafegar até milhares de linhas a cada consulta.
  */
 export const getProductImportRequest = <ThrowOnError extends boolean = false>(options: Options<GetProductImportData, ThrowOnError>): HttpRequest<GetProductImportResponse> => (options?.client ?? client).requestOptions<GetProductImportResponse, ThrowOnError>({
     responseStyle: 'data',
@@ -289,6 +435,16 @@ export const reviseProductRequest = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
+ * Confere o rascunho sem gravar: pendências de publicação e efeito da troca de categoria
+ */
+export const checkProductRequest = <ThrowOnError extends boolean = false>(options: Options<CheckProductData, ThrowOnError>): HttpRequest<CheckProductResponse> => (options?.client ?? client).requestOptions<CheckProductResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'POST',
+    url: '/products/{id}/check',
+    ...options
+});
+
+/**
  * Histórico de transições e decisões de moderação
  */
 export const productHistoryRequest = <ThrowOnError extends boolean = false>(options: Options<ProductHistoryData, ThrowOnError>): HttpRequest<ProductHistoryResponse> => (options?.client ?? client).requestOptions<ProductHistoryResponse, ThrowOnError>({
@@ -321,7 +477,7 @@ export const resumeProductRequest = <ThrowOnError extends boolean = false>(optio
 /**
  * Adiciona SKU; produto publicado volta à moderação
  */
-export const addSkuRequest = <ThrowOnError extends boolean = false>(options: Options<AddSkuData, ThrowOnError>): HttpRequest<unknown> => (options?.client ?? client).requestOptions<unknown, ThrowOnError>({
+export const addSkuRequest = <ThrowOnError extends boolean = false>(options: Options<AddSkuData, ThrowOnError>): HttpRequest<AddSkuResponse> => (options?.client ?? client).requestOptions<AddSkuResponse, ThrowOnError>({
     responseStyle: 'data',
     method: 'POST',
     url: '/products/{id}/skus',
@@ -369,6 +525,52 @@ export const submitProductRequest = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
+ * Números da taxonomia: categorias, raízes, inativas e com produtos
+ */
+export const getCategoryStatsRequest = <ThrowOnError extends boolean = false>(options?: Options<GetCategoryStatsData, ThrowOnError>): HttpRequest<GetCategoryStatsResponse> => (options?.client ?? client).requestOptions<GetCategoryStatsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/stats/categories',
+    ...options
+});
+
+/**
+ * Números da moderação: fila, decisões do mês e série de atividade
+ *
+ * Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos.
+ */
+export const getModerationStatsRequest = <ThrowOnError extends boolean = false>(options?: Options<GetModerationStatsData, ThrowOnError>): HttpRequest<GetModerationStatsResponse> => (options?.client ?? client).requestOptions<GetModerationStatsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/stats/moderation',
+    ...options
+});
+
+/**
+ * Tamanho atual da fila de moderação
+ *
+ * Conta os produtos em PENDING_MODERATION agora, sem os indicadores nem a série de `/stats/moderation`, para quem só mostra o tamanho da fila e o consulta com frequência.
+ */
+export const getModerationQueueStatsRequest = <ThrowOnError extends boolean = false>(options?: Options<GetModerationQueueStatsData, ThrowOnError>): HttpRequest<GetModerationQueueStatsResponse> => (options?.client ?? client).requestOptions<GetModerationQueueStatsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/stats/moderation/queue',
+    ...options
+});
+
+/**
+ * Números da loja: produtos por status, indicadores e série de atividade
+ *
+ * Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos. O saldo não guarda histórico: `outOfStock` só tem o valor atual, e `active` tem como valor o ACTIVE com saldo e, nos meses, o ACTIVE gravado, com ou sem saldo, sem `previous` nem `change`.
+ */
+export const getStoreStatsRequest = <ThrowOnError extends boolean = false>(options?: Options<GetStoreStatsData, ThrowOnError>): HttpRequest<GetStoreStatsResponse> => (options?.client ?? client).requestOptions<GetStoreStatsResponse, ThrowOnError>({
+    responseStyle: 'data',
+    method: 'GET',
+    url: '/stats/store',
+    ...options
+});
+
+/**
  * Produto público com o preço vigente de cada SKU
  */
 export const getStorefrontProductRequest = <ThrowOnError extends boolean = false>(options: Options<GetStorefrontProductData, ThrowOnError>): HttpRequest<GetStorefrontProductResponse> => (options?.client ?? client).requestOptions<GetStorefrontProductResponse, ThrowOnError>({
@@ -379,7 +581,7 @@ export const getStorefrontProductRequest = <ThrowOnError extends boolean = false
 });
 
 /**
- * Consulta a situação da loja (seller: só a própria)
+ * Consulta a situação da loja (seller: só a própria; admin e moderador: qualquer uma)
  */
 export const getStoreEligibilityRequest = <ThrowOnError extends boolean = false>(options: Options<GetStoreEligibilityData, ThrowOnError>): HttpRequest<GetStoreEligibilityResponse> => (options?.client ?? client).requestOptions<GetStoreEligibilityResponse, ThrowOnError>({
     responseStyle: 'data',
@@ -390,6 +592,8 @@ export const getStoreEligibilityRequest = <ThrowOnError extends boolean = false>
 
 /**
  * Lista filhos de uma categoria (ou as raízes) em ordem de código
+ *
+ * Com `ids`, devolve só essas categorias, em ordem de código e numa página só, sem `nextCursor`; id repetido aparece uma vez, e o que não existe no tenant fica de fora. `ids` não combina com `parentId` nem com `cursor` (400), e `limit` não se aplica a ele.
  */
 export const listCategoriesResource = <ThrowOnError extends boolean = false>(options?: () => Options<ListCategoriesData, ThrowOnError> | undefined) => httpResource<ListCategoriesResponse>(() => {
     const opts = options ? options() : undefined;
@@ -399,9 +603,39 @@ export const listCategoriesResource = <ThrowOnError extends boolean = false>(opt
 /**
  * Cria categoria raiz ou subcategoria
  */
-export const createCategoryResource = <ThrowOnError extends boolean = false>(options: () => Options<CreateCategoryData, ThrowOnError> | undefined) => httpResource<unknown>(() => {
+export const createCategoryResource = <ThrowOnError extends boolean = false>(options: () => Options<CreateCategoryData, ThrowOnError> | undefined) => httpResource<CreateCategoryResponse>(() => {
     const opts = options ? options() : undefined;
     return opts ? createCategoryRequest(opts) : undefined;
+});
+
+/**
+ * Ativa, desativa ou exclui até 100 categorias, cada uma isolada
+ *
+ * Cada item exige `version`, como o If-Match do endpoint de um item; sem ela, o item falha com 428. Ativar ou desativar a categoria que já está na situação pedida não grava nada. A exclusão roda das subcategorias para as categorias pai, para que um ramo vazio saia inteiro, e cada item recusa como `DELETE /categories/{id}`.
+ */
+export const batchCategoriesResource = <ThrowOnError extends boolean = false>(options: () => Options<BatchCategoriesData, ThrowOnError> | undefined) => httpResource<BatchCategoriesResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? batchCategoriesRequest(opts) : undefined;
+});
+
+/**
+ * Lista todas as categorias do tenant na ordem da árvore
+ *
+ * O pai vem antes das subcategorias, e os irmãos seguem a ordem de código, como numa árvore aberta; cada item traz o caminho desde a raiz. Com `usable=true`, só as categorias que aceitam produtos novos (ela e os ancestrais ativos). A página tem até 1000 itens, que é também o padrão, para quem lê a árvore inteira fazer poucas leituras.
+ */
+export const listCategoryTreeResource = <ThrowOnError extends boolean = false>(options?: () => Options<ListCategoryTreeData, ThrowOnError> | undefined) => httpResource<ListCategoryTreeResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? listCategoryTreeRequest(opts) : undefined;
+});
+
+/**
+ * Exclui a categoria vazia (exige If-Match)
+ *
+ * Vale só para a categoria sem subcategorias e sem nenhum produto, nem arquivado. Recusa com 409 `category-has-children` ou `category-has-products`, com o mesmo código em `reasons`, inclusive quando a subcategoria ou o produto é gravado ao mesmo tempo.
+ */
+export const deleteCategoryResource = <ThrowOnError extends boolean = false>(options: () => Options<DeleteCategoryData, ThrowOnError> | undefined) => httpResource<DeleteCategoryResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? deleteCategoryRequest(opts) : undefined;
 });
 
 /**
@@ -487,11 +721,27 @@ export const adjustStockResource = <ThrowOnError extends boolean = false>(option
 });
 
 /**
- * Produtos aguardando moderação
+ * Consulta o chamador: tenant, loja, capacidades e permissões compostas
  */
-export const moderationQueueResource = <ThrowOnError extends boolean = false>(options?: () => Options<ModerationQueueData, ThrowOnError> | undefined) => httpResource<ModerationQueueResponse>(() => {
+export const getSessionResource = <ThrowOnError extends boolean = false>(options?: () => Options<GetSessionData, ThrowOnError> | undefined) => httpResource<GetSessionResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? getSessionRequest(opts) : undefined;
+});
+
+/**
+ * Produtos aguardando moderação, em ordem de chegada
+ */
+export const moderationQueueResource = <ThrowOnError extends boolean = false>(options?: () => Options<ModerationQueueData, ThrowOnError> | undefined) => httpResource<ModerationQueueResponse2>(() => {
     const opts = options ? options() : undefined;
     return opts ? moderationQueueRequest(opts) : undefined;
+});
+
+/**
+ * Aprova, rejeita ou bloqueia até 100 produtos, cada um isolado
+ */
+export const batchModerateProductsResource = <ThrowOnError extends boolean = false>(options: () => Options<BatchModerateProductsData, ThrowOnError> | undefined) => httpResource<BatchModerateProductsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? batchModerateProductsRequest(opts) : undefined;
 });
 
 /**
@@ -511,7 +761,7 @@ export const blockProductResource = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
- * Rejeita e devolve ao rascunho com motivo
+ * Rejeita e devolve ao rascunho com motivos prontos e complemento
  */
 export const rejectProductResource = <ThrowOnError extends boolean = false>(options: () => Options<RejectProductData, ThrowOnError> | undefined) => httpResource<RejectProductResponse>(() => {
     const opts = options ? options() : undefined;
@@ -524,6 +774,60 @@ export const rejectProductResource = <ThrowOnError extends boolean = false>(opti
 export const unblockProductResource = <ThrowOnError extends boolean = false>(options: () => Options<UnblockProductData, ThrowOnError> | undefined) => httpResource<UnblockProductResponse>(() => {
     const opts = options ? options() : undefined;
     return opts ? unblockProductRequest(opts) : undefined;
+});
+
+/**
+ * Motivos prontos de rejeição e bloqueio do tenant
+ *
+ * Lista na ordem de `position` e, no empate, de `code`, que é também a ordem dos rótulos no texto da decisão. Tenant sem motivos responde lista vazia, e o moderador decide só com o complemento.
+ */
+export const listModerationReasonsResource = <ThrowOnError extends boolean = false>(options?: () => Options<ListModerationReasonsData, ThrowOnError> | undefined) => httpResource<ListModerationReasonsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? listModerationReasonsRequest(opts) : undefined;
+});
+
+/**
+ * Cria motivo de moderação no catálogo do tenant
+ *
+ * O código é imutável e só vale neste tenant. Recusa com 409 `duplicate-moderation-reason-code` o código já usado, inclusive por um motivo inativo. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos (desativar um abre a vaga) e com 422 `moderation-reason-catalog-limit` quando o catálogo, contando os inativos, chegou ao teto de proteção.
+ */
+export const createModerationReasonResource = <ThrowOnError extends boolean = false>(options: () => Options<CreateModerationReasonData, ThrowOnError> | undefined) => httpResource<CreateModerationReasonResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? createModerationReasonRequest(opts) : undefined;
+});
+
+/**
+ * Consulta motivo de moderação; ETag carrega a versão
+ */
+export const getModerationReasonResource = <ThrowOnError extends boolean = false>(options: () => Options<GetModerationReasonData, ThrowOnError> | undefined) => httpResource<GetModerationReasonResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? getModerationReasonRequest(opts) : undefined;
+});
+
+/**
+ * Atualiza rótulo, decisões e posição do motivo (exige If-Match)
+ */
+export const reviseModerationReasonResource = <ThrowOnError extends boolean = false>(options: () => Options<ReviseModerationReasonData, ThrowOnError> | undefined) => httpResource<ReviseModerationReasonResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? reviseModerationReasonRequest(opts) : undefined;
+});
+
+/**
+ * Volta a oferecer o motivo ao moderador (exige If-Match)
+ *
+ * Já ativo, não grava e devolve o mesmo ETag. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos; desative outro antes.
+ */
+export const activateModerationReasonResource = <ThrowOnError extends boolean = false>(options: () => Options<ActivateModerationReasonData, ThrowOnError> | undefined) => httpResource<ActivateModerationReasonResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? activateModerationReasonRequest(opts) : undefined;
+});
+
+/**
+ * Tira o motivo das decisões novas, sem apagar o histórico (exige If-Match)
+ */
+export const deactivateModerationReasonResource = <ThrowOnError extends boolean = false>(options: () => Options<DeactivateModerationReasonData, ThrowOnError> | undefined) => httpResource<DeactivateModerationReasonResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? deactivateModerationReasonRequest(opts) : undefined;
 });
 
 /**
@@ -545,7 +849,7 @@ export const defineOfferResource = <ThrowOnError extends boolean = false>(option
 /**
  * Agenda preço promocional [startsAt, endsAt)
  */
-export const schedulePromotionResource = <ThrowOnError extends boolean = false>(options: () => Options<SchedulePromotionData, ThrowOnError> | undefined) => httpResource<unknown>(() => {
+export const schedulePromotionResource = <ThrowOnError extends boolean = false>(options: () => Options<SchedulePromotionData, ThrowOnError> | undefined) => httpResource<SchedulePromotionResponse>(() => {
     const opts = options ? options() : undefined;
     return opts ? schedulePromotionRequest(opts) : undefined;
 });
@@ -559,7 +863,7 @@ export const cancelPromotionResource = <ThrowOnError extends boolean = false>(op
 });
 
 /**
- * Lista produtos; o seller vê só a própria loja
+ * Lista produtos com busca e ordem; o seller vê só a própria loja
  */
 export const listProductsResource = <ThrowOnError extends boolean = false>(options?: () => Options<ListProductsData, ThrowOnError> | undefined) => httpResource<ListProductsResponse>(() => {
     const opts = options ? options() : undefined;
@@ -569,9 +873,25 @@ export const listProductsResource = <ThrowOnError extends boolean = false>(optio
 /**
  * Cria produto em rascunho na loja do token
  */
-export const createProductResource = <ThrowOnError extends boolean = false>(options: () => Options<CreateProductData, ThrowOnError> | undefined) => httpResource<unknown>(() => {
+export const createProductResource = <ThrowOnError extends boolean = false>(options: () => Options<CreateProductData, ThrowOnError> | undefined) => httpResource<CreateProductResponse>(() => {
     const opts = options ? options() : undefined;
     return opts ? createProductRequest(opts) : undefined;
+});
+
+/**
+ * Envia, pausa, reativa ou arquiva até 100 produtos, cada um isolado
+ */
+export const batchProductsResource = <ThrowOnError extends boolean = false>(options: () => Options<BatchProductsData, ThrowOnError> | undefined) => httpResource<BatchProductsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? batchProductsRequest(opts) : undefined;
+});
+
+/**
+ * Lista as importações da loja, da mais recente à mais antiga
+ */
+export const listProductImportsResource = <ThrowOnError extends boolean = false>(options?: () => Options<ListProductImportsData, ThrowOnError> | undefined) => httpResource<ListProductImportsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? listProductImportsRequest(opts) : undefined;
 });
 
 /**
@@ -584,6 +904,8 @@ export const importProductsResource = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Consulta a importação e o resultado de cada linha
+ *
+ * Com `lines=false`, traz a situação e as contagens gravadas junto do lote, sem ler o resultado de cada linha (`lines` vem nulo), para acompanhar o processamento sem trafegar até milhares de linhas a cada consulta.
  */
 export const getProductImportResource = <ThrowOnError extends boolean = false>(options: () => Options<GetProductImportData, ThrowOnError> | undefined) => httpResource<GetProductImportResponse>(() => {
     const opts = options ? options() : undefined;
@@ -615,6 +937,14 @@ export const reviseProductResource = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
+ * Confere o rascunho sem gravar: pendências de publicação e efeito da troca de categoria
+ */
+export const checkProductResource = <ThrowOnError extends boolean = false>(options: () => Options<CheckProductData, ThrowOnError> | undefined) => httpResource<CheckProductResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? checkProductRequest(opts) : undefined;
+});
+
+/**
  * Histórico de transições e decisões de moderação
  */
 export const productHistoryResource = <ThrowOnError extends boolean = false>(options: () => Options<ProductHistoryData, ThrowOnError> | undefined) => httpResource<ProductHistoryResponse>(() => {
@@ -641,7 +971,7 @@ export const resumeProductResource = <ThrowOnError extends boolean = false>(opti
 /**
  * Adiciona SKU; produto publicado volta à moderação
  */
-export const addSkuResource = <ThrowOnError extends boolean = false>(options: () => Options<AddSkuData, ThrowOnError> | undefined) => httpResource<unknown>(() => {
+export const addSkuResource = <ThrowOnError extends boolean = false>(options: () => Options<AddSkuData, ThrowOnError> | undefined) => httpResource<AddSkuResponse>(() => {
     const opts = options ? options() : undefined;
     return opts ? addSkuRequest(opts) : undefined;
 });
@@ -679,6 +1009,44 @@ export const submitProductResource = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
+ * Números da taxonomia: categorias, raízes, inativas e com produtos
+ */
+export const getCategoryStatsResource = <ThrowOnError extends boolean = false>(options?: () => Options<GetCategoryStatsData, ThrowOnError> | undefined) => httpResource<GetCategoryStatsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? getCategoryStatsRequest(opts) : undefined;
+});
+
+/**
+ * Números da moderação: fila, decisões do mês e série de atividade
+ *
+ * Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos.
+ */
+export const getModerationStatsResource = <ThrowOnError extends boolean = false>(options?: () => Options<GetModerationStatsData, ThrowOnError> | undefined) => httpResource<GetModerationStatsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? getModerationStatsRequest(opts) : undefined;
+});
+
+/**
+ * Tamanho atual da fila de moderação
+ *
+ * Conta os produtos em PENDING_MODERATION agora, sem os indicadores nem a série de `/stats/moderation`, para quem só mostra o tamanho da fila e o consulta com frequência.
+ */
+export const getModerationQueueStatsResource = <ThrowOnError extends boolean = false>(options?: () => Options<GetModerationQueueStatsData, ThrowOnError> | undefined) => httpResource<GetModerationQueueStatsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? getModerationQueueStatsRequest(opts) : undefined;
+});
+
+/**
+ * Números da loja: produtos por status, indicadores e série de atividade
+ *
+ * Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos. O saldo não guarda histórico: `outOfStock` só tem o valor atual, e `active` tem como valor o ACTIVE com saldo e, nos meses, o ACTIVE gravado, com ou sem saldo, sem `previous` nem `change`.
+ */
+export const getStoreStatsResource = <ThrowOnError extends boolean = false>(options?: () => Options<GetStoreStatsData, ThrowOnError> | undefined) => httpResource<GetStoreStatsResponse>(() => {
+    const opts = options ? options() : undefined;
+    return opts ? getStoreStatsRequest(opts) : undefined;
+});
+
+/**
  * Produto público com o preço vigente de cada SKU
  */
 export const getStorefrontProductResource = <ThrowOnError extends boolean = false>(options: () => Options<GetStorefrontProductData, ThrowOnError> | undefined) => httpResource<GetStorefrontProductResponse>(() => {
@@ -687,7 +1055,7 @@ export const getStorefrontProductResource = <ThrowOnError extends boolean = fals
 });
 
 /**
- * Consulta a situação da loja (seller: só a própria)
+ * Consulta a situação da loja (seller: só a própria; admin e moderador: qualquer uma)
  */
 export const getStoreEligibilityResource = <ThrowOnError extends boolean = false>(options: () => Options<GetStoreEligibilityData, ThrowOnError> | undefined) => httpResource<GetStoreEligibilityResponse>(() => {
     const opts = options ? options() : undefined;

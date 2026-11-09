@@ -66,6 +66,7 @@ spec:
               valueFrom: {secretKeyRef: {name: catalog-inventory-db, key: password}}
             - name: CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD
               valueFrom: {secretKeyRef: {name: catalog-inventory-db, key: migrator-password}}
+            - {name: CATALOG_INVENTORY_DB_EXTENSIONS, value: pg_trgm}
           volumeMounts: [{name: provision, mountPath: /provision}]
       volumes: [{name: provision, configMap: {name: postgres-provision}}]
 ---

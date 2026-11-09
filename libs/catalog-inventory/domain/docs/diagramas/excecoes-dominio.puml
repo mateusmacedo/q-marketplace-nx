@@ -8,26 +8,61 @@ hide stereotype
 
 class RuntimeException <<infra>>
 class DomainRuleViolation << (!,#C62828) exceção>> {
-  code : String
-  reasons : List<String>
+  reason : Reason
+  reasons : List<Reason>
   --
+  code() : String
+  reasons() : List<String>
+  details() : List<Reason>
   {static} invalid(message)
   {static} requireText(value, max, message)
+}
+class Reason <<record>> {
+  code : String
+  params : List<String>
+  message : String
+  --
+  {static} of(code : ReasonCode, params...)
+  withMessage(message) : Reason
+  key() : String
+}
+interface ReasonCode {
+  name() : String
+  code() : String
+}
+enum DomainReasons {
+  INVALID_VALUE
+  CATEGORY_TOO_DEEP
+  MISSING_ATTRIBUTE
+  ...
 }
 class InvalidTransitionException << (!,#C62828) exceção>> {
   code = invalid-transition
 }
 class ReservationRefusal << (!,#C62828) exceção>>
 class StockConflictException << (!,#C62828) exceção>>
+class CategoryNotEmptyException << (!,#C62828) exceção>>
 
 RuntimeException <|-- DomainRuleViolation
 DomainRuleViolation <|-- InvalidTransitionException
 DomainRuleViolation <|-- ReservationRefusal
 DomainRuleViolation <|-- StockConflictException
+DomainRuleViolation <|-- CategoryNotEmptyException
+DomainRuleViolation *-- "1..*" Reason
+ReasonCode <|.. DomainReasons
+Reason ..> ReasonCode : of
 
 note right of DomainRuleViolation
-  Recusa de negócio: <color:#C62828><b>422</b></color> com code e reasons.
+  Recusa de negócio: <color:#C62828><b>422</b></color> com code, reasons
+  (forma compacta, missing-attribute:cor) e reasonDetails
+  (código, parâmetros e texto do catálogo de mensagens).
+  Sem motivos detalhados, details() é o motivo da própria recusa.
   <$ban,scale=0.4,color=#C62828> Nunca deve disparar retentativa.
+end note
+note bottom of DomainReasons
+  Registro dos códigos do domínio; a aplicação e a
+  importação têm o seu. Todo código precisa de texto
+  em ReasonMessages.properties (teste do serviço).
 end note
 note right of InvalidTransitionException
   <color:#E65100><b>409</b></color> (transição negada pelo estado)
@@ -38,10 +73,13 @@ end note
 note right of StockConflictException
   <color:#E65100><b>409</b></color> (stock-below-reserved, sku-has-stock)
 end note
+note right of CategoryNotEmptyException
+  <color:#E65100><b>409</b></color> (category-has-children, category-has-products)
+end note
 
 legend right
   <b>Tradução HTTP</b>
-  <color:#C62828><b>422</b></color> Recusa de negócio (code e reasons)
+  <color:#C62828><b>422</b></color> Recusa de negócio (code, reasons e reasonDetails)
   <color:#E65100><b>409</b></color> Conflito com o estado atual
   <back:#E57373>    </back> Exceção de domínio
   <back:#90A4AE>    </back> Classe da JDK

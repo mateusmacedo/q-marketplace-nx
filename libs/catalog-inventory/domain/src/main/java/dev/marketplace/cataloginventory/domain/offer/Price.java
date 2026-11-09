@@ -1,5 +1,6 @@
 package dev.marketplace.cataloginventory.domain.offer;
 
+import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import dev.marketplace.cataloginventory.domain.Money;
 import static dev.marketplace.cataloginventory.domain.DomainRuleViolation.invalid;
@@ -19,7 +20,7 @@ public record Price(Money listPrice, Money salePrice) {
         if (salePrice == null)
             throw invalid("Preço de venda é obrigatório");
         if (listPrice != null && listPrice.compareAmount(salePrice) < 0)
-            throw new DomainRuleViolation("list-price-below-sale-price",
+            throw new DomainRuleViolation(DomainReasons.LIST_PRICE_BELOW_SALE_PRICE,
                     "Preço \"de\" não pode ser menor que o preço \"por\"");
     }
 

@@ -9,15 +9,16 @@ import java.util.UUID;
 import static dev.marketplace.cataloginventory.application.Fixtures.*;
 
 /**
- * Serviços ligados ao mesmo armazenamento em memória, com uma loja e uma
- * categoria prontas para os cenários.
+ * Serviços ligados ao mesmo armazenamento em memória, com uma loja, uma
+ * categoria e um catálogo de motivos de moderação prontos para os cenários.
  */
 final class Catalog {
     final InMemoryStore store = new InMemoryStore();
     final MutableClock clock = new MutableClock(NOW);
     final CategoryService categories = new CategoryService(store);
     final ProductService products = new ProductService(store, store, store, store, clock);
-    final ModerationService moderation = new ModerationService(store, store, store, store, clock);
+    final ModerationService moderation = new ModerationService(store, store, store, store, store, clock);
+    final ModerationReasonService moderationReasons = new ModerationReasonService(store, clock);
     final OfferService offers = new OfferService(store, store, clock);
     final InventoryService inventory = new InventoryService(store, store, clock);
     final ReservationService reservations = new ReservationService(store, store, SETTINGS, clock);
@@ -25,11 +26,26 @@ final class Catalog {
     final StorefrontService storefront = new StorefrontService(store, store, store);
     final ProductImportService imports = new ProductImportService(store, store, store, store, products, offers,
             inventory, clock);
+    final CatalogStatsService stats = new CatalogStatsService(store, clock);
     final UUID storeId = UUID.randomUUID();
     final Actor seller = seller(storeId);
     final UUID category = item(
             categories.create(admin(), Optional.empty(), "camisetas", "Camisetas", List.of(BRAND, SIZE)))
             .category().id();
+
+    {
+        reason("wrong-category", "Categoria incorreta", ModerationDecision.REJECT);
+        reason("misleading-description", "Descrição incompleta ou enganosa", ModerationDecision.REJECT,
+                ModerationDecision.BLOCK);
+        reason("inconsistent-attributes", "Atributos inconsistentes com os SKUs", ModerationDecision.REJECT);
+        reason("price-out-of-range", "Preço fora do padrão", ModerationDecision.REJECT, ModerationDecision.BLOCK);
+        reason("prohibited-item", "Item proibido na plataforma", ModerationDecision.BLOCK);
+    }
+
+    /** Motivo ativo no fim do catálogo do tenant dos cenários. */
+    ModerationReasonEntry reason(String code, String label, ModerationDecision... decisions) {
+        return item(moderationReasons.create(admin(), code, label, List.of(decisions), Optional.empty()));
+    }
 
     Product draft(ProductService.NewSku... skus) {
         return item(products.create(seller, category, "BRL", "Camiseta", "Algodão", Map.of("marca", "Acme"),

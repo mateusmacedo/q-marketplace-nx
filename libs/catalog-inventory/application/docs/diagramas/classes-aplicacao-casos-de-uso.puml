@@ -13,8 +13,11 @@ class ProductService <<final>> {
   --
   create(actor, categoryId, currency, title, description, attributes, skus) : Uni<Product>
   get(actor, id) : Uni<Product>
-  list(actor, status, storeFilter, afterId, limit) : Uni<Page<Product>>
+  list(actor, status, storeFilter, text, sort, cursorKey, limit) : Uni<Page<Product>>
   history(actor, id) : Uni<List<StatusChange>>
+  lastRejections(products) : Uni<Map<UUID, StatusChange>>
+  publishingIssues(product, offeredSkus) : Uni<Optional<List<PublishingIssue>>>
+  check(actor, id, categoryId, attributes) : Uni<ProductCheck>
   reviseContent(actor, id, ifMatch, categoryId, title, description, attributes) : Uni<Product>
   addSku(actor, id, ifMatch, sku : NewSku) : Uni<Product>
   reviseSku(actor, id, skuId, ifMatch, variantAttributes, physical, dimensions) : Uni<Product>
@@ -23,15 +26,46 @@ class ProductService <<final>> {
   pause(actor, id, ifMatch) : Uni<Product>
   resume(actor, id, ifMatch) : Uni<Product>
   archive(actor, id, ifMatch) : Uni<Product>
+  batch(actor, action, items) : Uni<List<Outcome<Product>>>
 }
 class ModerationService <<final>> {
-  ModerationService(products, categories, sellers, offers, clock)
+  ModerationService(products, categories, sellers, offers, reasons, clock)
   --
-  queue(actor, afterId, limit) : Uni<Page<Product>>
+  queue(actor, cursorKey, limit) : Uni<Page<Product>>
   approve(actor, id, ifMatch) : Uni<Product>
-  reject(actor, id, ifMatch, reason) : Uni<Product>
-  block(actor, id, ifMatch, reason) : Uni<Product>
+  reject(actor, id, ifMatch, reasonCodes, note) : Uni<Product>
+  block(actor, id, ifMatch, reasonCodes, note) : Uni<Product>
   unblock(actor, id, ifMatch) : Uni<Product>
+  batch(actor, decision, reasonCodes, note, items) : Uni<List<Outcome<Product>>>
+}
+class ModerationReasonService <<final>> {
+  {static} MAX_ACTIVE_PER_TENANT = 100
+  {static} MAX_PER_TENANT = 1000
+  ModerationReasonService(reasons, clock)
+  --
+  list(actor, includeInactive, decision) : Uni<List<ModerationReasonEntry>>
+  get(actor, code) : Uni<ModerationReasonEntry>
+  create(actor, code, label, decisions, position) : Uni<ModerationReasonEntry>
+  revise(actor, code, ifMatch, label, decisions, position) : Uni<ModerationReasonEntry>
+  activate(actor, code, ifMatch) : Uni<ModerationReasonEntry>
+  deactivate(actor, code, ifMatch) : Uni<ModerationReasonEntry>
+}
+class ProductActions <<final>> {
+  ProductActions(sellers)
+  --
+  eligibility(actor, products) : Uni<Map<UUID, SellerStatus>>
+  {static} of(actor, product, eligibility, issues) : Available
+}
+class "ProductActions.Available" as Available <<record>> {
+  allowed : List<ProductAction>
+  blocked : List<Blocked>
+  saveReturnsToModeration : boolean
+}
+enum ProductAction {
+  EDIT, CHANGE_CATEGORY, ADD_SKU, REMOVE_SKU
+  EDIT_OFFER, EDIT_STOCK
+  SUBMIT, PAUSE, RESUME, ARCHIVE
+  APPROVE, REJECT, BLOCK, UNBLOCK
 }
 class ProductSupport <<final, pacote privado>> #FFFFFF;line:64B5F6;line.dashed {
   ProductSupport(products, categories, sellers, offers, clock)
@@ -62,6 +96,7 @@ class OfferService <<final>> {
   OfferService(products, offers, clock)
   --
   get(actor, skuId) : Uni<Offer>
+  offersOf(products) : Uni<Map<UUID, Offer>>
   define(actor, skuId, ifMatch, price) : Uni<Defined>
   schedulePromotion(actor, skuId, ifMatch, promotionId, salePrice, startsAt, endsAt) : Uni<Offer>
   cancelPromotion(actor, skuId, promotionId, ifMatch) : Uni<Offer>
@@ -79,13 +114,27 @@ class StorefrontService <<final>> {
   get(tenantId, productId) : Uni<StorefrontProduct>
 }
 class CategoryService <<final>> {
+  {static} TREE_PAGE_SIZE = 1000
+  {static} MAX_IDS = 100
   CategoryService(categories)
   --
   create(actor, parentId, code, name, attributes) : Uni<CategoryView>
   get(actor, id) : Uni<CategoryView>
   revise(actor, id, ifMatch, name, attributes, active) : Uni<CategoryView>
   move(actor, id, ifMatch, parentId) : Uni<CategoryView>
-  children(actor, parentId, afterCode, limit) : Uni<Page<Category>>
+  delete(actor, id, ifMatch) : Uni<Void>
+  batch(actor, action, items) : Uni<List<Outcome<Category>>>
+  children(actor, parentId, afterCode, limit) : Uni<Page<CategoryNode>>
+  tree(actor, afterPath, usableOnly, limit) : Uni<Page<CategoryNode>>
+  byIds(actor, ids) : Uni<List<CategoryNode>>
+}
+class CatalogStatsService <<final>> {
+  CatalogStatsService(stats, clock)
+  --
+  store(actor, granularity, from, to) : Uni<StoreStats>
+  moderation(actor, granularity, from, to) : Uni<ModerationStats>
+  moderationQueue(actor) : Uni<Long>
+  categories(actor) : Uni<CategoryCounts>
 }
 class SellerEligibilityService <<final>> {
   {static} CONSUMER = "catalog-inventory.seller-eligibility"
@@ -110,12 +159,17 @@ class ProductImportService <<final>> {
   --
   submit(actor, content, totalLines) : Uni<ProductImport>
   get(actor, id) : Uni<Report>
+  summary(actor, id) : Uni<Summary>
+  list(actor, cursorKey, limit) : Uni<Page<Summary>>
   claimNext(lease) : Uni<Optional<Claimed>>
   process(job, rows) : Uni<List<ImportResult>>
 }
 
 ProductService --> ProductSupport
 ModerationService --> ProductSupport
+ProductActions +-- Available
+Available --> ProductAction
+ModerationService ..> ModerationReasonService : mesmo catálogo\n(ModerationReasonRepository)
 ProductSupport --> ProductAccess
 OfferService --> ProductAccess
 InventoryService --> ProductAccess
@@ -126,12 +180,14 @@ ProductImportService --> OfferService : define
 ProductImportService --> InventoryService : get / adjust
 
 ProductService -[hidden]right- ModerationService
+ProductActions -[hidden]down- Available
 ModerationService -[hidden]right- ProductSupport
 ProductSupport -[hidden]right- ProductAccess
 ProductService -[hidden]down- OfferService
 OfferService -[hidden]right- InventoryService
 InventoryService -[hidden]right- StorefrontService
 StorefrontService -[hidden]right- CategoryService
+CategoryService -[hidden]right- CatalogStatsService
 OfferService -[hidden]down- ReservationService
 ReservationService -[hidden]right- SellerEligibilityService
 SellerEligibilityService -[hidden]right- ProductImportService

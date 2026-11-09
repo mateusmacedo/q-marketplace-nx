@@ -13,6 +13,7 @@ import { provideOAuthClient } from 'angular-oauth2-oidc';
 
 import { routes } from './app.routes';
 import { apiUrlPrefixes } from './core/auth/auth.config';
+import { provideAdminSession } from './core/auth/session-store';
 import { correlationIdInterceptor } from './core/http/correlation-id.interceptor';
 
 export const appConfig: ApplicationConfig = {
@@ -33,6 +34,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([correlationIdInterceptor]), withInterceptorsFromDi()),
     provideOAuthClient({ resourceServer: { allowedUrls: apiUrlPrefixes, sendAccessToken: true } }),
     provideCatalogInventoryApi(),
+    provideAdminSession(),
     IconSetService,
   ],
 };

@@ -25,6 +25,14 @@
       "options": {
         "targetName": "e2e"
       }
+    },
+    {
+      "plugin": "@nx/vitest",
+      "options": {
+        "testTargetName": "test",
+        "ciTargetName": "test-ci",
+        "testMode": "watch"
+      }
     }
   ],
   "namedInputs": {
@@ -46,7 +54,8 @@
       "!{projectRoot}/**/*.spec.ts",
       "!{projectRoot}/tsconfig.spec.json",
       "!{projectRoot}/eslint.config.mjs",
-      "!{projectRoot}/README.md"
+      "!{projectRoot}/README.md",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)"
     ]
   },
   "targetDefaults": {
@@ -174,7 +183,8 @@
       "unitTestRunner": "vitest-angular"
     },
     "@nx/angular:library": {
-      "linter": "eslint"
+      "linter": "eslint",
+      "unitTestRunner": "vitest-analog"
     },
     "@nx/angular:component": {
       "style": "scss"

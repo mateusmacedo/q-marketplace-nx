@@ -105,15 +105,20 @@ class EventsTest {
 
         @Test
         void transitionsPublishStatusChangesWithVisibilityAndBlockingPublishesProductBlocked() {
-                Api api = new Api().withCategory().approvedStore();
+                Api api = new Api().withCategory().withModerationReasons().approvedStore();
                 String id = api.activeProduct(sku("CAM-P", "P", "50"));
-                as(api.moderator).body("{\"reason\":\"Produto proibido\"}")
+                as(api.moderator).body("{\"reasonCodes\":[\"prohibited-item\"],\"note\":\"Produto proibido\"}")
                                 .post("/moderation/products/" + id + "/block").then()
                                 .statusCode(200);
                 ConsumerRecord<String, String> blocked = consume(Kafka.PRODUCT_TOPIC,
                                 ofTenant(api.tenant).and(r -> "ProductBlocked".equals(header(r, "event-type"))), 1)
                                 .get(0);
-                assertEquals("Produto proibido", envelope(blocked).path("data").path("reason").asText());
+                assertEquals("Item proibido na plataforma. Produto proibido",
+                                envelope(blocked).path("data").path("reason").asText());
+                assertEquals("prohibited-item", envelope(blocked).path("data").path("reasonCodes").path(0).asText());
+                assertEquals("Produto proibido", envelope(blocked).path("data").path("note").asText());
+                assertEquals("[{\"code\":\"prohibited-item\",\"label\":\"Item proibido na plataforma\"}]",
+                                envelope(blocked).path("data").path("reasonLabels").toString());
                 assertMatchesContract(envelope(blocked));
 
                 List<JsonNode> changes = consume(Kafka.PRODUCT_TOPIC,
@@ -125,7 +130,15 @@ class EventsTest {
                                                 + e.path("data").path("visible").asBoolean())
                                 .toList());
                 assertEquals("ACTIVE", changes.get(2).path("data").path("from").asText());
-                assertEquals("Produto proibido", changes.get(2).path("data").path("reason").asText());
+                assertEquals("Item proibido na plataforma. Produto proibido",
+                                changes.get(2).path("data").path("reason").asText());
+                assertEquals("[\"prohibited-item\"]", changes.get(2).path("data").path("reasonCodes").toString());
+                assertEquals("[]", changes.get(0).path("data").path("reasonCodes").toString(),
+                                "transição sem motivo leva a lista vazia");
+                assertEquals("[]", changes.get(0).path("data").path("reasonLabels").toString());
+                assertTrue(changes.get(0).path("data").path("note").isNull());
+                assertEquals("Item proibido na plataforma",
+                                changes.get(2).path("data").path("reasonLabels").path(0).path("label").asText());
                 changes.forEach(EventsTest::assertMatchesContract);
         }
 

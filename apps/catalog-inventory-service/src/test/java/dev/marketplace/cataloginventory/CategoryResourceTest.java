@@ -148,6 +148,8 @@ class CategoryResourceTest {
                 move(api.seller, fashion, "0", electronics).then().statusCode(403);
                 as(api.admin).header("If-Match", "\"0\"").body("{}").put(path).then().statusCode(400)
                                 .body("type", endsWith("/malformed-body"));
+                as(api.admin).body("{\"code\":\"x\",").post("/categories").then().statusCode(400)
+                                .body("type", endsWith("/malformed-body"));
                 move(api.admin, fashion, "0", UUID.randomUUID().toString()).then().statusCode(404);
                 move(api.admin, fashion, "0", null).then().statusCode(200).header("ETag", is("\"0\""));
         }

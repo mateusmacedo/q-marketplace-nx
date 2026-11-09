@@ -31,7 +31,21 @@ public sealed interface ProductEvent {
         }
     }
 
-    record ProductBlocked(UUID productId, UUID storeId, String reason, Instant occurredAt) implements ProductEvent {
+    /** Motivos prontos do bloqueio, com o rótulo da época, e complemento, como no histórico. */
+    record ProductBlocked(UUID productId, UUID storeId, List<ReasonLabel> reasons, String note, Instant occurredAt)
+            implements ProductEvent {
+        public ProductBlocked {
+            reasons = List.copyOf(reasons);
+        }
+
+        public List<String> reasonCodes() {
+            return reasons.stream().map(ReasonLabel::code).toList();
+        }
+
+        /** Texto único derivado ({@link DecisionReason#compose}). */
+        public String reason() {
+            return DecisionReason.compose(reasons, note);
+        }
     }
 
     /**
@@ -39,7 +53,18 @@ public sealed interface ProductEvent {
      * se mostra ou esconde o produto.
      */
     record ProductStatusChanged(UUID productId, UUID storeId, ProductTransition transition, ProductStatus from,
-            ProductStatus to,
-            String reason, Instant occurredAt) implements ProductEvent {
+            ProductStatus to, List<ReasonLabel> reasons, String note, Instant occurredAt) implements ProductEvent {
+        public ProductStatusChanged {
+            reasons = List.copyOf(reasons);
+        }
+
+        public List<String> reasonCodes() {
+            return reasons.stream().map(ReasonLabel::code).toList();
+        }
+
+        /** Texto único derivado ({@link DecisionReason#compose}); nulo fora da rejeição e do bloqueio. */
+        public String reason() {
+            return DecisionReason.compose(reasons, note);
+        }
     }
 }

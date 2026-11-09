@@ -122,16 +122,18 @@ class ProductServiceTest {
         Product a = draft();
         Product b = catalog.draft(sku("BONE", "P"));
         item(products.create(seller(UUID.randomUUID()), category, "BRL", "Alheio", "", Map.of(), List.of()));
-        Page<Product> first = item(
-                products.list(seller, Optional.empty(), Optional.of(UUID.randomUUID()), Optional.empty(), 1));
-        Page<Product> second = item(products.list(seller, Optional.empty(), Optional.empty(), first.nextCursor(), 1));
+        Page<Product> first = item(products.list(seller, Optional.empty(), Optional.of(UUID.randomUUID()),
+                Optional.empty(), ProductSort.DEFAULT, Optional.empty(), 1));
+        Page<Product> second = item(products.list(seller, Optional.empty(), Optional.empty(), Optional.empty(),
+                ProductSort.DEFAULT, first.nextCursor(), 1));
         Set<UUID> seen = new HashSet<>();
         first.items().forEach(product -> seen.add(product.id()));
         second.items().forEach(product -> seen.add(product.id()));
         assertEquals(Set.of(a.id(), b.id()), seen);
         assertTrue(second.nextCursor().isEmpty());
         assertEquals(3,
-                item(products.list(admin(), Optional.empty(), Optional.empty(), Optional.empty(), 10)).items().size());
+                item(products.list(admin(), Optional.empty(), Optional.empty(), Optional.empty(), ProductSort.DEFAULT,
+                        Optional.empty(), 10)).items().size());
     }
 
     @Test

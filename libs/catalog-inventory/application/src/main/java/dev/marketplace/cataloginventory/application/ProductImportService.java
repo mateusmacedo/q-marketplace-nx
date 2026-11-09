@@ -3,6 +3,7 @@ package dev.marketplace.cataloginventory.application;
 import dev.marketplace.cataloginventory.application.ImportResult.ImportOutcome;
 import dev.marketplace.cataloginventory.application.ProductService.NewSku;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.inventory.StockLevel;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
@@ -15,6 +16,7 @@ import io.smallrye.mutiny.Uni;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,12 +42,13 @@ public final class ProductImportService {
     public record Report(ProductImport job, List<ImportResult> lines) {
     }
 
-    public static final String INVALID_ROW = "invalid-row";
+    public static final String INVALID_ROW = ApplicationReasons.INVALID_ROW.code();
     public static final String DUPLICATE_SELLER_SKU = "duplicate-seller-sku";
     public static final String INCONSISTENT_PRODUCT = "inconsistent-product";
     public static final String CATEGORY_NOT_FOUND = "category-not-found";
     public static final String GROUP_REJECTED = "group-rejected";
     private static final String IMPORT = "IMPORT";
+    private static final String CURSOR_SEPARATOR = "|";
 
     private sealed interface Unit permits NewProduct, ExistingSku, Rejected {
     }
@@ -110,6 +113,32 @@ public final class ProductImportService {
             return imports.findImport(actor.tenantId(), store, id)
                     .map(found -> found.orElseThrow(() -> new NotFoundException("Lote de importação")))
                     .flatMap(job -> imports.results(job.id()).map(lines -> new Report(job, lines)));
+        });
+    }
+
+    /**
+     * Lote com as contagens por desfecho, sem os resultados de cada linha, para acompanhar o processamento; o
+     * acesso é o de {@link #get}.
+     */
+    public Uni<ProductImportRepository.Summary> summary(Actor actor, UUID id) {
+        return Uni.createFrom().deferred(() -> {
+            UUID store = ProductAccess.requireSeller(actor);
+            return imports.findSummary(actor.tenantId(), store, id)
+                    .map(found -> found.orElseThrow(() -> new NotFoundException("Lote de importação")));
+        });
+    }
+
+    /**
+     * Lotes da loja do seller, do mais recente ao mais antigo, com as contagens por desfecho, por cursor (criação e
+     * id do último visto). Exige {@code MANAGE_OWN_PRODUCTS} e loja no token; cursor malformado ou {@code limit} fora
+     * de 1 a 100: {@link InvalidInputException}.
+     */
+    public Uni<Page<ProductImportRepository.Summary>> list(Actor actor, Optional<String> cursorKey, int limit) {
+        return Uni.createFrom().deferred(() -> {
+            UUID store = ProductAccess.requireSeller(actor);
+            Optional<ProductImportRepository.Position> after = cursorKey.map(ProductImportService::position);
+            return Page.fetch(limit, fetchLimit -> imports.list(actor.tenantId(), store, after, fetchLimit),
+                    summary -> summary.job().createdAt() + CURSOR_SEPARATOR + summary.job().id());
         });
     }
 
@@ -276,7 +305,7 @@ public final class ProductImportService {
      */
     private static Prepared prepare(ImportRow row) {
         if (row.error() != null || row.productError() != null)
-            throw new DomainRuleViolation(INVALID_ROW, Objects.requireNonNullElse(row.error(), row.productError()));
+            throw invalidRow(Objects.requireNonNullElse(row.error(), row.productError()));
         List<String> missing = new ArrayList<>();
         if (row.categoryCode() == null)
             missing.add("categoria");
@@ -285,7 +314,7 @@ public final class ProductImportService {
         if (row.physical() == null)
             missing.add("indicador de SKU físico");
         if (!missing.isEmpty())
-            throw new DomainRuleViolation(INVALID_ROW, "SKU novo exige " + String.join(", ", missing));
+            throw invalidRow("SKU novo exige " + String.join(", ", missing));
         NewSku sku = new NewSku(row.sellerSku(), row.variantAttributes(), row.physical(), dimensions(row));
         Sku.create(UUID.randomUUID(), sku.sellerSku(), sku.variantAttributes(), sku.physical(), sku.dimensions());
         return new Prepared(row, sku, price(row), StockLevel.requireOnHand(row.onHand()));
@@ -358,15 +387,31 @@ public final class ProductImportService {
         };
     }
 
+    /** Linha inválida; a descrição do problema na linha é o próprio texto ao seller. */
+    private static DomainRuleViolation invalidRow(String message) {
+        return new DomainRuleViolation(Reason.of(ApplicationReasons.INVALID_ROW).withMessage(message), message);
+    }
+
+    /** A recusa de negócio leva à linha os motivos dela, como no corpo de erro da API. */
     private static ImportResult failed(ImportRow row, UUID productId, Throwable e) {
         String message = Objects.requireNonNullElse(e.getMessage(), codeOf(e));
-        if (e instanceof DomainRuleViolation violation && !violation.reasons().isEmpty())
-            message += ": " + String.join(", ", violation.reasons());
-        return ImportResult.failed(row, productId, codeOf(e), message);
+        List<Reason> reasons = e instanceof DomainRuleViolation violation ? violation.details() : List.of();
+        return ImportResult.failed(row, productId, codeOf(e), message, reasons);
     }
 
     private static <T, R> Uni<List<R>> sequentially(List<T> items, Function<T, Uni<R>> step) {
         return Multi.createFrom().iterable(items).onItem().<R>transformToUniAndConcatenate(step::apply).collect()
                 .asList();
+    }
+
+    private static ProductImportRepository.Position position(String key) {
+        String[] parts = key.split("\\" + CURSOR_SEPARATOR, 2);
+        try {
+            if (parts.length != 2)
+                throw new IllegalArgumentException("sem separador");
+            return new ProductImportRepository.Position(Instant.parse(parts[0]), UUID.fromString(parts[1]));
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            throw new InvalidInputException("cursor inválido");
+        }
     }
 }

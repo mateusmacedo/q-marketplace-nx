@@ -17,6 +17,10 @@ public final class CacheContents {
         return CacheKeys.chain(tenantId, UUID.fromString(categoryId));
     }
 
+    public static String moderationReasons(UUID tenantId) {
+        return CacheKeys.moderationReasons(tenantId);
+    }
+
     /** WHY: a listagem pede um item além da página para saber se há próxima, e esse limite entra na chave. */
     public static String rootPage(UUID tenantId) {
         return CacheKeys.children(tenantId, Optional.empty(), Page.DEFAULT_SIZE + 1, Optional.empty());

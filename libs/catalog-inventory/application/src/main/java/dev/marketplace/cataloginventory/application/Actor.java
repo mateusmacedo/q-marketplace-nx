@@ -9,8 +9,19 @@ import java.util.UUID;
  * derivados do token validado.
  */
 public record Actor(UUID tenantId, Optional<UUID> storeId, String subject, Set<Capability> capabilities) {
+    /**
+     * Permissões que combinam capacidades, já resolvidas pelas mesmas regras que
+     * os casos de uso aplicam, para o cliente não remontá-las.
+     */
+    public record Permissions(boolean readTenantCatalog) {
+    }
+
     public Actor {
         capabilities = Set.copyOf(capabilities);
+    }
+
+    public Permissions permissions() {
+        return new Permissions(canReadTenantCatalog());
     }
 
     public boolean can(Capability capability) {
