@@ -1,3 +1,14 @@
+## 0.0.2 (2026-11-09)
+
+### 🚀 Features
+
+- **admin-web:** load the catalog screens by capability with the session from the api ([1d9c5a5](https://github.com/mateusmacedo/q-marketplace-nx/commit/1d9c5a5))
+- **admin-web:** bring back the template header search and notification icons ([44bbb37](https://github.com/mateusmacedo/q-marketplace-nx/commit/44bbb37))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.1 (2026-11-08)
 
 ### 🚀 Features

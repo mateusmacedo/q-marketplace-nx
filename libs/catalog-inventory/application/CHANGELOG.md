@@ -1,3 +1,17 @@
+## 0.0.2 (2026-11-09)
+
+### 🚀 Features
+
+- **catalog-inventory-application:** add capabilities, server computed product actions and the moderation reason service ([98db6f7](https://github.com/mateusmacedo/q-marketplace-nx/commit/98db6f7))
+
+### 🧱 Updated Dependencies
+
+- Updated catalog-inventory-domain to 0.0.2
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.1 (2026-11-08)
 
 ### 🚀 Features

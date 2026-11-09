@@ -1,3 +1,13 @@
+## 0.0.2 (2026-11-09)
+
+### 🚀 Features
+
+- **catalog-inventory-domain:** add reason codes, moderation reasons, category change and promotion phase ([0a6c3ab](https://github.com/mateusmacedo/q-marketplace-nx/commit/0a6c3ab))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.1 (2026-11-08)
 
 ### 🚀 Features

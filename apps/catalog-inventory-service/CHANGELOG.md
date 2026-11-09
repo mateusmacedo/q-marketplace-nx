@@ -1,3 +1,22 @@
+## 0.0.2 (2026-11-09)
+
+### 🚀 Features
+
+- **catalog-inventory-service:** expose the session, moderation reasons, product actions and reason details in the api ([b9a17ec](https://github.com/mateusmacedo/q-marketplace-nx/commit/b9a17ec))
+
+### 🩹 Fixes
+
+- **catalog-inventory-service:** answer malformed json with the malformed-body problem ([a4629c7](https://github.com/mateusmacedo/q-marketplace-nx/commit/a4629c7))
+
+### 🧱 Updated Dependencies
+
+- Updated catalog-inventory-domain to 0.0.2
+- Updated catalog-inventory-application to 0.0.2
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.1 (2026-11-08)
 
 ### 🚀 Features
