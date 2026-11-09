@@ -19,7 +19,7 @@ O painel não repete regra nem catálogo do servidor (ADR 031). As ações permi
 | Paginação | `c-pagination` do template só com Anterior e Próxima, e 20 ou 50 itens por página ou o máximo do contrato | Sem salto para uma página nem total; o máximo (100) é copiado no painel até ser lido do schema gerado (pendente) |
 | Ações na lista | O título do item é o link que abre o registro, e o dropdown do template (o mesmo dos indicadores) traz as ações que a API devolve em `actions`. A tela individual repete o mesmo menu e mostra a ação principal como botão | Um clique a mais por ação, e a ação principal aparece em dois lugares na tela individual |
 | Ordenação | Pelo backend, clicando no cabeçalho de Produto, Criado e Atualizado, com `sort` na URL e cursor composto. Padrão: Atualizado, mais recente primeiro. A fila de moderação vem em ordem de chegada. É a única parte própria das listas, escolhida pelo usuário, porque só a Smart Table da PRO ordena | Mudança de contrato e de cursor, com índices novos, e um cabeçalho ordenável escrito no projeto |
-| Seleção em lote | Caixas de seleção em Produtos da loja, Fila de moderação e Categorias, com a barra de botões do template (`btn-toolbar`) e o resultado de cada item. Cada grupo de até 100 selecionados vai numa chamada do endpoint em lote | Fechar a aba interrompe os grupos ainda não enviados; o resultado do lote não traz `actions`, e a lista é recarregada no fim; o tamanho do grupo é copiado no painel até ser lido do schema gerado (pendente) |
+| Seleção em lote | Caixas de seleção em Produtos da loja, Fila de moderação e Categorias, com a barra de botões do template (`btn-toolbar`) e o resultado de cada item. Cada grupo de até 100 selecionados vai numa chamada do endpoint em lote | Fechar a aba interrompe os grupos ainda não enviados; o resultado do lote não traz `actions`, e a lista é recarregada no fim; o tamanho do grupo é o `maxItems` do pedido, lido do schema gerado |
 | Tela do produto | Abas (Conteúdo, SKUs, preço e estoque, Histórico) e checklist de envio ao lado, com as pendências calculadas pelo servidor (`publishingIssues` e `POST /products/{id}/check`) | O checklist do formulário não salvo depende de uma chamada à API, com debounce e estado de carregamento |
 | Troca de categoria | Botão **Trocar** ao lado da categoria, com prévia do efeito calculada pelo servidor (`POST /products/{id}/check`): atributos que somem, obrigatórios novos e SKUs incompatíveis, que impedem a troca | A prévia espera a resposta da API ao escolher o destino |
 | Preço e estoque | Painel lateral (offcanvas) por SKU, com mudanças em massa pela planilha | Um SKU por vez na tela |
@@ -28,7 +28,7 @@ O painel não repete regra nem catálogo do servidor (ADR 031). As ações permi
 | Motivo de moderação | Motivos prontos do catálogo do tenant, lidos de `GET /moderation/reasons` e administrados em **Plataforma > Motivos de moderação**, com complemento livre (ADR 030) | Uma tela a mais em Plataforma para manter o catálogo; o tenant novo começa sem motivos |
 | Categorias | Lista por nível (`list-group`) com breadcrumb e card de detalhe. Escolher categoria em modais usa um `form-select` com o caminho completo | Não mostra a hierarquia inteira de uma vez |
 | Exclusão de categoria | Só da categoria vazia: sem subcategorias e sem nenhum produto, nem arquivado. A categoria já usada só é desativada | Excluir não tem volta |
-| Importação | Envio, andamento, resultado por linha e histórico de lotes | O modelo CSV, a conferência do tamanho e o intervalo do andamento seguem fixos no painel até a saída de cada um (pendente) |
+| Importação | Envio, andamento, resultado por linha e histórico de lotes | O modelo CSV e o intervalo do andamento seguem fixos no painel, e o tamanho do arquivo só é conferido pelo servidor, até a saída de cada um (pendente) |
 | Avisos | Toast do template (marcador de cor, título, hora e barra de tempo) para sucesso, e erro no lugar onde aconteceu, com o texto que o servidor manda | Menos controle sobre o tom de cada mensagem, compensado por sobrescritas pontuais no painel |
 | Conflito de edição | Aviso com "Carregar versão atual", sem perder o que foi digitado | A pessoa refaz as alterações por cima da versão nova |
 | Cabeçalho | Igual ao da demo: botão de busca (telas, produtos e categorias, também com Ctrl+K), ícones de notificações, tarefas e mensagens, seletor de tema e menu do usuário. Revisa a ADR 028, que reduzia o cabeçalho | Os três ícones ficam sem função até existir um contexto de notificações |
@@ -158,7 +158,7 @@ A referência é a demo grátis do CoreUI Angular, feita com o mesmo template de
 | Formulário médio que pede ver a lista atrás | Offcanvas à direita | Painel do SKU, novo SKU, agendar promoção, nova categoria, novo motivo de moderação |
 | Formulário principal | Página | Conteúdo do produto |
 
-- Para avisar antes do envio, os formulários precisam dos limites do contrato (`pattern`, `maxLength` e obrigatórios, como o código de 60 caracteres, o nome de 120, o título de 200, a descrição de 5000, até 100 opções e o padrão do SKU). Os formulários ainda não existem e devem nascer com a saída: derivar os `Validators` do schema gerado, com o plugin `@hey-api/schemas` no codegen de `admin/data-access` e um utilitário em `libs/shared/web-util`, e as features passando os limites aos componentes de `admin/ui`. Se um formulário vier antes dela, a cópia entra marcada como pendente (ver [Valores fixos](#valores-fixos-com-saída-pendente)). O 400 e o 422 continuam sendo a palavra final: os `errors` (`field`, `message`) vão para os campos e as mensagens de `reasonDetails` para o alerta do formulário.
+- Para avisar antes do envio, os formulários precisam dos limites do contrato (`pattern`, `maxLength` e obrigatórios, como o código de 60 caracteres, o nome de 120, o título de 200, a descrição de 5000, até 100 opções e o padrão do SKU). Os formulários leem esses limites do schema gerado pelo plugin `@hey-api/schemas` no codegen de `admin/data-access`, com `fieldRules` de `libs/shared/web-util`, e as features passam os limites aos componentes de `admin/ui`; nenhum formulário copia um limite. O 400 e o 422 continuam sendo a palavra final: os `errors` (`field`, `message`) vão para os campos e as mensagens de `reasonDetails` para o alerta do formulário.
 - Os atributos do produto e do SKU são montados pelo tipo do atributo efetivo da categoria: `TEXT` vira campo de texto, `INTEGER` e `DECIMAL` viram campos numéricos, `BOOLEAN` vira switch e `OPTION` vira select. O atributo `variant` vai para o SKU.
 - O botão de salvar mostra spinner e fica desabilitado durante o envio, para não repetir a chamada.
 
@@ -354,9 +354,9 @@ Histórico
   07/11 09:02   Concluída   800 linhas   3 falhas   >
 ```
 
-- **Modelo CSV:** o botão **Baixar modelo CSV** chama `GET /products/imports/template` (`text/csv`), gerado de `ProductCsv.COLUMNS` com uma linha de exemplo; o endpoint está pendente. Se a tela vier antes dele, o painel monta o modelo com o cabeçalho exato da ADR 016, cópia de `ProductCsv.COLUMNS` marcada como pendente.
+- **Modelo CSV:** o botão **Baixar modelo CSV** chama `GET /products/imports/template` (`text/csv`), gerado de `ProductCsv.COLUMNS` com uma linha de exemplo; o endpoint está pendente. Até lá, o painel monta o modelo com o cabeçalho exato da ADR 016 (`TEMPLATE_COLUMNS`), cópia de `ProductCsv.COLUMNS` marcada como pendente.
 - **Envio:** `POST /products/imports` (`text/csv`). Os limites de 1 MB e 5000 linhas (`quarkus.http.limits.max-body-size` e `catalog.imports.max-rows`) ficam no servidor. A conferência antes de subir espera `importMaxBytes` e `importMaxRows` de `GET /settings`, pendente; até lá, a tela envia o arquivo e mostra a recusa do servidor, sem copiar os números. Uma recusa 400 `invalid-import-file` mostra a mensagem de cada motivo em `reasonDetails` (coluna que falta, linhas demais, com o máximo vigente, e outros).
-- **Andamento:** o painel consulta `GET /products/imports/{id}` enquanto o status for `PENDING` ou `PROCESSING` e para em qualquer outro, que conta como terminal. O intervalo deve seguir o `Retry-After` dessa resposta, pendente; até lá, a tela usa um intervalo próprio (2 segundos), preferência de interface marcada como pendente. A barra usa `processedLines` e `totalLines`.
+- **Andamento:** o painel consulta `GET /products/imports/{id}?lines=false` (situação e contagens, sem as linhas) enquanto o status for `PENDING` ou `PROCESSING` e para em qualquer outro, que conta como terminal; as linhas são lidas uma vez, com o lote terminado. O intervalo segue o `Retry-After` da resposta quando ele vier, o que o servidor ainda não manda (pendente); até lá, a tela usa um intervalo próprio (2 segundos), marcado como pendente. A barra usa `processedLines` e `totalLines`.
 - **Resultado:** lista as linhas por `lineNumber`, `sellerSku`, `outcome` e `message`, com o filtro **Só falhas**, e a linha criada leva ao produto (`productId`). A linha recusada por regra de negócio traz também `reasonDetails`, um item por motivo, que o painel mostra como lista; o `code` da linha serve só ao filtro e nunca aparece cru.
 - **Histórico:** `GET /products/imports`, com os lotes da loja do mais recente ao mais antigo e cursor, e a rota `/loja/importacoes/:id` pode ser salva.
 
@@ -389,7 +389,7 @@ Callout com o status de `GET /stores/{storeId}/eligibility`. O front guarda só 
 - **Ações:** cada item da fila traz `actions` com Aprovar, Rejeitar e Bloquear. Enquanto a loja não está aprovada, Aprovar vem em `blockedActions` com `seller-not-eligible` e aparece desabilitado com a mensagem do servidor; no detalhe, uma pendência de publicação barra antes com `product-not-publishable`. O painel não decide isso pelo status da loja.
 - **Em lote:** cada item da fila tem caixa de seleção, e a barra oferece Aprovar, Rejeitar e Bloquear para os marcados que trazem a ação em `actions` (ver [Seleção e operações em lote](#seleção-e-operações-em-lote)). As recusas de cada item aparecem no alerta do resultado, com a mensagem do servidor, e esses itens continuam na fila.
 - **Aprovar** (`POST .../approve`) não pede confirmação. O toast confirma e o próximo item abre sozinho. Uma recusa aparece no alerta do detalhe.
-- **Rejeitar** e **Bloquear** abrem um modal com os motivos prontos que valem para a decisão (marcar um ou mais) e um complemento livre (`note`), com o contador do limite dele. O limite (500) é o `maxLength` de `note` no contrato; o modal deve nascer lendo-o do schema gerado (saída pendente) e, se vier antes dela, copia o número com a marca de pendente. Rejeitar devolve ao rascunho, e bloquear tira da vitrine na hora, com o texto do efeito no modal. Sem motivo marcado, o complemento é obrigatório.
+- **Rejeitar** e **Bloquear** abrem um modal com os motivos prontos que valem para a decisão (marcar um ou mais) e um complemento livre (`note`), com o contador do limite dele. O limite (500) é o `maxLength` de `note` no contrato, que o modal lê do schema gerado (`fieldRules`). Rejeitar devolve ao rascunho, e bloquear tira da vitrine na hora, com o texto do efeito no modal. Sem motivo marcado, o complemento é obrigatório.
 
 ```text
 Rejeitar "Camiseta Basic"
@@ -470,13 +470,13 @@ Todos existem no contrato (`contracts/catalog-inventory/openapi.json`):
 | Tela | Endpoints |
 |---|---|
 | Sessão, menu e rotas | `GET /me` |
-| Início | `GET /stats/store`, `/stats/moderation` e `/stats/categories`, `GET /products?sort=-updatedAt` |
+| Início | `GET /stats/store`, `/stats/moderation` e `/stats/categories`, `GET /products?sort=-updatedAt` e `GET /categories?ids=` (nomes das categorias da tabela) |
 | Produtos da loja, Produtos de todas as lojas | `GET /products` com `status`, `q`, `sort`, `storeId`, `limit` e `cursor`; `POST /products/batch` |
-| Produto | `GET`, `PUT` e `DELETE /products/{id}`, `POST /products/{id}/submit`, `/pause` e `/resume`, `POST /products/{id}/check`, `GET /products/{id}/history`, `POST /products/{id}/skus`, `PUT` e `DELETE /products/{id}/skus/{skuId}` |
+| Produto | `GET`, `PUT` e `DELETE /products/{id}`, `POST /products/{id}/submit`, `/pause` e `/resume`, `POST /products/{id}/check`, `GET /products/{id}/history`, `POST /products/{id}/skus`, `PUT` e `DELETE /products/{id}/skus/{skuId}`; `GET /categories/tree?usable=true` e `GET /categories/{id}` para escolher a categoria e montar os atributos |
 | Painel do SKU | `GET` e `PUT /offers/{skuId}`, `POST /offers/{skuId}/promotions`, `DELETE /offers/{skuId}/promotions/{promotionId}`, `GET` e `PUT /inventory/skus/{skuId}` |
-| Importações | `POST` e `GET /products/imports`, `GET /products/imports/{id}` |
+| Importações | `POST` e `GET /products/imports`, `GET /products/imports/{id}` (com `lines=false` no andamento) |
 | Situação da loja | `GET /stores/{storeId}/eligibility` |
-| Fila de moderação | `GET /moderation/products`, `POST /moderation/products/{id}/approve`, `/reject`, `/block` e `/unblock`, `POST /moderation/products/batch`, `GET /moderation/reasons?decision=` |
+| Fila de moderação | `GET /moderation/products`, `POST /moderation/products/{id}/approve`, `/reject`, `/block` e `/unblock`, `POST /moderation/products/batch`, `GET /moderation/reasons?decision=`, `GET /stats/moderation/queue` (badge do menu) |
 | Categorias | `GET /categories`, `/categories/tree` e `/categories/{id}`, `POST /categories`, `PUT` e `DELETE /categories/{id}`, `PUT /categories/{id}/parent`, `POST /categories/batch` |
 | Motivos de moderação | `GET /moderation/reasons?includeInactive=true`, `GET /moderation/reasons/{code}`, `POST /moderation/reasons`, `PUT /moderation/reasons/{code}`, `POST /moderation/reasons/{code}/activate` e `/deactivate` |
 
@@ -495,17 +495,18 @@ Esta proposta não aceita repetir no painel uma regra, um catálogo ou um númer
 | Indicadores da página inicial | Campos fixos de `StoreStatsResponse` e `ModerationStatsResponse`, no servidor | Lista `indicators` com `code`, `label`, `value`, `previous`, `change` e `months`, com o painel mapeando `code` para ícone e cor |
 | Issuer, `clientId` e scope do login | `auth.config.ts`, um build por ambiente (ADR 027) | `/config.json` gerado na entrada do contêiner a partir dos values do Helm e lido antes do login |
 | Tamanho máximo da busca (100) | `SEARCH_MAX_LENGTH` em `admin/feature-products`, cópia do `maxLength` do parâmetro `q` de `GET /products` | `maxLength` do parâmetro `q` no schema gerado |
+| Um card por campo dos indicadores | `home-indicators.ts` em `admin/feature-products`, para `/stats/store`, `/stats/moderation` e `/stats/categories` | Lista `indicators`, como acima |
+| Intervalo da consulta do andamento (2 segundos) | `POLL_INTERVAL_MS` em `admin/feature-imports`, usado enquanto a resposta não traz `Retry-After` | `Retry-After` em `GET /products/imports/{id}` enquanto o lote está em andamento |
+| Cabeçalho do modelo CSV | `TEMPLATE_COLUMNS` em `admin/feature-imports`, cópia de `ProductCsv.COLUMNS` | `GET /products/imports/template` (`text/csv`) |
+| Excluir só a categoria sem subcategorias (`childCount` zero) | `category-model.ts` em `admin/feature-categories`, no botão de cada categoria; o lote manda todas as marcadas, e o servidor recusa item a item; `category-has-products` fica com o servidor | Campo `deletable` calculado pelo servidor na resposta da categoria |
 
-**Previstos nas telas que ainda não existem.** Importação, categorias, moderação, os formulários e os cards da página inicial ainda são telas provisórias e não copiam nenhum destes valores. Cada tela deve nascer já com a saída; se for feita antes dela, a cópia entra com a marca de pendente e a saída nomeada, e o servidor continua decidindo com o 400 e o 422:
+**Sem cópia no painel.** A importação não confere o arquivo antes do envio: manda a planilha e mostra a recusa do servidor (400 `invalid-import-file`), sem copiar os números. A conferência antes do envio espera a saída:
 
 | Valor | Tela | Saída |
 |---|---|---|
-| Limites dos formulários (`pattern`, `maxLength`, obrigatórios) e o contador de 500 do complemento da moderação | Formulários de produto, SKU, categoria e motivo; modal de rejeitar e bloquear | `Validators` derivados do schema gerado por um utilitário em `libs/shared/web-util`, com as features passando os limites a `admin/ui` |
-| 1 MB e 5000 linhas por planilha, para conferir antes do envio | Importação; sem a saída, ela só mostra a recusa do servidor | `importMaxBytes` e `importMaxRows` em `GET /settings` |
-| Intervalo da consulta do andamento (2 segundos) | Importação | `Retry-After` em `GET /products/imports/{id}` enquanto o lote está em andamento |
-| Cabeçalho do modelo CSV, cópia de `ProductCsv.COLUMNS` | Importação | `GET /products/imports/template` (`text/csv`) |
-| Um card por campo dos indicadores | Página inicial | Lista `indicators`, como acima |
-| Excluir só a categoria sem subcategorias (`childCount` zero) | Categorias, no botão de cada categoria; o lote manda todas as marcadas, e o servidor recusa item a item; `category-has-products` fica com o servidor | Campo `deletable` calculado pelo servidor na resposta da categoria |
+| 1 MB e 5000 linhas por planilha | Importação | `importMaxBytes` e `importMaxRows` em `GET /settings` |
+
+Os limites dos formulários (`pattern`, `maxLength`, obrigatórios e o contador de 500 do complemento da moderação) e o tamanho de cada chamada em lote já saem do schema gerado (`fieldRules`); o `BATCH_LIMIT` de `libs/shared/web-util` ficou só como padrão de `chunk`, ainda marcado como cópia pendente.
 
 Ficam no painel de propósito, sem saída: os rótulos e as cores dos status, a apresentação de cada ação (rótulo, ícone, ordem, confirmação, toast e cor), os códigos técnicos de protocolo do aviso de conflito e do erro de rede, as rotas em português, os ícones, o atraso do toast, o locale `pt-BR`, o prefixo `/api/catalog-inventory` e os tamanhos de página 20 e 50.
 
