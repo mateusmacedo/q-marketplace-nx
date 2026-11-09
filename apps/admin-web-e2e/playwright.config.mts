@@ -19,6 +19,10 @@ const baseURL = process.env['BASE_URL'] || getReadyUrl('http://localhost:4200');
  */
 export default defineConfig({
   ...nxE2EPreset(import.meta.dirname, { testDir: './src' }),
+  globalSetup: './src/support/global-setup.ts',
+  // WHY: o padrão abre um Chromium por metade dos núcleos, ao lado da stack, do dev server e do editor, e esgota a
+  // memória do host (README, "Memória do host"). Os testes aguentam paralelo: E2E_WORKERS sobe o número.
+  workers: isCI ? undefined : Number(process.env['E2E_WORKERS'] ?? 1),
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     baseURL,
@@ -34,8 +38,14 @@ export default defineConfig({
   // Só o Chromium, o mesmo navegador dos testes unitários; Firefox e WebKit entram quando houver motivo.
   projects: [
     {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts$/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
     },
   ],
 });
