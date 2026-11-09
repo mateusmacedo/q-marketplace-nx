@@ -24,8 +24,13 @@ public record Page<T>(List<T> items, Optional<String> nextCursor) {
      * {@link #MAX_SIZE}.
      */
     public static void requireSize(int limit) {
-        if (limit < 1 || limit > MAX_SIZE)
-            throw new InvalidInputException("limit deve estar entre 1 e " + MAX_SIZE);
+        requireSize(limit, MAX_SIZE);
+    }
+
+    /** Como {@link #requireSize(int)}, com o máximo {@code maxSize} da listagem que pagina diferente. */
+    static void requireSize(int limit, int maxSize) {
+        if (limit < 1 || limit > maxSize)
+            throw new InvalidInputException("limit deve estar entre 1 e " + maxSize);
     }
 
     /**
@@ -35,8 +40,14 @@ public record Page<T>(List<T> items, Optional<String> nextCursor) {
      * do {@code Uni}.
      */
     static <T> Uni<Page<T>> fetch(int limit, IntFunction<Uni<List<T>>> search, Function<T, String> key) {
+        return fetch(limit, MAX_SIZE, search, key);
+    }
+
+    /** Como {@link #fetch(int, IntFunction, Function)}, com {@code limit} de 1 a {@code maxSize}. */
+    static <T> Uni<Page<T>> fetch(int limit, int maxSize, IntFunction<Uni<List<T>>> search,
+            Function<T, String> key) {
         return Uni.createFrom().deferred(() -> {
-            requireSize(limit);
+            requireSize(limit, maxSize);
             return search.apply(limit + 1).map(found -> of(found, limit, key));
         });
     }

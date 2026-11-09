@@ -11,10 +11,30 @@ public interface ProductImportRepository {
     record Claimed(ProductImport job, String content) {
     }
 
+    /** Lote com as contagens, por desfecho, das linhas que já têm resultado. */
+    record Summary(ProductImport job, int created, int updated, int unchanged, int failed) {
+        public int processedLines() {
+            return created + updated + unchanged + failed;
+        }
+    }
+
+    /** Posição do cursor da lista de lotes: criação e id do último visto. */
+    record Position(Instant createdAt, UUID id) {
+    }
+
     Uni<Void> insert(ProductImport job, String content);
 
     /** Vazio quando o lote não existe ou é de outra loja ou tenant. */
     Uni<Optional<ProductImport>> findImport(UUID tenantId, UUID storeId, UUID id);
+
+    /**
+     * Lote com as contagens gravadas junto dele, sem ler o resultado de cada linha; vazio como em
+     * {@link #findImport}.
+     */
+    Uni<Optional<Summary>> findSummary(UUID tenantId, UUID storeId, UUID id);
+
+    /** Lotes da loja, do mais recente ao mais antigo, depois de {@code after} (exclusivo), até {@code limit}. */
+    Uni<List<Summary>> list(UUID tenantId, UUID storeId, Optional<Position> after, int limit);
 
     /** Resultados já gravados, em ordem de linha. */
     Uni<List<ImportResult>> results(UUID importId);

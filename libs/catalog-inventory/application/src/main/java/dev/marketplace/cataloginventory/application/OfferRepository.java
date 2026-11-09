@@ -2,7 +2,9 @@ package dev.marketplace.cataloginventory.application;
 
 import dev.marketplace.cataloginventory.domain.offer.Offer;
 import io.smallrye.mutiny.Uni;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,6 +24,13 @@ public interface OfferRepository {
      * aparece, e a lista é vazia quando nenhum tem.
      */
     Uni<List<Offer>> ofProduct(UUID tenantId, UUID productId);
+
+    /**
+     * Ofertas dos SKUs informados, com as promoções, indexadas pelo SKU; SKU
+     * sem oferta no tenant fica fora do mapa, e coleção vazia resulta em mapa
+     * vazio.
+     */
+    Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds);
 
     /** Falha com {@link DuplicateException} quando o SKU já tem oferta. */
     Uni<Void> insert(Offer offer);

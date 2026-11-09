@@ -1,5 +1,6 @@
 package dev.marketplace.cataloginventory.application;
 
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.application.ImportResult.ImportOutcome;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.product.Product;
@@ -152,6 +153,20 @@ class ProductImportServiceTest {
         assertEquals(List.of(ProductImportService.INVALID_ROW, ProductImportService.GROUP_REJECTED),
                 report.lines().subList(0, 2).stream().map(ImportResult::code).toList());
         assertEquals(ProductImportService.DUPLICATE_SELLER_SKU, report.lines().get(3).code());
+        assertEquals(List.of(new Reason("invalid-row", List.of(), "on_hand: número inteiro inválido")),
+                report.lines().get(0).reasons());
+        assertEquals(List.of(), report.lines().get(1).reasons());
+    }
+
+    @Test
+    void refusedLineCarriesTheReasonsInsteadOfRawCodesInTheMessage() {
+        var report = importing(row(2, "camiseta", "CAM-X", "XG", "50", 1));
+        ImportResult line = report.lines().getFirst();
+        assertEquals("invalid-attributes", line.code());
+        assertEquals("Atributos inválidos para a categoria", line.message());
+        assertEquals(List.of("invalid-attribute:CAM-X:tamanho"), line.reasons().stream().map(Reason::key).toList());
+        assertEquals("O valor de Tamanho no SKU CAM-X não é aceito pela categoria.",
+                line.reasons().getFirst().message());
     }
 
     @Test
@@ -174,9 +189,36 @@ class ProductImportServiceTest {
     }
 
     @Test
+    void listsStoreImportsNewestFirstWithCountsByCursor() {
+        var done = importing(row(2, "camiseta", "CAM-P", "P", "50", 5),
+                row(3, "regata", "nao-existe", "Regata", "REG-P", "P", "30", 1));
+        catalog.clock.advance(Duration.ofMinutes(1));
+        ProductImport pending = item(imports.submit(seller, "conteúdo", 4));
+        catalog.clock.advance(Duration.ofMinutes(1));
+        ProductImport newest = item(imports.submit(seller, "conteúdo", 2));
+        item(imports.submit(seller(UUID.randomUUID()), "conteúdo", 1));
+
+        Page<ProductImportRepository.Summary> first = item(imports.list(seller, Optional.empty(), 2));
+        assertEquals(List.of(newest.id(), pending.id()), first.items().stream().map(s -> s.job().id()).toList());
+        Page<ProductImportRepository.Summary> second = item(imports.list(seller, first.nextCursor(), 2));
+        assertTrue(second.nextCursor().isEmpty());
+        ProductImportRepository.Summary completed = second.items().getFirst();
+        assertEquals(done.job().id(), completed.job().id());
+        assertEquals(1, completed.created());
+        assertEquals(1, completed.failed());
+        assertEquals(2, completed.processedLines());
+        assertEquals(0, first.items().getLast().processedLines());
+        assertEquals(completed, item(imports.summary(seller, done.job().id())));
+        failure(imports.list(seller, Optional.of("x|y"), 2), InvalidInputException.class);
+        failure(imports.list(moderator(), Optional.empty(), 2), AccessDeniedException.class);
+    }
+
+    @Test
     void onlyTheSubmittingStoreSeesTheImport() {
         ProductImport job = item(imports.submit(seller, "conteúdo", 1));
         failure(imports.get(seller(UUID.randomUUID()), job.id()), NotFoundException.class);
+        failure(imports.summary(seller(UUID.randomUUID()), job.id()), NotFoundException.class);
+        failure(imports.summary(moderator(), job.id()), AccessDeniedException.class);
         failure(imports.submit(moderator(), "conteúdo", 1), AccessDeniedException.class);
         assertEquals(ProductImport.ImportStatus.PENDING, item(imports.get(seller, job.id())).job().status());
     }

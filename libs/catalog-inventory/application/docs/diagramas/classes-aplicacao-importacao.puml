@@ -44,9 +44,11 @@ package "$I_CSV Importação de produtos" as importacao <<aplicacao>> {
     code : String
     message : String
     productId : UUID
+    reasons : List<Reason>
     --
     ~{static} succeeded(row, outcome, productId) : ImportResult
     ~{static} failed(row, productId, code, message) : ImportResult
+    ~{static} failed(row, productId, code, message, reasons) : ImportResult
   }
   enum "ImportResult.ImportOutcome" as ImportOutcome {
     CREATED

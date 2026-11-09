@@ -24,9 +24,13 @@ package "$I_SEGURANCA Identidade e permissões" as identidade <<aplicacao>> {
     --
     can(capability) : boolean
     canReadTenantCatalog() : boolean
+    permissions() : Permissions
     ownsStore(store) : boolean
     require(capability)
     requireStore() : UUID
+  }
+  class "Actor.Permissions" as Permissions <<record>> {
+    readTenantCatalog : boolean
   }
   enum Capability {
     MANAGE_OWN_PRODUCTS
@@ -35,6 +39,26 @@ package "$I_SEGURANCA Identidade e permissões" as identidade <<aplicacao>> {
     READ_TENANT_CATALOG
     READ_SELLER_ELIGIBILITY
     MANAGE_RESERVATIONS
+    MANAGE_MODERATION_REASONS
+  }
+  enum ApplicationReasons {
+    INVALID_ROW
+    IDEMPOTENCY_KEY_REUSED
+    RESERVATION_EXPIRED
+    RESERVATION_NOT_ACTIVE
+    RESERVATION_LIFETIME_EXCEEDED
+    MODERATION_REASON_LIMIT
+    MODERATION_REASON_CATALOG_LIMIT
+  }
+  class ModerationReasonEntry <<record>> {
+    tenantId : UUID
+    definition : ModerationReasonDefinition
+    position : int
+    version : long
+    createdAt : Instant
+    updatedAt : Instant
+    {static} MAX_POSITION = 9999
+    code() : String
   }
 }
 
@@ -76,6 +100,10 @@ package "$I_SERVICO Comandos, views e resultados aninhados nos casos de uso" as 
     variantAttributes : Map<String, String>
     physical : boolean
     dimensions : Dimensions
+  }
+  class "ProductService.ProductCheck" as ProductCheck <<record>> {
+    publishingIssues : List<PublishingIssue>
+    categoryChange : Optional<CategoryChange>
   }
   class CategoryService <<final>> <<serviço>>
   class "CategoryService.CategoryView" as CategoryView <<record>> {
@@ -154,6 +182,7 @@ Versions ..> VersionMismatchException : requireMatch
 SellerVerdict +-- VerdictOutcome
 
 ProductService +-- NewSku
+ProductService +-- ProductCheck
 CategoryService +-- CategoryView
 OfferService +-- Defined
 StorefrontService +-- StorefrontProduct

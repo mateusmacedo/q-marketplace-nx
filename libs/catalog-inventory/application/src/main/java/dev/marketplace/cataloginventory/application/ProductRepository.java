@@ -1,9 +1,9 @@
 package dev.marketplace.cataloginventory.application;
 
 import dev.marketplace.cataloginventory.domain.product.Product;
-import dev.marketplace.cataloginventory.domain.product.ProductStatus;
 import dev.marketplace.cataloginventory.domain.product.StatusChange;
 import io.smallrye.mutiny.Uni;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -30,14 +30,29 @@ public interface ProductRepository {
      */
     Uni<Map<String, UUID>> skuIdsBySellerSku(UUID tenantId, UUID storeId, Collection<String> sellerSkus);
 
+    /** Último item visto na fila de moderação: entrada na fila e id, que desempata. */
+    record QueuePosition(Instant queuedAt, UUID id) {
+    }
+
     /**
-     * Produtos do tenant em ordem de id, filtrados por loja e estado quando
-     * informados. {@code afterId} é o cursor (exclusivo) e {@code limit} o
-     * máximo de itens devolvidos; os casos de uso pedem um a mais para saber se
-     * há próxima página.
+     * Até {@code limit} produtos do tenant em {@code PENDING_MODERATION}, do
+     * que entrou na fila há mais tempo para o mais recente, com o id como
+     * desempate, depois de {@code after} (exclusivo).
      */
-    Uni<List<Product>> find(UUID tenantId, Optional<UUID> storeId, Optional<ProductStatus> status,
-            Optional<String> afterId, int limit);
+    Uni<List<Product>> moderationQueue(UUID tenantId, Optional<QueuePosition> after, int limit);
+
+    /**
+     * Até {@code limit} produtos do tenant que atendem {@code query}, na ordem
+     * dela, depois da posição (exclusiva). O texto casa como trecho do título
+     * normalizado ou do código do seller de um SKU; o estado é o efetivo.
+     */
+    Uni<List<Product>> search(UUID tenantId, ProductQuery query, int limit);
+
+    /**
+     * Última mudança de estado de cada produto informado; produto sem histórico
+     * no tenant fica fora do mapa, e coleção vazia resulta em mapa vazio.
+     */
+    Uni<Map<UUID, StatusChange>> lastChanges(UUID tenantId, Collection<UUID> productIds);
 
     /**
      * Grava o produto novo com SKUs, saldo zerado por SKU, histórico e eventos na

@@ -24,6 +24,12 @@ package "<$box,scale=0.8,color=#1565C0> ProductService" as ProductService <<apli
   usecase "Retomar produto\n(resume)" as UC_resume
   usecase "Arquivar produto\n(archive)" as UC_archive
   usecase "Devolver produto publicado\nà moderação\n(REVIEW_REQUIRED)" as UC_review
+  usecase "Conferir rascunho sem gravar\n(check)" as UC_check <<leitura>>
+  usecase "Calcular pendências de publicação\n(publishingIssues)" as UC_issues <<leitura>>
+}
+
+package "$I_SERVICO ProductActions" as ProductActionsUC <<aplicacao>> {
+  usecase "Calcular ações do chamador\n(eligibility + of)" as UC_actions <<leitura>>
 }
 
 package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
@@ -42,6 +48,7 @@ seller --> UC_submit
 seller --> UC_pause
 seller --> UC_resume
 seller --> UC_archive
+seller --> UC_check
 
 moderator --> UC_get
 moderator --> UC_list
@@ -63,6 +70,9 @@ UC_pause ..> UC_stockOf : <<include>>
 UC_resume ..> UC_stockOf : <<include>>
 UC_archive ..> UC_stockOf : <<include>>
 
+UC_get ..> UC_actions : <<include>>
+UC_list ..> UC_actions : <<include>>
+UC_get ..> UC_issues : <<include>>
 UC_review ..> UC_reviseContent : <<extend>>
 UC_review ..> UC_addSku : <<extend>>
 UC_review ..> UC_reviseSku : <<extend>>
@@ -167,6 +177,20 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     Em DRAFT e PENDING_MODERATION só atualiza o
     produto.
   end note
+  note as N_check
+    **check**
+    Mesmo alcance de reviseContent (outra loja: <color:#C62828>404</color>;
+    BLOCKED ou ARCHIVED: <color:#C62828>invalid-transition</color>).
+    Devolve as pendências do rascunho e, com outra
+    categoria, o efeito da troca. Não grava nada.
+  end note
+  note as N_actions
+    **ProductActions**
+    Ações do chamador por status, edição, capacidade e
+    KYB/KYC da loja, lido numa consulta por página.
+    Barrada com motivo: RESUME e APPROVE (loja), SUBMIT
+    e APPROVE (pendências), ADD_SKU e REMOVE_SKU.
+  end note
   note as N_stockOf
     **stockOf**
     Sem ator: ProductResponses, no adaptador REST,
@@ -187,7 +211,9 @@ N_submit -[hidden]left-> N_pause
 N_pause -[hidden]left-> N_resume
 N_resume -[hidden]left-> N_archive
 N_archive -[hidden]left-> N_review
-N_review -[hidden]left-> N_stockOf
+N_review -[hidden]left-> N_check
+N_check -[hidden]left-> N_actions
+N_actions -[hidden]left-> N_stockOf
 legend right
   <b>Como ler</b>
   <back:#F9A825>    </back> Ator humano ou cliente autenticado

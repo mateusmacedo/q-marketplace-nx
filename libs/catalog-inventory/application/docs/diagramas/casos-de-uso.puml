@@ -40,6 +40,10 @@ package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
   usecase "Bloquear produto\n(block)" as UC_mod_block
   usecase "Desbloquear produto\n(unblock)" as UC_mod_unblock
 }
+package "$I_MODERACAO ModerationReasonService" as ModerationReasonService <<aplicacao>> {
+  usecase "Listar motivos do tenant\n(list)" as UC_reason_list <<leitura>>
+  usecase "Manter motivos\n(create, revise,\nactivate, deactivate)" as UC_reason_manage
+}
 package "$I_OFERTA OfferService" as OfferService <<aplicacao>> {
   usecase "Consultar oferta do SKU\n(get)" as UC_offer_get <<leitura>>
   usecase "Definir oferta ou trocar preço\n(define)" as UC_offer_define
@@ -113,6 +117,7 @@ moderator -[#AD1457]-> UC_mod_approve
 moderator -[#AD1457]-> UC_mod_reject
 moderator -[#AD1457]-> UC_mod_block
 moderator -[#AD1457]-> UC_mod_unblock
+moderator -[#AD1457]-> UC_reason_list
 moderator -[#AD1457]-> UC_offer_get
 moderator -[#AD1457]-> UC_inv_get
 moderator -[#AD1457]-> UC_cat_get
@@ -129,6 +134,8 @@ admin -[#00897B]-> UC_cat_revise
 admin -[#00897B]-> UC_cat_move
 admin -[#00897B]-> UC_cat_children
 admin -[#00897B]-> UC_elig_get
+admin -[#00897B]-> UC_reason_list
+admin -[#00897B]-> UC_reason_manage
 
 buyer -[#EF6C00]-> UC_store_get
 checkout -[#6D4C41]-> UC_res_reserve

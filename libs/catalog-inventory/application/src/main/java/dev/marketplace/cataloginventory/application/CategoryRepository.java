@@ -2,7 +2,9 @@ package dev.marketplace.cataloginventory.application;
 
 import dev.marketplace.cataloginventory.domain.category.Category;
 import io.smallrye.mutiny.Uni;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -31,6 +33,25 @@ public interface CategoryRepository {
      */
     Uni<List<Category>> children(UUID tenantId, Optional<UUID> parentId, Optional<String> afterCode, int limit);
 
+    /** Número de subcategorias diretas de cada categoria pedida; a que não tem nenhuma fica fora do mapa. */
+    Uni<Map<UUID, Integer>> childCounts(UUID tenantId, Collection<UUID> categoryIds);
+
+    /** Tamanho do caminho de cada categoria pedida, 0 na raiz; a que não existe no tenant fica fora do mapa. */
+    Uni<Map<UUID, Integer>> depths(UUID tenantId, Collection<UUID> categoryIds);
+
+    /**
+     * Categorias do tenant na ordem da árvore: o pai antes das subcategorias e os irmãos em ordem de código,
+     * inclusive as inativas, salvo com {@code usableOnly}. {@code afterPath} é o cursor (exclusivo), a
+     * {@link CategoryNode#pathKey} do último visto, e {@code limit} o máximo de itens.
+     */
+    Uni<List<CategoryNode>> tree(UUID tenantId, Optional<String> afterPath, boolean usableOnly, int limit);
+
+    /**
+     * Categorias pedidas, em ordem de código, com o caminho e o número de subcategorias diretas de cada uma; a que
+     * não existe no tenant fica de fora.
+     */
+    Uni<List<CategoryNode>> byIds(UUID tenantId, Collection<UUID> categoryIds);
+
     /**
      * Falha com {@link DuplicateException} quando o código já existe no tenant e
      * com {@link ConcurrentUpdateException} quando o caminho do pai mudou.
@@ -49,4 +70,12 @@ public interface CategoryRepository {
      * o caminho gravados divergem de {@code expectedVersion} e {@code previousAncestry} ou o do novo pai mudou.
      */
     Uni<Void> move(Category category, List<UUID> previousAncestry, long expectedVersion);
+
+    /**
+     * Exclui a categoria. Falha com {@link ConcurrentUpdateException} quando ela já não existe ou a versão gravada
+     * não é {@code expectedVersion}, e com
+     * {@link dev.marketplace.cataloginventory.domain.category.CategoryNotEmptyException} quando ela tem
+     * subcategoria ou produto, inclusive arquivado, mesmo que gravados depois da leitura.
+     */
+    Uni<Void> delete(Category category, long expectedVersion);
 }

@@ -1,16 +1,24 @@
 package dev.marketplace.cataloginventory.application;
 
+import dev.marketplace.cataloginventory.application.CategoryService.CategoryView;
+import dev.marketplace.cataloginventory.domain.offer.Offer;
+import dev.marketplace.cataloginventory.domain.product.CategoryChange;
 import dev.marketplace.cataloginventory.domain.product.Dimensions;
 import dev.marketplace.cataloginventory.domain.product.Product;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
+import dev.marketplace.cataloginventory.domain.product.ProductTransition;
+import dev.marketplace.cataloginventory.domain.product.PublishingIssue;
 import dev.marketplace.cataloginventory.domain.product.Sku;
 import dev.marketplace.cataloginventory.domain.product.StatusChange;
 import io.smallrye.mutiny.Uni;
 import java.time.Clock;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import static dev.marketplace.cataloginventory.application.ProductSupport.sync;
 
 /**
@@ -20,6 +28,13 @@ import static dev.marketplace.cataloginventory.application.ProductSupport.sync;
 public final class ProductService {
     public record NewSku(String sellerSku, Map<String, String> variantAttributes, boolean physical,
             Dimensions dimensions) {
+    }
+
+    /** Pendências do rascunho e, quando a categoria muda, o efeito da troca. */
+    public record ProductCheck(List<PublishingIssue> publishingIssues, Optional<CategoryChange> categoryChange) {
+        public ProductCheck {
+            publishingIssues = List.copyOf(publishingIssues);
+        }
     }
 
     private final ProductSupport support;
@@ -61,20 +76,72 @@ public final class ProductService {
     }
 
     /**
-     * Lista produtos por cursor ({@code afterId}: último id visto), em ordem de
-     * id. Leitor do catálogo ou moderador vê todas as lojas e filtra por
-     * {@code storeFilter}; o seller (exige {@code MANAGE_OWN_PRODUCTS}) vê só a
-     * própria. {@code limit} fora de 1 a 100 ou filtro {@code OUT_OF_STOCK},
-     * estado derivado do saldo que não é gravado: {@link InvalidInputException}.
+     * Lista na ordem {@code sort} após o cursor da mesma consulta
+     * ({@link ProductQuery}).
+     * Quem lê o catálogo do tenant filtra por {@code storeFilter}; o seller vê só a
+     * própria loja. Texto longo, cursor de outra consulta ou {@code limit} fora
+     * de 1 a 100: {@link InvalidInputException}.
      */
     public Uni<Page<Product>> list(Actor actor, Optional<ProductStatus> status, Optional<UUID> storeFilter,
-            Optional<String> afterId, int limit) {
-        return Page.fetch(limit, fetchLimit -> {
-            if (status.filter(ProductStatus.OUT_OF_STOCK::equals).isPresent())
-                throw new InvalidInputException("OUT_OF_STOCK é derivado do saldo; filtre por ACTIVE e leia o status");
-            return support.products().find(actor.tenantId(), ProductAccess.listScope(actor, storeFilter), status,
-                    afterId, fetchLimit);
-        }, product -> product.id().toString());
+            Optional<String> text, ProductSort sort, Optional<String> cursorKey, int limit) {
+        return Uni.createFrom().deferred(() -> {
+            ProductQuery query = ProductQuery.of(ProductAccess.listScope(actor, storeFilter), status, text, sort);
+            ProductQuery positioned = query.after(cursorKey);
+            return Page.fetch(limit, fetchLimit -> support.products().search(actor.tenantId(), positioned, fetchLimit),
+                    query::cursorOf);
+        });
+    }
+
+    /**
+     * Última rejeição dos produtos já autorizados para o chamador que estão em
+     * {@code DRAFT} porque a moderação os devolveu, por produto, numa consulta
+     * para todos; os demais ficam fora do mapa.
+     */
+    public Uni<Map<UUID, StatusChange>> lastRejections(Collection<Product> products) {
+        List<UUID> drafts = products.stream().filter(p -> p.status() == ProductStatus.DRAFT).map(Product::id)
+                .toList();
+        if (drafts.isEmpty())
+            return Uni.createFrom().item(Map.of());
+        return support.products().lastChanges(products.iterator().next().tenantId(), drafts)
+                .map(changes -> changes.entrySet().stream()
+                        .filter(e -> e.getValue().transition() == ProductTransition.REJECT)
+                        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue)));
+    }
+
+    /**
+     * Pendências de publicação do produto já autorizado para o chamador, com a
+     * categoria atual e os SKUs de {@code offeredSkus} com oferta; vazio onde a
+     * edição não vale ({@code BLOCKED} e {@code ARCHIVED}).
+     */
+    public Uni<Optional<List<PublishingIssue>>> publishingIssues(Product product, Set<UUID> offeredSkus) {
+        if (!product.acceptsEdit())
+            return Uni.createFrom().item(Optional.empty());
+        return support.categoryOf(product).map(view -> Optional
+                .of(product.publishingIssues(view.effectiveAttributes(), view.usable(), offeredSkus)));
+    }
+
+    /**
+     * Avalia o rascunho do conteúdo sem gravar nada: pendências com a categoria
+     * e os atributos dele e, se a categoria muda, o efeito da troca. Alcance da
+     * edição: só o seller dono. Categoria fora do tenant é 404; estado sem
+     * edição, {@code invalid-transition}.
+     */
+    public Uni<ProductCheck> check(Actor actor, UUID id, UUID categoryId, Map<String, String> attributes) {
+        return support.access.owned(actor, id).flatMap(product -> {
+            Uni<Optional<CategoryView>> current = product.categoryId().equals(categoryId)
+                    ? Uni.createFrom().item(Optional.empty())
+                    : support.categoryOf(product).map(Optional::of);
+            Uni<Set<UUID>> offered = support.offers.ofProduct(product.tenantId(), product.id())
+                    .map(found -> found.stream().map(Offer::skuId).collect(Collectors.toSet()));
+            return Uni.combine().all().unis(support.category(actor.tenantId(), categoryId), current, offered)
+                    .asTuple().map(read -> {
+                        CategoryView target = read.getItem1();
+                        List<PublishingIssue> issues = product.draftIssues(attributes, target.effectiveAttributes(),
+                                target.usable(), read.getItem3());
+                        return new ProductCheck(issues, read.getItem2().map(view -> product.categoryChange(attributes,
+                                view.effectiveAttributes(), target.effectiveAttributes())));
+                    });
+        });
     }
 
     /**
@@ -132,7 +199,7 @@ public final class ProductService {
 
     /**
      * Envia o rascunho para {@code PENDING_MODERATION}. Exige produto completo
-     * (categoria ativa, oferta em todo SKU, atributos obrigatórios), senão
+     * (categoria ativa, oferta nos SKU, atributos obrigatórios), senão
      * {@code product-not-publishable} com os motivos em {@code reasons}. Só o
      * seller dono; {@code ifMatch} ausente = sem checagem.
      */
@@ -172,6 +239,25 @@ public final class ProductService {
     public Uni<Product> archive(Actor actor, UUID id, Optional<Long> ifMatch) {
         return support.mutateOwned(actor, id, ifMatch,
                 sync(product -> product.archive(actor.subject(), support.now())));
+    }
+
+    /**
+     * Aplica {@code action} a cada produto como o endpoint de um item, com as
+     * mesmas regras, versão e eventos. Exige seller com loja
+     * ({@link AccessDeniedException}); itens fora de 1 a
+     * {@link Batch#MAX_ITEMS} ou com id repetido: {@link InvalidInputException}.
+     */
+    public Uni<List<Batch.Outcome<Product>>> batch(Actor actor, ProductBatchAction action, List<Batch.Item> items) {
+        return Uni.createFrom().deferred(() -> {
+            ProductAccess.requireSeller(actor);
+            Batch.requireItems(items);
+            return Batch.run(items, (id, version) -> switch (action) {
+                case SUBMIT -> submit(actor, id, version);
+                case PAUSE -> pause(actor, id, version);
+                case RESUME -> resume(actor, id, version);
+                case ARCHIVE -> archive(actor, id, version);
+            });
+        });
     }
 
     private static Sku toSku(NewSku sku) {

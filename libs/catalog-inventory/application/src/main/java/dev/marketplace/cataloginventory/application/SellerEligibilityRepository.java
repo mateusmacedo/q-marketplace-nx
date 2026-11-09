@@ -2,6 +2,8 @@ package dev.marketplace.cataloginventory.application;
 
 import dev.marketplace.cataloginventory.domain.product.SellerStatus;
 import io.smallrye.mutiny.Uni;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -13,6 +15,12 @@ public interface SellerEligibilityRepository {
      * nunca vazio.
      */
     Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId);
+
+    /**
+     * Situação de cada loja pedida, numa consulta para todas; a loja sem
+     * veredito registrado entra no mapa como {@code PENDING}.
+     */
+    Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds);
 
     /**
      * Registra a entrega do {@code consumer} e aplica o veredito numa única

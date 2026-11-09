@@ -1,11 +1,12 @@
 @startuml casos-de-uso-moderacao
 !include ../../../../../docs/diagramas/tema-catalogo.iuml
 !include <tupadr3/font-awesome-5/clipboard_list>
-title Casos de uso de ModerationService
+title Casos de uso de ModerationService e ModerationReasonService
 left to right direction
 hide stereotype
 
 actor "$I_MODERADOR\nModerador\n(catalog-moderator)" as moderator
+actor "$I_ADMIN\nAdmin do catálogo\n(catalog-admin)" as admin
 
 package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
   usecase "Ver fila de moderação\n(queue)" as UC_queue <<leitura>>
@@ -13,6 +14,11 @@ package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
   usecase "Rejeitar produto\n(reject)" as UC_reject
   usecase "Bloquear produto\n(block)" as UC_block
   usecase "Desbloquear produto\n(unblock)" as UC_unblock
+}
+
+package "$I_MODERACAO ModerationReasonService" as ModerationReasonService <<aplicacao>> {
+  usecase "Listar motivos do tenant\n(list)" as UC_reasons <<leitura>>
+  usecase "Manter motivos\n(create, revise,\nactivate, deactivate)" as UC_manage
 }
 
 package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
@@ -24,12 +30,17 @@ moderator --> UC_approve
 moderator --> UC_reject
 moderator --> UC_block
 moderator --> UC_unblock
+moderator --> UC_reasons
+admin --> UC_reasons
+admin --> UC_manage
 
 UC_queue ..> UC_stockOf : <<include>>
 UC_approve ..> UC_stockOf : <<include>>
 UC_reject ..> UC_stockOf : <<include>>
 UC_block ..> UC_stockOf : <<include>>
 UC_unblock ..> UC_stockOf : <<include>>
+UC_reject ..> UC_reasons : <<include>>\ncatálogo do tenant
+UC_block ..> UC_reasons : <<include>>
 
 package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
   note as N_queue
@@ -53,16 +64,19 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     **reject**
     PENDING_MODERATION para DRAFT; outro estado:
     <color:#C62828>invalid-transition</color> (<color:#C62828>409</color>).
-    Motivo obrigatório, até 500 caracteres
-    (<color:#C62828>invalid-value</color>), gravado no histórico.
+    Motivos do catálogo do tenant e/ou complemento
+    de até 500 (<color:#C62828>invalid-value</color>); motivo ausente,
+    inativo ou de outra decisão:
+    <color:#C62828>invalid-moderation-reason</color> (<color:#C62828>422</color>).
+    Histórico: códigos, rótulos da época e nota.
     If-Match opcional (<color:#C62828>412</color>).
   end note
   note as N_block
     **block**
     Qualquer estado, menos BLOCKED e ARCHIVED
     (<color:#C62828>invalid-transition</color>, <color:#C62828>409</color>).
-    Motivo obrigatório, até 500 caracteres; publica
-    ProductBlocked e tira o produto da vitrine na hora.
+    Motivos como no reject; publica ProductBlocked
+    e tira o produto da vitrine na hora.
     If-Match opcional (<color:#C62828>412</color>).
   end note
   note as N_unblock
@@ -71,6 +85,18 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     Volta para PENDING_MODERATION, não para ACTIVE:
     precisa de nova aprovação.
     If-Match opcional (<color:#C62828>412</color>).
+  end note
+  note as N_manage
+    **motivos (ADR 030)**
+    Um catálogo por tenant, sem exclusão.
+    Moderador lê os ativos; includeInactive e as
+    escritas exigem MANAGE_MODERATION_REASONS.
+    Código imutável; If-Match obrigatório na API
+    (<color:#C62828>428</color>, <color:#C62828>412</color>); código repetido: <color:#C62828>409</color>.
+    Até 100 ativos ao criar ou reativar (desativar
+    abre a vaga) e 1000 no catálogo com os inativos:
+    <color:#C62828>422</color> moderation-reason-limit e
+    moderation-reason-catalog-limit.
   end note
   note as N_stockOf
     **stockOf**
@@ -83,7 +109,8 @@ N_queue -[hidden]left-> N_approve
 N_approve -[hidden]left-> N_reject
 N_reject -[hidden]left-> N_block
 N_block -[hidden]left-> N_unblock
-N_unblock -[hidden]left-> N_stockOf
+N_unblock -[hidden]left-> N_manage
+N_manage -[hidden]left-> N_stockOf
 legend right
   <b>Como ler</b>
   <back:#F9A825>    </back> Ator humano ou cliente autenticado
