@@ -175,7 +175,7 @@ No save do tipo create, o método chama `createCategory`:
 - `attributes`
 - `parentId`, quando houver
 
-O servidor responde `201` com a categoria criada, embora o contrato não declare o corpo. O formulário lê o `id` dessa resposta, e a lista abre o nível do pai com o detalhe dela, sem reler o nível para achá-la; sem o `id`, abre só o nível do pai.
+O servidor responde `201` com a categoria criada (`CategoryResponse`). O formulário lê o `id` dessa resposta, e a lista abre o nível do pai com o detalhe dela, sem reler o nível para achá-la; sem o `id`, abre só o nível do pai.
 
 ### 6.4 Edição
 
@@ -218,7 +218,7 @@ Ele usa `listCategoryTree` para montar a árvore completa do tenant e gerar opç
 A lista de destinos remove:
 
 - a própria categoria
-- descendentas da categoria
+- descendentes da categoria
 - o pai atual
 
 Isso evita:
@@ -328,8 +328,9 @@ A feature faz uso de integrações principais com o data-access e com a API:
 - `PUT /categories/{id}` para atualizar categoria e estado ativo
 - `DELETE /categories/{id}` para excluir
 - `GET /categories/tree` para carregar a árvore para mover
+- `PUT /categories/{id}/parent` para mover para outro pai
 - `POST /categories/batch` para ações em lote
-- `GET /categories/stats` para dados de resumo
+- `GET /stats/categories` para dados de resumo
 
 O uso desses endpoints fica encapsulado pelos métodos do módulo de data-access e pelos utilitários em [category-model.ts](./src/lib/category-model.ts).
 
@@ -360,7 +361,7 @@ A arquitetura separa claramente:
 - rotas e navegação
 - regras e mapeamento de domínio
 - renderização de dados
-- fomulário de criação/edição
+- formulário de criação/edição
 - ações em lote
 - ações em detalhe
 - modal de mover categoria
@@ -400,7 +401,7 @@ Isso torna a feature fácil de evoluir e manter.
 2. árvore completa é carregada
 3. destino é escolhido
 4. `moveCategory` envia o novo pai
-5. a categoria muda de nível e o detalhe/lista refletiram a nova árvore
+5. a categoria muda de nível e o detalhe/lista refletem a nova árvore
 
 ### Excluir
 

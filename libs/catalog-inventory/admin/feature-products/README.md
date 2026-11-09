@@ -14,7 +14,7 @@ O contrato de negócio é orientado pelo servidor. A interface não infere trans
 
 ## Estrutura da feature/lib
 
-A biblioteca é uma lib Angular standalone classificada como camada `feature` no Nx (`scope:catalog-inventory`, `layer:feature`, `framework:angular` em [project.json](./project.json)). O ponto público [src/index.ts](./src/index.ts) exporta as rotas, as regras/apresentações de ações e os componentes/helpers do painel inicial; as telas internas de produto são carregadas pelas rotas, não exportadas individualmente.
+A biblioteca é uma lib Angular standalone classificada como camada `feature` no Nx (`scope:catalog-inventory`, `layer:feature`, `framework:angular`, `lang:ts` em [project.json](./project.json)). O ponto público [src/index.ts](./src/index.ts) exporta as rotas, as regras/apresentações de ações e os componentes/helpers do painel inicial; as telas internas de produto são carregadas pelas rotas, não exportadas individualmente.
 
 | Área | Arquivos principais | Responsabilidade |
 |---|---|---|
@@ -114,7 +114,8 @@ O SDK gerado em `@marketplace/catalog-inventory-admin-data-access` usa base URL 
 | `GET /inventory/skus/{skuId}` / `PUT /inventory/skus/{skuId}` | Leitura e ajuste versionado do estoque. |
 | `GET /offers/{skuId}` / `PUT /offers/{skuId}` | Leitura e gravação do preço/oferta; a primeira gravação cria a oferta e as seguintes usam `If-Match`. |
 | `POST /offers/{skuId}/promotions` / `DELETE /offers/{skuId}/promotions/{promotionId}` | Agendamento e cancelamento versionado de promoções. |
-| `GET /categories/tree` | Árvore paginada; criação filtra por `usable=true`. |
+| `GET /categories/tree` | Árvore paginada, até 1000 itens por página; criação e troca de categoria filtram por `usable=true`. |
+| `GET /categories/{id}` | Atributos efetivos da categoria, que montam os campos dinâmicos do conteúdo e os atributos de variação dos SKUs. |
 | `GET /categories?ids=` | Nomes das categorias dos produtos atualizados por último, numa chamada só com os ids distintos da página. |
 | `GET /stores/{storeId}/eligibility` | Elegibilidade da loja para publicação. |
 | `GET /stats/store`, `/stats/moderation`, `/stats/categories` | Dados do painel inicial selecionados por capacidade; loja/moderação recebem granularidade de atividade. |

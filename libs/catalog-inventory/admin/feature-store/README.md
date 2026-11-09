@@ -26,7 +26,7 @@ Responsabilidades externas usadas pela implementação:
 - `@marketplace/shared-web-util`: converte a falha HTTP em `Problem`, consumido pelo estado compartilhado de erro.
 - `@coreui/angular`: card, grid, callout e badge usados na apresentação.
 
-O `project.json` classifica a biblioteca como `scope:catalog-inventory`, `layer:feature` e `framework:angular`. Não há serviço de domínio próprio, store separado, modelo persistido, formulário, tabela ou operação de gravação nessa feature.
+O `project.json` classifica a biblioteca como `scope:catalog-inventory`, `layer:feature`, `framework:angular` e `lang:ts`. Não há serviço de domínio próprio, store separado, modelo persistido, formulário, tabela ou operação de gravação nessa feature.
 
 ## Roteamento e contexto
 

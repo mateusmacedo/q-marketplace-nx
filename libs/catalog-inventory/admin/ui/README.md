@@ -10,9 +10,10 @@ A lib resolve necessidades visuais e de interação compartilhadas pelas feature
 
 - apresenta status de produto com rótulo e cor consistentes;
 - monta caminhos legíveis para categorias e oferece um seletor compatível com formulários Angular;
-- converte os caminhos de campo retornados pelo backend em destinos de aba/campo para um checklist de publicação.
+- converte os caminhos de campo retornados pelo backend em destinos de aba/campo para um checklist de publicação;
+- nomeia quem fez cada mudança do histórico do produto: "Você" ou o lado (loja ou moderação), nunca a pessoa.
 
-Ela não implementa cadastro, edição, exclusão, movimentação, moderação ou ações em lote. Também não possui rotas, serviços de API, store compartilhada, carregamento de dados ou regras de persistência. Essas operações ficam em `feature-products` e `feature-categories`; esta lib fornece as peças visuais e os adaptadores puros usados por elas.
+Ela não implementa cadastro, edição, exclusão, movimentação, moderação ou ações em lote. Também não possui rotas, serviços de API, store compartilhada, carregamento de dados ou regras de persistência. Essas operações ficam em `feature-products`, `feature-categories` e `feature-moderation`; esta lib fornece as peças visuais e os adaptadores puros usados por elas.
 
 ## Estrutura da feature/lib
 
@@ -21,6 +22,7 @@ Ela não implementa cadastro, edição, exclusão, movimentação, moderação o
 | [`src/index.ts`](./src/index.ts) | API pública: reexporta os componentes, tipos, constantes e funções de apoio. |
 | [`src/lib/product-status/product-status.ts`](./src/lib/product-status/product-status.ts) | Vocabulário de status, ordem canônica, rótulos e aparência do badge. |
 | [`src/lib/product-status/product-status-badge.component.ts`](./src/lib/product-status/product-status-badge.component.ts) | Badge standalone que projeta o status recebido como texto e cor. |
+| [`src/lib/product-status/transition-actor.ts`](./src/lib/product-status/transition-actor.ts) | `transitionActorLabel()`: autor da mudança do histórico a partir de `byCaller` e `actorSide`. |
 | [`src/lib/category-select/category-options.ts`](./src/lib/category-select/category-options.ts) | Tipos próprios de categoria/opção, montagem de caminhos, ordenação e busca de descendentes. |
 | [`src/lib/category-select/category-select.component.ts`](./src/lib/category-select/category-select.component.ts) | Seletor standalone com valor por `model()` e suporte a `ControlValueAccessor`. |
 | [`src/lib/submission/publishing-issues.ts`](./src/lib/submission/publishing-issues.ts) | Tipos próprios para pendências e mapeamento de caminho de campo para aba, SKU e campo. |
@@ -137,6 +139,7 @@ Não há endpoint chamado diretamente por `catalog-inventory-admin-ui`. A fronte
 | Categoria | `CategoryNode` e `CategoryOption` | A feature chama `GET /categories/tree`, pagina a resposta e adapta os DTOs. O seletor recebe opções prontas. |
 | Pendência de publicação | `PublishingIssue` | A feature usa `publishingIssues` do produto, a resposta de `POST /products/{id}/check` ou motivos de recusa de envio. |
 | Mudança de categoria | `CategoryChangeResponse` no fluxo consumidor | `POST /products/{id}/check` calcula a prévia; a UI apenas apresenta o resultado fornecido. |
+| Autor de mudança do histórico | `actorSide` e `byCaller` de cada mudança | A feature lê `GET /products/{id}/history`; o servidor informa o lado (`STORE` ou `MODERATION`) e se a mudança foi de quem consulta, sem a pessoa. |
 
 No detalhe do produto, [`productDraftCheck()`](../feature-products/src/lib/product/product-draft-check.ts) espera 400 ms após a última alteração antes de conferir o rascunho em `POST /products/{id}/check`. A operação não persiste dados. O resultado fornece pendências e, quando relevante, o efeito da mudança de categoria. Enquanto a nova resposta chega, a feature mantém o último resultado disponível; em caso de falha, apresenta um estado de erro separado do checklist.
 
@@ -160,7 +163,7 @@ Na lista, a query da URL e os componentes de filtro/tabela são coordenados por 
 - **Componentes standalone e `OnPush`:** cada componente declara suas dependências de template localmente e usa `ChangeDetectionStrategy.OnPush`.
 - **Signals do Angular:** `input`, `output`, `model` e `computed` tornam contratos e estado derivado explícitos, sem serviço de estado global.
 - **Tipos de apresentação próprios:** `ProductStatus`, `CategoryNode` e `PublishingIssue` evitam dependência do `data-access` e limitam o acoplamento com DTOs.
-- **Adaptadores puros:** `buildCategoryOptions`, `categoryDescendants`, `productStatusLook` e `issueTarget` isolam transformações determinísticas, reutilizáveis e sem efeitos de rede.
+- **Adaptadores puros:** `buildCategoryOptions`, `categoryDescendants`, `productStatusLook`, `transitionActorLabel` e `issueTarget` isolam transformações determinísticas, reutilizáveis e sem efeitos de rede.
 - **Regra de domínio no servidor:** elegibilidade de categoria, atributos efetivos, pendências de publicação, efeito de mudança de categoria e ações disponíveis vêm do backend; a UI apresenta e direciona o usuário, sem reimplementar políticas divergentes.
 - **Concorrência fora da lib:** a biblioteca não conhece `ETag`, `If-Match` nem conflitos. As features consumidoras mantêm a versão e enviam `If-Match` nas gravações; por exemplo, `ProductStore` e as telas de produto coordenam recarga e aviso em conflitos. O `CategorySelectComponent` também é usado numa movimentação versionada da árvore, mas não participa do controle de versão.
 - **Design system compartilhado:** CoreUI fornece os elementos visuais e `shared-web-util` traduz razões do servidor; a camada consumidora continua responsável por tratamento de erro, feedback de sucesso e persistência.

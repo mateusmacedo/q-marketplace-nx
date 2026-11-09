@@ -77,7 +77,7 @@ O serviço de aplicação é a autoridade dessas regras; a tela não tenta dupli
 1. **Baixar modelo**: `templateCsv()` concatena os nomes das colunas com CRLF. `downloadTemplate()` cria um `Blob` `text/csv;charset=utf-8`, dispara o download e revoga a URL temporária após o ciclo do clique.
 2. **Escolher arquivo**: o botão aciona o input oculto. Durante o envio, `sending` desabilita o botão e mostra estado de progresso. O valor do input é limpo ao tratar o evento para permitir selecionar novamente o mesmo arquivo.
 3. **Filtrar resultado**: os controles “Todas” e “Só falhas” alternam a visão local; a troca reinicia o deslocamento para o início.
-4. **Paginar linhas**: são exibidas até 50 linhas por página. Os cursores desta tabela são offsets locais convertidos para strings, diferentes do cursor opaco da API do histórico.
+4. **Paginar linhas**: a tabela começa com 50 linhas por página, e o seletor da paginação troca para 20 ou 100. Os cursores desta tabela são offsets locais convertidos para strings, diferentes do cursor opaco da API do histórico.
 5. **Paginar histórico**: o cursor opaco e o limite vêm da URL e são passados ao recurso de listagem. A paginação é desabilitada enquanto o recurso está carregando.
 6. **Tentar novamente**: falhas de leitura do histórico ou do lote têm ação explícita de retry. Um erro de polling não é repetido silenciosamente: o alerta permanece até o usuário selecionar “Tentar de novo”.
 
@@ -94,7 +94,7 @@ O serviço de aplicação é a autoridade dessas regras; a tela não tenta dupli
 
 ### Abrir um lote existente
 
-Ao abrir `/loja/importacoes/:id`, a página lê o ID e monta o mesmo `ImportBatchComponent`. A primeira consulta carrega resumo e linhas processadas; o estado de carregamento é mostrado até haver resposta. Se a leitura falhar antes do primeiro resultado, aparece um estado de erro com retry. Se falhar durante o acompanhamento, o relatório anterior continua disponível junto ao alerta de falha de atualização e ao botão de retry.
+Ao abrir `/loja/importacoes/:id`, a página lê o ID e monta o mesmo `ImportBatchComponent`. A primeira consulta lê o andamento com `lines=false`; as linhas chegam com a leitura do status terminal, feita na hora se o lote já terminou. O estado de carregamento é mostrado até haver resposta. Se a leitura falhar antes do primeiro resultado, aparece um estado de erro com retry. Se falhar durante o acompanhamento, o relatório anterior continua disponível junto ao alerta de falha de atualização e ao botão de retry.
 
 ### Ver o histórico
 
