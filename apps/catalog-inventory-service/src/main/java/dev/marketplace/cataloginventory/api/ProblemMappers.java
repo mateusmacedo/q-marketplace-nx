@@ -258,11 +258,17 @@ public class ProblemMappers {
     /**
      * Preserva o status da exceção JAX-RS (rota inexistente, método ou mídia não
      * aceitos) com o
-     * código {@code http-<status>}.
+     * código {@code http-<status>}; o 400 do JSON malformado vira {@code malformed-body}.
      */
     @ServerExceptionMapper
     public RestResponse<Problem> webApplication(WebApplicationException e, UriInfo uri) {
         int status = e.getResponse().getStatus();
+        // WHY: o leitor JSON do Quarkus REST embrulha a sintaxe inválida (StreamReadException) num 400 genérico.
+        Throwable cause = e.getCause();
+        while (cause != null && !(cause instanceof JsonProcessingException))
+            cause = cause.getCause();
+        if (status == 400 && cause instanceof JsonProcessingException json)
+            return unreadableBody(json, uri);
         String title = e.getResponse().getStatusInfo().getReasonPhrase();
         return respond(new Described(status, "http-" + status, title, null, null), uri);
     }
