@@ -8,5 +8,6 @@ export default defineConfig({
     '@hey-api/typescript',
     '@hey-api/sdk',
     { name: '@angular/common', httpRequests: true, httpResources: true },
+    '@hey-api/schemas',
   ],
 });

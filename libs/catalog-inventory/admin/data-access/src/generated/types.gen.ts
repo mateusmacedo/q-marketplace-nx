@@ -4,6 +4,43 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+/**
+ * Transições num balde da série
+ */
+export type ActivityPointResponse = {
+    /**
+     * Início do balde
+     */
+    period?: LocalDate;
+    /**
+     * Entradas na fila de moderação: envio, edição de produto publicado e desbloqueio
+     */
+    submitted?: number;
+    approved?: number;
+    rejected?: number;
+    blocked?: number;
+};
+
+export type ActivityResponse = {
+    granularity?: 'day' | 'month' | 'year';
+    /**
+     * Primeiro dia do primeiro balde
+     */
+    from?: LocalDate;
+    /**
+     * Último dia do último balde
+     */
+    to?: LocalDate;
+    /**
+     * Fuso dos baldes
+     */
+    timeZone?: string;
+    /**
+     * Um ponto por balde, inclusive sem transição
+     */
+    points?: Array<ActivityPointResponse>;
+};
+
 export type AdjustStockRequest = {
     /**
      * Estoque físico vendável contado pelo seller
@@ -24,6 +61,96 @@ export type AttributeDto = {
 };
 
 export type AttributeType = 'TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'OPTION';
+
+export type BatchItemRequest = {
+    id: Uuid;
+    /**
+     * Versão lida do registro; faz o papel do If-Match do endpoint de um item, e ausente dispensa a checagem
+     */
+    version?: number | null;
+};
+
+/**
+ * SUCCEEDED quando o item foi gravado; FAILED com o problem que o endpoint de um item responderia
+ */
+export type BatchOutcome = 'SUCCEEDED' | 'FAILED';
+
+/**
+ * Ação que vale no status e para o chamador, mas que um motivo impede agora; o cliente a mostra desabilitada, com o motivo
+ */
+export type BlockedActionResponse = {
+    /**
+     * Código da ação, como em actions
+     */
+    action?: string;
+    /**
+     * Motivo, no formato de reasonDetails do corpo de erro
+     */
+    reason?: ReasonDetail;
+};
+
+/**
+ * SKU cuja variação a categoria nova não tem ou não aceita; impede a troca, que a gravação recusaria com invalid-attributes
+ */
+export type BlockingSkuResponse = {
+    sellerSku?: string;
+    /**
+     * Motivos, no formato de reasonDetails do corpo de erro
+     */
+    reasons?: Array<ReasonDetail>;
+};
+
+/**
+ * Categoria no caminho, da raiz até o pai
+ */
+export type CategoryAncestor = {
+    id?: Uuid;
+    code?: string;
+    name?: string;
+};
+
+export type CategoryBatchAction = 'ACTIVATE' | 'DEACTIVATE' | 'DELETE';
+
+/**
+ * Ação do administrador em lote, com as regras do endpoint de um item
+ */
+export type CategoryBatchRequest = {
+    action: CategoryBatchAction;
+    items: Array<BatchItemRequest>;
+};
+
+export type CategoryBatchResponse = {
+    results?: Array<CategoryBatchResult>;
+};
+
+/**
+ * Desfecho de uma categoria do lote, na posição em que veio no pedido
+ */
+export type CategoryBatchResult = {
+    id?: Uuid;
+    outcome?: BatchOutcome;
+    /**
+     * Situação nova; ausente na falha e na exclusão
+     */
+    active?: boolean | null;
+    /**
+     * Versão nova, para o próximo If-Match; ausente na falha e na exclusão
+     */
+    version?: number | null;
+    /**
+     * Problema que o endpoint de um item responderia; ausente no sucesso
+     */
+    problem?: Problem | null;
+};
+
+/**
+ * Efeito de trocar a categoria, pela regra que a gravação aplica
+ */
+export type CategoryChangeResponse = {
+    removedAttributes?: Array<RemovedAttributeResponse>;
+    newRequired?: Array<NewRequiredAttributeResponse>;
+    blockingSkus?: Array<BlockingSkuResponse>;
+};
 
 export type CategoryPage = {
     items?: Array<CategorySummary>;
@@ -46,9 +173,37 @@ export type CategoryResponse = {
     version?: number;
     attributes?: Array<AttributeDto>;
     /**
-     * Atributos próprios mais os herdados dos ancestrais
+     * Atributos herdados dos ancestrais, da raiz para baixo, e depois os próprios
      */
-    effectiveAttributes?: Array<AttributeDto>;
+    effectiveAttributes?: Array<EffectiveAttributeDto>;
+    /**
+     * Caminho da raiz até o pai; vazio na raiz
+     */
+    ancestors?: Array<CategoryAncestor>;
+    /**
+     * Nível na árvore: 1 na raiz
+     */
+    level?: number;
+    /**
+     * Subcategorias diretas; só a categoria sem nenhuma pode ser excluída
+     */
+    childCount?: number;
+};
+
+export type CategoryStatsResponse = {
+    total?: number;
+    /**
+     * Categorias sem pai
+     */
+    roots?: number;
+    /**
+     * Categorias desativadas, sem contar as que só têm um ancestral inativo
+     */
+    inactive?: number;
+    /**
+     * Categorias com algum produto, inclusive arquivado
+     */
+    withProducts?: number;
 };
 
 export type CategorySummary = {
@@ -57,7 +212,27 @@ export type CategorySummary = {
     code?: string;
     name?: string;
     active?: boolean;
+    /**
+     * Falso quando a categoria ou um ancestral está inativo
+     */
+    usable?: boolean;
     version?: number;
+    /**
+     * Caminho da raiz até o pai; vazio na raiz
+     */
+    ancestors?: Array<CategoryAncestor>;
+    /**
+     * Nível na árvore: 1 na raiz
+     */
+    level?: number;
+    /**
+     * Subcategorias diretas
+     */
+    childCount?: number;
+    /**
+     * Atributos próprios, sem os herdados
+     */
+    attributeCount?: number;
 };
 
 export type CreateCategoryRequest = {
@@ -68,6 +243,22 @@ export type CreateCategoryRequest = {
     code: string;
     name: string;
     attributes?: Array<AttributeDto>;
+};
+
+/**
+ * Motivo novo, ativo; sem position, entra no fim da lista
+ */
+export type CreateModerationReasonRequest = {
+    /**
+     * Código estável em kebab-case, só com letras; não muda depois
+     */
+    code: string;
+    label: string;
+    /**
+     * REJECT, BLOCK ou as duas
+     */
+    decisions: Array<ModerationDecision>;
+    position?: number | null;
 };
 
 export type CreateProductRequest = {
@@ -96,11 +287,44 @@ export type CreateReservationRequest = {
     items: Array<ItemRequest>;
 };
 
+/**
+ * Motivo da rejeição ou do bloqueio: ao menos um motivo pronto ativo do catálogo do tenant ou o complemento. O histórico guarda os códigos, a cópia dos rótulos da época e o complemento separados
+ */
+export type DecisionRequest = {
+    /**
+     * Códigos de GET /moderation/reasons, ativos e válidos para a decisão
+     */
+    reasonCodes?: Array<string> | null;
+    /**
+     * Complemento livre; o limite vale só para ele, com quantos motivos houver
+     */
+    note?: string | null;
+};
+
 export type DimensionsDto = {
     heightCm: number;
     widthCm: number;
     lengthCm: number;
     weightGrams: number;
+};
+
+/**
+ * Atributo efetivo, com a categoria que o define: a própria ou um ancestral
+ */
+export type EffectiveAttributeDto = {
+    code?: string;
+    label?: string;
+    type?: AttributeType;
+    required?: boolean;
+    /**
+     * Valor pertence a cada SKU (ex.: cor, tamanho)
+     */
+    variant?: boolean;
+    options?: Array<string>;
+    /**
+     * Categoria que define o atributo
+     */
+    categoryId?: Uuid;
 };
 
 export type EffectivePriceDto = {
@@ -119,6 +343,14 @@ export type EffectivePriceDto = {
 export type EligibilityResponse = {
     storeId?: Uuid;
     status?: SellerStatus;
+    /**
+     * Produtos da loja podem ser aprovados e reativados
+     */
+    canPublish?: boolean;
+    /**
+     * Produtos ativos da loja aparecem na vitrine
+     */
+    visibleInStorefront?: boolean;
 };
 
 export type ExtendReservationRequest = {
@@ -159,9 +391,21 @@ export type ImportLineResponse = {
      * Produto criado ou alterado pela linha, quando conhecido
      */
     productId?: Uuid | null;
+    /**
+     * Motivos da recusa de regra de negócio, no formato de reasonDetails do corpo de erro; só em FAILED
+     */
+    reasonDetails?: Array<ReasonDetail> | null;
 };
 
 export type ImportOutcome = 'CREATED' | 'UPDATED' | 'UNCHANGED' | 'FAILED';
+
+export type ImportPage = {
+    items?: Array<ImportSummaryResponse>;
+    /**
+     * Cursor opaco da próxima página; ausente na última
+     */
+    nextCursor?: string | null;
+};
 
 export type ImportResponse = {
     id?: Uuid;
@@ -185,12 +429,57 @@ export type ImportResponse = {
      */
     finishedAt?: Instant | null;
     /**
-     * Resultados em ordem de linha
+     * Resultados em ordem de linha; nulo com lines=false, que não os lê
      */
-    lines?: Array<ImportLineResponse>;
+    lines?: Array<ImportLineResponse> | null;
 };
 
 export type ImportStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED';
+
+/**
+ * Lote da lista de importações, sem o resultado de cada linha
+ */
+export type ImportSummaryResponse = {
+    id?: Uuid;
+    status?: ImportStatus;
+    /**
+     * Linhas de dados do arquivo, sem o cabeçalho
+     */
+    totalLines?: number;
+    /**
+     * Linhas que já têm resultado
+     */
+    processedLines?: number;
+    counts?: ImportCounts;
+    createdAt?: Instant;
+    /**
+     * Início ou último progresso do processamento
+     */
+    startedAt?: Instant | null;
+    /**
+     * Conclusão do processamento
+     */
+    finishedAt?: Instant | null;
+};
+
+/**
+ * Indicador com o valor atual, a variação em relação ao fim do mês anterior e os últimos 7 meses
+ */
+export type IndicatorResponse = {
+    value?: number;
+    /**
+     * Valor no fim do mês anterior; ausente quando não há histórico
+     */
+    previous?: number | null;
+    /**
+     * value menos previous; ausente quando não há histórico
+     */
+    change?: number | null;
+    /**
+     * Do mês mais antigo ao corrente
+     */
+    months?: Array<MonthValueResponse>;
+};
 
 export type Instant = string;
 
@@ -203,9 +492,100 @@ export type ItemRequest = {
     expectedUnitPrice: MoneyDto;
 };
 
+export type LocalDate = string;
+
+/**
+ * Decisão em lote: rejeitar e bloquear usam o mesmo motivo para todos os itens, e aprovar não leva motivo
+ */
+export type ModerationBatchRequest = {
+    action: ModerationDecision;
+    items: Array<BatchItemRequest>;
+    /**
+     * Códigos de GET /moderation/reasons, como no endpoint de um item
+     */
+    reasonCodes?: Array<string> | null;
+    /**
+     * Complemento livre, como no endpoint de um item
+     */
+    note?: string | null;
+};
+
+export type ModerationDecision = 'APPROVE' | 'REJECT' | 'BLOCK';
+
+/**
+ * Tamanho atual da fila de moderação, sem histórico
+ */
+export type ModerationQueueResponse = {
+    /**
+     * Produtos em PENDING_MODERATION no tenant
+     */
+    count?: number;
+};
+
+/**
+ * Motivo pronto de rejeição ou bloqueio do catálogo do tenant
+ */
+export type ModerationReasonResponse = {
+    /**
+     * Código estável, enviado em reasonCodes; não muda depois de criado
+     */
+    code?: string;
+    /**
+     * Rótulo em PT-BR; as decisões passadas guardam o rótulo da época
+     */
+    label?: string;
+    /**
+     * Decisões em que o motivo vale: REJECT, BLOCK ou as duas
+     */
+    decisions?: Array<ModerationDecision>;
+    /**
+     * Ordem de exibição e de composição do texto; o código desempata
+     */
+    position?: number;
+    /**
+     * Inativo não aparece para o moderador e é recusado nas decisões novas
+     */
+    active?: boolean;
+    /**
+     * Versão do motivo, a mesma do ETag
+     */
+    version?: number;
+};
+
+export type ModerationStatsResponse = {
+    /**
+     * Produtos em PENDING_MODERATION; nos meses anteriores, no fim do mês
+     */
+    queue?: IndicatorResponse;
+    /**
+     * Aprovações no mês
+     */
+    approved?: IndicatorResponse;
+    /**
+     * Rejeições no mês
+     */
+    rejected?: IndicatorResponse;
+    /**
+     * Bloqueios no mês
+     */
+    blocked?: IndicatorResponse;
+    activity?: ActivityResponse;
+};
+
 export type MoneyDto = {
     amount: number;
     currency: string;
+};
+
+export type MonthValueResponse = {
+    /**
+     * Primeiro dia do mês
+     */
+    month?: LocalDate;
+    /**
+     * Valor no fim do mês, ou agora no mês corrente; ausente quando não há histórico
+     */
+    value?: number | null;
 };
 
 export type MoveCategoryRequest = {
@@ -213,6 +593,18 @@ export type MoveCategoryRequest = {
      * Novo pai; nulo torna a categoria raiz
      */
     parentId: Uuid | null;
+};
+
+/**
+ * Atributo obrigatório da categoria nova que a atual não exigia; vira pendência e não impede a troca
+ */
+export type NewRequiredAttributeResponse = {
+    code?: string;
+    label?: string;
+    /**
+     * Valor pertence a cada SKU
+     */
+    variant?: boolean;
 };
 
 export type OfferResponse = {
@@ -227,6 +619,10 @@ export type OfferResponse = {
      * Versão da oferta, usada no If-Match
      */
     version?: number;
+};
+
+export type Permissions = {
+    readTenantCatalog?: boolean;
 };
 
 export type PriceDto = {
@@ -248,6 +644,65 @@ export type Problem = {
     instance?: string;
     errors?: Array<FieldError>;
     reasons?: Array<string>;
+    /**
+     * Motivos da recusa de regra de negócio para mostrar ao usuário: um por item de reasons, na mesma ordem, ou, sem reasons, o da própria recusa
+     */
+    reasonDetails?: Array<ReasonDetail>;
+};
+
+export type ProductBatchAction = 'SUBMIT' | 'PAUSE' | 'RESUME' | 'ARCHIVE';
+
+/**
+ * Ação do seller em lote, com as regras do endpoint de um item
+ */
+export type ProductBatchRequest = {
+    action: ProductBatchAction;
+    items: Array<BatchItemRequest>;
+};
+
+export type ProductBatchResponse = {
+    results?: Array<ProductBatchResult>;
+};
+
+/**
+ * Desfecho de um produto do lote, na posição em que veio no pedido
+ */
+export type ProductBatchResult = {
+    id?: Uuid;
+    outcome?: BatchOutcome;
+    /**
+     * Estado novo, como a resposta do produto o mostra, ou o gravado se o saldo não pôde ser lido depois do lote; ausente na falha
+     */
+    status?: ProductStatus | null;
+    /**
+     * Versão nova, para o próximo If-Match; ausente na falha
+     */
+    version?: number | null;
+    /**
+     * Problema que o endpoint de um item responderia; ausente no sucesso
+     */
+    problem?: Problem | null;
+};
+
+/**
+ * Rascunho do conteúdo ainda não salvo; os SKUs são os gravados
+ */
+export type ProductCheckRequest = {
+    categoryId: Uuid;
+    attributes?: {
+        [key: string]: string;
+    };
+};
+
+export type ProductCheckResponse = {
+    /**
+     * Pendências de publicação do rascunho, como ficariam depois de salvar
+     */
+    publishingIssues?: Array<PublishingIssueResponse>;
+    /**
+     * Efeito da troca; ausente quando a categoria do rascunho é a atual
+     */
+    categoryChange?: CategoryChangeResponse | null;
 };
 
 export type ProductPage = {
@@ -269,18 +724,44 @@ export type ProductResponse = {
         [key: string]: string;
     };
     /**
-     * ACTIVE sem saldo disponível aparece como OUT_OF_STOCK
+     * ACTIVE sem saldo disponível aparece como OUT_OF_STOCK; na resposta de uma gravação, se o saldo não pôde ser lido depois dela, sai o estado gravado
      */
     status?: ProductStatus;
     version?: number;
     createdAt?: Instant;
     updatedAt?: Instant;
+    /**
+     * Entrada na fila de moderação, que ordena a fila; presente só em PENDING_MODERATION
+     */
+    moderationQueuedAt?: Instant | null;
     skus?: Array<SkuResponse>;
+    /**
+     * Presente no rascunho cuja última transição foi a rejeição na moderação; ausente também quando actions está ausente
+     */
+    lastRejection?: RejectionResponse | null;
+    /**
+     * Ações que o chamador pode executar agora (EDIT, CHANGE_CATEGORY, ADD_SKU, REMOVE_SKU, EDIT_OFFER, EDIT_STOCK, SUBMIT, PAUSE, RESUME, ARCHIVE, APPROVE, REJECT, BLOCK, UNBLOCK). Lista aberta: o cliente ignora o código que não conhece. Ausente só na resposta de uma gravação cujas leituras posteriores falharam: a gravação valeu, e o cliente relê o produto
+     */
+    actions?: Array<string> | null;
+    /**
+     * Ações que valem no status e para o chamador, mas que um motivo impede agora; ausente quando actions está ausente
+     */
+    blockedActions?: Array<BlockedActionResponse> | null;
+    /**
+     * Salvar conteúdo ou SKU devolve o produto publicado à moderação; falso quando o chamador não edita ou quando actions está ausente
+     */
+    saveReturnsToModeration?: boolean;
+    /**
+     * Pendências de publicação, na ordem da política; presente na leitura de um produto em status editável e ausente na listagem, na fila, nos status BLOCKED e ARCHIVED e quando actions está ausente
+     */
+    publishingIssues?: Array<PublishingIssueResponse> | null;
 };
 
 export type ProductStatus = 'DRAFT' | 'PENDING_MODERATION' | 'ACTIVE' | 'PAUSED_BY_SELLER' | 'OUT_OF_STOCK' | 'BLOCKED' | 'ARCHIVED';
 
 export type ProductTransition = 'CREATE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'BLOCK' | 'UNBLOCK' | 'PAUSE' | 'RESUME' | 'ARCHIVE' | 'REVIEW_REQUIRED';
+
+export type PromotionPhase = 'SCHEDULED' | 'ACTIVE' | 'ENDED';
 
 export type PromotionRequest = {
     salePrice: MoneyDto;
@@ -293,10 +774,104 @@ export type PromotionResponse = {
     salePrice?: MoneyDto;
     startsAt?: Instant;
     endsAt?: Instant;
+    /**
+     * Fase no instante da resposta, pelo relógio do servidor: agendada, vigente ou encerrada; só a encerrada não pode ser cancelada
+     */
+    phase?: PromotionPhase;
 };
 
-export type ReasonRequest = {
-    reason: string;
+/**
+ * Pendência de publicação e o campo do produto onde ela se resolve
+ */
+export type PublishingIssueResponse = {
+    /**
+     * Código estável do motivo, sem os parâmetros (missing-offer)
+     */
+    code?: string;
+    /**
+     * Valores do caso na ordem do texto, como o SKU e o atributo
+     */
+    params?: Array<string>;
+    /**
+     * Texto em português para mostrar ao usuário
+     */
+    message?: string;
+    /**
+     * Campo do produto onde a pendência se resolve: categoryId, attributes.<código>, skus, skus[<sku>].offer, skus[<sku>].variantAttributes ou skus[<sku>].variantAttributes.<código>
+     */
+    field?: string;
+};
+
+export type ReasonDetail = {
+    /**
+     * Código estável do motivo, sem os parâmetros (missing-variant-attribute)
+     */
+    code?: string;
+    /**
+     * Valores do caso na ordem do texto, como o SKU, o atributo ou o limite vigente
+     */
+    params?: Array<string>;
+    /**
+     * Texto em português para mostrar ao usuário
+     */
+    message?: string;
+};
+
+/**
+ * Motivo pronto marcado na decisão, com o rótulo que tinha nela
+ */
+export type ReasonLabelResponse = {
+    /**
+     * Código estável do motivo
+     */
+    code?: string;
+    /**
+     * Rótulo da época da decisão; renomear o motivo depois não o muda
+     */
+    label?: string;
+};
+
+/**
+ * Rejeição que devolveu o produto ao rascunho
+ */
+export type RejectionResponse = {
+    /**
+     * Texto único derivado dos rótulos da época e do complemento, para quem só exibe uma linha
+     */
+    reason?: string;
+    /**
+     * Códigos dos motivos prontos (GET /moderation/reasons); vazio quando só houve complemento
+     */
+    reasonCodes?: Array<string>;
+    /**
+     * Motivos prontos com o rótulo da época, na ordem do catálogo de então
+     */
+    reasonLabels?: Array<ReasonLabelResponse>;
+    /**
+     * Complemento livre do moderador
+     */
+    note?: string | null;
+    actor?: string;
+    at?: Instant;
+};
+
+/**
+ * Atributo do produto que a categoria nova não tem ou cujo valor ela não aceita; sai do rascunho na troca
+ */
+export type RemovedAttributeResponse = {
+    code?: string;
+    /**
+     * Rótulo na categoria atual; o código quando ela também não o tem
+     */
+    label?: string;
+    /**
+     * Valor que se perde
+     */
+    value?: string;
+    /**
+     * Motivo, no formato de reasonDetails do corpo de erro
+     */
+    reason?: ReasonDetail;
 };
 
 export type ReservationItemResponse = {
@@ -326,6 +901,18 @@ export type ReviseCategoryRequest = {
     active: boolean;
 };
 
+/**
+ * Revisão do motivo: rótulo, decisões e posição; o código e a situação não mudam aqui
+ */
+export type ReviseModerationReasonRequest = {
+    label: string;
+    /**
+     * REJECT, BLOCK ou as duas
+     */
+    decisions: Array<ModerationDecision>;
+    position: number;
+};
+
 export type ReviseProductRequest = {
     categoryId: Uuid;
     title: string;
@@ -344,6 +931,56 @@ export type ReviseSkuRequest = {
 };
 
 export type SellerStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export type SessionResponse = {
+    /**
+     * Subject do token
+     */
+    subject?: string;
+    /**
+     * Tenant do token
+     */
+    tenantId?: Uuid;
+    /**
+     * Loja do token; só existe para o seller
+     */
+    storeId?: Uuid | null;
+    /**
+     * Capacidades de negócio do chamador. Lista aberta: o cliente ignora o valor que não conhece
+     */
+    capabilities?: Array<string>;
+    /**
+     * Permissões que combinam capacidades, resolvidas pelo servidor
+     */
+    can?: Permissions;
+};
+
+/**
+ * Oferta do SKU no instante da leitura; as promoções ficam em GET /offers/{skuId}
+ */
+export type SkuOfferResponse = {
+    currency?: string;
+    /**
+     * Preço "de" (riscado)
+     */
+    listPrice?: MoneyDto | null;
+    /**
+     * Preço "por", sem promoção
+     */
+    salePrice?: MoneyDto;
+    /**
+     * Preço vigente: o da promoção ativa ou o "por"
+     */
+    effectivePrice?: MoneyDto;
+    /**
+     * Indica se o preço vigente vem de uma promoção
+     */
+    onPromotion?: boolean;
+    /**
+     * Versão da oferta, usada no If-Match
+     */
+    version?: number;
+};
 
 export type SkuRequest = {
     sellerSku: string;
@@ -365,15 +1002,68 @@ export type SkuResponse = {
     };
     physical?: boolean;
     dimensions?: DimensionsDto;
+    /**
+     * Ausente enquanto o SKU não tem oferta
+     */
+    offer?: SkuOfferResponse | null;
+    /**
+     * Saldo do SKU; ausente se o SKU foi removido entre as leituras ou, na resposta de uma gravação, se o saldo não pôde ser lido depois dela
+     */
+    stock?: StockResponse | null;
 };
 
 export type StatusChangeResponse = {
     transition?: ProductTransition;
     from?: ProductStatus;
     to?: ProductStatus;
-    actor?: string;
-    reason?: string;
+    /**
+     * Lado que fez a mudança, pela transição: a loja ou a moderação; a pessoa fica só no registro interno
+     */
+    actorSide?: TransitionSide;
+    /**
+     * A mudança foi feita por quem consulta o histórico
+     */
+    byCaller?: boolean;
+    /**
+     * Na rejeição e no bloqueio, o texto único derivado dos rótulos da época e do complemento
+     */
+    reason?: string | null;
+    /**
+     * Códigos dos motivos prontos da rejeição ou do bloqueio; vazio nas demais transições
+     */
+    reasonCodes?: Array<string>;
+    /**
+     * Motivos prontos com o rótulo da época; vazio nas demais transições
+     */
+    reasonLabels?: Array<ReasonLabelResponse>;
+    /**
+     * Complemento livre do moderador
+     */
+    note?: string | null;
     at?: Instant;
+};
+
+/**
+ * Produtos da loja por status, como a resposta do produto o mostra
+ */
+export type StatusCountsResponse = {
+    draft?: number;
+    pendingModeration?: number;
+    /**
+     * ACTIVE com saldo disponível
+     */
+    active?: number;
+    /**
+     * ACTIVE sem saldo disponível
+     */
+    outOfStock?: number;
+    pausedBySeller?: number;
+    blocked?: number;
+    archived?: number;
+    /**
+     * Todos os produtos da loja menos os arquivados
+     */
+    total?: number;
 };
 
 export type StockResponse = {
@@ -386,6 +1076,22 @@ export type StockResponse = {
      * Versão do saldo, usada no If-Match do ajuste
      */
     version?: number;
+};
+
+export type StoreStatsResponse = {
+    storeId?: Uuid;
+    counts?: StatusCountsResponse;
+    /**
+     * Valor: ACTIVE com saldo, como counts.active. Meses: o ACTIVE gravado, com ou sem saldo, no fim de cada mês e agora no corrente. Sem previous nem change, porque o saldo não guarda passado
+     */
+    active?: IndicatorResponse;
+    draft?: IndicatorResponse;
+    /**
+     * Sem histórico: o saldo não guarda passado, então só o mês corrente tem valor
+     */
+    outOfStock?: IndicatorResponse;
+    blocked?: IndicatorResponse;
+    activity?: ActivityResponse;
 };
 
 export type StorefrontProductResponse = {
@@ -419,6 +1125,8 @@ export type StorefrontSkuResponse = {
     inStock?: boolean;
 };
 
+export type TransitionSide = 'STORE' | 'MODERATION';
+
 export type Uuid = string;
 
 export type ListCategoriesData = {
@@ -426,6 +1134,10 @@ export type ListCategoriesData = {
     path?: never;
     query?: {
         cursor?: string;
+        /**
+         * Ids das categorias, até 100, separados por vírgula; repetir o parâmetro também vale
+         */
+        ids?: Array<Uuid>;
         limit?: number;
         parentId?: string;
     };
@@ -498,8 +1210,137 @@ export type CreateCategoryResponses = {
     /**
      * Categoria criada
      */
-    201: unknown;
+    201: CategoryResponse;
 };
+
+export type CreateCategoryResponse = CreateCategoryResponses[keyof CreateCategoryResponses];
+
+export type BatchCategoriesData = {
+    body: CategoryBatchRequest;
+    path?: never;
+    query?: never;
+    url: '/categories/batch';
+};
+
+export type BatchCategoriesErrors = {
+    /**
+     * Requisição inválida
+     */
+    400: unknown;
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type BatchCategoriesError = BatchCategoriesErrors[keyof BatchCategoriesErrors];
+
+export type BatchCategoriesResponses = {
+    /**
+     * Resultado de cada categoria, na ordem do pedido
+     */
+    200: CategoryBatchResponse;
+};
+
+export type BatchCategoriesResponse = BatchCategoriesResponses[keyof BatchCategoriesResponses];
+
+export type ListCategoryTreeData = {
+    body?: never;
+    path?: never;
+    query?: {
+        cursor?: string;
+        limit?: number;
+        /**
+         * Só as categorias ativas com todos os ancestrais ativos
+         */
+        usable?: boolean;
+    };
+    url: '/categories/tree';
+};
+
+export type ListCategoryTreeErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type ListCategoryTreeError = ListCategoryTreeErrors[keyof ListCategoryTreeErrors];
+
+export type ListCategoryTreeResponses = {
+    /**
+     * Página de categorias
+     */
+    200: CategoryPage;
+};
+
+export type ListCategoryTreeResponse = ListCategoryTreeResponses[keyof ListCategoryTreeResponses];
+
+export type DeleteCategoryData = {
+    body?: never;
+    headers?: {
+        'If-Match'?: string;
+    };
+    path: {
+        id: Uuid;
+    };
+    query?: never;
+    url: '/categories/{id}';
+};
+
+export type DeleteCategoryErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type DeleteCategoryError = DeleteCategoryErrors[keyof DeleteCategoryErrors];
+
+export type DeleteCategoryResponses = {
+    /**
+     * Categoria excluída
+     */
+    204: void;
+};
+
+export type DeleteCategoryResponse = DeleteCategoryResponses[keyof DeleteCategoryResponses];
 
 export type GetCategoryData = {
     body?: never;
@@ -678,7 +1519,7 @@ export type CreateReservationResponses = {
     /**
      * Reserva criada
      */
-    201: unknown;
+    201: ReservationResponse;
 };
 
 export type CreateReservationResponse = CreateReservationResponses[keyof CreateReservationResponses];
@@ -928,6 +1769,43 @@ export type AdjustStockResponses = {
 
 export type AdjustStockResponse = AdjustStockResponses[keyof AdjustStockResponses];
 
+export type GetSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type GetSessionErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type GetSessionError = GetSessionErrors[keyof GetSessionErrors];
+
+export type GetSessionResponses = {
+    /**
+     * Sessão do chamador
+     */
+    200: SessionResponse;
+};
+
+export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
 export type ModerationQueueData = {
     body?: never;
     path?: never;
@@ -966,7 +1844,48 @@ export type ModerationQueueResponses = {
     200: ProductPage;
 };
 
-export type ModerationQueueResponse = ModerationQueueResponses[keyof ModerationQueueResponses];
+export type ModerationQueueResponse2 = ModerationQueueResponses[keyof ModerationQueueResponses];
+
+export type BatchModerateProductsData = {
+    body: ModerationBatchRequest;
+    path?: never;
+    query?: never;
+    url: '/moderation/products/batch';
+};
+
+export type BatchModerateProductsErrors = {
+    /**
+     * Requisição inválida
+     */
+    400: unknown;
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type BatchModerateProductsError = BatchModerateProductsErrors[keyof BatchModerateProductsErrors];
+
+export type BatchModerateProductsResponses = {
+    /**
+     * Desfecho de cada produto, na ordem do pedido
+     */
+    200: ProductBatchResponse;
+};
+
+export type BatchModerateProductsResponse = BatchModerateProductsResponses[keyof BatchModerateProductsResponses];
 
 export type ApproveProductData = {
     body?: never;
@@ -1011,7 +1930,7 @@ export type ApproveProductResponses = {
 export type ApproveProductResponse = ApproveProductResponses[keyof ApproveProductResponses];
 
 export type BlockProductData = {
-    body: ReasonRequest;
+    body: DecisionRequest;
     headers?: {
         'If-Match'?: string;
     };
@@ -1057,7 +1976,7 @@ export type BlockProductResponses = {
 export type BlockProductResponse = BlockProductResponses[keyof BlockProductResponses];
 
 export type RejectProductData = {
-    body: ReasonRequest;
+    body: DecisionRequest;
     headers?: {
         'If-Match'?: string;
     };
@@ -1144,6 +2063,262 @@ export type UnblockProductResponses = {
 
 export type UnblockProductResponse = UnblockProductResponses[keyof UnblockProductResponses];
 
+export type ListModerationReasonsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Só os motivos que valem para a decisão
+         */
+        decision?: 'REJECT' | 'BLOCK';
+        /**
+         * Inclui os inativos; exige MANAGE_MODERATION_REASONS
+         */
+        includeInactive?: boolean;
+    };
+    url: '/moderation/reasons';
+};
+
+export type ListModerationReasonsErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type ListModerationReasonsError = ListModerationReasonsErrors[keyof ListModerationReasonsErrors];
+
+export type ListModerationReasonsResponses = {
+    /**
+     * Catálogo de motivos
+     */
+    200: Array<ModerationReasonResponse>;
+};
+
+export type ListModerationReasonsResponse = ListModerationReasonsResponses[keyof ListModerationReasonsResponses];
+
+export type CreateModerationReasonData = {
+    body: CreateModerationReasonRequest;
+    path?: never;
+    query?: never;
+    url: '/moderation/reasons';
+};
+
+export type CreateModerationReasonErrors = {
+    /**
+     * Requisição inválida
+     */
+    400: unknown;
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type CreateModerationReasonError = CreateModerationReasonErrors[keyof CreateModerationReasonErrors];
+
+export type CreateModerationReasonResponses = {
+    /**
+     * Motivo criado
+     */
+    201: ModerationReasonResponse;
+};
+
+export type CreateModerationReasonResponse = CreateModerationReasonResponses[keyof CreateModerationReasonResponses];
+
+export type GetModerationReasonData = {
+    body?: never;
+    path: {
+        code: string;
+    };
+    query?: never;
+    url: '/moderation/reasons/{code}';
+};
+
+export type GetModerationReasonErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type GetModerationReasonError = GetModerationReasonErrors[keyof GetModerationReasonErrors];
+
+export type GetModerationReasonResponses = {
+    /**
+     * Motivo
+     */
+    200: ModerationReasonResponse;
+};
+
+export type GetModerationReasonResponse = GetModerationReasonResponses[keyof GetModerationReasonResponses];
+
+export type ReviseModerationReasonData = {
+    body: ReviseModerationReasonRequest;
+    headers?: {
+        'If-Match'?: string;
+    };
+    path: {
+        code: string;
+    };
+    query?: never;
+    url: '/moderation/reasons/{code}';
+};
+
+export type ReviseModerationReasonErrors = {
+    /**
+     * Requisição inválida
+     */
+    400: unknown;
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type ReviseModerationReasonError = ReviseModerationReasonErrors[keyof ReviseModerationReasonErrors];
+
+export type ReviseModerationReasonResponses = {
+    /**
+     * Motivo atualizado
+     */
+    200: ModerationReasonResponse;
+};
+
+export type ReviseModerationReasonResponse = ReviseModerationReasonResponses[keyof ReviseModerationReasonResponses];
+
+export type ActivateModerationReasonData = {
+    body?: never;
+    headers?: {
+        'If-Match'?: string;
+    };
+    path: {
+        code: string;
+    };
+    query?: never;
+    url: '/moderation/reasons/{code}/activate';
+};
+
+export type ActivateModerationReasonErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type ActivateModerationReasonError = ActivateModerationReasonErrors[keyof ActivateModerationReasonErrors];
+
+export type ActivateModerationReasonResponses = {
+    /**
+     * Motivo ativo
+     */
+    200: ModerationReasonResponse;
+};
+
+export type ActivateModerationReasonResponse = ActivateModerationReasonResponses[keyof ActivateModerationReasonResponses];
+
+export type DeactivateModerationReasonData = {
+    body?: never;
+    headers?: {
+        'If-Match'?: string;
+    };
+    path: {
+        code: string;
+    };
+    query?: never;
+    url: '/moderation/reasons/{code}/deactivate';
+};
+
+export type DeactivateModerationReasonErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type DeactivateModerationReasonError = DeactivateModerationReasonErrors[keyof DeactivateModerationReasonErrors];
+
+export type DeactivateModerationReasonResponses = {
+    /**
+     * Motivo inativo
+     */
+    200: ModerationReasonResponse;
+};
+
+export type DeactivateModerationReasonResponse = DeactivateModerationReasonResponses[keyof DeactivateModerationReasonResponses];
+
 export type GetOfferData = {
     body?: never;
     path: {
@@ -1228,7 +2403,7 @@ export type DefineOfferResponses = {
     /**
      * Oferta criada
      */
-    201: unknown;
+    201: OfferResponse;
 };
 
 export type DefineOfferResponse = DefineOfferResponses[keyof DefineOfferResponses];
@@ -1274,8 +2449,10 @@ export type SchedulePromotionResponses = {
     /**
      * Promoção agendada
      */
-    201: unknown;
+    201: OfferResponse;
 };
+
+export type SchedulePromotionResponse = SchedulePromotionResponses[keyof SchedulePromotionResponses];
 
 export type CancelPromotionData = {
     body?: never;
@@ -1326,7 +2503,21 @@ export type ListProductsData = {
     query?: {
         cursor?: string;
         limit?: number;
+        /**
+         * Trecho do título, sem diferenciar maiúsculas e acentos, ou do código do SKU do seller
+         */
+        q?: string;
+        /**
+         * Coluna da ordem; o prefixo - inverte
+         */
+        sort?: 'updatedAt' | '-updatedAt' | 'createdAt' | '-createdAt' | 'title' | '-title';
+        /**
+         * Estado como a resposta o mostra; OUT_OF_STOCK é o ACTIVE sem saldo disponível, e ACTIVE exige saldo
+         */
         status?: string;
+        /**
+         * Loja; vale para moderador e admin, e o seller vê sempre a própria
+         */
         storeId?: string;
     };
     url: '/products';
@@ -1398,8 +2589,91 @@ export type CreateProductResponses = {
     /**
      * Produto criado
      */
-    201: unknown;
+    201: ProductResponse;
 };
+
+export type CreateProductResponse = CreateProductResponses[keyof CreateProductResponses];
+
+export type BatchProductsData = {
+    body: ProductBatchRequest;
+    path?: never;
+    query?: never;
+    url: '/products/batch';
+};
+
+export type BatchProductsErrors = {
+    /**
+     * Requisição inválida
+     */
+    400: unknown;
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type BatchProductsError = BatchProductsErrors[keyof BatchProductsErrors];
+
+export type BatchProductsResponses = {
+    /**
+     * Desfecho de cada produto, na ordem do pedido
+     */
+    200: ProductBatchResponse;
+};
+
+export type BatchProductsResponse = BatchProductsResponses[keyof BatchProductsResponses];
+
+export type ListProductImportsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/products/imports';
+};
+
+export type ListProductImportsErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type ListProductImportsError = ListProductImportsErrors[keyof ListProductImportsErrors];
+
+export type ListProductImportsResponses = {
+    /**
+     * Página de importações
+     */
+    200: ImportPage;
+};
+
+export type ListProductImportsResponse = ListProductImportsResponses[keyof ListProductImportsResponses];
 
 export type ImportProductsData = {
     /**
@@ -1444,7 +2718,12 @@ export type GetProductImportData = {
     path: {
         id: Uuid;
     };
-    query?: never;
+    query?: {
+        /**
+         * Com false, sem o resultado de cada linha
+         */
+        lines?: boolean;
+    };
     url: '/products/imports/{id}';
 };
 
@@ -1604,6 +2883,49 @@ export type ReviseProductResponses = {
 };
 
 export type ReviseProductResponse = ReviseProductResponses[keyof ReviseProductResponses];
+
+export type CheckProductData = {
+    body: ProductCheckRequest;
+    path: {
+        id: Uuid;
+    };
+    query?: never;
+    url: '/products/{id}/check';
+};
+
+export type CheckProductErrors = {
+    /**
+     * Requisição inválida
+     */
+    400: unknown;
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type CheckProductError = CheckProductErrors[keyof CheckProductErrors];
+
+export type CheckProductResponses = {
+    /**
+     * Pendências e efeito da troca
+     */
+    200: ProductCheckResponse;
+};
+
+export type CheckProductResponse = CheckProductResponses[keyof CheckProductResponses];
 
 export type ProductHistoryData = {
     body?: never;
@@ -1769,8 +3091,10 @@ export type AddSkuResponses = {
     /**
      * SKU adicionado
      */
-    201: unknown;
+    201: ProductResponse;
 };
+
+export type AddSkuResponse = AddSkuResponses[keyof AddSkuResponses];
 
 export type RemoveSkuData = {
     body?: never;
@@ -1943,6 +3267,174 @@ export type SubmitProductResponses = {
 };
 
 export type SubmitProductResponse = SubmitProductResponses[keyof SubmitProductResponses];
+
+export type GetCategoryStatsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/stats/categories';
+};
+
+export type GetCategoryStatsErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type GetCategoryStatsError = GetCategoryStatsErrors[keyof GetCategoryStatsErrors];
+
+export type GetCategoryStatsResponses = {
+    /**
+     * Números da taxonomia
+     */
+    200: CategoryStatsResponse;
+};
+
+export type GetCategoryStatsResponse = GetCategoryStatsResponses[keyof GetCategoryStatsResponses];
+
+export type GetModerationStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Primeiro dia do período (ISO 8601)
+         */
+        from?: string;
+        granularity?: 'day' | 'month' | 'year';
+        /**
+         * Último dia do período (ISO 8601)
+         */
+        to?: string;
+    };
+    url: '/stats/moderation';
+};
+
+export type GetModerationStatsErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type GetModerationStatsError = GetModerationStatsErrors[keyof GetModerationStatsErrors];
+
+export type GetModerationStatsResponses = {
+    /**
+     * Números da moderação
+     */
+    200: ModerationStatsResponse;
+};
+
+export type GetModerationStatsResponse = GetModerationStatsResponses[keyof GetModerationStatsResponses];
+
+export type GetModerationQueueStatsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/stats/moderation/queue';
+};
+
+export type GetModerationQueueStatsErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type GetModerationQueueStatsError = GetModerationQueueStatsErrors[keyof GetModerationQueueStatsErrors];
+
+export type GetModerationQueueStatsResponses = {
+    /**
+     * Tamanho da fila
+     */
+    200: ModerationQueueResponse;
+};
+
+export type GetModerationQueueStatsResponse = GetModerationQueueStatsResponses[keyof GetModerationQueueStatsResponses];
+
+export type GetStoreStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Primeiro dia do período (ISO 8601)
+         */
+        from?: string;
+        granularity?: 'day' | 'month' | 'year';
+        /**
+         * Último dia do período (ISO 8601)
+         */
+        to?: string;
+    };
+    url: '/stats/store';
+};
+
+export type GetStoreStatsErrors = {
+    /**
+     * Token ausente, expirado ou inválido
+     */
+    401: unknown;
+    /**
+     * Papel sem permissão para a operação
+     */
+    403: unknown;
+    /**
+     * Erro do cliente (RFC 9457)
+     */
+    '4XX': Problem;
+    /**
+     * Erro do servidor (RFC 9457)
+     */
+    '5XX': Problem;
+};
+
+export type GetStoreStatsError = GetStoreStatsErrors[keyof GetStoreStatsErrors];
+
+export type GetStoreStatsResponses = {
+    /**
+     * Números da loja
+     */
+    200: StoreStatsResponse;
+};
+
+export type GetStoreStatsResponse = GetStoreStatsResponses[keyof GetStoreStatsResponses];
 
 export type GetStorefrontProductData = {
     body?: never;

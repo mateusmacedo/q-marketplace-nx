@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddSkuData, AddSkuErrors, AddSkuResponses, AdjustStockData, AdjustStockErrors, AdjustStockResponses, ApproveProductData, ApproveProductErrors, ApproveProductResponses, ArchiveProductData, ArchiveProductErrors, ArchiveProductResponses, BlockProductData, BlockProductErrors, BlockProductResponses, CancelPromotionData, CancelPromotionErrors, CancelPromotionResponses, CommitReservationData, CommitReservationErrors, CommitReservationResponses, CreateCategoryData, CreateCategoryErrors, CreateCategoryResponses, CreateProductData, CreateProductErrors, CreateProductResponses, CreateReservationData, CreateReservationErrors, CreateReservationResponses, DefineOfferData, DefineOfferErrors, DefineOfferResponses, ExtendReservationData, ExtendReservationErrors, ExtendReservationResponses, GetCategoryData, GetCategoryErrors, GetCategoryResponses, GetOfferData, GetOfferErrors, GetOfferResponses, GetProductData, GetProductErrors, GetProductImportData, GetProductImportErrors, GetProductImportResponses, GetProductResponses, GetReservationData, GetReservationErrors, GetReservationResponses, GetSkuData, GetSkuErrors, GetSkuResponses, GetStockData, GetStockErrors, GetStockResponses, GetStoreEligibilityData, GetStoreEligibilityErrors, GetStoreEligibilityResponses, GetStorefrontProductData, GetStorefrontProductErrors, GetStorefrontProductResponses, ImportProductsData, ImportProductsErrors, ImportProductsResponses, ListCategoriesData, ListCategoriesErrors, ListCategoriesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ModerationQueueData, ModerationQueueErrors, ModerationQueueResponses, MoveCategoryData, MoveCategoryErrors, MoveCategoryResponses, PauseProductData, PauseProductErrors, PauseProductResponses, ProductHistoryData, ProductHistoryErrors, ProductHistoryResponses, RejectProductData, RejectProductErrors, RejectProductResponses, ReleaseReservationData, ReleaseReservationErrors, ReleaseReservationResponses, RemoveSkuData, RemoveSkuErrors, RemoveSkuResponses, ResumeProductData, ResumeProductErrors, ResumeProductResponses, ReviseCategoryData, ReviseCategoryErrors, ReviseCategoryResponses, ReviseProductData, ReviseProductErrors, ReviseProductResponses, ReviseSkuData, ReviseSkuErrors, ReviseSkuResponses, SchedulePromotionData, SchedulePromotionErrors, SchedulePromotionResponses, SubmitProductData, SubmitProductErrors, SubmitProductResponses, UnblockProductData, UnblockProductErrors, UnblockProductResponses } from './types.gen';
+import type { ActivateModerationReasonData, ActivateModerationReasonErrors, ActivateModerationReasonResponses, AddSkuData, AddSkuErrors, AddSkuResponses, AdjustStockData, AdjustStockErrors, AdjustStockResponses, ApproveProductData, ApproveProductErrors, ApproveProductResponses, ArchiveProductData, ArchiveProductErrors, ArchiveProductResponses, BatchCategoriesData, BatchCategoriesErrors, BatchCategoriesResponses, BatchModerateProductsData, BatchModerateProductsErrors, BatchModerateProductsResponses, BatchProductsData, BatchProductsErrors, BatchProductsResponses, BlockProductData, BlockProductErrors, BlockProductResponses, CancelPromotionData, CancelPromotionErrors, CancelPromotionResponses, CheckProductData, CheckProductErrors, CheckProductResponses, CommitReservationData, CommitReservationErrors, CommitReservationResponses, CreateCategoryData, CreateCategoryErrors, CreateCategoryResponses, CreateModerationReasonData, CreateModerationReasonErrors, CreateModerationReasonResponses, CreateProductData, CreateProductErrors, CreateProductResponses, CreateReservationData, CreateReservationErrors, CreateReservationResponses, DeactivateModerationReasonData, DeactivateModerationReasonErrors, DeactivateModerationReasonResponses, DefineOfferData, DefineOfferErrors, DefineOfferResponses, DeleteCategoryData, DeleteCategoryErrors, DeleteCategoryResponses, ExtendReservationData, ExtendReservationErrors, ExtendReservationResponses, GetCategoryData, GetCategoryErrors, GetCategoryResponses, GetCategoryStatsData, GetCategoryStatsErrors, GetCategoryStatsResponses, GetModerationQueueStatsData, GetModerationQueueStatsErrors, GetModerationQueueStatsResponses, GetModerationReasonData, GetModerationReasonErrors, GetModerationReasonResponses, GetModerationStatsData, GetModerationStatsErrors, GetModerationStatsResponses, GetOfferData, GetOfferErrors, GetOfferResponses, GetProductData, GetProductErrors, GetProductImportData, GetProductImportErrors, GetProductImportResponses, GetProductResponses, GetReservationData, GetReservationErrors, GetReservationResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSkuData, GetSkuErrors, GetSkuResponses, GetStockData, GetStockErrors, GetStockResponses, GetStoreEligibilityData, GetStoreEligibilityErrors, GetStoreEligibilityResponses, GetStorefrontProductData, GetStorefrontProductErrors, GetStorefrontProductResponses, GetStoreStatsData, GetStoreStatsErrors, GetStoreStatsResponses, ImportProductsData, ImportProductsErrors, ImportProductsResponses, ListCategoriesData, ListCategoriesErrors, ListCategoriesResponses, ListCategoryTreeData, ListCategoryTreeErrors, ListCategoryTreeResponses, ListModerationReasonsData, ListModerationReasonsErrors, ListModerationReasonsResponses, ListProductImportsData, ListProductImportsErrors, ListProductImportsResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ModerationQueueData, ModerationQueueErrors, ModerationQueueResponses, MoveCategoryData, MoveCategoryErrors, MoveCategoryResponses, PauseProductData, PauseProductErrors, PauseProductResponses, ProductHistoryData, ProductHistoryErrors, ProductHistoryResponses, RejectProductData, RejectProductErrors, RejectProductResponses, ReleaseReservationData, ReleaseReservationErrors, ReleaseReservationResponses, RemoveSkuData, RemoveSkuErrors, RemoveSkuResponses, ResumeProductData, ResumeProductErrors, ResumeProductResponses, ReviseCategoryData, ReviseCategoryErrors, ReviseCategoryResponses, ReviseModerationReasonData, ReviseModerationReasonErrors, ReviseModerationReasonResponses, ReviseProductData, ReviseProductErrors, ReviseProductResponses, ReviseSkuData, ReviseSkuErrors, ReviseSkuResponses, SchedulePromotionData, SchedulePromotionErrors, SchedulePromotionResponses, SubmitProductData, SubmitProductErrors, SubmitProductResponses, UnblockProductData, UnblockProductErrors, UnblockProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -20,8 +20,11 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 
 /**
  * Lista filhos de uma categoria (ou as raízes) em ordem de código
+ *
+ * Com `ids`, devolve só essas categorias, em ordem de código e numa página só, sem `nextCursor`; id repetido aparece uma vez, e o que não existe no tenant fica de fora. `ids` não combina com `parentId` nem com `cursor` (400), e `limit` não se aplica a ele.
  */
 export const listCategories = <ThrowOnError extends boolean = false>(options?: Options<ListCategoriesData, ThrowOnError>): RequestResult<ListCategoriesResponses, ListCategoriesErrors, ThrowOnError> => (options?.client ?? client).get<ListCategoriesResponses, ListCategoriesErrors, ThrowOnError>({
+    querySerializer: { parameters: { ids: { array: { explode: false } } } },
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/categories',
     ...options
@@ -38,6 +41,43 @@ export const createCategory = <ThrowOnError extends boolean = false>(options: Op
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Ativa, desativa ou exclui até 100 categorias, cada uma isolada
+ *
+ * Cada item exige `version`, como o If-Match do endpoint de um item; sem ela, o item falha com 428. Ativar ou desativar a categoria que já está na situação pedida não grava nada. A exclusão roda das subcategorias para as categorias pai, para que um ramo vazio saia inteiro, e cada item recusa como `DELETE /categories/{id}`.
+ */
+export const batchCategories = <ThrowOnError extends boolean = false>(options: Options<BatchCategoriesData, ThrowOnError>): RequestResult<BatchCategoriesResponses, BatchCategoriesErrors, ThrowOnError> => (options.client ?? client).post<BatchCategoriesResponses, BatchCategoriesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/categories/batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Lista todas as categorias do tenant na ordem da árvore
+ *
+ * O pai vem antes das subcategorias, e os irmãos seguem a ordem de código, como numa árvore aberta; cada item traz o caminho desde a raiz. Com `usable=true`, só as categorias que aceitam produtos novos (ela e os ancestrais ativos). A página tem até 1000 itens, que é também o padrão, para quem lê a árvore inteira fazer poucas leituras.
+ */
+export const listCategoryTree = <ThrowOnError extends boolean = false>(options?: Options<ListCategoryTreeData, ThrowOnError>): RequestResult<ListCategoryTreeResponses, ListCategoryTreeErrors, ThrowOnError> => (options?.client ?? client).get<ListCategoryTreeResponses, ListCategoryTreeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/categories/tree',
+    ...options
+});
+
+/**
+ * Exclui a categoria vazia (exige If-Match)
+ *
+ * Vale só para a categoria sem subcategorias e sem nenhum produto, nem arquivado. Recusa com 409 `category-has-children` ou `category-has-products`, com o mesmo código em `reasons`, inclusive quando a subcategoria ou o produto é gravado ao mesmo tempo.
+ */
+export const deleteCategory = <ThrowOnError extends boolean = false>(options: Options<DeleteCategoryData, ThrowOnError>): RequestResult<DeleteCategoryResponses, DeleteCategoryErrors, ThrowOnError> => (options.client ?? client).delete<DeleteCategoryResponses, DeleteCategoryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/categories/{id}',
+    ...options
 });
 
 /**
@@ -153,12 +193,34 @@ export const adjustStock = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
- * Produtos aguardando moderação
+ * Consulta o chamador: tenant, loja, capacidades e permissões compostas
+ */
+export const getSession = <ThrowOnError extends boolean = false>(options?: Options<GetSessionData, ThrowOnError>): RequestResult<GetSessionResponses, GetSessionErrors, ThrowOnError> => (options?.client ?? client).get<GetSessionResponses, GetSessionErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/me',
+    ...options
+});
+
+/**
+ * Produtos aguardando moderação, em ordem de chegada
  */
 export const moderationQueue = <ThrowOnError extends boolean = false>(options?: Options<ModerationQueueData, ThrowOnError>): RequestResult<ModerationQueueResponses, ModerationQueueErrors, ThrowOnError> => (options?.client ?? client).get<ModerationQueueResponses, ModerationQueueErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/moderation/products',
     ...options
+});
+
+/**
+ * Aprova, rejeita ou bloqueia até 100 produtos, cada um isolado
+ */
+export const batchModerateProducts = <ThrowOnError extends boolean = false>(options: Options<BatchModerateProductsData, ThrowOnError>): RequestResult<BatchModerateProductsResponses, BatchModerateProductsErrors, ThrowOnError> => (options.client ?? client).post<BatchModerateProductsResponses, BatchModerateProductsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/products/batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**
@@ -184,7 +246,7 @@ export const blockProduct = <ThrowOnError extends boolean = false>(options: Opti
 });
 
 /**
- * Rejeita e devolve ao rascunho com motivo
+ * Rejeita e devolve ao rascunho com motivos prontos e complemento
  */
 export const rejectProduct = <ThrowOnError extends boolean = false>(options: Options<RejectProductData, ThrowOnError>): RequestResult<RejectProductResponses, RejectProductErrors, ThrowOnError> => (options.client ?? client).post<RejectProductResponses, RejectProductErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -202,6 +264,74 @@ export const rejectProduct = <ThrowOnError extends boolean = false>(options: Opt
 export const unblockProduct = <ThrowOnError extends boolean = false>(options: Options<UnblockProductData, ThrowOnError>): RequestResult<UnblockProductResponses, UnblockProductErrors, ThrowOnError> => (options.client ?? client).post<UnblockProductResponses, UnblockProductErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/moderation/products/{id}/unblock',
+    ...options
+});
+
+/**
+ * Motivos prontos de rejeição e bloqueio do tenant
+ *
+ * Lista na ordem de `position` e, no empate, de `code`, que é também a ordem dos rótulos no texto da decisão. Tenant sem motivos responde lista vazia, e o moderador decide só com o complemento.
+ */
+export const listModerationReasons = <ThrowOnError extends boolean = false>(options?: Options<ListModerationReasonsData, ThrowOnError>): RequestResult<ListModerationReasonsResponses, ListModerationReasonsErrors, ThrowOnError> => (options?.client ?? client).get<ListModerationReasonsResponses, ListModerationReasonsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/reasons',
+    ...options
+});
+
+/**
+ * Cria motivo de moderação no catálogo do tenant
+ *
+ * O código é imutável e só vale neste tenant. Recusa com 409 `duplicate-moderation-reason-code` o código já usado, inclusive por um motivo inativo. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos (desativar um abre a vaga) e com 422 `moderation-reason-catalog-limit` quando o catálogo, contando os inativos, chegou ao teto de proteção.
+ */
+export const createModerationReason = <ThrowOnError extends boolean = false>(options: Options<CreateModerationReasonData, ThrowOnError>): RequestResult<CreateModerationReasonResponses, CreateModerationReasonErrors, ThrowOnError> => (options.client ?? client).post<CreateModerationReasonResponses, CreateModerationReasonErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/reasons',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Consulta motivo de moderação; ETag carrega a versão
+ */
+export const getModerationReason = <ThrowOnError extends boolean = false>(options: Options<GetModerationReasonData, ThrowOnError>): RequestResult<GetModerationReasonResponses, GetModerationReasonErrors, ThrowOnError> => (options.client ?? client).get<GetModerationReasonResponses, GetModerationReasonErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/reasons/{code}',
+    ...options
+});
+
+/**
+ * Atualiza rótulo, decisões e posição do motivo (exige If-Match)
+ */
+export const reviseModerationReason = <ThrowOnError extends boolean = false>(options: Options<ReviseModerationReasonData, ThrowOnError>): RequestResult<ReviseModerationReasonResponses, ReviseModerationReasonErrors, ThrowOnError> => (options.client ?? client).put<ReviseModerationReasonResponses, ReviseModerationReasonErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/reasons/{code}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Volta a oferecer o motivo ao moderador (exige If-Match)
+ *
+ * Já ativo, não grava e devolve o mesmo ETag. Recusa com 422 `moderation-reason-limit` quando o tenant já tem o máximo de motivos ativos; desative outro antes.
+ */
+export const activateModerationReason = <ThrowOnError extends boolean = false>(options: Options<ActivateModerationReasonData, ThrowOnError>): RequestResult<ActivateModerationReasonResponses, ActivateModerationReasonErrors, ThrowOnError> => (options.client ?? client).post<ActivateModerationReasonResponses, ActivateModerationReasonErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/reasons/{code}/activate',
+    ...options
+});
+
+/**
+ * Tira o motivo das decisões novas, sem apagar o histórico (exige If-Match)
+ */
+export const deactivateModerationReason = <ThrowOnError extends boolean = false>(options: Options<DeactivateModerationReasonData, ThrowOnError>): RequestResult<DeactivateModerationReasonResponses, DeactivateModerationReasonErrors, ThrowOnError> => (options.client ?? client).post<DeactivateModerationReasonResponses, DeactivateModerationReasonErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/moderation/reasons/{code}/deactivate',
     ...options
 });
 
@@ -250,7 +380,7 @@ export const cancelPromotion = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
- * Lista produtos; o seller vê só a própria loja
+ * Lista produtos com busca e ordem; o seller vê só a própria loja
  */
 export const listProducts = <ThrowOnError extends boolean = false>(options?: Options<ListProductsData, ThrowOnError>): RequestResult<ListProductsResponses, ListProductsErrors, ThrowOnError> => (options?.client ?? client).get<ListProductsResponses, ListProductsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -272,6 +402,28 @@ export const createProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * Envia, pausa, reativa ou arquiva até 100 produtos, cada um isolado
+ */
+export const batchProducts = <ThrowOnError extends boolean = false>(options: Options<BatchProductsData, ThrowOnError>): RequestResult<BatchProductsResponses, BatchProductsErrors, ThrowOnError> => (options.client ?? client).post<BatchProductsResponses, BatchProductsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/products/batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Lista as importações da loja, da mais recente à mais antiga
+ */
+export const listProductImports = <ThrowOnError extends boolean = false>(options?: Options<ListProductImportsData, ThrowOnError>): RequestResult<ListProductImportsResponses, ListProductImportsErrors, ThrowOnError> => (options?.client ?? client).get<ListProductImportsResponses, ListProductImportsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/products/imports',
+    ...options
+});
+
+/**
  * Envia planilha CSV de produtos para importação em segundo plano
  */
 export const importProducts = <ThrowOnError extends boolean = false>(options: Options<ImportProductsData, ThrowOnError>): RequestResult<ImportProductsResponses, ImportProductsErrors, ThrowOnError> => (options.client ?? client).post<ImportProductsResponses, ImportProductsErrors, ThrowOnError>({
@@ -287,6 +439,8 @@ export const importProducts = <ThrowOnError extends boolean = false>(options: Op
 
 /**
  * Consulta a importação e o resultado de cada linha
+ *
+ * Com `lines=false`, traz a situação e as contagens gravadas junto do lote, sem ler o resultado de cada linha (`lines` vem nulo), para acompanhar o processamento sem trafegar até milhares de linhas a cada consulta.
  */
 export const getProductImport = <ThrowOnError extends boolean = false>(options: Options<GetProductImportData, ThrowOnError>): RequestResult<GetProductImportResponses, GetProductImportErrors, ThrowOnError> => (options.client ?? client).get<GetProductImportResponses, GetProductImportErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -318,6 +472,19 @@ export const getProduct = <ThrowOnError extends boolean = false>(options: Option
 export const reviseProduct = <ThrowOnError extends boolean = false>(options: Options<ReviseProductData, ThrowOnError>): RequestResult<ReviseProductResponses, ReviseProductErrors, ThrowOnError> => (options.client ?? client).put<ReviseProductResponses, ReviseProductErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/products/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Confere o rascunho sem gravar: pendências de publicação e efeito da troca de categoria
+ */
+export const checkProduct = <ThrowOnError extends boolean = false>(options: Options<CheckProductData, ThrowOnError>): RequestResult<CheckProductResponses, CheckProductErrors, ThrowOnError> => (options.client ?? client).post<CheckProductResponses, CheckProductErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/products/{id}/check',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -406,12 +573,54 @@ export const submitProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * Números da taxonomia: categorias, raízes, inativas e com produtos
+ */
+export const getCategoryStats = <ThrowOnError extends boolean = false>(options?: Options<GetCategoryStatsData, ThrowOnError>): RequestResult<GetCategoryStatsResponses, GetCategoryStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetCategoryStatsResponses, GetCategoryStatsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/stats/categories',
+    ...options
+});
+
+/**
+ * Números da moderação: fila, decisões do mês e série de atividade
+ *
+ * Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos.
+ */
+export const getModerationStats = <ThrowOnError extends boolean = false>(options?: Options<GetModerationStatsData, ThrowOnError>): RequestResult<GetModerationStatsResponses, GetModerationStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetModerationStatsResponses, GetModerationStatsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/stats/moderation',
+    ...options
+});
+
+/**
+ * Tamanho atual da fila de moderação
+ *
+ * Conta os produtos em PENDING_MODERATION agora, sem os indicadores nem a série de `/stats/moderation`, para quem só mostra o tamanho da fila e o consulta com frequência.
+ */
+export const getModerationQueueStats = <ThrowOnError extends boolean = false>(options?: Options<GetModerationQueueStatsData, ThrowOnError>): RequestResult<GetModerationQueueStatsResponses, GetModerationQueueStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetModerationQueueStatsResponses, GetModerationQueueStatsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/stats/moderation/queue',
+    ...options
+});
+
+/**
+ * Números da loja: produtos por status, indicadores e série de atividade
+ *
+ * Os baldes seguem o fuso America/Sao_Paulo. Sem `from` e `to`, que vão juntos, o período é o padrão da granularidade: os últimos 30 dias até hoje (`day`), os 12 meses do ano corrente (`month`) ou os últimos 5 anos até o corrente (`year`); com eles, entre 0001-01-01 e 9999-12-31, os baldes que os contêm, até 366. Os indicadores trazem os últimos 7 meses, refeitos pelo histórico de transições dos produtos. O saldo não guarda histórico: `outOfStock` só tem o valor atual, e `active` tem como valor o ACTIVE com saldo e, nos meses, o ACTIVE gravado, com ou sem saldo, sem `previous` nem `change`.
+ */
+export const getStoreStats = <ThrowOnError extends boolean = false>(options?: Options<GetStoreStatsData, ThrowOnError>): RequestResult<GetStoreStatsResponses, GetStoreStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetStoreStatsResponses, GetStoreStatsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/stats/store',
+    ...options
+});
+
+/**
  * Produto público com o preço vigente de cada SKU
  */
 export const getStorefrontProduct = <ThrowOnError extends boolean = false>(options: Options<GetStorefrontProductData, ThrowOnError>): RequestResult<GetStorefrontProductResponses, GetStorefrontProductErrors, ThrowOnError> => (options.client ?? client).get<GetStorefrontProductResponses, GetStorefrontProductErrors, ThrowOnError>({ url: '/storefront/{tenantId}/products/{productId}', ...options });
 
 /**
- * Consulta a situação da loja (seller: só a própria)
+ * Consulta a situação da loja (seller: só a própria; admin e moderador: qualquer uma)
  */
 export const getStoreEligibility = <ThrowOnError extends boolean = false>(options: Options<GetStoreEligibilityData, ThrowOnError>): RequestResult<GetStoreEligibilityResponses, GetStoreEligibilityErrors, ThrowOnError> => (options.client ?? client).get<GetStoreEligibilityResponses, GetStoreEligibilityErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
