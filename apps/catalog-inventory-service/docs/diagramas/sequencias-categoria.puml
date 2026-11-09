@@ -133,8 +133,10 @@ note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde\n
 alt #FFEBEE cadeia vazia (inexistente no tenant do chamador)
   res --> cli : <color:#C62828>404 not-found</color>
 else #E8F5E9 encontrada
-  svc -> dom : Category.effectiveAttributes(cadeia)\nusable = todos da cadeia ativos
-  res --> cli : 200 CategoryResponse + ETag "{version}"
+  svc -> repo : childCounts(tenant, [id]) (junto da cadeia, sem cache)
+  repo -> pg : SELECT parent_id, count(*) FROM category WHERE tenant_id AND parent_id = ANY (ids)
+  svc -> dom : Category.effectiveAttributes(cadeia)\nusable = todos da cadeia ativos; level = tamanho da cadeia
+  res --> cli : 200 CategoryResponse (com ancestors, level e childCount) + ETag "{version}"
 end
 
 newpage revise: PUT /categories/{id}
@@ -345,8 +347,110 @@ else cache ligado
   end
 end
 note over repo, pg : Prazo catalog.persistence.timeout (2 s): estouro responde\n503 service-unavailable + Retry-After: 1
-svc -> svc : Page.of(encontradas, limit, Category::code):\nexcedente presente => nextCursor = código do último item da página
+svc -> repo : childCounts(tenant, ids da página) (uma consulta para todas, sem cache)
+svc -> svc : CategoryNode por item: caminho do pai e número de subcategorias;\nPage.of(nós, limit, código):\nexcedente presente => nextCursor = código do último item da página
 res --> cli : 200 CategoryPage {items: CategorySummary[], nextCursor: base64url do código | null}
+note over res, pg : Com ids (até 100), a mesma rota lê só essas categorias: ver a página byIds.
+
+newpage tree: GET /categories/tree?usable&cursor&limit
+autonumber 1
+
+cli -> res : GET /categories/tree?usable={true|false}&cursor={opaco}&limit={1..1000, padrão 1000}\n(papel seller, catalog-admin ou catalog-moderator)
+alt #FFEBEE limit fora de 1 a 1000 (@Min, @Max)
+  res --> cli : <color:#C62828>400 validation-failed</color>
+else #FFEBEE cursor inválido (não base64url, em branco ou acima de 366 caracteres)
+  res --> cli : <color:#C62828>400 invalid-request</color>
+end
+res -> svc : tree(actor, afterPath?, usableOnly, limit)
+svc -> svc : afterPath fora do formato (códigos separados por espaço, até 6 níveis):\n<color:#C62828>400 invalid-request</color>; Page.fetch(limit, 1000): pede limit + 1
+svc -> repo : tree(tenant, afterPath?, usableOnly, limit + 1) (sem cache)
+repo -> pg : WITH RECURSIVE tree desde as raízes, com o caminho de códigos (path_key)\ne a situação dos ancestrais; a recursão é podada pelo cursor;\n[usable: só as ativas com ancestrais ativos] ORDER BY path_key LIMIT limit + 1;\nJOIN category e contagem das subcategorias
+note over repo, pg : Ordem da árvore: no COLLATE "C" o espaço vem antes de qualquer caractere de código,\nentão o pai sai antes das filhas e as filhas antes do irmão seguinte.
+svc -> svc : Page.of(nós, limit, pathKey): nextCursor = caminho do último item
+res --> cli : 200 CategoryPage {items: CategorySummary[] com ancestors, level e childCount,\nnextCursor: base64url do caminho | null}
+
+newpage byIds: GET /categories?ids=
+autonumber 1
+
+cli -> res : GET /categories?ids={id},{id}... (até 100; repetir o parâmetro também vale)\n(papel seller, catalog-admin ou catalog-moderator)
+alt #FFEBEE ids junto de parentId ou cursor, ou id que não é UUID
+  res --> cli : <color:#C62828>400 invalid-request</color>
+end
+res -> svc : byIds(actor, ids)
+svc -> svc : fora de 1 a 100 ids: <color:#C62828>400 invalid-request</color>;\nid repetido conta uma vez
+svc -> repo : byIds(tenant, ids) (sem cache)
+repo -> pg : SELECT das categorias pedidas com o caminho e a contagem das subcategorias\nWHERE tenant_id AND id = ANY (ids) ORDER BY code
+res --> cli : 200 CategoryPage {items: CategorySummary[] em ordem de código, nextCursor: null}\n(id inexistente no tenant fica de fora; limit não se aplica)
+
+newpage delete: DELETE /categories/{id}
+autonumber 1
+
+cli -> res : DELETE /categories/{id} (papel catalog-admin, If-Match obrigatório)
+alt #FFEBEE papel diferente de catalog-admin
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE If-Match ausente, em branco ou *
+  res --> cli : <color:#C62828>428 precondition-required</color>
+else #FFEBEE If-Match fraco (W/) ou sem aspas
+  res --> cli : <color:#C62828>400 invalid-request</color>
+end
+res -> svc : delete(actor, id, ifMatch)
+svc -> svc : actor.require(MANAGE_TAXONOMY)
+svc -> repo : chain(tenant, id) e childCounts(tenant, [id])
+repo -> pg : SELECT da cadeia; SELECT da contagem das subcategorias
+alt #FFEBEE cadeia vazia
+  res --> cli : <color:#C62828>404 not-found</color>
+else #FFEBEE If-Match diferente da versão lida
+  res --> cli : <color:#C62828>412 version-mismatch</color>
+else #FFEBEE tem subcategorias (Category.requireRemovable)
+  res --> cli : <color:#C62828>409 category-has-children</color>
+end
+svc -> dec : delete(category, versão lida)
+dec -> repo : delete
+repo -> pg : BEGIN; pg_advisory_xact_lock(árvore do tenant);\nDELETE FROM category WHERE tenant_id AND id AND version = {lida}
+alt #FFEBEE nenhuma linha (outra escrita venceu ou já excluída)
+  repo -> pg : ROLLBACK
+  res --> cli : <color:#C62828>409 concurrent-update</color>
+else #FFEBEE category_parent_fk ou product_category_fk (filha ou produto, inclusive arquivado,\ngravados depois da leitura)
+  repo -> pg : ROLLBACK
+  res --> cli : <color:#C62828>409 category-has-children | category-has-products</color> (o código também em reasons)
+else #E8F5E9 excluída
+  repo -> pg : COMMIT
+  opt cache ligado
+    dec -> redis : EVALSHA INVALIDATE (INCR catalog:gen:taxonomy:{tenant})
+  end
+  res --> cli : 204 No Content
+end
+
+newpage batch: POST /categories/batch
+autonumber 1
+
+cli -> res : POST /categories/batch (papel catalog-admin)\n{action: ACTIVATE | DEACTIVATE | DELETE, items: [{id, version}] (1 a 100)}
+alt #FFEBEE papel diferente de catalog-admin
+  res --> cli : <color:#C62828>403</color>
+else #FFEBEE corpo malformado, ação desconhecida, items vazio ou acima de 100
+  res --> cli : <color:#C62828>400 malformed-body | validation-failed</color>
+end
+res -> svc : batch(actor, action, items)
+svc -> svc : actor.require(MANAGE_TAXONOMY); Batch.requireItems
+opt #FFEBEE id repetido no lote
+  res --> cli : <color:#C62828>400 invalid-request</color> (nada é gravado)
+end
+opt DELETE
+  svc -> repo : depths(tenant, ids)
+  repo -> pg : SELECT id, cardinality(ancestry) FROM category WHERE tenant_id AND id = ANY (ids)
+  svc -> svc : ordena da subcategoria mais funda para o pai (empate mantém a ordem do pedido),\npara um ramo vazio sair inteiro
+end
+loop cada item, em sequência
+  alt item sem version
+    svc -> svc : falha do item: 428 precondition-required
+  else ACTIVATE ou DEACTIVATE
+    svc -> svc : cadeia, versão como If-Match; na situação pedida, não grava;\nsenão activate ou deactivate e update (como revise)
+  else DELETE
+    svc -> svc : mesmo fluxo da página delete
+  end
+  note right of svc : cada item na própria transação; a falha de um item\nvira o resultado dele e não desfaz os outros
+end
+res --> cli : 200 {results: [{id, outcome SUCCEEDED, active, version}\nou {id, outcome FAILED, problem que o endpoint de um item responderia}]}, na ordem do pedido
 
 legend right
   <b>Camadas</b>

@@ -24,6 +24,7 @@ package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplic
     class SellerEligibilityService <<final>>
     class ProductImportService <<final>>
     class ModerationReasonService <<final>>
+    class CatalogStatsService <<final>>
     class ProductActions <<final>>
   }
 
@@ -51,6 +52,7 @@ package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplic
     interface SellerEligibilityRepository <<porta>>
     interface ProductImportRepository <<porta>>
     interface ModerationReasonRepository <<porta>>
+    interface CatalogStatsRepository <<porta>>
   }
 }
 
@@ -63,6 +65,7 @@ package "$I_POSTGRES catalog-inventory-service (adaptadores)" <<saida>> #FBF6FC;
   class PgSellerEligibilityRepository <<saida>>
   class PgProductImportRepository <<saida>>
   class PgModerationReasonRepository <<saida>>
+  class PgCatalogStatsRepository <<saida>>
   class ProductCacheInvalidation <<decorator>>
   class OfferCacheInvalidation <<decorator>>
   class CategoryCacheInvalidation <<decorator>>
@@ -96,6 +99,7 @@ ProductActions --> SellerEligibilityRepository : statusesOf (uma consulta por pÃ
 ProductImportService --> ProductImportRepository
 ModerationService --> ModerationReasonRepository : catalog
 ModerationReasonService --> ModerationReasonRepository
+CatalogStatsService --> CatalogStatsRepository
 ProductImportService --> ProductRepository : skuIdsBySellerSku
 ProductImportService --> ProductAccess
 ProductImportService --> CategoryRepository
@@ -112,6 +116,7 @@ ReservationRepository <|.. PgReservationRepository
 SellerEligibilityRepository <|.. PgSellerEligibilityRepository
 ProductImportRepository <|.. PgProductImportRepository
 ModerationReasonRepository <|.. PgModerationReasonRepository
+CatalogStatsRepository <|.. PgCatalogStatsRepository
 
 ProductRepository <|.. ProductCacheInvalidation
 OfferRepository <|.. OfferCacheInvalidation

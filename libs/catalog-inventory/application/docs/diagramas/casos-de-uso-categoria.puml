@@ -14,20 +14,32 @@ package "$I_CATEGORIA CategoryService" as CategoryService <<aplicacao>> {
   usecase "Consultar categoria\n(get)" as UC_get <<leitura>>
   usecase "Revisar categoria\n(revise)" as UC_revise
   usecase "Mover categoria\n(move)" as UC_move
+  usecase "Excluir categoria vazia\n(delete)" as UC_delete
+  usecase "Ativar, desativar ou\nexcluir em lote\n(batch)" as UC_batch
   usecase "Listar subcategorias\n(children)" as UC_children <<leitura>>
+  usecase "Ler a árvore na ordem\n(tree)" as UC_tree <<leitura>>
+  usecase "Ler categorias pelo id\n(byIds)" as UC_byIds <<leitura>>
 }
 
 admin --> UC_create
 admin --> UC_get
 admin --> UC_revise
 admin --> UC_move
+admin --> UC_delete
+admin --> UC_batch
 admin --> UC_children
+admin --> UC_tree
+admin --> UC_byIds
 
 seller --> UC_get
 seller --> UC_children
+seller --> UC_tree
+seller --> UC_byIds
 
 moderator --> UC_get
 moderator --> UC_children
+moderator --> UC_tree
+moderator --> UC_byIds
 
 package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as REGRAS <<infra>> {
   note as N_create
@@ -75,8 +87,44 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     A API aceita seller, moderador e admin.
     Subcategorias diretas de parentId (raízes sem ele),
     inclusive inativas, em ordem de código, com cursor
-    por código; limit de 1 a 100.
+    por código; limit de 1 a 100. Cada item traz o
+    caminho e o número de subcategorias.
     Pai inexistente: <color:#C62828>404</color>.
+  end note
+  note as N_delete
+    **delete**
+    Só catalog-admin. If-Match obrigatório na API
+    (<color:#C62828>428</color> ausente, <color:#C62828>412</color> divergente).
+    Só a categoria vazia: com subcategorias,
+    <color:#C62828>category-has-children</color>; com produtos, inclusive
+    arquivados, <color:#C62828>category-has-products</color> (<color:#C62828>409</color>).
+    API: <color:#2E7D32>204</color>.
+  end note
+  note as N_batch
+    **batch**
+    Só catalog-admin. ACTIVATE, DEACTIVATE ou DELETE
+    em até 100 itens sem id repetido (<color:#C62828>400</color>); a versão
+    de cada item é obrigatória, como o If-Match (<color:#C62828>428</color>).
+    Na situação pedida, ativar ou desativar não grava.
+    A exclusão roda das subcategorias para os pais,
+    e um ramo vazio sai inteiro. A falha de um item
+    não desfaz os outros.
+  end note
+  note as N_tree
+    **tree**
+    Todas as categorias do tenant na ordem da árvore
+    (pai antes das filhas, irmãos por código), com o
+    caminho de cada uma; usable=true deixa só as que
+    aceitam produto novo. Página de até 1000 itens,
+    também o padrão; cursor malformado: <color:#C62828>400</color>.
+  end note
+  note as N_byIds
+    **byIds**
+    De 1 a 100 ids (<color:#C62828>400</color> fora disso), em ordem de
+    código e numa página só; id repetido conta uma
+    vez, e o que não existe no tenant fica de fora.
+    Na API, GET /categories?ids=, que não combina
+    com parentId nem cursor (<color:#C62828>400</color>).
   end note
 }
 
@@ -84,6 +132,10 @@ N_create -[hidden]left-> N_get
 N_get -[hidden]left-> N_revise
 N_revise -[hidden]left-> N_move
 N_move -[hidden]left-> N_children
+N_children -[hidden]left-> N_delete
+N_delete -[hidden]left-> N_batch
+N_batch -[hidden]left-> N_tree
+N_tree -[hidden]left-> N_byIds
 legend right
   <b>Como ler</b>
   <back:#F9A825>    </back> Ator humano ou cliente autenticado

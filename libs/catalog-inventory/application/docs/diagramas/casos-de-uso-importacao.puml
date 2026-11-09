@@ -13,6 +13,8 @@ actor "$I_WORKER\nWorker" as worker <<sistema>>
 package "<$file_import,scale=0.8,color=#1565C0> ProductImportService" as ProductImportService <<aplicacao>> {
   usecase "Enviar lote de importação\n(submit)" as UC_submit
   usecase "Consultar lote de importação\n(get)" as UC_get <<leitura>>
+  usecase "Ver resumo do lote\n(summary)" as UC_summary <<leitura>>
+  usecase "Listar lotes da loja\n(list)" as UC_list <<leitura>>
   usecase "Reivindicar próximo lote\n(claimNext)" as UC_claimNext <<sistema>>
   usecase "Processar lote de importação\n(process)" as UC_process <<sistema>>
 }
@@ -32,6 +34,8 @@ package "$I_ESTOQUE InventoryService" as InventoryService <<aplicacao>> {
 
 seller --> UC_submit
 seller --> UC_get
+seller --> UC_summary
+seller --> UC_list
 UC_claimNext <-- worker
 UC_process <-- worker
 
@@ -56,6 +60,20 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     ou outro tenant: <color:#C62828>404</color>.
     Devolve o lote, as contagens por resultado e as
     linhas já gravadas, em ordem de linha.
+  end note
+  note as N_summary
+    **summary**
+    Mesmo acesso de get. O lote e as contagens por
+    desfecho, sem as linhas, para acompanhar o
+    processamento. Na API, GET /products/imports/{id}
+    com lines=false.
+  end note
+  note as N_list
+    **list**
+    Seller com loja. Lotes da própria loja, do mais
+    recente ao mais antigo, com as contagens por
+    desfecho; cursor pela criação e o id, limit de
+    1 a 100; cursor malformado: <color:#C62828>400</color>.
   end note
   note as N_claimNext
     **claimNext**
@@ -88,7 +106,9 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
 }
 
 N_submit -[hidden]left-> N_get
-N_get -[hidden]left-> N_claimNext
+N_get -[hidden]left-> N_summary
+N_summary -[hidden]left-> N_list
+N_list -[hidden]left-> N_claimNext
 N_claimNext -[hidden]left-> N_process
 legend right
   <b>Como ler</b>

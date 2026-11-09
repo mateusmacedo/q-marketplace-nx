@@ -26,6 +26,7 @@ package "<$box,scale=0.8,color=#1565C0> ProductService" as ProductService <<apli
   usecase "Devolver produto publicado\nà moderação\n(REVIEW_REQUIRED)" as UC_review
   usecase "Conferir rascunho sem gravar\n(check)" as UC_check <<leitura>>
   usecase "Calcular pendências de publicação\n(publishingIssues)" as UC_issues <<leitura>>
+  usecase "Enviar, pausar, retomar ou\narquivar em lote\n(batch)" as UC_batch
 }
 
 package "$I_SERVICO ProductActions" as ProductActionsUC <<aplicacao>> {
@@ -49,6 +50,7 @@ seller --> UC_pause
 seller --> UC_resume
 seller --> UC_archive
 seller --> UC_check
+seller --> UC_batch
 
 moderator --> UC_get
 moderator --> UC_list
@@ -69,6 +71,7 @@ UC_submit ..> UC_stockOf : <<include>>
 UC_pause ..> UC_stockOf : <<include>>
 UC_resume ..> UC_stockOf : <<include>>
 UC_archive ..> UC_stockOf : <<include>>
+UC_batch ..> UC_stockOf : <<include>>
 
 UC_get ..> UC_actions : <<include>>
 UC_list ..> UC_actions : <<include>>
@@ -98,11 +101,15 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
   end note
   note as N_list
     **list**
-    Cursor por id, limit de 1 a 100.
+    Ordem sort (updatedAt, createdAt ou title,
+    com - para inverter; padrão -updatedAt), busca q
+    no título sem caixa nem acento e no SKU do seller,
+    cursor composto preso à ordem e à busca (outro:
+    <color:#C62828>400</color>), limit de 1 a 100.
     Admin e moderador filtram por storeId; o seller
     vê só a própria loja e o filtro é ignorado.
-    Filtrar por OUT_OF_STOCK é inválido (<color:#C62828>400</color>):
-    estado derivado do saldo.
+    OUT_OF_STOCK filtra o ACTIVE sem saldo, e ACTIVE
+    exige saldo. Traz a última rejeição do rascunho.
   end note
   note as N_history
     **history**
@@ -184,6 +191,14 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     Devolve as pendências do rascunho e, com outra
     categoria, o efeito da troca. Não grava nada.
   end note
+  note as N_batch
+    **batch**
+    Seller com loja; de 1 a 100 itens sem id repetido
+    (<color:#C62828>400</color>). Cada item passa pela operação de um item,
+    com a versão como If-Match, em sequência; a falha
+    de um não desfaz os outros. API: <color:#2E7D32>200</color> com o
+    desfecho de cada item, na ordem do pedido.
+  end note
   note as N_actions
     **ProductActions**
     Ações do chamador por status, edição, capacidade e
@@ -212,7 +227,8 @@ N_pause -[hidden]left-> N_resume
 N_resume -[hidden]left-> N_archive
 N_archive -[hidden]left-> N_review
 N_review -[hidden]left-> N_check
-N_check -[hidden]left-> N_actions
+N_check -[hidden]left-> N_batch
+N_batch -[hidden]left-> N_actions
 N_actions -[hidden]left-> N_stockOf
 legend right
   <b>Como ler</b>

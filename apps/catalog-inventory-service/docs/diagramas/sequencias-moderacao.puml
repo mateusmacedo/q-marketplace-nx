@@ -41,23 +41,23 @@ box "Infraestrutura" #F7F9FA
 end box
 
 mod -> res : GET /moderation/products?cursor=&limit=
-res -> res : @PermissionsAllowed(MODERATE_PRODUCTS) na classe; @Min(1) @Max(100) em limit;\nCursors.decodeUuid(cursor)
+res -> res : @PermissionsAllowed(MODERATE_PRODUCTS) na classe; @Min(1) @Max(100) em limit;\nCursors.decode(cursor)
 opt #FFEBEE limit fora de 1 a 100
   res -[#C62828]-> mod : <color:#C62828>400 validation-failed</color>
 end
-opt #FFEBEE cursor malformado (não é base64url de UUID)
+opt #FFEBEE cursor malformado (não é base64url, em branco, acima de 128 caracteres\nou sem a entrada na fila e o id)
   res -[#C62828]-> mod : <color:#C62828>400 invalid-request</color>
 end
 == Aplicação e regras de domínio ==
-res -> svc : queue(actor, afterId, limit)
+res -> svc : queue(actor, cursorKey, limit)
 svc -> svc : actor.require(MODERATE_PRODUCTS)
 opt #FFEBEE sem MODERATE_PRODUCTS
   res -[#C62828]-> mod : <color:#C62828>403 access-denied</color>
 end
-svc -> svc : Page.fetch: requireSize(limit)
-svc -> repo : find(tenant, todas as lojas, PENDING_MODERATION, afterId, limit + 1)
-repo -> pg : SELECT product WHERE tenant_id AND status = 'PENDING_MODERATION' [AND id > cursor]\nORDER BY id LIMIT limit + 1, com LEFT JOIN sku
-svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = id do último item
+svc -> svc : Page.fetch: requireSize(limit); cursorKey vira QueuePosition(queuedAt, id)
+svc -> repo : moderationQueue(tenant, after, limit + 1)
+repo -> pg : SELECT product WHERE tenant_id AND status = 'PENDING_MODERATION'\n[AND (moderation_queued_at, id) > cursor] ORDER BY moderation_queued_at, id\nLIMIT limit + 1 (índice parcial da fila), com os SKUs
+svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = entrada na fila e id do último item
 res -> resp : ProductResponses.page(actor, page)
 resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs da página)\n(página sem SKUs não consulta)
 resp -> pg : SELECT store_id, status FROM seller_eligibility WHERE store_id = ANY (lojas da página)\n(uma consulta: APPROVE fica barrado com seller-not-eligible se a loja não está aprovada)
@@ -282,5 +282,35 @@ else #E8F5E9 ok
   res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status PENDING_MODERATION\n(catalog.moderation.decisions{decision=unblocked}++)
 end
 note over res, repo : O produto reaparece em GET /moderation/products e precisa de nova aprovação.
+$legenda_sequencia()
+
+newpage POST /moderation/products/batch: aprovar, rejeitar ou bloquear em lote (ModerationService.batch)
+autonumber 1
+mod -> res : POST /moderation/products/batch {action: APPROVE | REJECT | BLOCK,\nitems: [{id, version?}] (1 a 100), reasonCodes?, note? (até 500)}
+res -> res : @PermissionsAllowed(MODERATE_PRODUCTS) na classe; @Valid: action e items obrigatórios,\n@Size(min = 1, max = 100) em items, @Size(max = 500) em note
+opt #FFEBEE corpo fora do formato, ação desconhecida, items vazio ou acima de 100, note longa
+  res -[#C62828]-> mod : <color:#C62828>400 validation-failed ou malformed-body</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : batch(actor, action, reasonCodes, note, items)
+svc -> svc : actor.require(MODERATE_PRODUCTS); Batch.requireItems
+opt #FFEBEE id repetido no lote, ou aprovação com motivo ou complemento
+  res -[#C62828]-> mod : <color:#C62828>400 invalid-request</color> (nada é gravado)
+end
+opt REJECT ou BLOCK com reasonCodes
+  svc -> cat : catalog(tenant) (uma vez para o lote, antes do primeiro item)
+  svc -> dom : DecisionReason.of(decisão, catálogo, códigos, note)
+  opt #FFEBEE motivo desconhecido, inativo ou de outra decisão; sem motivo nem complemento
+    res -[#C62828]-> mod : <color:#C62828>422 invalid-moderation-reason ou invalid-value</color> (nada é gravado)
+  end
+end
+loop cada item, em sequência e na ordem do pedido
+  svc -> svc : approve, reject ou block(actor, id, version como If-Match, mesmo motivo)
+  note right of svc : mesmo fluxo das páginas de um item, cada um na própria transação;\na falha de um item vira o resultado dele e não desfaz os outros
+end
+res -> res : catalog.moderation.decisions{decision} += itens gravados
+res -> resp : ProductResponses.batch(resultados, caminho)
+resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs dos gravados)\n(uma consulta; a falha vira aviso no log e os gravados saem no status gravado)
+res -[#2E7D32]-> mod : <color:#2E7D32><b>200</b></color> {results: [{id, outcome SUCCEEDED, status, version}\nou {id, outcome FAILED, problem que o endpoint de um item responderia}]}, na ordem do pedido
 $legenda_sequencia()
 @enduml

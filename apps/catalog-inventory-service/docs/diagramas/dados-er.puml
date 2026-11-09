@@ -17,10 +17,10 @@ title $I_POSTGRES Catálogo-inventário — modelo de dados (schema catalog_inve
 
 package "V1 — catálogo" #F6FBF6 {
   entity "<$sitemap,scale=0.8,color=#2E7D32> <b>category</b>" as category <<dominio>> {
-    * id : uuid <<PK>>
+    * id : uuid <<PK>> <<UK tenant_id+id>>
     --
     * tenant_id : uuid
-    parent_id : uuid <<FK category>>
+    parent_id : uuid <<FK tenant_id+parent_id → category>>
     * ancestry : uuid[]
     * code : varchar(60) <<UK tenant_id+code>>
     * name : varchar(120)
@@ -33,13 +33,16 @@ package "V1 — catálogo" #F6FBF6 {
     --
     * tenant_id : uuid
     * store_id : uuid
-    * category_id : uuid <<FK category>>
+    * category_id : uuid <<FK tenant_id+category_id → category>>
     * currency : char(3)
     * title : varchar(200)
+    * title_key : text COLLATE "C" (busca e ordem, com índice trigram)
     * description : varchar(5000)
     * attributes : jsonb
     * status : varchar(30) <<CHECK sem OUT_OF_STOCK>>
     * version : bigint
+    * created_at, updated_at : timestamptz
+    moderation_queued_at : timestamptz <<CHECK só em PENDING_MODERATION>>
   }
   entity "<$barcode,scale=0.8,color=#2E7D32> <b>sku</b>" as sku <<dominio>> {
     * id : uuid <<PK>>
@@ -57,6 +60,7 @@ package "V1 — catálogo" #F6FBF6 {
     * id : uuid <<PK>>
     --
     * product_id : uuid <<FK product>>
+    * tenant_id, store_id : uuid
     * transition, from_status, to_status : varchar(30)
     * actor : varchar(255)
     * reason_codes : text[]
@@ -182,6 +186,7 @@ package "V5 — importação" #F7F9FA {
     * status : PENDING | PROCESSING | COMPLETED
     * content : text
     * total_lines : integer
+    * created_lines, updated_lines, unchanged_lines, failed_lines : integer
     * created_at : timestamptz
     started_at, finished_at : timestamptz
   }

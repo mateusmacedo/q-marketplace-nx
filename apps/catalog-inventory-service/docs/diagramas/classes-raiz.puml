@@ -80,7 +80,9 @@ package "<$server,scale=0.55,color=#455A64> raiz (dev.marketplace.cataloginvento
     <<@Produces @Singleton>> offerService(products, offers, clock)
     <<@Produces @Singleton>> inventoryService(inventory, products, clock)
     <<@Produces @Singleton>> productImportService(imports, products, categories, offers, ...)
+    <<@Produces @Singleton>> catalogStatsService(stats, clock)
     <<@Produces @Singleton>> storefrontService(products, sellers, offers)
+    <<@Produces @Singleton>> productActions(sellers)
     <<@Produces @Singleton>> sellerEligibilityService(sellers)
     <<@Produces @Singleton>> reservationService(reservations, inventory, config, clock)
   }
@@ -98,7 +100,7 @@ package "<$server,scale=0.55,color=#455A64> raiz (dev.marketplace.cataloginvento
 }
 
 class "application.ReservationService" as ReservationService <<serviço>> #line.dashed
-class "application: demais casos de uso (9)" as UseCases <<serviço>> #line.dashed
+class "application: demais casos de uso (10) e ProductActions" as UseCases <<serviço>> #line.dashed
 class "cache.TaxonomyCache" as TaxonomyCache <<saida>> #line.dashed
 class "cache.ModerationReasonCache" as ModerationReasonCache <<saida>> #line.dashed
 class "observability.Lifecycle" as Lifecycle <<infra>> #line.dashed

@@ -44,6 +44,7 @@ class "<$broom,scale=0.55,color=#6A1B9A> CategoryCacheInvalidation" as CategoryC
   insert(category) : invalida a taxonomia do tenant
   update(category, expectedVersion) : invalida a taxonomia do tenant
   move(category, previousAncestry, expectedVersion) : invalida a taxonomia do tenant
+  delete(category, expectedVersion) : invalida a taxonomia do tenant
   <<leituras delegam>>
 }
 class "<$broom,scale=0.55,color=#6A1B9A> SellerCacheInvalidation" as SellerCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
@@ -138,7 +139,8 @@ class "TaxonomyCache.Cached" as Cached <<privada>> <<saida>> {
   --
   chain(tenantId, categoryId) : cache da cadeia até a raiz
   children(tenantId, parentId, afterCode, limit) : cache da página
-  <<idByCode, descendantAttributeCodes, subtreeHeight, insert, update e move delegam>>
+  <<idByCode, descendantAttributeCodes, subtreeHeight, childCounts, depths, tree, byIds,
+  insert, update, move e delete delegam>>
 }
 class "<$gavel,scale=0.55,color=#6A1B9A> ModerationReasonCache" as ModerationReasonCache <<@ApplicationScoped>> <<saida>> {
   -cache : CatalogCache

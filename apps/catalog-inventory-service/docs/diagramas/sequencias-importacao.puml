@@ -41,27 +41,62 @@ note over res, pg
   (tenant-not-authorized); 503 service-unavailable com Retry-After: 1 se o banco passar de 2 s.
 end note
 
-newpage GET /products/imports/{id}: consultar lote e resultado por linha (ProductImportService.get)
+newpage GET /products/imports/{id}: consultar lote, com ou sem o resultado por linha (ProductImportService.get e summary)
 autonumber 1
-seller -> res : GET /products/imports/{id}
+seller -> res : GET /products/imports/{id}?lines=true|false (padrão true)
 res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); CallerContext.actor()
-res -> svc : get(actor, id)
-svc -> svc : ProductAccess.requireSeller
+alt lines=false (acompanhar o processamento)
+  res -> svc : summary(actor, id)
+  svc -> svc : ProductAccess.requireSeller
+  opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+    res --> seller : <color:#C62828>403 access-denied</color>
+  end
+  svc -> repo : findSummary(tenant, loja, id)
+  repo -> pg : SELECT id, ..., finished_at, created_lines, updated_lines, unchanged_lines, failed_lines\nFROM product_import WHERE tenant_id AND store_id AND id (sem ler as linhas)
+  alt #FFEBEE lote inexistente, de outra loja ou de outro tenant
+    res --> seller : <color:#C62828>404 not-found (Lote de importação)</color>
+  else #E8F5E9 lote da loja do seller
+    res -> res : ImportResponse.of(summary): counts gravados com o lote;\nprocessedLines = soma das contagens; lines nulo
+    res --> seller : 200 {status, totalLines, processedLines, counts, createdAt,\nstartedAt, finishedAt, lines: null} (sem ETag)
+  end
+else lines=true
+  res -> svc : get(actor, id)
+  svc -> svc : ProductAccess.requireSeller
+  opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+    res --> seller : <color:#C62828>403 access-denied</color>
+  end
+  svc -> repo : findImport(tenant, loja, id)
+  repo -> pg : SELECT id, tenant_id, store_id, actor, status, total_lines, created_at,\nstarted_at, finished_at FROM product_import WHERE tenant_id AND store_id AND id
+  alt #FFEBEE lote inexistente, de outra loja ou de outro tenant
+    res --> seller : <color:#C62828>404 not-found (Lote de importação)</color>
+  else #E8F5E9 lote da loja do seller
+    svc -> repo : results(job.id)
+    repo -> pg : SELECT line_number, seller_sku, outcome, code, message, reasons, product_id\nFROM product_import_line WHERE import_id ORDER BY line_number
+    svc -> svc : Report(job, linhas)
+    res -> res : ImportResponse.of: counts por resultado (CREATED, UPDATED, UNCHANGED, FAILED);\nprocessedLines = linhas com resultado
+    res --> seller : 200 {status PENDING, PROCESSING ou COMPLETED, totalLines, processedLines,\ncounts, createdAt, startedAt, finishedAt, lines} (sem ETag)
+  end
+end
+note over res, pg : Lote ainda em andamento devolve só as linhas já gravadas; o resultado cresce a cada unidade concluída.
+
+newpage GET /products/imports: listar os lotes da loja (ProductImportService.list)
+autonumber 1
+seller -> res : GET /products/imports?cursor&limit (1 a 100, padrão 50)
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Min(1) @Max(100) em limit;\nCursors.decode(cursor); CallerContext.actor()
+alt #FFEBEE limit fora de 1 a 100
+  res --> seller : <color:#C62828>400 validation-failed</color>
+else #FFEBEE cursor malformado
+  res --> seller : <color:#C62828>400 invalid-request</color>
+end
+res -> svc : list(actor, cursorKey, limit)
+svc -> svc : ProductAccess.requireSeller; Page.fetch(limit + 1)
 opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
   res --> seller : <color:#C62828>403 access-denied</color>
 end
-svc -> repo : findImport(tenant, loja, id)
-repo -> pg : SELECT id, tenant_id, store_id, actor, status, total_lines, created_at,\nstarted_at, finished_at FROM product_import WHERE tenant_id AND store_id AND id
-alt #FFEBEE lote inexistente, de outra loja ou de outro tenant
-  res --> seller : <color:#C62828>404 not-found (Lote de importação)</color>
-else #E8F5E9 lote da loja do seller
-  svc -> repo : results(job.id)
-  repo -> pg : SELECT line_number, seller_sku, outcome, code, message, reasons, product_id\nFROM product_import_line WHERE import_id ORDER BY line_number
-  svc -> svc : Report(job, linhas)
-  res -> res : ImportResponse.of: counts por resultado (CREATED, UPDATED, UNCHANGED, FAILED);\nprocessedLines = linhas com resultado
-  res --> seller : 200 {status PENDING, PROCESSING ou COMPLETED, totalLines, processedLines,\ncounts, createdAt, startedAt, finishedAt, lines} (sem ETag)
-end
-note over res, pg : Lote ainda em andamento devolve só as linhas já gravadas; o resultado cresce a cada unidade concluída.
+svc -> repo : list(tenant, loja, after = (createdAt, id), limit + 1)
+repo -> pg : SELECT id, ..., finished_at, created_lines, updated_lines, unchanged_lines, failed_lines\nFROM product_import WHERE tenant_id AND store_id [AND (created_at, id) < after]\nORDER BY created_at DESC, id DESC LIMIT limit + 1
+res -> res : ImportSummaryResponse.of(summary) por lote; Cursors.next(page)
+res --> seller : 200 {items: [{id, status, totalLines, processedLines, counts, createdAt,\nstartedAt, finishedAt}], nextCursor}
 
 newpage ProductImportService.claimNext: reivindicar lote (gatilho: ProductImportWorker.run, a cada catalog.imports.interval)
 autonumber 1
@@ -140,7 +175,7 @@ loop cada unidade, em sequência
     svc -> svc : a linha vira FAILED com code igual ao type que a API responderia\n(invalid-attributes, category-inactive, invalid-transition, duplicate-seller-sku,\nversion-mismatch, not-found...); o produto já criado fica em rascunho
   end
   svc -> repo : recordResults(job.id, resultados da unidade)
-  repo -> pg : BEGIN; INSERT product_import_line ... ON CONFLICT (import_id, line_number) DO NOTHING;\nUPDATE product_import SET started_at = agora WHERE id AND status = 'PROCESSING'\n(renova a lease); COMMIT
+  repo -> pg : BEGIN; INSERT product_import_line ... ON CONFLICT (import_id, line_number) DO NOTHING;\nUPDATE product_import SET started_at = agora (se PROCESSING; renova a lease),\ncontagens por desfecho += linhas inseridas WHERE id; COMMIT
 end
 == Conclusão do lote ==
 alt #FFEBEE falha técnica (prazo do banco, erro inesperado)

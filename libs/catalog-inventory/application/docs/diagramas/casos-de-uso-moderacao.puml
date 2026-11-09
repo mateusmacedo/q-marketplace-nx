@@ -14,6 +14,7 @@ package "$I_MODERACAO ModerationService" as ModerationService <<aplicacao>> {
   usecase "Rejeitar produto\n(reject)" as UC_reject
   usecase "Bloquear produto\n(block)" as UC_block
   usecase "Desbloquear produto\n(unblock)" as UC_unblock
+  usecase "Aprovar, rejeitar ou\nbloquear em lote\n(batch)" as UC_batch
 }
 
 package "$I_MODERACAO ModerationReasonService" as ModerationReasonService <<aplicacao>> {
@@ -30,6 +31,7 @@ moderator --> UC_approve
 moderator --> UC_reject
 moderator --> UC_block
 moderator --> UC_unblock
+moderator --> UC_batch
 moderator --> UC_reasons
 admin --> UC_reasons
 admin --> UC_manage
@@ -39,6 +41,7 @@ UC_approve ..> UC_stockOf : <<include>>
 UC_reject ..> UC_stockOf : <<include>>
 UC_block ..> UC_stockOf : <<include>>
 UC_unblock ..> UC_stockOf : <<include>>
+UC_batch ..> UC_stockOf : <<include>>
 UC_reject ..> UC_reasons : <<include>>\ncatálogo do tenant
 UC_block ..> UC_reasons : <<include>>
 
@@ -48,8 +51,10 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     Rotas de moderação aceitam só catalog-moderator;
     catalog-admin não as acessa. Alcança produto de
     qualquer loja do tenant (MODERATE_PRODUCTS).
-    Lista os PENDING_MODERATION, com cursor por id e
-    limit de 1 a 100.
+    Lista os PENDING_MODERATION do que chegou primeiro
+    ao mais recente (moderationQueuedAt), com cursor
+    pela entrada na fila e o id e limit de 1 a 100.
+    A contagem leve fica em CatalogStatsService.
   end note
   note as N_approve
     **approve**
@@ -98,6 +103,15 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     <color:#C62828>422</color> moderation-reason-limit e
     moderation-reason-catalog-limit.
   end note
+  note as N_batch
+    **batch**
+    Mesma decisão e mesmo motivo para até 100 itens
+    sem id repetido (<color:#C62828>400</color>); o motivo é conferido
+    uma vez, antes do primeiro item. Aprovação com
+    motivo: <color:#C62828>400</color>. Cada item passa pela operação de um
+    item, com a versão como If-Match; a falha de um
+    não desfaz os outros.
+  end note
   note as N_stockOf
     **stockOf**
     Sem ator: ProductResponses, no adaptador REST, o
@@ -109,7 +123,8 @@ N_queue -[hidden]left-> N_approve
 N_approve -[hidden]left-> N_reject
 N_reject -[hidden]left-> N_block
 N_block -[hidden]left-> N_unblock
-N_unblock -[hidden]left-> N_manage
+N_unblock -[hidden]left-> N_batch
+N_batch -[hidden]left-> N_manage
 N_manage -[hidden]left-> N_stockOf
 legend right
   <b>Como ler</b>

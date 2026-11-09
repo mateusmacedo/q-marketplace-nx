@@ -12,7 +12,9 @@ interface "application.ProductRepository" as ProductRepository <<porta>> #line.d
   findById(tenantId, productId) : Uni<Optional<Product>>
   findBySku(tenantId, skuId) : Uni<Optional<Product>>
   skuIdsBySellerSku(tenantId, storeId, sellerSkus) : Uni<Map<String, UUID>>
-  find(tenantId, storeId, status, afterId, limit) : Uni<List<Product>>
+  moderationQueue(tenantId, after, limit) : Uni<List<Product>>
+  search(tenantId, query, limit) : Uni<List<Product>>
+  lastChanges(tenantId, productIds) : Uni<Map<UUID, StatusChange>>
   insert(product) : Uni<Void>
   update(product, expectedVersion) : Uni<Void>
   history(tenantId, productId) : Uni<List<StatusChange>>
@@ -20,6 +22,7 @@ interface "application.ProductRepository" as ProductRepository <<porta>> #line.d
 interface "application.OfferRepository" as OfferRepository <<porta>> #line.dashed {
   ofSku(tenantId, skuId) : Uni<Optional<Offer>>
   ofProduct(tenantId, productId) : Uni<List<Offer>>
+  ofSkus(tenantId, skuIds) : Uni<Map<UUID, Offer>>
   insert(offer) : Uni<Void>
   update(offer, expectedVersion) : Uni<Void>
 }
@@ -29,9 +32,14 @@ interface "application.CategoryRepository" as CategoryRepository <<porta>> #line
   descendantAttributeCodes(tenantId, categoryId) : Uni<Set<String>>
   subtreeHeight(tenantId, categoryId) : Uni<Integer>
   children(tenantId, parentId, afterCode, limit) : Uni<List<Category>>
+  childCounts(tenantId, categoryIds) : Uni<Map<UUID, Integer>>
+  depths(tenantId, categoryIds) : Uni<Map<UUID, Integer>>
+  tree(tenantId, afterPath, usableOnly, limit) : Uni<List<CategoryNode>>
+  byIds(tenantId, categoryIds) : Uni<List<CategoryNode>>
   insert(category) : Uni<Void>
   update(category, expectedVersion) : Uni<Void>
   move(category, previousAncestry, expectedVersion) : Uni<Void>
+  delete(category, expectedVersion) : Uni<Void>
 }
 interface "application.InventoryRepository" as InventoryRepository <<porta>> #line.dashed {
   levels(tenantId, skuIds) : Uni<Map<UUID, StockLevel>>
@@ -55,6 +63,8 @@ interface "application.SellerEligibilityRepository" as SellerEligibilityReposito
 interface "application.ProductImportRepository" as ProductImportRepository <<porta>> #line.dashed {
   insert(job, content) : Uni<Void>
   findImport(tenantId, storeId, id) : Uni<Optional<ProductImport>>
+  findSummary(tenantId, storeId, id) : Uni<Optional<Summary>>
+  list(tenantId, storeId, after, limit) : Uni<List<Summary>>
   results(importId) : Uni<List<ImportResult>>
   claimNext(now, staleBefore) : Uni<Optional<Claimed>>
   recordResults(importId, results, at) : Uni<Void>
@@ -65,6 +75,12 @@ interface "application.ModerationReasonRepository" as ModerationReasonRepository
   findByCode(tenantId, code) : Uni<Optional<ModerationReasonEntry>>
   insert(reason) : Uni<Void>
   update(reason, expectedVersion) : Uni<Void>
+}
+interface "application.CatalogStatsRepository" as CatalogStatsRepository <<porta>> #line.dashed {
+  store(tenantId, storeId, months, activity) : Uni<StoreSnapshot>
+  moderation(tenantId, months, activity) : Uni<ModerationSnapshot>
+  moderationQueue(tenantId) : Uni<Long>
+  categories(tenantId) : Uni<CategoryCounts>
 }
 
 class PgProductRepository <<@ApplicationScoped, @Traced>> <<saida>> {
@@ -82,6 +98,10 @@ class PgOfferRepository <<@ApplicationScoped, @Traced>> <<saida>> {
 class PgCategoryRepository <<@ApplicationScoped, @Traced>> <<saida>> {
   -pool : Pool
   -pg : PgSupport
+  --
+  tree : recursão desde as raízes, podada pelo cursor
+  delete : category_parent_fk → category-has-children
+  delete : product_category_fk → category-has-products
 }
 class PgInventoryRepository <<@ApplicationScoped, @Traced>> <<saida>> {
   -pool : Pool
@@ -106,6 +126,15 @@ class PgSellerEligibilityRepository <<@ApplicationScoped, @Traced>> <<saida>> {
 class PgProductImportRepository <<@ApplicationScoped, @Traced>> <<saida>> {
   -pool : Pool
   -pg : PgSupport
+  --
+  recordResults : soma as contagens por desfecho no lote
+}
+class PgCatalogStatsRepository <<@ApplicationScoped, @Traced>> <<saida>> {
+  -pool : Pool
+  -pg : PgSupport
+  --
+  só leitura: estado gravado, transições por balde
+  e contagens da taxonomia
 }
 class PgModerationReasonRepository <<@ApplicationScoped, @Traced>> <<saida>> {
   -pool : Pool
@@ -120,6 +149,7 @@ class PgSupport <<@ApplicationScoped>> <<saida>> {
   -timeout : Duration
   --
   bounded(operation) : Uni<T>
+  customPlan(pool, sql, params) : Uni<RowSet<Row>>
   {static} unique(failure, constraint, code, message) : Throwable
   {static} batch(conn, sql, rows) : Uni<Void>
   {static} requireOneRow(result)
@@ -193,6 +223,7 @@ ReservationRepository <|.. PgReservationRepository
 SellerEligibilityRepository <|.. PgSellerEligibilityRepository
 ProductImportRepository <|.. PgProductImportRepository
 ModerationReasonRepository <|.. PgModerationReasonRepository
+CatalogStatsRepository <|.. PgCatalogStatsRepository
 
 PgProductRepository --> PgOutbox
 PgOfferRepository --> PgOutbox
@@ -213,6 +244,7 @@ PgReservationRepository ..> PgSupport
 PgSellerEligibilityRepository ..> PgSupport
 PgProductImportRepository ..> PgSupport
 PgModerationReasonRepository ..> PgSupport
+PgCatalogStatsRepository ..> PgSupport
 
 PgOutbox +-- Pending
 PgOutbox +-- Delivery
@@ -231,6 +263,7 @@ CategoryRepository -[hidden]right- InventoryRepository
 ReservationRepository -[hidden]right- SellerEligibilityRepository
 SellerEligibilityRepository -[hidden]right- ProductImportRepository
 ProductImportRepository -[hidden]right- ModerationReasonRepository
+ModerationReasonRepository -[hidden]right- CatalogStatsRepository
 InventoryRepository -[hidden]down- ReservationRepository
 
 note right of PgSupport
@@ -240,6 +273,8 @@ note right of PgSupport
   o status. Os cinco repositórios que gravam na outbox capturam outbox.EventOrigin
   antes da transação, porque o relay publica depois, fora da requisição. bounded
   aplica o prazo de catalog.persistence.timeout; TimeoutException vira 503.
+  customPlan roda a busca de produtos com plano customizado e o mesmo prazo
+  no servidor (statement_timeout), que cancela a consulta atrasada.
 end note
 
 note bottom of PgOutbox

@@ -1,7 +1,7 @@
 @startuml classes-api-modelos-operacao
 !include ../../../../docs/diagramas/tema-catalogo.iuml
 !include <tupadr3/font-awesome-5/calendar_check>
-title $I_API Pacote api: DTOs de operação (OfferModels, InventoryModels, ReservationModels e ProductImportModels)
+title $I_API Pacote api: DTOs de operação (OfferModels, InventoryModels, ReservationModels, ProductImportModels e StatsModels)
 
 hide empty members
 hide <<requisicao>> stereotype
@@ -122,6 +122,7 @@ package "<$file_csv,scale=0.6,color=#EF6C00> ProductImportModels <<final>>" as i
     failed : int
     --
     {static} of(lines) : ImportCounts
+    {static} of(summary) : ImportCounts
   }
   class ImportLineResponse <<record>> <<resposta>> {
     lineNumber : int
@@ -147,6 +148,76 @@ package "<$file_csv,scale=0.6,color=#EF6C00> ProductImportModels <<final>>" as i
     {static} of(report) : ImportResponse
     {static} of(summary) : ImportResponse
   }
+  class ImportSummaryResponse <<record>> <<resposta>> {
+    id : UUID
+    status : ImportStatus
+    totalLines : int
+    processedLines : int
+    counts : ImportCounts
+    createdAt : Instant
+    startedAt : Instant
+    finishedAt : Instant
+    --
+    {static} of(summary) : ImportSummaryResponse
+  }
+  class ImportPage <<record>> <<resposta>> {
+    items : List<ImportSummaryResponse>
+    nextCursor : String
+  }
+}
+
+package "<$chart_line,scale=0.6,color=#EF6C00> StatsModels <<final>>" as statsModels {
+  class StoreStatsResponse <<record>> <<resposta>> {
+    storeId : UUID
+    counts : StatusCountsResponse
+    active, draft, outOfStock, blocked : IndicatorResponse
+    activity : ActivityResponse
+    --
+    {static} of(stats) : StoreStatsResponse
+  }
+  class ModerationStatsResponse <<record>> <<resposta>> {
+    queue, approved, rejected, blocked : IndicatorResponse
+    activity : ActivityResponse
+    --
+    {static} of(stats) : ModerationStatsResponse
+  }
+  class ModerationQueueResponse <<record>> <<resposta>> {
+    count : long
+  }
+  class CategoryStatsResponse <<record>> <<resposta>> {
+    total : long
+    roots : long
+    inactive : long
+    withProducts : long
+    --
+    {static} of(counts) : CategoryStatsResponse
+  }
+  class StatusCountsResponse <<record>> <<resposta>> {
+    draft, pendingModeration, active, outOfStock : long
+    pausedBySeller, blocked, archived : long
+    total : long
+  }
+  class IndicatorResponse <<record>> <<resposta>> {
+    value : long
+    previous : Long
+    change : Long
+    months : List<MonthValueResponse>
+  }
+  class MonthValueResponse <<record>> <<resposta>> {
+    month : LocalDate
+    value : Long
+  }
+  class ActivityResponse <<record>> <<resposta>> {
+    granularity : String
+    from : LocalDate
+    to : LocalDate
+    timeZone : String
+    points : List<ActivityPointResponse>
+  }
+  class ActivityPointResponse <<record>> <<resposta>> {
+    period : LocalDate
+    submitted, approved, rejected, blocked : long
+  }
 }
 
 class "domain.Money" as Money <<dominio>> #line.dashed
@@ -154,6 +225,7 @@ class "domain.Price" as Price <<dominio>> #line.dashed
 class "domain.RequestedItem" as RequestedItem <<dominio>> #line.dashed
 class "application.ProductImportService.Report" as Report <<serviço>> #line.dashed
 class "application.ProductImportRepository.Summary" as Summary <<serviço>> #line.dashed
+class "application.CatalogStatsService" as CatalogStatsService <<serviço>> #line.dashed
 
 PriceDto --> MoneyDto
 PromotionRequest --> MoneyDto
@@ -173,6 +245,18 @@ PriceDto ..> Price : toDomain
 ItemRequest ..> RequestedItem : toDomain
 ImportResponse ..> Report : of
 ImportResponse ..> Summary : of
+ImportSummaryResponse --> ImportCounts
+ImportSummaryResponse ..> Summary : of
+ImportPage "1" *-- "0..*" ImportSummaryResponse
+StoreStatsResponse --> StatusCountsResponse
+StoreStatsResponse --> IndicatorResponse
+StoreStatsResponse --> ActivityResponse
+ModerationStatsResponse --> IndicatorResponse
+ModerationStatsResponse --> ActivityResponse
+IndicatorResponse "1" *-- "0..*" MonthValueResponse
+ActivityResponse "1" *-- "0..*" ActivityPointResponse
+StoreStatsResponse ..> CatalogStatsService : of(StoreStats)
+ModerationStatsResponse ..> CatalogStatsService : of(ModerationStats)
 
 note bottom of importModels
   Mesma convenção dos DTOs de catálogo: classes finais com construtor privado, entrada

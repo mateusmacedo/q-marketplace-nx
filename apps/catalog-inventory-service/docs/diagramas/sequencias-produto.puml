@@ -109,35 +109,37 @@ note over res, resp
 end note
 $legenda_sequencia()
 
-newpage GET /products: listar produtos com cursor (ProductService.list)
+newpage GET /products: listar produtos com busca, ordem e cursor (ProductService.list)
 autonumber 1
-reader -> res : GET /products?status=&storeId=&cursor=&limit=
-res -> res : @PermissionsAllowed (MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS);\n@Min(1) @Max(100) em limit; status(): ProductStatus.valueOf;\nQueryParams.uuid(storeId); Cursors.decodeUuid(cursor)
-opt #FFEBEE limit fora de 1 a 100
+reader -> res : GET /products?status=&storeId=&q=&sort=&cursor=&limit=
+res -> res : @PermissionsAllowed (MANAGE_OWN_PRODUCTS, READ_TENANT_CATALOG, MODERATE_PRODUCTS);\n@Min(1) @Max(100) em limit; @Size(max = 100) em q; status(): ProductStatus.valueOf;\nQueryParams.uuid(storeId); ProductSort.parse(sort); Cursors.decode(cursor, 1024)
+opt #FFEBEE limit fora de 1 a 100 ou q acima de 100 caracteres
   res -[#C62828]-> reader : <color:#C62828>400 validation-failed</color>
 end
-opt #FFEBEE status desconhecido, storeId ou cursor malformados (cursor: base64url de UUID)
+opt #FFEBEE status ou sort desconhecidos, storeId ou cursor malformados
   res -[#C62828]-> reader : <color:#C62828>400 invalid-request</color>
 end
 == Aplicação e regras de domínio ==
-res -> svc : list(actor, status, storeFilter, afterId, limit)
-svc -> svc : Page.fetch: requireSize(limit)
-opt #FFEBEE status = OUT_OF_STOCK (derivado do saldo, não gravado)
-  res -[#C62828]-> reader : <color:#C62828>400 invalid-request</color>
-end
+res -> svc : list(actor, status, storeFilter, q, sort, cursorKey, limit)
 svc -> svc : ProductAccess.listScope: admin e moderador filtram por storeId (vazio = todas);\nseller: requireSeller e só a própria loja (storeId ignorado)
 opt #FFEBEE seller sem MANAGE_OWN_PRODUCTS ou sem loja no token
   res -[#C62828]-> reader : <color:#C62828>403 access-denied</color>
 end
-svc -> repo : find(tenant, loja?, status?, afterId, limit + 1)
-repo -> pg : SELECT product WHERE tenant_id [AND store_id] [AND status] [AND id > cursor]\nORDER BY id LIMIT limit + 1, com LEFT JOIN sku
-svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = id do último item da página
+svc -> svc : ProductQuery.of: q com o caractere nulo é recusado; q normalizado\n(minúsculas, sem acento, espaços simples, ProductText);\nafter(cursorKey): o cursor guarda ordem, impressão da busca e filtros, id e valor da coluna
+opt #FFEBEE cursor emitido para outra ordem, busca ou filtro, ou malformado
+  res -[#C62828]-> reader : <color:#C62828>400 invalid-request</color>
+end
+svc -> svc : Page.fetch: requireSize(limit)
+svc -> repo : search(tenant, query, limit + 1)
+repo -> pg : SELECT product WHERE tenant_id [AND store_id] [AND status: ACTIVE com saldo disponível,\nOUT_OF_STOCK = ACTIVE sem saldo, demais pelo gravado] [AND title_key LIKE %q%\nou SKU com lower(seller_sku) LIKE %q%] [AND (coluna, id) > ou < cursor]\nORDER BY coluna (updated_at, created_at ou title_key) e id LIMIT limit + 1, com os SKUs;\ncom q, plano customizado e statement_timeout (PgSupport.customPlan)
+svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = ordem, impressão, id e valor da coluna do último item
 res -> resp : ProductResponses.page(actor, page)
 resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs da página)\n(uma consulta; página sem SKUs não consulta)
+resp -> pg : ofertas dos SKUs (OfferService.offersOf) e última rejeição dos rascunhos\n(ProductService.lastRejections), uma consulta cada
 resp -> ctx : ProductActions.eligibility: statusesOf(tenant, lojas cujas ações dependem do KYB/KYC)
 ctx -> pg : SELECT store_id, status FROM seller_eligibility WHERE tenant_id AND store_id = ANY (lojas)\n(uma consulta por página; nenhuma se nada depende da loja)
 resp -> resp : ProductActions.of por item; a listagem não calcula publishingIssues
-res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> {items com actions e blockedActions, nextCursor em base64url, ausente na última página}
+res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> {items com actions, blockedActions e lastRejection,\nnextCursor em base64url, ausente na última página}
 $legenda_sequencia()
 
 newpage POST /products/{id}/check: conferir o rascunho sem gravar (ProductService.check)
@@ -176,8 +178,9 @@ alt #FFEBEE produto inexistente ou fora do alcance do chamador
   res -[#C62828]-> reader : <color:#C62828>404 not-found</color>
 else #E8F5E9 visível
   svc -> repo : history(tenant, product.id)
-  repo -> pg : SELECT id, transition, from_status, to_status, actor, reason, occurred_at\nFROM product_status_change WHERE tenant_id AND product_id\nORDER BY occurred_at, id
-  res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> [{transition, from, to, actor, reason, at}] em ordem cronológica\n(sem ETag e sem consulta de saldo)
+  repo -> pg : SELECT id, transition, from_status, to_status, actor, reason_codes, reason_labels,\nnote, occurred_at FROM product_status_change WHERE tenant_id AND product_id\nORDER BY occurred_at, id
+  res -> res : StatusChangeResponse.of(change, subject do chamador): actorSide = transition.side()\n(STORE ou MODERATION); byCaller = ator gravado igual ao chamador; o ator em si não sai
+  res -[#2E7D32]-> reader : <color:#2E7D32><b>200</b></color> [{transition, from, to, actorSide, byCaller, reason (derivado),\nreasonCodes, reasonLabels, note, at}] em ordem cronológica (sem ETag e sem consulta de saldo)
 end
 $legenda_sequencia()
 
@@ -607,5 +610,30 @@ else #E8F5E9 ok
   res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> + ETag (versão + 1), status ARCHIVED
 end
 note over res, repo : Exclusão lógica: o histórico fica. Arquivado congela edição (409 invalid-transition EDIT),\noferta (CHANGE_PRICE) e estoque (ADJUST_STOCK).
+$legenda_sequencia()
+
+newpage POST /products/batch: enviar, pausar, reativar ou arquivar em lote (ProductService.batch)
+autonumber 1
+seller -> res : POST /products/batch {action: SUBMIT | PAUSE | RESUME | ARCHIVE,\nitems: [{id, version?}] (1 a 100)}
+res -> res : @PermissionsAllowed(MANAGE_OWN_PRODUCTS); @Valid: action e items obrigatórios,\n@Size(min = 1, max = 100)
+opt #FFEBEE corpo fora do formato, ação desconhecida ou items vazio ou acima de 100
+  res -[#C62828]-> seller : <color:#C62828>400 validation-failed ou malformed-body</color>
+end
+== Aplicação e regras de domínio ==
+res -> svc : batch(actor, action, items)
+svc -> svc : ProductAccess.requireSeller; Batch.requireItems
+opt #FFEBEE sem MANAGE_OWN_PRODUCTS ou sem loja no token
+  res -[#C62828]-> seller : <color:#C62828>403 access-denied</color>
+end
+opt #FFEBEE id repetido no lote
+  res -[#C62828]-> seller : <color:#C62828>400 invalid-request</color> (nada é gravado)
+end
+loop cada item, em sequência e na ordem do pedido (uma conexão do pool por vez)
+  svc -> svc : submit, pause, resume ou archive(actor, id, version como If-Match)
+  note right of svc : mesmo fluxo das páginas de um item, cada um na própria transação,\ncom histórico, outbox e invalidação; a falha de um item vira o resultado dele\ne não desfaz nem interrompe os outros
+end
+res -> resp : ProductResponses.batch(resultados, caminho)
+resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs dos gravados)\n(uma consulta; a falha vira aviso no log e os gravados saem no status gravado)
+res -[#2E7D32]-> seller : <color:#2E7D32><b>200</b></color> {results: [{id, outcome SUCCEEDED, status, version}\nou {id, outcome FAILED, problem que o endpoint de um item responderia}]}, na ordem do pedido
 $legenda_sequencia()
 @enduml

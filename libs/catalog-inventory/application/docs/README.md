@@ -39,18 +39,18 @@ Arquivos PlantUML em [`diagramas/`](diagramas). Para renderizar, veja o comando 
 
 | Diagrama | O que mostra e como ler |
 |---|---|
-| [casos-de-uso.puml](diagramas/casos-de-uso.puml) | Visão geral: 7 atores e os 44 casos de uso (as 42 operações públicas, uma por caso, mais 2 extensões) em pacotes por serviço. Associações seguem as capacidades do `@PermissionsAllowed` de cada endpoint; `<<include>>` e `<<extend>>` só onde o código confirma. |
-| [casos-de-uso-produto.puml](diagramas/casos-de-uso-produto.puml) | `ProductService`: as operações, a conferência do rascunho (`check`), o `<<include>>` de `stockOf`, das ações (`ProductActions`) e das pendências, e a extensão que devolve o produto publicado à moderação (`REVIEW_REQUIRED`), com notas de papel, estado, `If-Match` e erros. |
-| [casos-de-uso-moderacao.puml](diagramas/casos-de-uso-moderacao.puml) | `ModerationService`: fila, aprovar, rejeitar, bloquear e desbloquear, só o papel `catalog-moderator`; `ModerationReasonService`: o catálogo de motivos do tenant, lido pelo moderador e mantido pelo `catalog-admin`. |
+| [casos-de-uso.puml](diagramas/casos-de-uso.puml) | Visão geral: 7 atores e 59 casos de uso em pacotes por serviço: 57 para as operações públicas, um por operação (a manutenção dos motivos agrupa quatro), e 2 extensões. Associações seguem as capacidades do `@PermissionsAllowed` de cada endpoint; `<<include>>` e `<<extend>>` só onde o código confirma. |
+| [casos-de-uso-produto.puml](diagramas/casos-de-uso-produto.puml) | `ProductService`: as operações, a conferência do rascunho (`check`), o lote (`batch`), o `<<include>>` de `stockOf`, das ações (`ProductActions`) e das pendências, e a extensão que devolve o produto publicado à moderação (`REVIEW_REQUIRED`), com notas de papel, estado, `If-Match` e erros. |
+| [casos-de-uso-moderacao.puml](diagramas/casos-de-uso-moderacao.puml) | `ModerationService`: fila, aprovar, rejeitar, bloquear, desbloquear e o lote, só o papel `catalog-moderator`; `ModerationReasonService`: o catálogo de motivos do tenant, lido pelo moderador e mantido pelo `catalog-admin`. |
 | [casos-de-uso-oferta.puml](diagramas/casos-de-uso-oferta.puml) | `OfferService`: consultar, definir ou trocar preço (`If-Match` só na troca), agendar e cancelar promoção. |
 | [casos-de-uso-estoque.puml](diagramas/casos-de-uso-estoque.puml) | `InventoryService`: `stockOf` (sem ator, chamado pelos adaptadores), `get`, `adjust` e os `<<include>>` vindos de `process`. |
-| [casos-de-uso-importacao.puml](diagramas/casos-de-uso-importacao.puml) | `ProductImportService`: seller envia e acompanha; o worker reivindica e processa, incluindo `create`, `define`, `get` e `adjust`. |
-| [casos-de-uso-categoria.puml](diagramas/casos-de-uso-categoria.puml) | `CategoryService`: escrita só para admin; leitura para seller, moderador e admin. |
+| [casos-de-uso-importacao.puml](diagramas/casos-de-uso-importacao.puml) | `ProductImportService`: seller envia, lista e acompanha (lote completo ou só o resumo); o worker reivindica e processa, incluindo `create`, `define`, `get` e `adjust`. |
+| [casos-de-uso-categoria.puml](diagramas/casos-de-uso-categoria.puml) | `CategoryService`: escrita, exclusão e lote só para admin; leitura (subcategorias, árvore inteira e categorias pelo id) para seller, moderador e admin. |
 | [casos-de-uso-reserva.puml](diagramas/casos-de-uso-reserva.puml) | `ReservationService`: checkout/OMS e o worker (`expireDue`), com a extensão do replay idempotente. |
 | [casos-de-uso-elegibilidade.puml](diagramas/casos-de-uso-elegibilidade.puml) | `SellerEligibilityService`: `get` (seller e admin) e `record` (KYB/KYC via Kafka). |
 | [casos-de-uso-vitrine.puml](diagramas/casos-de-uso-vitrine.puml) | `StorefrontService`: comprador anônimo, com `<<include>>` de `stockOf`. |
-| [classes-aplicacao.puml](diagramas/classes-aplicacao.puml) | `Actor`, `Capability`, `Page`, `Versions`, `SellerVerdict`, as 7 exceções e os records aninhados nos casos de uso. |
-| [classes-aplicacao-importacao.puml](diagramas/classes-aplicacao-importacao.puml) | Tipos da importação: `ImportRow`, `ImportResult`, `ProductImport`, `Claimed`, `Report` e os tipos privados do plano por unidade. |
+| [classes-aplicacao.puml](diagramas/classes-aplicacao.puml) | `Actor`, `Capability`, `Page`, `Versions`, `SellerVerdict`, a listagem (`ProductQuery`, `ProductSort`, `CategoryNode`), o lote (`Batch` e as ações), os indicadores (`StatsGranularity` e os records de `CatalogStatsService`), as 7 exceções e os records aninhados nos casos de uso. |
+| [classes-aplicacao-importacao.puml](diagramas/classes-aplicacao-importacao.puml) | Tipos da importação: `ImportRow`, `ImportResult`, `ProductImport`, `Claimed`, `Summary`, `Position`, `Report` e os tipos privados do plano por unidade. |
 | [classes-aplicacao-casos-de-uso.puml](diagramas/classes-aplicacao-casos-de-uso.puml) | Assinaturas das operações dos casos de uso, de `ProductActions` e de `ProductSupport`/`ProductAccess`. |
 | [portas-e-casos-de-uso.puml](diagramas/portas-e-casos-de-uso.puml) | Serviços → `ProductSupport`/`ProductAccess` → portas `<<interface>>`. O pacote tracejado é o serviço: `Pg*`, decorators de invalidação, `TaxonomyCache.over()` e `ModerationReasonCache.over()`. |
 | [sequencia-reserva-idempotente.puml](diagramas/sequencia-reserva-idempotente.puml) | `reserve` em quatro casos: chave nova, replay idêntico, chave reutilizada com outro corpo e corrida entre duas chamadas. |
@@ -73,8 +73,9 @@ Convenções das tabelas:
 |---|---|---|---|---|
 | `create` | `MANAGE_OWN_PRODUCTS` + loja no token | — | Rascunho na loja do token, histórico e evento na outbox; sem idempotência | categoria inexistente (404), `category-inactive`, `duplicate-seller-sku` |
 | `get` | leitor do tenant, moderador ou dono | — | — | 404 fora do alcance |
-| `list` | leitor do tenant ou moderador (filtra por loja); seller vê só a própria | — | Página por `id` | `limit` fora de 1 a 100; filtro `OUT_OF_STOCK` (`InvalidInputException`) |
+| `list` | leitor do tenant ou moderador (filtra por loja); seller vê só a própria | — | Página na ordem `ProductSort` (padrão `-updatedAt`), com busca no título sem caixa nem acento e no `sellerSku` ([`ProductQuery`](../src/main/java/dev/marketplace/cataloginventory/application/ProductQuery.java)); `OUT_OF_STOCK` filtra o `ACTIVE` sem saldo | `limit` fora de 1 a 100, texto acima de 100 caracteres, cursor de outra ordem ou busca (`InvalidInputException`) |
 | `history` | como `get` | — | Mudanças de estado com ator e motivo | 404 |
+| `lastRejections` | produtos já autorizados | — | Última rejeição dos rascunhos devolvidos pela moderação, numa consulta (`ProductRepository.lastChanges`) | — |
 | `publishingIssues` | produto já autorizado | — | Pendências com o campo onde cada uma se resolve; vazio em `BLOCKED` e `ARCHIVED` | — |
 | `check` | dono | — | Pendências do rascunho não salvo e, se a categoria muda, o efeito da troca; não grava | 404 (outra loja, categoria fora do tenant), `invalid-transition` (`BLOCKED`, `ARCHIVED`) |
 | `reviseContent` | dono | opcional | Publicado volta a `PENDING_MODERATION` | `invalid-transition` (`BLOCKED`, `ARCHIVED`), `category-inactive`, `invalid-attributes` |
@@ -85,6 +86,7 @@ Convenções das tabelas:
 | `pause` | dono | opcional | `ACTIVE` → `PAUSED_BY_SELLER` | `invalid-transition` |
 | `resume` | dono | opcional | `PAUSED_BY_SELLER` → `ACTIVE`, sem nova moderação | `seller-not-eligible` |
 | `archive` | dono | opcional | Exclusão lógica definitiva; congela edição, oferta e estoque | `invalid-transition` (já arquivado) |
+| `batch` | seller com loja | versão de cada item, opcional | `SUBMIT`, `PAUSE`, `RESUME` ou `ARCHIVE` ([`ProductBatchAction`](../src/main/java/dev/marketplace/cataloginventory/application/ProductBatchAction.java)) em cada item, como a operação de um item, em sequência; a falha de um não desfaz os outros ([`Batch`](../src/main/java/dev/marketplace/cataloginventory/application/Batch.java)) | itens fora de 1 a 100 ou id repetido (`InvalidInputException`); por item, as recusas da operação |
 
 ### `ProductActions`
 
@@ -100,11 +102,12 @@ Convenções das tabelas:
 
 | Operação | If-Match | Efeitos | Recusas principais |
 |---|---|---|---|
-| `queue` | — | Página de `PENDING_MODERATION` de todas as lojas | `limit` fora de 1 a 100 |
+| `queue` | — | Página de `PENDING_MODERATION` de todas as lojas, por ordem de chegada (`moderationQueuedAt` e id) | cursor malformado, `limit` fora de 1 a 100 |
 | `approve` | opcional | `PENDING_MODERATION` → `ACTIVE`, reavaliando completude e loja | `product-not-publishable`, `seller-not-eligible` |
 | `reject` | opcional | `PENDING_MODERATION` → `DRAFT`; códigos, rótulos da época e complemento no histórico | sem motivo nem complemento ou complemento acima de 500 (`invalid-value`); motivo ausente do catálogo do tenant, inativo ou de outra decisão (`invalid-moderation-reason`) |
 | `block` | opcional | Qualquer estado, menos `BLOCKED` e `ARCHIVED`, → `BLOCKED`; evento de bloqueio | `invalid-transition`, as recusas de motivo de `reject` |
 | `unblock` | opcional | `BLOCKED` → `PENDING_MODERATION` | `invalid-transition` |
+| `batch` | versão de cada item, opcional | `APPROVE`, `REJECT` ou `BLOCK` ([`ModerationDecision`](../src/main/java/dev/marketplace/cataloginventory/application/ModerationDecision.java)) com o mesmo motivo em cada item, como a operação de um item | aprovação com motivo, itens fora de 1 a 100 ou id repetido (`InvalidInputException`); por item, as recusas da operação |
 
 Rejeitar e bloquear conferem os códigos contra o catálogo do tenant (`ModerationReasonRepository.catalog`) antes de ler o produto, uma vez por lote; a decisão só com complemento não lê o catálogo.
 
@@ -160,15 +163,19 @@ Produto arquivado recusa as três escritas com `invalid-transition` (operação 
 
 ### `CategoryService`
 
-[`CategoryService`](../src/main/java/dev/marketplace/cataloginventory/application/CategoryService.java): árvore do tenant. `CategoryView` traz a categoria, os atributos efetivos e `usable` (ela e todos os ancestrais ativos).
+[`CategoryService`](../src/main/java/dev/marketplace/cataloginventory/application/CategoryService.java): árvore do tenant. `CategoryView` traz a cadeia da raiz até a categoria e o número de subcategorias diretas, de onde saem os atributos efetivos, `usable` (ela e todos os ancestrais ativos) e o nível. As listas devolvem [`CategoryNode`](../src/main/java/dev/marketplace/cataloginventory/application/CategoryNode.java): a categoria, o caminho desde a raiz e o número de subcategorias.
 
 | Operação | Capacidade | If-Match | Efeitos | Recusas principais |
 |---|---|---|---|---|
 | `create` | `MANAGE_TAXONOMY` | — | Raiz ou subcategoria | pai inexistente (404), `category-inactive`, `attribute-conflict`, `category-too-deep`, `duplicate-category-code` |
 | `get` | nenhuma | — | — | 404 |
 | `children` | nenhuma | — | Página das filhas diretas (ou raízes), inclusive inativas, por `code` | pai inexistente (404), `limit` fora de 1 a 100 |
+| `tree` | nenhuma | — | Todas as categorias do tenant na ordem da árvore (pai antes das filhas, irmãos por `code`); `usableOnly` deixa só as que aceitam produto novo. Página de até `TREE_PAGE_SIZE` = 1000 | cursor malformado, `limit` fora de 1 a 1000 |
+| `byIds` | nenhuma | — | As categorias pedidas, em ordem de `code`; id repetido conta uma vez e o inexistente fica de fora | fora de 1 a `MAX_IDS` = 100 ids |
 | `revise` | `MANAGE_TAXONOMY` | opcional | Nome, atributos próprios e `active` | `attribute-conflict` (com herdados ou descendentes) |
 | `move` | `MANAGE_TAXONOMY` | opcional | Move com a subárvore; para o pai atual não grava; produtos não mudam | pai inexistente (404), `category-cycle`, `category-too-deep`, `attribute-conflict` |
+| `delete` | `MANAGE_TAXONOMY` | opcional | Exclui a categoria vazia | 404, 412, `category-has-children` e `category-has-products`, inclusive arquivados (409) |
+| `batch` | `MANAGE_TAXONOMY` | versão de cada item, obrigatória (`PreconditionRequiredException`) | `ACTIVATE`, `DEACTIVATE` ou `DELETE` ([`CategoryBatchAction`](../src/main/java/dev/marketplace/cataloginventory/application/CategoryBatchAction.java)); na situação pedida, não grava; a exclusão roda das subcategorias para os pais, e um ramo vazio sai inteiro | itens fora de 1 a 100 ou id repetido (`InvalidInputException`); por item, as recusas da operação |
 
 ### `StorefrontService`
 
@@ -191,8 +198,24 @@ Produto arquivado recusa as três escritas com `invalid-transition` (operação 
 |---|---|---|
 | `submit` | `MANAGE_OWN_PRODUCTS` + loja no token | Lote `PENDING` com o conteúdo já validado pelo adaptador |
 | `get` | idem | Lote e resultados gravados; de outra loja ou tenant, 404 |
+| `summary` | idem | Lote com as contagens por desfecho, sem as linhas (API: `lines=false`) |
+| `list` | idem | Lotes da loja, do mais recente ao mais antigo, com as contagens; cursor pela criação e id |
 | `claimNext` | sem chamador (worker) | Reivindica o lote mais antigo pendente ou parado há mais que o lease |
 | `process` | sem chamador; age como o seller que enviou | Processa as linhas sem resultado e conclui o lote |
+
+### `CatalogStatsService`
+
+[`CatalogStatsService`](../src/main/java/dev/marketplace/cataloginventory/application/CatalogStatsService.java): números da página inicial do painel, por papel. Os baldes seguem o fuso `America/Sao_Paulo` (`ZONE`); o passado sai do histórico de transições, e o que não tem histórico, como o saldo, só tem o valor atual.
+
+| Operação | Capacidade | Efeitos | Recusas principais |
+|---|---|---|---|
+| `store` | `MANAGE_OWN_PRODUCTS` + loja no token | Produtos da loja por estado como a resposta os mostra (`ACTIVE` com saldo, `OUT_OF_STOCK` sem), `total` sem os arquivados, quatro indicadores com os 7 meses do minigráfico (`INDICATOR_MONTHS`) e a série de atividade | `InvalidInputException` |
+| `moderation` | `MODERATE_PRODUCTS` | Fila, aprovações, rejeições e bloqueios do tenant e a série de atividade | `InvalidInputException` |
+| `moderationQueue` | `MODERATE_PRODUCTS` | Só o tamanho atual da fila, para a leitura frequente | — |
+| `categories` | `MANAGE_TAXONOMY` | Total, raízes, inativas e com produtos | — |
+
+- A série vai de `from` a `to`, os dois juntos, na granularidade `day`, `month` (padrão) ou `year` ([`StatsGranularity`](../src/main/java/dev/marketplace/cataloginventory/application/StatsGranularity.java)), até 366 pontos (`MAX_POINTS`). Sem as datas: os últimos 30 dias, os 12 meses do ano corrente ou os últimos 5 anos.
+- Só uma das datas, data fora dos anos 1 a 9999, `from` depois de `to`, granularidade desconhecida ou período longo demais lançam `InvalidInputException`.
 
 ## Modelo de acesso
 
@@ -221,7 +244,7 @@ Métodos de `ProductAccess`:
 
 - [`Versions.requireMatch`](../src/main/java/dev/marketplace/cataloginventory/application/Versions.java): If-Match ausente dispensa; diferente da versão lida lança `VersionMismatchException` (412) com a versão atual.
 - A gravação passa a versão lida como esperada (`update(agregado, expectedVersion)`). Se outra escrita venceu entre a leitura e a gravação, a porta lança `ConcurrentUpdateException` (409).
-- Na aplicação, só `OfferService.define` torna o If-Match obrigatório (troca de preço, `PreconditionRequiredException`, 428). A API exige o cabeçalho também em `reviseContent`, `reviseSku`, `CategoryService.revise` e `move` (`ETags.required`).
+- Na aplicação, só `OfferService.define` torna o If-Match obrigatório (troca de preço, `PreconditionRequiredException`, 428). A API exige o cabeçalho também em `reviseContent`, `reviseSku`, `CategoryService.revise`, `move` e `delete` e em `ModerationReasonService.revise`, `activate` e `deactivate` (`ETags.required`).
 - `InventoryService.adjust` usa a versão do saldo, que reservas também incrementam.
 
 ## Portas
@@ -230,14 +253,15 @@ Todas devolvem `Uni`. Implementações e decorators ficam no serviço ([`persist
 
 | Porta | Contrato principal | Implementação | Cache |
 |---|---|---|---|
-| [`ProductRepository`](../src/main/java/dev/marketplace/cataloginventory/application/ProductRepository.java) | Agregado inteiro numa transação. `findById`, `findBySku`, `skuIdsBySellerSku`, `find` (ordem de id, cursor exclusivo), `history`. `insert` cria saldo zerado por SKU, histórico e outbox; SKU repetido na loja: `DuplicateException`. `update` com versão esperada; SKU removido com saldo: `sku-has-stock`. | `PgProductRepository` | `ProductCacheInvalidation` |
-| [`CategoryRepository`](../src/main/java/dev/marketplace/cataloginventory/application/CategoryRepository.java) | `chain` (raiz até a categoria, vazia se não existe), `idByCode`, `descendantAttributeCodes`, `subtreeHeight`, `children` (ordem de código, inclui inativas). `insert` (código duplicado: `DuplicateException`), `update` e `move` (troca o prefixo dos descendentes) com `ConcurrentUpdateException`. | `PgCategoryRepository` | `CategoryCacheInvalidation`; `TaxonomyCache.over()` |
-| [`OfferRepository`](../src/main/java/dev/marketplace/cataloginventory/application/OfferRepository.java) | Oferta e promoções numa transação com os eventos de preço. `ofSku`, `ofProduct` (só SKUs com oferta), `insert` (`DuplicateException`), `update` com versão. | `PgOfferRepository` | `OfferCacheInvalidation` |
+| [`ProductRepository`](../src/main/java/dev/marketplace/cataloginventory/application/ProductRepository.java) | Agregado inteiro numa transação. `findById`, `findBySku`, `skuIdsBySellerSku`, `search` (ordem e busca de `ProductQuery`, estado efetivo, posição exclusiva), `moderationQueue` (ordem de entrada na fila e id), `lastChanges` (última mudança de cada produto numa consulta), `history`. `insert` cria saldo zerado por SKU, histórico e outbox; SKU repetido na loja: `DuplicateException`. `update` com versão esperada; SKU removido com saldo: `sku-has-stock`. | `PgProductRepository` | `ProductCacheInvalidation` |
+| [`CategoryRepository`](../src/main/java/dev/marketplace/cataloginventory/application/CategoryRepository.java) | `chain` (raiz até a categoria, vazia se não existe), `idByCode`, `descendantAttributeCodes`, `subtreeHeight`, `children` (ordem de código, inclui inativas), `childCounts`, `depths`, `tree` (ordem da árvore, cursor pela chave do caminho), `byIds`. `insert` (código duplicado: `DuplicateException`), `update`, `move` (troca o prefixo dos descendentes) e `delete` com `ConcurrentUpdateException`; `delete` recusa categoria com subcategoria ou produto, mesmo gravados depois da leitura (`CategoryNotEmptyException`). | `PgCategoryRepository` | `CategoryCacheInvalidation`; `TaxonomyCache.over()` |
+| [`OfferRepository`](../src/main/java/dev/marketplace/cataloginventory/application/OfferRepository.java) | Oferta e promoções numa transação com os eventos de preço. `ofSku`, `ofProduct` (só SKUs com oferta), `ofSkus` (várias numa consulta), `insert` (`DuplicateException`), `update` com versão. | `PgOfferRepository` | `OfferCacheInvalidation` |
 | [`InventoryRepository`](../src/main/java/dev/marketplace/cataloginventory/application/InventoryRepository.java) | `levels` (SKU sem saldo fica fora do mapa), `adjust` (404, `version-mismatch`, `stock-below-reserved`), `candidates` (leitura para a decisão de reserva). | `PgInventoryRepository` | nenhum |
 | [`ReservationRepository`](../src/main/java/dev/marketplace/cataloginventory/application/ReservationRepository.java) | Cada operação é atômica sobre reserva e saldos. `insert` (tudo ou nada; `insufficient-stock`; chave repetida: `DuplicateException`), `release`, `commit`, `extend` (vazio quando não se aplica), `expireDue`. | `PgReservationRepository` | nenhum |
 | [`SellerEligibilityRepository`](../src/main/java/dev/marketplace/cataloginventory/application/SellerEligibilityRepository.java) | `statusOf` (nunca vazio; sem registro é `PENDING`), `statusesOf` (várias lojas numa consulta, as sem registro como `PENDING`), `apply` (entrega e veredito numa transação). | `PgSellerEligibilityRepository` | `SellerCacheInvalidation` |
-| [`ProductImportRepository`](../src/main/java/dev/marketplace/cataloginventory/application/ProductImportRepository.java) | `insert`, `findImport` (vazio para outra loja ou tenant), `results` (ordem de linha), `claimNext` (dois chamadores nunca recebem o mesmo lote), `recordResults` (linha já gravada mantém o primeiro resultado; renova `startedAt`), `complete`. | `PgProductImportRepository` | nenhum |
+| [`ProductImportRepository`](../src/main/java/dev/marketplace/cataloginventory/application/ProductImportRepository.java) | `insert`, `findImport` (vazio para outra loja ou tenant), `findSummary` (contagens gravadas com o lote, sem ler as linhas), `list` (do mais recente ao mais antigo), `results` (ordem de linha), `claimNext` (dois chamadores nunca recebem o mesmo lote), `recordResults` (linha já gravada mantém o primeiro resultado; renova `startedAt`), `complete`. | `PgProductImportRepository` | nenhum |
 | [`ModerationReasonRepository`](../src/main/java/dev/marketplace/cataloginventory/application/ModerationReasonRepository.java) | Catálogo de motivos por tenant, sem exclusão. `catalog` (ativos e inativos, por posição e código), `findByCode`, `insert` (código repetido: `DuplicateException`), `update` (versão divergente: `ConcurrentUpdateException`). | `PgModerationReasonRepository` | `ModerationReasonCacheInvalidation`; leituras de `catalog` por `ModerationReasonCache` |
+| [`CatalogStatsRepository`](../src/main/java/dev/marketplace/cataloginventory/application/CatalogStatsRepository.java) | Só leitura, para os indicadores. `store` (estado gravado dos produtos da loja, os `ACTIVE` sem saldo e as transições por balde), `moderation` (fila e transições do tenant), `moderationQueue` (só a contagem da fila), `categories` (total, raízes, inativas e com produtos). | `PgCatalogStatsRepository` | nenhum |
 
 - Os decorators de invalidação são CDI e envolvem as `Pg*`; incrementam gerações do Redis depois da escrita (ADR 024).
 - `TaxonomyCache.over(categories)` envolve a porta de categorias em `CategoryService`, `ProductService`, `ModerationService` e `ProductImportService` ([`CatalogBeans`](../../../../apps/catalog-inventory-service/src/main/java/dev/marketplace/cataloginventory/CatalogBeans.java)). Só `chain` e `children` passam pelo cache; as demais leituras e as escritas vão direto. Com o cache desligado, devolve a própria porta.
@@ -251,9 +275,9 @@ Todas devolvem `Uni`. Implementações e decorators ficam no serviço ([`persist
 | Item | Valor |
 |---|---|
 | `DEFAULT_SIZE` | 50 (aplicado pela API) |
-| `MAX_SIZE` | 100; `limit` fora de 1 a 100 lança `InvalidInputException` |
+| `MAX_SIZE` | 100; `limit` fora de 1 a 100 lança `InvalidInputException`. A árvore de categorias (`tree`) aceita até 1000 (`CategoryService.TREE_PAGE_SIZE`) |
 | Busca | `Page.fetch` pede `limit + 1` à porta; o excedente só indica próxima página |
-| Chave | produtos: `id` (`list`, `queue`); categorias: `code` (`children`) |
+| Chave | produtos: a coluna da ordem, o id e a impressão da busca (`list`, ver `ProductQuery`), ou a entrada na fila e o id (`queue`); categorias: `code` (`children`) ou o caminho de códigos (`tree`); lotes de importação: criação e id (`list`) |
 
 O cursor chega à aplicação como a chave em texto; a codificação opaca em base64url fica no serviço (`Cursors`).
 
@@ -341,7 +365,7 @@ O limite de linhas por arquivo (`catalog.imports.max-rows`, 5000) é aplicado pe
 
 ## Testes
 
-Testes unitários JUnit 5, sem framework, em [`src/test/java/dev/marketplace/cataloginventory/application`](../src/test/java/dev/marketplace/cataloginventory/application). São 109 casos.
+Testes unitários JUnit 5, sem framework, em [`src/test/java/dev/marketplace/cataloginventory/application`](../src/test/java/dev/marketplace/cataloginventory/application). São 111 casos.
 
 | Arquivo | Casos | Cobre |
 |---|---|---|
@@ -350,7 +374,7 @@ Testes unitários JUnit 5, sem framework, em [`src/test/java/dev/marketplace/cat
 | `ProductCheckTest` | 4 | pendências com o campo, rascunho conferido sem gravar, efeito da troca de categoria, alcance da edição |
 | `ProductListingTest` | 9 | todas as ordenações com o cursor composto, desempate pelo id, busca sem caixa nem acento no título e no SKU do vendedor, cursor preso à ordenação e à busca, validação, filtro sem estoque pelo status efetivo, última rejeição, ofertas em uma leitura |
 | `ProductBatchTest` | 3 | cada item com as regras do endpoint unitário, envio, arquivamento e retomada com as próprias checagens, lote vazio, grande demais, repetido ou de quem não é vendedor |
-| `CategoryServiceTest` | 17 | herança, escrita restrita, unicidade, revisão, inatividade, paginação, movimentação |
+| `CategoryServiceTest` | 18 | herança, escrita restrita, unicidade, revisão, inatividade, paginação, caminho, nível e subcategorias, árvore por cursor, leitura pelo id, exclusão só da vazia, lote de exclusão e de ativação, movimentação |
 | `ProductImportServiceTest` | 12 | grupos, SKU existente, divergências, categoria, linha inválida, retomada, visibilidade do lote |
 | `ReservationServiceTest` | 8 | tudo ou nada, replay e chave reutilizada, commit, release, expiração, extensão, hash independente da ordem |
 | `OfferServiceTest` | 5 | criação, If-Match na troca, moderação inalterada, autorização, arquivado |
@@ -359,9 +383,9 @@ Testes unitários JUnit 5, sem framework, em [`src/test/java/dev/marketplace/cat
 | `SellerEligibilityServiceTest` | 2 | deduplicação e ordem dos vereditos, leitura da situação |
 | `ModerationServiceTest` | 10 | fila, rótulos da época e complemento no histórico, motivo inativo ou de outro tenant, complemento de 500 com vários motivos, lote |
 | `ModerationReasonServiceTest` | 7 | lista do moderador, criação, revisão com versão, ativação, isolamento entre tenants, teto de ativos que desativar libera (também na reativação), teto de proteção do catálogo com os inativos |
-| `CatalogStatsServiceTest` | 7 | números da loja com fechamento de mês no fuso de São Paulo, fila e decisões de moderação do tenant, períodos padrão e validação, datas fora de quatro dígitos, cada papel com os próprios números, loja sem produtos |
+| `CatalogStatsServiceTest` | 8 | números da loja com fechamento de mês no fuso de São Paulo, fila e decisões de moderação do tenant, contagem leve da fila, períodos padrão e validação, `ACTIVE` sem saldo nem transições, datas fora de quatro dígitos, cada papel com os próprios números, loja sem produtos |
 
-Apoio: `InMemoryStore` implementa as oito portas guardando cópias, com controle otimista de versão; `Catalog` liga os serviços ao mesmo armazenamento; `Fixtures` monta dados; `MutableClock` avança o tempo.
+Apoio: `InMemoryStore` implementa as nove portas guardando cópias, com controle otimista de versão; `Catalog` liga os serviços ao mesmo armazenamento; `Fixtures` monta dados; `MutableClock` avança o tempo.
 
 ```bash
 npx nx test catalog-inventory-application
@@ -377,8 +401,8 @@ Confirmadas no código; não mudam o contrato da API, mas não estão explícita
 2. **Replay devolve o estado atual.** O replay compara só o hash e devolve a reserva como está, inclusive `COMMITTED`, `RELEASED` ou `EXPIRED`, sem conferir de novo saldo, preço ou prazo. A ADR 012 diz apenas que a repetição "devolve a mesma reserva".
 3. **`ttl` omitido e `ttl` explícito são pedidos diferentes.** O hash usa `default` quando o `ttl` falta. Repetir a chave informando 15 min, depois de tê-la usado sem `ttl`, dá `idempotency-key-reused`.
 4. **`TaxonomyCache.over()` em quatro serviços.** Envolve a porta de categorias em `CategoryService`, `ProductService`, `ModerationService` e `ProductImportService`, não só na leitura da árvore.
-5. **Leitura de categorias sem capacidade.** `CategoryService.get` e `children` não exigem capacidade: qualquer chamador do tenant lê. A restrição a seller, admin e moderador está só no `@PermissionsAllowed` de `CategoryResource`, que aceita `MANAGE_OWN_PRODUCTS`, `MANAGE_TAXONOMY`, `READ_TENANT_CATALOG` ou `MODERATE_PRODUCTS`.
-6. **If-Match opcional na aplicação.** Exceto na troca de preço de `OfferService.define`, os casos de uso aceitam If-Match ausente. A obrigatoriedade em `reviseContent`, `reviseSku`, `revise` e `move` de categoria é aplicada pela API (`ETags.required`).
+5. **Leitura de categorias sem capacidade.** `CategoryService.get`, `children`, `tree` e `byIds` não exigem capacidade: qualquer chamador do tenant lê. A restrição a seller, admin e moderador está só no `@PermissionsAllowed` de `CategoryResource`, que aceita `MANAGE_OWN_PRODUCTS`, `MANAGE_TAXONOMY`, `READ_TENANT_CATALOG` ou `MODERATE_PRODUCTS`.
+6. **If-Match opcional na aplicação.** Exceto na troca de preço de `OfferService.define`, os casos de uso aceitam If-Match ausente. A obrigatoriedade em `reviseContent`, `reviseSku`, em `revise`, `move` e `delete` de categoria e na manutenção dos motivos de moderação é aplicada pela API (`ETags.required`).
 7. **Elegibilidade da própria loja.** `SellerEligibilityService.get` libera a loja do token sem exigir nenhuma capacidade, nem `MANAGE_OWN_PRODUCTS`.
 8. **`stockOf` sem autorização.** `InventoryService.stockOf` confia que os produtos recebidos já foram autorizados pelo chamador e usa o tenant do primeiro produto.
 9. **Prazos da reserva ficam no serviço.** O README do domínio diz que os padrões de 15 min, 2 h e 24 h estão "na aplicação". A aplicação só recebe `Settings`; os valores são defaults de `CatalogConfig` no serviço.

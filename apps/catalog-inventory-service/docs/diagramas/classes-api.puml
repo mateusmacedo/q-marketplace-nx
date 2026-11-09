@@ -19,7 +19,7 @@ class ProductResource <<@Path("/products")>> <<entrada>> {
   -created : Counter
   --
   POST / : create(CreateProductRequest)
-  GET / : list(status, storeId, cursor, limit)
+  GET / : list(status, storeId, q, sort, cursor, limit)
   GET /{id} : get(id)
   PUT /{id} : revise(If-Match, ReviseProductRequest)
   DELETE /{id} : archive(If-Match)
@@ -28,6 +28,7 @@ class ProductResource <<@Path("/products")>> <<entrada>> {
   POST /{id}/submit : submit(If-Match)
   POST /{id}/pause : pause(If-Match)
   POST /{id}/resume : resume(If-Match)
+  POST /batch : batch(ProductBatchRequest)
   POST /{id}/skus : addSku(If-Match, SkuRequest)
   GET /{id}/skus/{skuId} : getSku(id, skuId)
   PUT /{id}/skus/{skuId} : reviseSku(If-Match, ReviseSkuRequest)
@@ -67,6 +68,8 @@ class CategoryResource <<@Path("/categories")>> <<entrada>> {
   GET /tree : tree(usable, cursor, limit até 1000)
   PUT /{id} : revise(If-Match, ReviseCategoryRequest)
   PUT /{id}/parent : move(If-Match, MoveCategoryRequest)
+  DELETE /{id} : delete(If-Match) 204
+  POST /batch : batch(CategoryBatchRequest)
 }
 class ProductImportResource <<@Path("/products/imports")>> <<entrada>> {
   {static} CSV = "text/csv"
@@ -76,7 +79,17 @@ class ProductImportResource <<@Path("/products/imports")>> <<entrada>> {
   -lifecycle : Lifecycle
   --
   POST / : submit(byte[] CSV) 202 + Location
+  GET / : list(cursor, limit)
   GET /{id} : get(id, lines)
+}
+class StatsResource <<@Path("/stats")>> <<entrada>> {
+  -stats : CatalogStatsService
+  -caller : CallerContext
+  --
+  GET /store : store(granularity, from, to)
+  GET /moderation : moderation(granularity, from, to)
+  GET /moderation/queue : moderationQueue()
+  GET /categories : categories()
 }
 class OfferResource <<@Path("/offers/{skuId}")>> <<entrada>> {
   -offers : OfferService
@@ -153,6 +166,7 @@ class "application.InventoryService" as InventoryService <<serviço>> #line.dash
 class "application.ReservationService" as ReservationService <<serviço>> #line.dashed
 class "application.SellerEligibilityService" as SellerEligibilityService <<serviço>> #line.dashed
 class "application.StorefrontService" as StorefrontService <<serviço>> #line.dashed
+class "application.CatalogStatsService" as CatalogStatsService <<serviço>> #line.dashed
 class "application.Page<T>" as Page <<record>> <<serviço>> #line.dashed
 interface "OASFilter (MicroProfile OpenAPI)" as OASFilter <<infra>> #line.dashed
 
@@ -161,6 +175,7 @@ package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros 
     notFound() / duplicate() / concurrentUpdate()
     versionMismatch() / preconditionRequired()
     invalidTransition() / reservationRefused() / stockConflict()
+    categoryNotEmpty()
     businessRule() / accessDenied() / tenantNotAuthorized()
     invalidInput() / invalidImportFile()
     constraintViolation() / nullCharacter()
@@ -219,6 +234,7 @@ package "<$tools,scale=0.6,color=#EF6C00> Apoio (pacote privado)" as apoio <<ent
     ok(actor, product) : Uni<RestResponse<ProductResponse>>
     saved(actor, product) : Uni<ProductResponse>
     savedOk(actor, product) : Uni<RestResponse<ProductResponse>>
+    sku(product, skuId) : Uni<RestResponse<SkuResponse>>
     page(actor, page) : Uni<ProductPage>
     batch(outcomes, path) : Uni<ProductBatchResponse>
   }
@@ -228,16 +244,18 @@ package "<$tools,scale=0.6,color=#EF6C00> Apoio (pacote privado)" as apoio <<ent
     {static} required(ifMatch) : Optional<Long>
     {static} ok(body, version) : RestResponse
     {static} created(uri, id, body, version) : RestResponse
+    {static} created(uri, id, body) : RestResponse
   }
   class Cursors <<utilitário>> <<entrada>> {
     {static} encode(key) : String
     {static} next(page) : String
     {static} decode(cursor) : Optional<String>
-    {static} decodeUuid(cursor) : Optional<String>
+    {static} decode(cursor, maxLength) : Optional<String>
   }
   class QueryParams <<utilitário>> <<entrada>> {
     {static} uuid(value) : Optional<UUID>
     {static} uuids(values) : List<UUID>
+    {static} date(value) : Optional<LocalDate>
   }
 }
 
@@ -252,6 +270,7 @@ InventoryResource -right-> InventoryService
 ReservationResource -right-> ReservationService
 StoreEligibilityResource -right-> SellerEligibilityService
 StorefrontResource -right-> StorefrontService
+StatsResource -right-> CatalogStatsService
 StoreEligibilityResource +-- EligibilityResponse
 SessionResource +-- SessionResponse
 StorefrontResource -[hidden]down- SessionResource
@@ -297,7 +316,7 @@ note right of ProblemMappers
   | ConcurrentUpdateException | 409 | concurrent-update |
   | VersionMismatchException | 412 | version-mismatch |
   | PreconditionRequiredException | 428 | precondition-required |
-  | InvalidTransitionException, ReservationRefusal, StockConflictException | 409 | code da exceção |
+  | InvalidTransitionException, ReservationRefusal, StockConflictException,\nCategoryNotEmptyException | 409 | code da exceção |
   | DomainRuleViolation | 422 | code da exceção |
   | AccessDeniedException | 403 | access-denied |
   | TenantNotAuthorizedException | 403 | tenant-not-authorized |
@@ -306,8 +325,9 @@ note right of ProblemMappers
   | ConstraintViolationException | 400 | validation-failed |
   | NullCharacterGuard.Rejected (U+0000 em texto do corpo) | 400 | validation-failed |
   | JsonProcessingException, MismatchedInputException | 400 | malformed-body |
+  | WebApplicationException 400 com causa JSON | 400 | malformed-body |
   | TimeoutException (Mutiny) | 503 + Retry-After: 1 | service-unavailable |
-  | WebApplicationException | status original | http-{status} |
+  | WebApplicationException (demais) | status original | http-{status} |
   | Exception | 500 | internal-error |
   Na família DomainRuleViolation e em InvalidImportFileException,
   reasonDetails traz cada motivo com o texto: o do emissor, quando ele
@@ -315,9 +335,9 @@ note right of ProblemMappers
 end note
 
 note bottom of ETags
-  ETags: todos os resources autenticados, menos ProductImportResource e
-  StoreEligibilityResource. Cursors: Product, Moderation e Category.
-  QueryParams: Product e Category. As setas de uso estão só em ProductResource;
+  ETags: todos os resources autenticados, menos ProductImportResource,
+  StoreEligibilityResource, StatsResource e SessionResource. Cursors: Product,
+  Moderation, Category e ProductImport. QueryParams: Product, Category e Stats. As setas de uso estão só em ProductResource;
   ModerationResource e CategoryResource usam os mesmos apoios.
 end note
 

@@ -45,6 +45,7 @@ package "<$sitemap,scale=0.5,color=#2E7D32> domain.category" as category #F6FBF6
     moveUnder(chain, height, codes)
     activate()
     deactivate()
+    requireRemovable(childCount)
     {static} effectiveAttributes(chain)
   }
   class AttributeDefinition << (V,#7CB342) VO>> {
@@ -79,6 +80,7 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     version : long
     createdAt : Instant
     updatedAt : Instant
+    moderationQueuedAt : Instant [0..1]
     --
     {static} draft(...)
     reviseContent(...)
@@ -178,6 +180,14 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     RESUME
     ARCHIVE
     REVIEW_REQUIRED
+    --
+    to() : ProductStatus
+    side() : TransitionSide
+    acceptsFrom(status) : boolean
+  }
+  enum TransitionSide {
+    STORE
+    MODERATION
   }
   enum SellerStatus {
     PENDING
@@ -294,6 +304,7 @@ Sku "1" *-- "0..1" Dimensions : dimensions
 Product "1" *-- "0..*" StatusChange : transições não persistidas
 Product --> ProductStatus : status
 StatusChange --> ProductTransition
+ProductTransition --> TransitionSide : side
 StatusChange "1" *-- "0..*" ReasonLabel : rótulos da época
 DecisionReason "1" *-- "0..*" ReasonLabel
 DecisionReason ..> ModerationReasonDefinition : confere contra o catálogo do tenant
