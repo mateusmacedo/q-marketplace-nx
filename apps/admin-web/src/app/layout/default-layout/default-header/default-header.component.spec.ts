@@ -44,6 +44,11 @@ describe('DefaultHeaderComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('nomeia em português o botão que mostra o menu lateral', () => {
+    const toggler = (fixture.nativeElement as HTMLElement).querySelector('[cHeaderToggler]');
+    expect(toggler?.getAttribute('aria-label')).toBe('Mostrar ou esconder o menu lateral');
+  });
+
   it('lista as telas do menu na busca', () => {
     expect(component.searchResults()).toEqual([{ name: 'Início', url: '/inicio' }]);
   });

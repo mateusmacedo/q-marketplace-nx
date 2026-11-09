@@ -6,12 +6,15 @@
 
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, map } from 'rxjs';
 
 import {
   AvatarComponent,
   BadgeComponent,
-  BreadcrumbRouterComponent,
+  BreadcrumbComponent,
+  BreadcrumbItemComponent,
   ColorModeService,
   ContainerComponent,
   DropdownComponent,
@@ -37,7 +40,9 @@ import {
 import { IconDirective } from '@coreui/icons-angular';
 
 import { AuthSession } from '../../../core/auth/auth-session';
-import { navItems } from '../_nav';
+import { SessionStore } from '../../../core/auth/session-store';
+import { buildNav, navItems } from '../_nav';
+import { breadcrumbs } from './breadcrumbs';
 
 @Component({
   selector: 'app-default-header',
@@ -45,7 +50,8 @@ import { navItems } from '../_nav';
   imports: [
     AvatarComponent,
     BadgeComponent,
-    BreadcrumbRouterComponent,
+    BreadcrumbComponent,
+    BreadcrumbItemComponent,
     ContainerComponent,
     DropdownComponent,
     DropdownHeaderDirective,
@@ -87,11 +93,22 @@ export class DefaultHeaderComponent extends HeaderComponent {
   readonly sidebarId = input('sidebar1');
 
   readonly #router = inject(Router);
+  /** Trilha da rota ativa, refeita a cada navegação concluída. */
+  readonly crumbs = toSignal(
+    this.#router.events.pipe(
+      filter(event => event instanceof NavigationEnd),
+      map(() => breadcrumbs(this.#router.routerState.snapshot.root))
+    ),
+    { initialValue: breadcrumbs(this.#router.routerState.snapshot.root) }
+  );
+  readonly #session = inject(AuthSession);
+  readonly #grants = inject(SessionStore).grants;
   readonly searchVisible = signal(false);
   readonly searchQuery = signal('');
+  /** Só as telas que o menu mostra para a sessão. */
   readonly searchResults = computed(() => {
     const query = this.searchQuery().trim().toLocaleLowerCase('pt-BR');
-    return navItems
+    return buildNav(navItems, this.#grants())
       .filter(item => typeof item.url === 'string' && !item.title)
       .map(item => ({ name: item.name ?? '', url: item.url as string }))
       .filter(item => !query || item.name.toLocaleLowerCase('pt-BR').includes(query));
@@ -103,7 +120,6 @@ export class DefaultHeaderComponent extends HeaderComponent {
     void this.#router.navigateByUrl(url);
   }
 
-  readonly #session = inject(AuthSession);
   readonly username = this.#session.username();
 
   logout(): void {

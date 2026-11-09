@@ -1,1 +1,7 @@
 @use "scrollbar";
+
+// WHY: o `.visually-hidden` dos cabeçalhos é `position: absolute`; sem um ancestral posicionado dentro do
+// `.table-responsive`, ele escapa da rolagem da tabela e alarga a página no celular.
+.table-responsive {
+  position: relative;
+}

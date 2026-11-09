@@ -2,7 +2,7 @@
   <c-container [fluid]="true" class="border-bottom px-4">
     <button
       [cSidebarToggle]="sidebarId()"
-      aria-label="Mostrar ou esconder o menu lateral"
+      ariaLabel="Mostrar ou esconder o menu lateral"
       cHeaderToggler
       class="btn"
       style="margin-inline-start: -14px"
@@ -43,7 +43,11 @@
     </c-header-nav>
   </c-container>
   <c-container [fluid]="true" class="px-4">
-    <c-breadcrumb-router />
+    <c-breadcrumb class="m-0">
+      @for (crumb of crumbs(); track crumb.url; let last = $last) {
+        <c-breadcrumb-item [active]="last" [url]="last ? undefined : crumb.url">{{ crumb.label }}</c-breadcrumb-item>
+      }
+    </c-breadcrumb>
   </c-container>
 </ng-container>
 <c-modal
