@@ -1,6 +1,8 @@
 package dev.marketplace.cataloginventory.domain.inventory;
 
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
+import dev.marketplace.cataloginventory.domain.Reason;
+import dev.marketplace.cataloginventory.domain.ReasonCode;
 import java.util.List;
 
 /**
@@ -8,7 +10,11 @@ import java.util.List;
  * cliente pode recotar e tentar de novo.
  */
 public class ReservationRefusal extends DomainRuleViolation {
-    public ReservationRefusal(String code, String message, List<String> reasons) {
+    public ReservationRefusal(ReasonCode code, String message, List<Reason> reasons) {
         super(code, message, reasons);
+    }
+
+    public ReservationRefusal(Reason reason, String message, List<Reason> reasons) {
+        super(reason, message, reasons);
     }
 }

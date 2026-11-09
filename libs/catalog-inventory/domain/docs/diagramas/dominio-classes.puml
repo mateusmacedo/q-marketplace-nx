@@ -87,6 +87,13 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     pause / resume / archive
     effectiveStatus(anyAvailable)
     isPubliclyVisible(seller)
+    acceptsEdit() / acceptsOfferAndStockChanges()
+    editReturnsToModeration()
+    skuAdditionRefusal() / skuRemovalRefusal() : Optional<Reason>
+    {static} ineligibility(seller) : Optional<Reason>
+    publishingIssues(...) : List<PublishingIssue>
+    draftIssues(attributes, ...) : List<PublishingIssue>
+    categoryChange(attributes, current, target)
     drainChanges() / drainEvents()
   }
   class Sku << (E,#43A047) entidade>> {
@@ -107,12 +114,49 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     from : ProductStatus
     to : ProductStatus
     actor : String
-    reason : String
+    reasons : List<ReasonLabel>
+    note : String
     at : Instant
+    reasonCodes() : List<String>
+    reason() : String
+  }
+  class ModerationReasonDefinition << (V,#7CB342) VO>> {
+    code : String
+    label : String
+    decisions : Set<ProductTransition>
+    active : boolean
+    appliesTo(decision) : boolean
+    revised(label, decisions)
+    withActive(active)
+  }
+  class DecisionReason << (V,#7CB342) VO>> {
+    decision : ProductTransition
+    reasons : List<ReasonLabel>
+    note : String
+    {static} of(decision, catalog, codes, note)
+    {static} compose(reasons, note) : String
+    codes() : List<String>
+    text() : String
+  }
+  class ReasonLabel << (V,#7CB342) VO>> {
+    code : String
+    label : String
   }
   class PublishingPolicy << (P,#00897B) política>> {
     {static} valueViolations(...)
+    {static} valueIssues(...)
     {static} publishingViolations(...)
+    {static} publishingIssues(...)
+  }
+  class PublishingIssue << (V,#7CB342) VO>> {
+    reason : Reason
+    field : String
+  }
+  class CategoryChange << (V,#7CB342) VO>> {
+    removedAttributes : List<RemovedAttribute>
+    newRequired : List<AttributeDefinition>
+    blockingSkus : List<BlockingSku>
+    {static} of(attributes, skus, current, target)
   }
   enum ProductStatus {
     DRAFT
@@ -167,6 +211,13 @@ package "<$tag,scale=0.5,color=#2E7D32> domain.offer" as offer #F6FBF6;line:2E7D
     salePrice : Money
     startsAt : Instant
     endsAt : Instant
+    --
+    phaseAt(instant) : PromotionPhase
+  }
+  enum PromotionPhase {
+    SCHEDULED
+    ACTIVE
+    ENDED
   }
   class EffectivePrice << (V,#7CB342) VO>> {
     listPrice : Money
@@ -243,13 +294,21 @@ Sku "1" *-- "0..1" Dimensions : dimensions
 Product "1" *-- "0..*" StatusChange : transições não persistidas
 Product --> ProductStatus : status
 StatusChange --> ProductTransition
+StatusChange "1" *-- "0..*" ReasonLabel : rótulos da época
+DecisionReason "1" *-- "0..*" ReasonLabel
+DecisionReason ..> ModerationReasonDefinition : confere contra o catálogo do tenant
+Product ..> DecisionReason : reject/block
 Product ..> PublishingPolicy : usa
+PublishingPolicy ..> PublishingIssue : campo onde se resolve
+Product ..> CategoryChange : prévia da troca, sem gravar
+CategoryChange ..> PublishingPolicy : valueViolations
 Product "0..*" ..> "1" Category : categoryId
 
 Offer "0..1" ..> "1" Sku : skuId
 Offer "1" *-- "1" Price : price
 Offer "1" *-- "0..20" Promotion : pendentes
 Offer ..> EffectivePrice : calcula
+Promotion ..> PromotionPhase : fase no instante
 Price --> Money
 Promotion --> Money
 

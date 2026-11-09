@@ -8,6 +8,6 @@ public class InvalidTransitionException extends DomainRuleViolation {
      * estava.
      */
     public InvalidTransitionException(String transition, String currentState) {
-        super("invalid-transition", "Transição " + transition + " não é permitida no estado " + currentState);
+        super(DomainReasons.INVALID_TRANSITION, "Transição " + transition + " não é permitida no estado " + currentState);
     }
 }

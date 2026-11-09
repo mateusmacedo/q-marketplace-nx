@@ -1,10 +1,12 @@
 package dev.marketplace.cataloginventory.domain.inventory;
 
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.domain.offer.EffectivePrice;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import static dev.marketplace.cataloginventory.domain.DomainReasons.*;
 import static dev.marketplace.cataloginventory.domain.DomainRuleViolation.invalid;
 import static dev.marketplace.cataloginventory.domain.DomainRuleViolation.requireText;
 
@@ -52,28 +54,28 @@ public final class ReservationPolicy {
         if (orderRef != null)
             requireText(orderRef, ORDER_REF_MAX_LENGTH, "orderRef tem até " + ORDER_REF_MAX_LENGTH + " caracteres");
         Set<UUID> seen = new HashSet<>();
-        List<String> reasons = new ArrayList<>();
+        List<Reason> reasons = new ArrayList<>();
         List<ReservationItem> items = new ArrayList<>();
         for (RequestedItem item : requested) {
             if (!seen.add(item.skuId())) {
-                reasons.add("duplicate-sku:" + item.skuId());
+                reasons.add(Reason.of(DUPLICATE_SKU, item.skuId()));
                 continue;
             }
             SkuCandidate candidate = candidates.get(item.skuId());
             if (candidate == null) {
-                reasons.add("unknown-sku:" + item.skuId());
+                reasons.add(Reason.of(UNKNOWN_SKU, item.skuId()));
                 continue;
             }
             if (candidate.productStatus() != ProductStatus.ACTIVE) {
-                reasons.add("product-unavailable:" + item.skuId());
+                reasons.add(Reason.of(PRODUCT_UNAVAILABLE, item.skuId()));
                 continue;
             }
             if (!candidate.seller().isEligible())
-                reasons.add("seller-not-eligible:" + item.skuId());
+                reasons.add(Reason.of(SELLER_NOT_ELIGIBLE, item.skuId()));
             // INVARIANT: produto ativo tem oferta em todo SKU; a publicação exige.
             EffectivePrice price = candidate.offer().effectivePrice(now);
             if (!price.salePrice().equals(item.expectedUnitPrice()))
-                reasons.add("price-changed:" + item.skuId());
+                reasons.add(Reason.of(PRICE_CHANGED, item.skuId()));
             items.add(new ReservationItem(item.skuId(), candidate.productId(), candidate.storeId(), item.quantity(),
                     price.salePrice(), price.priceVersion()));
         }
@@ -87,7 +89,7 @@ public final class ReservationPolicy {
 
     /** Recusa por falta de saldo, detectada atomicamente na gravação. */
     public static ReservationRefusal insufficientStock(Collection<UUID> skuIds) {
-        return refusal(skuIds.stream().sorted().map(id -> "insufficient-stock:" + id).toList());
+        return refusal(skuIds.stream().sorted().map(id -> Reason.of(INSUFFICIENT_STOCK, id)).toList());
     }
 
     /**
@@ -95,10 +97,11 @@ public final class ReservationPolicy {
      * prefixo quando só há um e {@code reservation-refused} quando há mais de
      * um.
      */
-    static ReservationRefusal refusal(List<String> reasons) {
+    static ReservationRefusal refusal(List<Reason> reasons) {
         Set<String> categories = new TreeSet<>();
-        reasons.forEach(r -> categories.add(r.substring(0, r.indexOf(':'))));
-        String code = categories.size() == 1 ? categories.iterator().next() : "reservation-refused";
-        return new ReservationRefusal(code, "Reserva recusada; recote os itens indicados", reasons);
+        reasons.forEach(r -> categories.add(r.code()));
+        Reason reason = categories.size() == 1 ? new Reason(categories.iterator().next(), List.of(), null)
+                : Reason.of(RESERVATION_REFUSED);
+        return new ReservationRefusal(reason, "Reserva recusada; recote os itens indicados", reasons);
     }
 }

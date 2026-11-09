@@ -1,6 +1,8 @@
 package dev.marketplace.cataloginventory.domain.offer;
 
+import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
+import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.domain.Money;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -107,7 +109,7 @@ public final class Offer {
         if (next.size() >= MAX_PROMOTIONS)
             throw invalid("Oferta aceita até " + MAX_PROMOTIONS + " promoções pendentes");
         if (next.stream().anyMatch(promotion::overlaps))
-            throw new DomainRuleViolation("promotion-overlap", "Promoção sobrepõe outra já agendada na oferta");
+            throw new DomainRuleViolation(DomainReasons.PROMOTION_OVERLAP, "Promoção sobrepõe outra já agendada na oferta");
         next.add(promotion);
         requirePromotionsConsistent(next, price);
         this.promotions = sorted(next);
@@ -122,9 +124,9 @@ public final class Offer {
      */
     public void cancelPromotion(UUID promotionId, Instant now) {
         Promotion target = promotions.stream().filter(p -> p.id().equals(promotionId)).findFirst()
-                .orElseThrow(() -> new DomainRuleViolation("promotion-not-found", "Promoção não encontrada na oferta"));
+                .orElseThrow(() -> new DomainRuleViolation(DomainReasons.PROMOTION_NOT_FOUND, "Promoção não encontrada na oferta"));
         if (target.endedBy(now))
-            throw new DomainRuleViolation("promotion-ended", "Promoção já encerrada não pode ser cancelada");
+            throw new DomainRuleViolation(DomainReasons.PROMOTION_ENDED, "Promoção já encerrada não pode ser cancelada");
         this.promotions = pending(now).stream().filter(p -> !p.id().equals(promotionId)).toList();
         newPriceVersion(now);
     }
@@ -223,7 +225,8 @@ public final class Offer {
      */
     private Price requireCurrency(Price candidate) {
         if (!candidate.currency().equals(currency))
-            throw new DomainRuleViolation("currency-mismatch", "A oferta usa a moeda do produto (" + currency + ")");
+            throw new DomainRuleViolation(Reason.of(DomainReasons.CURRENCY_MISMATCH, currency),
+                    "A oferta usa a moeda do produto (" + currency + ")");
         return candidate;
     }
 
@@ -249,7 +252,7 @@ public final class Offer {
             if (!p.salePrice().currency().equals(base.currency()))
                 throw invalid("Promoção deve usar a moeda da oferta (" + base.currency() + ")");
             if (base.listPrice() != null && p.salePrice().compareAmount(base.listPrice()) > 0)
-                throw new DomainRuleViolation("promotion-above-list-price",
+                throw new DomainRuleViolation(DomainReasons.PROMOTION_ABOVE_LIST_PRICE,
                         "Promoção não pode superar o preço \"de\" da oferta");
         }
     }

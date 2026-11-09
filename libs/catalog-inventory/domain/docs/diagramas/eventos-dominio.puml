@@ -30,10 +30,14 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     transition : ProductTransition
     from : ProductStatus
     to : ProductStatus
-    reason : String
+    reasons : List<ReasonLabel>
+    note : String
+    reason() : String
   }
   class ProductBlocked << (R,#FFA000) record>> {
-    reason : String
+    reasons : List<ReasonLabel>
+    note : String
+    reason() : String
   }
   class SkuSummary << (R,#7CB342) record>> #F1F8E9;line:7CB342 {
     skuId : UUID

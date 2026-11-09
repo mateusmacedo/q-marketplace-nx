@@ -39,6 +39,13 @@ public record Promotion(UUID id, Money salePrice, Instant startsAt, Instant ends
         return !instant.isBefore(endsAt);
     }
 
+    /** Fase em {@code instant}, com as mesmas fronteiras de {@link #activeAt} e {@link #endedBy}. */
+    public PromotionPhase phaseAt(Instant instant) {
+        if (endedBy(instant))
+            return PromotionPhase.ENDED;
+        return activeAt(instant) ? PromotionPhase.ACTIVE : PromotionPhase.SCHEDULED;
+    }
+
     /**
      * Intervalos que só se tocam (um termina quando o outro começa) não se
      * sobrepõem.

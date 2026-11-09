@@ -1,6 +1,8 @@
 package dev.marketplace.cataloginventory.domain.category;
 
+import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
+import dev.marketplace.cataloginventory.domain.Reason;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -70,7 +72,8 @@ public final class Category {
             List<AttributeDefinition> attributes,
             List<AttributeDefinition> inherited) {
         if (!parent.active)
-            throw new DomainRuleViolation("category-inactive", "Categoria pai " + parent.code + " está inativa");
+            throw new DomainRuleViolation(Reason.of(DomainReasons.CATEGORY_INACTIVE, parent.code),
+                    "Categoria pai " + parent.code + " está inativa");
         List<UUID> ancestry = new ArrayList<>(parent.ancestry);
         ancestry.add(parent.id);
         Category child = new Category(id, parent.tenantId, ancestry, code, name, attributes, true, 0);
@@ -112,7 +115,7 @@ public final class Category {
      */
     public void moveUnder(List<Category> newParentChain, int subtreeHeight, Collection<String> descendantCodes) {
         if (newParentChain.stream().anyMatch(c -> c.id.equals(id)))
-            throw new DomainRuleViolation("category-cycle",
+            throw new DomainRuleViolation(DomainReasons.CATEGORY_CYCLE,
                     "Categoria não pode ficar abaixo de si mesma nem de uma subcategoria sua");
         if (newParentChain.size() + subtreeHeight >= MAX_DEPTH)
             throw tooDeep();
@@ -132,6 +135,15 @@ public final class Category {
     /** Reativa a categoria; sem efeito se já estiver ativa. */
     public void activate() {
         active = true;
+    }
+
+    /**
+     * Confere que a categoria pode ser excluída pelas subcategorias diretas que tem; com alguma, recusa com
+     * {@code category-has-children}. Os produtos são conferidos na gravação ({@code category-has-products}).
+     */
+    public void requireRemovable(int childCount) {
+        if (childCount > 0)
+            throw CategoryNotEmptyException.hasChildren(code);
     }
 
     /** Atributos efetivos de uma cadeia ordenada da raiz até a categoria. */
@@ -204,7 +216,7 @@ public final class Category {
     }
 
     private static DomainRuleViolation tooDeep() {
-        return new DomainRuleViolation("category-too-deep",
+        return new DomainRuleViolation(Reason.of(DomainReasons.CATEGORY_TOO_DEEP, MAX_DEPTH),
                 "A árvore de categorias aceita até " + MAX_DEPTH + " níveis");
     }
 
@@ -214,11 +226,11 @@ public final class Category {
      * {@code attribute-conflict:<código>} por colisão.
      */
     private static void requireNoConflicts(Stream<String> candidates, Set<String> taken) {
-        List<String> conflicts = candidates.filter(taken::contains)
-                .map(c -> "attribute-conflict:" + c).toList();
+        List<Reason> conflicts = candidates.filter(taken::contains)
+                .map(c -> Reason.of(DomainReasons.ATTRIBUTE_CONFLICT, c)).toList();
         if (!conflicts.isEmpty())
-            throw new DomainRuleViolation("attribute-conflict", "Atributos já definidos no caminho da categoria",
-                    conflicts);
+            throw new DomainRuleViolation(DomainReasons.ATTRIBUTE_CONFLICT,
+                    "Atributos já definidos no caminho da categoria", conflicts);
     }
 
     private static Stream<String> ownCodes(List<AttributeDefinition> definitions) {

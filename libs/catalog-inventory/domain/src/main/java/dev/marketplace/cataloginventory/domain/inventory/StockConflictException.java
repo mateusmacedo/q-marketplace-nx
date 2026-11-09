@@ -1,6 +1,8 @@
 package dev.marketplace.cataloginventory.domain.inventory;
 
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
+import dev.marketplace.cataloginventory.domain.Reason;
+import dev.marketplace.cataloginventory.domain.ReasonCode;
 import java.util.List;
 
 /**
@@ -8,7 +10,7 @@ import java.util.List;
  * reservado ou SKU ainda com estoque).
  */
 public class StockConflictException extends DomainRuleViolation {
-    public StockConflictException(String code, String message, List<String> reasons) {
+    public StockConflictException(ReasonCode code, String message, List<Reason> reasons) {
         super(code, message, reasons);
     }
 }

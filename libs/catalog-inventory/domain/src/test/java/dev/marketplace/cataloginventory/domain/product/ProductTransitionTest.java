@@ -30,6 +30,20 @@ class ProductTransitionTest {
     }
 
     @Test
+    void storeDoesTheLifecycleAndModerationDecides() {
+        Set<ProductTransition> store = EnumSet.noneOf(ProductTransition.class);
+        for (ProductTransition transition : ProductTransition.values())
+            if (transition.side() == TransitionSide.STORE)
+                store.add(transition);
+        assertEquals(EnumSet.of(ProductTransition.CREATE, ProductTransition.SUBMIT, ProductTransition.PAUSE,
+                ProductTransition.RESUME, ProductTransition.ARCHIVE, ProductTransition.REVIEW_REQUIRED), store);
+        assertEquals(TransitionSide.MODERATION, ProductTransition.APPROVE.side());
+        assertEquals(TransitionSide.MODERATION, ProductTransition.REJECT.side());
+        assertEquals(TransitionSide.MODERATION, ProductTransition.BLOCK.side());
+        assertEquals(TransitionSide.MODERATION, ProductTransition.UNBLOCK.side());
+    }
+
+    @Test
     void everyTransitionAcceptsOnlyItsOrigins() {
         assertEquals(Set.of(), originsOf(ProductTransition.CREATE));
         assertEquals(Set.of(DRAFT), originsOf(ProductTransition.SUBMIT));

@@ -1,6 +1,7 @@
 package dev.marketplace.cataloginventory.domain.product;
 
 import dev.marketplace.cataloginventory.domain.Attributes;
+import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import java.util.Map;
 import java.util.Objects;
@@ -56,7 +57,7 @@ public final class Sku {
     void define(Map<String, String> variantAttributes, boolean physical, Dimensions dimensions) {
         // INVARIANT: PRD — dimensões e peso não podem ser nulos para SKUs físicos.
         if (physical && dimensions == null)
-            throw new DomainRuleViolation("missing-dimensions",
+            throw new DomainRuleViolation(DomainReasons.MISSING_DIMENSIONS,
                     "SKU físico " + sellerSku + " exige altura, largura, comprimento e peso");
         if (!physical && dimensions != null)
             throw invalid("SKU não físico " + sellerSku + " não tem dimensões");
