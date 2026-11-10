@@ -14,7 +14,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Toda gravação de oferta (preço, promoção agendada ou cancelada, importação) invalida a vitrine do produto dela antes
+ * Toda gravação de oferta (preço, promoção agendada ou cancelada, importação)
+ * invalida a vitrine do produto dela antes
  * de devolver o resultado, também na falha (ADR 024).
  */
 @Decorator

@@ -3,8 +3,10 @@ package dev.marketplace.cataloginventory.security;
 import dev.marketplace.cataloginventory.application.Capability;
 
 /**
- * Nomes das {@link Capability} para o {@code @PermissionsAllowed} dos endpoints, que exige constante em tempo de
- * compilação. O endpoint declara a capacidade, e quem a tem é decisão só do {@link CallerContext}; o teste confere que
+ * Nomes das {@link Capability} para o {@code @PermissionsAllowed} dos
+ * endpoints, que exige constante em tempo de
+ * compilação. O endpoint declara a capacidade, e quem a tem é decisão só do
+ * {@link CallerContext}; o teste confere que
  * cada nome é uma capacidade.
  */
 public final class Capabilities {

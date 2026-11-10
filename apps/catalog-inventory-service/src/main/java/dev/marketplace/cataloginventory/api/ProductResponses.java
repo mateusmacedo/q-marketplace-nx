@@ -74,7 +74,8 @@ class ProductResponses {
     Uni<ProductResponse> saved(Actor actor, Product product) {
         List<Product> items = List.of(product);
         String written = "o produto " + product.id();
-        // WHY: a gravação já valeu, com os eventos na outbox; um 503 aqui faria o cliente repetir contra a versão nova.
+        // WHY: a gravação já valeu, com os eventos na outbox; um 503 aqui faria o
+        // cliente repetir contra a versão nova.
         return withActions(actor, items, true, stockAfterWrite(items, written))
                 .onFailure().recoverWithItem(failure -> {
                     LOG.warnf(failure, "Leituras depois de gravar %s falharam; a resposta sai sem ações nem leituras",
@@ -85,12 +86,18 @@ class ProductResponses {
                 .map(readings -> ProductResponse.of(product, readings));
     }
 
-    /** Responde 200 com o produto recém-gravado, como em {@link #saved}, e o ETag da versão. */
+    /**
+     * Responde 200 com o produto recém-gravado, como em {@link #saved}, e o ETag da
+     * versão.
+     */
     Uni<RestResponse<ProductResponse>> savedOk(Actor actor, Product product) {
         return saved(actor, product).map(body -> ETags.ok(body, product.version()));
     }
 
-    /** Responde 200 com o SKU, o saldo e a oferta dele e o ETag da versão do produto. */
+    /**
+     * Responde 200 com o SKU, o saldo e a oferta dele e o ETag da versão do
+     * produto.
+     */
     Uni<RestResponse<SkuResponse>> sku(Product product, UUID skuId) {
         List<Product> items = List.of(product);
         return Uni.createFrom().item(() -> product.sku(skuId))
@@ -136,8 +143,10 @@ class ProductResponses {
      * vazio, com que a resposta mostra o estado gravado.
      */
     private Uni<Optional<Map<UUID, StockLevel>>> stockAfterWrite(List<Product> saved, String written) {
-        // WHY: a gravação já valeu, com os eventos na outbox; a falha desta leitura não pode virar 503, que o cliente
-        // repetiria contra a versão nova ou, no lote, veria falhar nos itens que deram certo.
+        // WHY: a gravação já valeu, com os eventos na outbox; a falha desta leitura não
+        // pode virar 503, que o cliente
+        // repetiria contra a versão nova ou, no lote, veria falhar nos itens que deram
+        // certo.
         return stock(saved).onFailure().recoverWithItem(failure -> {
             LOG.warnf(failure, "Saldo não lido depois de gravar %s; a resposta sai com o estado gravado", written);
             return Optional.empty();
@@ -162,7 +171,10 @@ class ProductResponses {
                 Optional.ofNullable(issues.get(p.id()))), (first, second) -> first));
     }
 
-    /** Pendências de cada produto em status editável, com as ofertas já lidas; os demais ficam fora do mapa. */
+    /**
+     * Pendências de cada produto em status editável, com as ofertas já lidas; os
+     * demais ficam fora do mapa.
+     */
     private Uni<Map<UUID, List<PublishingIssue>>> issues(List<Product> items, Map<UUID, Offer> offered) {
         if (items.isEmpty())
             return Uni.createFrom().item(Map.of());

@@ -14,9 +14,12 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Recusa o caractere nulo (U+0000) em todo texto lido de JSON, valor ou chave de mapa, em qualquer nível do corpo,
- * antes da validação de campo. O PostgreSQL não guarda esse caractere em {@code text} e recusaria o parâmetro com
- * erro de servidor (SQLSTATE 22021); a recusa sai como 400 {@code validation-failed}, com o caminho do campo em
+ * Recusa o caractere nulo (U+0000) em todo texto lido de JSON, valor ou chave
+ * de mapa, em qualquer nível do corpo,
+ * antes da validação de campo. O PostgreSQL não guarda esse caractere em
+ * {@code text} e recusaria o parâmetro com
+ * erro de servidor (SQLSTATE 22021); a recusa sai como 400
+ * {@code validation-failed}, com o caminho do campo em
  * {@code errors} ({@link ProblemMappers#nullCharacter}).
  */
 @Singleton
@@ -32,8 +35,10 @@ public class NullCharacterGuard implements ObjectMapperCustomizer {
     }
 
     /**
-     * Texto com o caractere nulo. O Jackson acrescenta o caminho a cada nível que a exceção atravessa; ela estende
-     * {@link MismatchedInputException} porque o leitor do Quarkus REST repassa esse tipo sem embrulhar.
+     * Texto com o caractere nulo. O Jackson acrescenta o caminho a cada nível que a
+     * exceção atravessa; ela estende
+     * {@link MismatchedInputException} porque o leitor do Quarkus REST repassa esse
+     * tipo sem embrulhar.
      */
     public static final class Rejected extends MismatchedInputException {
         private static final long serialVersionUID = 1L;
@@ -43,8 +48,10 @@ public class NullCharacterGuard implements ObjectMapperCustomizer {
         }
 
         /**
-         * Caminho no formato da validação de campo, como {@code title}, {@code skus[0].sellerSku} e
-         * {@code attributes[cor]}; a chave de mapa recusada fica fora, e o caminho para no mapa dela.
+         * Caminho no formato da validação de campo, como {@code title},
+         * {@code skus[0].sellerSku} e
+         * {@code attributes[cor]}; a chave de mapa recusada fica fora, e o caminho para
+         * no mapa dela.
          */
         String field() {
             StringBuilder field = new StringBuilder();

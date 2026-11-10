@@ -11,7 +11,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** O papel api (ADR 020) atende HTTP sem tarefas agendadas e sem os canais Kafka, com o papel real sobre o perfil de teste. */
+/**
+ * O papel api (ADR 020) atende HTTP sem tarefas agendadas e sem os canais
+ * Kafka, com o papel real sobre o perfil de teste.
+ */
 @QuarkusTest
 @TestProfile(ApiRoleTest.ApiRole.class)
 class ApiRoleTest {

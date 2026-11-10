@@ -38,19 +38,22 @@ public class PgProductImportRepository implements ProductImportRepository {
             + " FROM product_import WHERE tenant_id = $1 AND store_id = $2 AND id = $3";
     private static final String FIND_SUMMARY = "SELECT " + COLUMNS + ", " + COUNTS
             + " FROM product_import WHERE tenant_id = $1 AND store_id = $2 AND id = $3";
-    // WHY: SKIP LOCKED faz cada pod reivindicar um lote diferente sem esperar o bloqueio do outro.
+    // WHY: SKIP LOCKED faz cada pod reivindicar um lote diferente sem esperar o
+    // bloqueio do outro.
     private static final String CLAIM = """
             UPDATE product_import SET status = 'PROCESSING', started_at = $1
             WHERE id = (SELECT id FROM product_import
                         WHERE status IN ('PENDING', 'PROCESSING') AND (status = 'PENDING' OR started_at < $2)
                         ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING content, """ + COLUMNS;
+            RETURNING content, """
+            + COLUMNS;
     private static final String RESULTS = """
             SELECT line_number, seller_sku, outcome, code, message, reasons, product_id FROM product_import_line
             WHERE import_id = $1 ORDER BY line_number""";
     private static final String LIST = "SELECT " + COLUMNS + ", " + COUNTS + " FROM product_import"
             + " WHERE tenant_id = $1 AND store_id = $2%s ORDER BY created_at DESC, id DESC LIMIT $%d";
-    // WHY: o RETURNING traz só as linhas inseridas; a que já tinha resultado (retomada depois do lease) não soma de
+    // WHY: o RETURNING traz só as linhas inseridas; a que já tinha resultado
+    // (retomada depois do lease) não soma de
     // novo nas contagens do lote.
     private static final String INSERT_LINE = """
             INSERT INTO product_import_line (import_id, line_number, seller_sku, outcome, code, message, reasons,
@@ -77,7 +80,8 @@ public class PgProductImportRepository implements ProductImportRepository {
         Tuple row = Tuple.tuple().addUUID(job.id()).addUUID(job.tenantId()).addUUID(job.storeId())
                 .addString(job.actor()).addString(job.status().name()).addString(content)
                 .addInteger(job.totalLines()).addValue(PgSupport.utc(job.createdAt()));
-        // WHY: o id nasce no servidor; a tag liga o envio ao processamento pelo worker, que tem o mesmo id (ADR 021).
+        // WHY: o id nasce no servidor; a tag liga o envio ao processamento pelo worker,
+        // que tem o mesmo id (ADR 021).
         Telemetry.tag("marketplace.import.id", job.id());
         return pg.bounded(pool.preparedQuery(INSERT).execute(row)).replaceWithVoid();
     }
@@ -85,14 +89,16 @@ public class PgProductImportRepository implements ProductImportRepository {
     @Override
     public Uni<Optional<ProductImport>> findImport(UUID tenantId, UUID storeId, UUID id) {
         return pg.bounded(pool.preparedQuery(FIND).execute(Tuple.of(tenantId, storeId, id)))
-                .map(rows -> StreamSupport.stream(rows.spliterator(), false).map(PgProductImportRepository::toImport)
+                .map(rows -> StreamSupport.stream(rows.spliterator(), false)
+                        .map(PgProductImportRepository::toImport)
                         .findFirst());
     }
 
     @Override
     public Uni<Optional<Summary>> findSummary(UUID tenantId, UUID storeId, UUID id) {
         return pg.bounded(pool.preparedQuery(FIND_SUMMARY).execute(Tuple.of(tenantId, storeId, id)))
-                .map(rows -> StreamSupport.stream(rows.spliterator(), false).map(PgProductImportRepository::toSummary)
+                .map(rows -> StreamSupport.stream(rows.spliterator(), false)
+                        .map(PgProductImportRepository::toSummary)
                         .findFirst());
     }
 
@@ -106,8 +112,10 @@ public class PgProductImportRepository implements ProductImportRepository {
             position = " AND (created_at, id) < ($3, $4)";
         }
         params.add(limit);
-        return pg.bounded(pool.preparedQuery(LIST.formatted(position, params.size())).execute(Tuple.from(params)))
-                .map(rows -> StreamSupport.stream(rows.spliterator(), false).map(PgProductImportRepository::toSummary)
+        return pg.bounded(
+                pool.preparedQuery(LIST.formatted(position, params.size())).execute(Tuple.from(params)))
+                .map(rows -> StreamSupport.stream(rows.spliterator(), false)
+                        .map(PgProductImportRepository::toSummary)
                         .toList());
     }
 
@@ -115,27 +123,35 @@ public class PgProductImportRepository implements ProductImportRepository {
     public Uni<List<ImportResult>> results(UUID importId) {
         return pg.bounded(pool.preparedQuery(RESULTS).execute(Tuple.of(importId)))
                 .map(rows -> StreamSupport.stream(rows.spliterator(), false)
-                        .map(r -> new ImportResult(r.getInteger("line_number"), r.getString("seller_sku"),
-                                ImportResult.ImportOutcome.valueOf(r.getString("outcome")), r.getString("code"),
-                                r.getString("message"), r.getUUID("product_id"), reasons(r.getJsonArray("reasons"))))
+                        .map(r -> new ImportResult(r.getInteger("line_number"),
+                                r.getString("seller_sku"),
+                                ImportResult.ImportOutcome
+                                        .valueOf(r.getString("outcome")),
+                                r.getString("code"),
+                                r.getString("message"), r.getUUID("product_id"),
+                                reasons(r.getJsonArray("reasons"))))
                         .toList());
     }
 
     @Override
     public Uni<Optional<Claimed>> claimNext(Instant now, Instant staleBefore) {
-        return pg.bounded(pool.preparedQuery(CLAIM).execute(Tuple.of(PgSupport.utc(now), PgSupport.utc(staleBefore))))
+        return pg.bounded(pool.preparedQuery(CLAIM)
+                .execute(Tuple.of(PgSupport.utc(now), PgSupport.utc(staleBefore))))
                 .map(rows -> StreamSupport.stream(rows.spliterator(), false)
-                        .map(r -> new Claimed(toImport(r), r.getString("content"))).findFirst());
+                        .map(r -> new Claimed(toImport(r), r.getString("content")))
+                        .findFirst());
     }
 
     @Override
     public Uni<Void> recordResults(UUID importId, List<ImportResult> results, Instant at) {
         List<Tuple> rows = results.stream().map(r -> Tuple.tuple().addUUID(importId).addInteger(r.lineNumber())
-                .addString(r.sellerSku()).addString(r.outcome().name()).addString(r.code()).addString(r.message())
+                .addString(r.sellerSku()).addString(r.outcome().name()).addString(r.code())
+                .addString(r.message())
                 .addValue(json(r.reasons())).addUUID(r.productId())).toList();
         return pg.bounded(pool.withTransaction(conn -> inserted(conn, rows)
                 .flatMap(counts -> conn.preparedQuery(RENEW).execute(Tuple.tuple().addUUID(importId)
-                        .addValue(PgSupport.utc(at)).addInteger(counts.getOrDefault(ImportOutcome.CREATED, 0))
+                        .addValue(PgSupport.utc(at))
+                        .addInteger(counts.getOrDefault(ImportOutcome.CREATED, 0))
                         .addInteger(counts.getOrDefault(ImportOutcome.UPDATED, 0))
                         .addInteger(counts.getOrDefault(ImportOutcome.UNCHANGED, 0))
                         .addInteger(counts.getOrDefault(ImportOutcome.FAILED, 0))))
@@ -149,7 +165,8 @@ public class PgProductImportRepository implements ProductImportRepository {
         return conn.preparedQuery(INSERT_LINE).executeBatch(rows).map(first -> {
             Map<ImportOutcome, Integer> counts = new EnumMap<>(ImportOutcome.class);
             for (RowSet<Row> result = first; result != null; result = result.next())
-                result.forEach(row -> counts.merge(ImportOutcome.valueOf(row.getString("outcome")), 1, Integer::sum));
+                result.forEach(row -> counts.merge(ImportOutcome.valueOf(row.getString("outcome")), 1,
+                        Integer::sum));
             return counts;
         });
     }
@@ -161,7 +178,8 @@ public class PgProductImportRepository implements ProductImportRepository {
     }
 
     private static ProductImport toImport(Row r) {
-        return new ProductImport(r.getUUID("id"), r.getUUID("tenant_id"), r.getUUID("store_id"), r.getString("actor"),
+        return new ProductImport(r.getUUID("id"), r.getUUID("tenant_id"), r.getUUID("store_id"),
+                r.getString("actor"),
                 ProductImport.ImportStatus.valueOf(r.getString("status")), r.getInteger("total_lines"),
                 PgSupport.instant(r.getOffsetDateTime("created_at")),
                 PgSupport.instant(r.getOffsetDateTime("started_at")),
@@ -179,7 +197,8 @@ public class PgProductImportRepository implements ProductImportRepository {
             return null;
         JsonArray array = new JsonArray();
         reasons.forEach(r -> array.add(new JsonObject().put("code", r.code())
-                .put("params", new JsonArray(new ArrayList<>(r.params()))).put("message", r.message())));
+                .put("params", new JsonArray(new ArrayList<>(r.params())))
+                .put("message", r.message())));
         return array;
     }
 

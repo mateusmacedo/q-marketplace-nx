@@ -10,7 +10,10 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/** O corpo de erro traz, ao lado de {@code reasons}, cada motivo com parâmetros e o texto para mostrar. */
+/**
+ * O corpo de erro traz, ao lado de {@code reasons}, cada motivo com parâmetros
+ * e o texto para mostrar.
+ */
 @QuarkusTest
 class ReasonDetailsTest {
     @Test
@@ -49,7 +52,8 @@ class ReasonDetailsTest {
         as(api.admin).header("If-Match", "\"0\"").delete("/categories/" + api.categoryId).then().statusCode(409)
                 .body("reasons", contains("category-has-children"))
                 .body("reasonDetails[0].code", is("category-has-children"))
-                .body("reasonDetails[0].message", is("Exclua ou mova as subcategorias antes de excluir esta categoria."));
+                .body("reasonDetails[0].message",
+                        is("Exclua ou mova as subcategorias antes de excluir esta categoria."));
     }
 
     @Test

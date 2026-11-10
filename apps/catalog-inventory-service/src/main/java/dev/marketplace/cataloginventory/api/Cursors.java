@@ -44,8 +44,10 @@ final class Cursors {
             return Optional.empty();
         try {
             String key = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-            // WHY: a chave vai ao banco como posição, e o PostgreSQL recusa U+0000 em parâmetro de texto com erro de
-            // servidor; nenhuma chave emitida o tem, porque nenhuma coluna de texto o guarda.
+            // WHY: a chave vai ao banco como posição, e o PostgreSQL recusa U+0000 em
+            // parâmetro de texto com erro de
+            // servidor; nenhuma chave emitida o tem, porque nenhuma coluna de texto o
+            // guarda.
             if (key.isBlank() || key.length() > maxLength || key.indexOf('\0') >= 0)
                 throw new InvalidInputException("cursor inválido");
             return Optional.of(key);

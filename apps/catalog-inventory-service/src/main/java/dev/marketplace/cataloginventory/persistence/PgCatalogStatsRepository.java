@@ -17,15 +17,20 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Contagens da página inicial do painel (ADR 029). Cada leitura é um só statement, para o estado atual e as
- * transições saírem do mesmo snapshot. Não confundir com {@link PgCatalogMetrics}, dos gauges do Micrometer (ADR 017).
+ * Contagens da página inicial do painel (ADR 029). Cada leitura é um só
+ * statement, para o estado atual e as
+ * transições saírem do mesmo snapshot. Não confundir com
+ * {@link PgCatalogMetrics}, dos gauges do Micrometer (ADR 017).
  */
 @ApplicationScoped
 @Traced
 public class PgCatalogStatsRepository implements CatalogStatsRepository {
-    // WHY: o balde é o date_trunc da hora local no fuso pedido, para o dia e o mês virarem à meia-noite do painel. O
-    // saldo sai de um LATERAL com LIMIT, que roda pelo índice de cada produto ativo da loja; com NOT EXISTS, o plano
-    // genérico fazia um anti join que lia o saldo do tenant inteiro (82 ms contra 33 ms com 200 mil SKUs).
+    // WHY: o balde é o date_trunc da hora local no fuso pedido, para o dia e o mês
+    // virarem à meia-noite do painel. O
+    // saldo sai de um LATERAL com LIMIT, que roda pelo índice de cada produto ativo
+    // da loja; com NOT EXISTS, o plano
+    // genérico fazia um anti join que lia o saldo do tenant inteiro (82 ms contra
+    // 33 ms com 200 mil SKUs).
     private static final String STORE = """
             SELECT 'status' AS kind, NULL::date AS period, NULL::text AS transition, NULL::text AS from_status,
                    status::text AS to_status, count(*) AS n
@@ -46,7 +51,8 @@ public class PgCatalogStatsRepository implements CatalogStatsRepository {
                    count(*)
             FROM product_status_change WHERE tenant_id = $1 AND store_id = $2 AND occurred_at >= $8 AND occurred_at < $9
             GROUP BY 2, 3, 4, 5""";
-    // WHY: os filtros vão literais para o planejador usar os índices parciais da fila e das transições da moderação;
+    // WHY: os filtros vão literais para o planejador usar os índices parciais da
+    // fila e das transições da moderação;
     // a moderação só precisa das entradas e saídas da fila e dos bloqueios.
     private static final String MODERATED = """
             (to_status = 'PENDING_MODERATION' OR from_status = 'PENDING_MODERATION' OR transition = 'BLOCK')""";
@@ -64,7 +70,8 @@ public class PgCatalogStatsRepository implements CatalogStatsRepository {
                    count(*)
             FROM product_status_change WHERE tenant_id = $1 AND occurred_at >= $7 AND occurred_at < $8 AND %1$s
             GROUP BY 2, 3, 4, 5""".formatted(MODERATED);
-    // WHY: com o status literal, a contagem roda pelo índice parcial da fila (product_moderation_queue_idx).
+    // WHY: com o status literal, a contagem roda pelo índice parcial da fila
+    // (product_moderation_queue_idx).
     private static final String QUEUE = """
             SELECT count(*) AS n FROM product WHERE tenant_id = $1 AND status = 'PENDING_MODERATION'""";
     private static final String CATEGORIES = """

@@ -69,16 +69,18 @@ public class ProductImportResource {
     @PermissionsAllowed(MANAGE_OWN_PRODUCTS)
     @Operation(operationId = "importProducts", summary = "Envia planilha CSV de produtos para importação em segundo plano")
     @APIResponse(responseCode = "202", description = "Importação aceita; acompanhe pelo Location")
-    public Uni<RestResponse<ImportResponse>> submit(@RequestBody(required = true, description = """
-            CSV RFC 4180 em UTF-8 (BOM opcional) com o cabeçalho exato, nesta ordem: \
-            product_ref,category_code,title,description,attributes,seller_sku,variant_attributes,physical,\
-            height_cm,width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand. Atributos são pares \
-            chave=valor separados por ';'; números usam ponto decimal; physical é true ou false. SKU já existente \
-            na loja recebe só preço e estoque; SKUs novos com o mesmo product_ref formam um produto em rascunho.""") byte[] body,
+    public Uni<RestResponse<ImportResponse>> submit(
+            @RequestBody(required = true, description = """
+                    CSV RFC 4180 em UTF-8 (BOM opcional) com o cabeçalho exato, nesta ordem: \
+                    product_ref,category_code,title,description,attributes,seller_sku,variant_attributes,physical,\
+                    height_cm,width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand. Atributos são pares \
+                    chave=valor separados por ';'; números usam ponto decimal; physical é true ou false. SKU já existente \
+                    na loja recebe só preço e estoque; SKUs novos com o mesmo product_ref formam um produto em rascunho.""") byte[] body,
             UriInfo uri) {
         Actor actor = caller.actor();
         int maxRows = config.imports().maxRows();
-        return lifecycle.nested(ProductCsv.class, "validate", () -> Offload.cpu(() -> ProductCsv.validate(body, maxRows)))
+        return lifecycle
+                .nested(ProductCsv.class, "validate", () -> Offload.cpu(() -> ProductCsv.validate(body, maxRows)))
                 .flatMap(file -> imports.submit(actor, file.content(), file.totalLines()))
                 .map(job -> RestResponse.ResponseBuilder.<ImportResponse>create(RestResponse.Status.ACCEPTED)
                         .location(uri.getAbsolutePathBuilder().path(job.id().toString()).build())
@@ -86,7 +88,8 @@ public class ProductImportResource {
     }
 
     /**
-     * Lotes da loja do seller, do mais recente ao mais antigo, com as contagens por resultado e sem as linhas; cursor
+     * Lotes da loja do seller, do mais recente ao mais antigo, com as contagens por
+     * resultado e sem as linhas; cursor
      * malformado responde 400.
      */
     @GET
@@ -101,7 +104,8 @@ public class ProductImportResource {
     }
 
     /**
-     * Situação do lote, contagens por resultado e, salvo com {@code lines=false}, as linhas já processadas; só o
+     * Situação do lote, contagens por resultado e, salvo com {@code lines=false},
+     * as linhas já processadas; só o
      * seller da loja que enviou vê, e outra loja ou tenant recebe 404.
      */
     @GET

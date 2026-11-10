@@ -18,8 +18,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Leitura de saldo que estoura o prazo nos tenants marcados, com a mesma falha do prazo do {@code PgSupport}; os
- * demais tenants, o ajuste de estoque e a leitura da reserva seguem para o repositório.
+ * Leitura de saldo que estoura o prazo nos tenants marcados, com a mesma falha
+ * do prazo do {@code PgSupport}; os
+ * demais tenants, o ajuste de estoque e a leitura da reserva seguem para o
+ * repositório.
  */
 @Decorator
 @Priority(1)

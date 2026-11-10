@@ -54,7 +54,10 @@ import static dev.marketplace.cataloginventory.security.Capabilities.READ_TENANT
 @APIResponse(responseCode = "5XX", description = "Erro do servidor (RFC 9457)", content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
 @Traced(entry = true)
 public class ProductResource {
-    /** Chave do cursor da listagem: ordem, filtros, id e a chave do título, que tem até 400 pontos de código. */
+    /**
+     * Chave do cursor da listagem: ordem, filtros, id e a chave do título, que tem
+     * até 400 pontos de código.
+     */
     private static final int CURSOR_KEY_MAX_LENGTH = 1024;
     private final ProductService products;
     private final ProductResponses responses;
@@ -192,7 +195,8 @@ public class ProductResource {
     @APIResponse(responseCode = "200", description = "Histórico em ordem cronológica")
     public Uni<List<StatusChangeResponse>> history(@RestPath UUID id) {
         return products.history(caller.actor(), id)
-                .map(changes -> changes.stream().map(c -> StatusChangeResponse.of(c, caller.actor().subject())).toList());
+                .map(changes -> changes.stream().map(c -> StatusChangeResponse.of(c, caller.actor().subject()))
+                        .toList());
     }
 
     /**

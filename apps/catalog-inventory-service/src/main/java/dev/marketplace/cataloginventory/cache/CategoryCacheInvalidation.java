@@ -16,9 +16,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Categoria criada, revisada (inclusive ativada ou desativada), movida ou excluída invalida a taxonomia do tenant antes
- * de devolver o resultado, também na falha (ADR 024). As leituras em cache ficam em {@link TaxonomyCache}, fora do span
- * do adaptador: aqui o decorator roda dentro dele, e um acerto pareceria uma consulta ao banco.
+ * Categoria criada, revisada (inclusive ativada ou desativada), movida ou
+ * excluída invalida a taxonomia do tenant antes
+ * de devolver o resultado, também na falha (ADR 024). As leituras em cache
+ * ficam em {@link TaxonomyCache}, fora do span
+ * do adaptador: aqui o decorator roda dentro dele, e um acerto pareceria uma
+ * consulta ao banco.
  */
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)

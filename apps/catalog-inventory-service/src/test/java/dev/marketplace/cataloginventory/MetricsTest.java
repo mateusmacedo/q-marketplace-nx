@@ -14,7 +14,10 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Métricas de negócio do PRD (ADR 017): moderação, SKUs ativos e vendáveis e latência de inventário. */
+/**
+ * Métricas de negócio do PRD (ADR 017): moderação, SKUs ativos e vendáveis e
+ * latência de inventário.
+ */
 @QuarkusTest
 class MetricsTest {
     @Inject

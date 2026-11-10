@@ -94,7 +94,8 @@ class OutboxBatchesTest {
         drainPending();
         UUID tenant = UUID.randomUUID();
         String blocked = UUID.randomUUID().toString(), free = UUID.randomUUID().toString();
-        // WHY: acima do max.request.size padrão de 1 MB, o produtor Kafka recusa só este registro.
+        // WHY: acima do max.request.size padrão de 1 MB, o produtor Kafka recusa só
+        // este registro.
         UUID tooLarge = appendOne(tenant, blocked, "x".repeat(1_200_000));
         UUID heldBack = appendOne(tenant, blocked, "");
         UUID other = appendOne(tenant, free, "");
@@ -104,8 +105,10 @@ class OutboxBatchesTest {
             assertEquals(List.of(tooLarge, heldBack), idsInSeqOrder(tenant, true), "a falha retém o seguinte da chave");
             assertEquals(1, attempts(tooLarge), "o evento recusado conta a tentativa");
             assertEquals(0, attempts(heldBack), "o retido nem foi enviado");
-            assertEquals(other, UUID.fromString(header(consume(Kafka.PRODUCT_TOPIC, r -> free.equals(r.key()), 1).get(0),
-                    "event-id")), "outra chave segue publicada");
+            assertEquals(other,
+                    UUID.fromString(header(consume(Kafka.PRODUCT_TOPIC, r -> free.equals(r.key()), 1).get(0),
+                            "event-id")),
+                    "outra chave segue publicada");
         } finally {
             sql("DELETE FROM outbox_event WHERE tenant_id = $1", tenant);
         }
@@ -179,10 +182,12 @@ class OutboxBatchesTest {
                 INSERT INTO outbox_event (id, tenant_id, topic, message_key, event_type, payload, created_at, published_at)
                 SELECT gen_random_uuid(), $1::uuid, 'teste', 'chave', 'Teste', '{}', now() - interval '9 days',
                        now() - interval '8 days'
-                FROM generate_series(1, 17)""", tenant);
+                FROM generate_series(1, 17)""",
+                tenant);
         sql("""
                 INSERT INTO inbox_message (consumer, event_id, processed_at)
-                SELECT $1::text, gen_random_uuid(), now() - interval '31 days' FROM generate_series(1, 17)""", consumer);
+                SELECT $1::text, gen_random_uuid(), now() - interval '31 days' FROM generate_series(1, 17)""",
+                consumer);
 
         housekeeping.purge().await().atMost(WAIT);
         assertEquals(0, outboxRows(tenant), "4 lotes de 5 na outbox numa execução");
@@ -190,15 +195,16 @@ class OutboxBatchesTest {
     }
 
     /**
-     * WHY: eventos deixados por outros testes ocupariam os primeiros lotes; o sentinela só sai quando o relay
+     * WHY: eventos deixados por outros testes ocupariam os primeiros lotes; o
+     * sentinela só sai quando o relay
      * alcança o fim da fila.
      */
     private void drainPending() {
         appendOne(UUID.randomUUID(), UUID.randomUUID().toString(), "");
         Awaitility.await().atMost(WAIT).until(() -> {
             relay.relay().await().atMost(WAIT);
-            return scalar(pool, "SELECT count(*) AS n FROM outbox_event WHERE published_at IS NULL", "n", Long.class)
-                    == 0;
+            return scalar(pool, "SELECT count(*) AS n FROM outbox_event WHERE published_at IS NULL", "n",
+                    Long.class) == 0;
         });
     }
 

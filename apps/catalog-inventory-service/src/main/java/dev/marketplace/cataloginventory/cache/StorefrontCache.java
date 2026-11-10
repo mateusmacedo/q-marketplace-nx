@@ -10,9 +10,12 @@ import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 
 /**
- * Vitrine em cache (ADR 024): guarda o produto visível com as ofertas, nunca o estoque, que o resource lê do banco a
- * cada chamada, nem o preço vigente, calculado a cada leitura a partir das promoções guardadas. O conteúdo depende da
- * geração do produto (escritas no produto e nas ofertas) e da geração da loja (vereditos KYB/KYC); produto fora da
+ * Vitrine em cache (ADR 024): guarda o produto visível com as ofertas, nunca o
+ * estoque, que o resource lê do banco a
+ * cada chamada, nem o preço vigente, calculado a cada leitura a partir das
+ * promoções guardadas. O conteúdo depende da
+ * geração do produto (escritas no produto e nas ofertas) e da geração da loja
+ * (vereditos KYB/KYC); produto fora da
  * vitrine não entra no cache, então o 404 é sempre reavaliado no banco.
  */
 @ApplicationScoped
@@ -27,8 +30,10 @@ public class StorefrontCache {
     }
 
     /**
-     * Produto da vitrine pelo cache, ou por {@code load} quando falta, está velho, o Redis falha ou o cache está
-     * desligado; {@code load} carregado depois de uma falta é guardado sem que a resposta espere a gravação. As falhas
+     * Produto da vitrine pelo cache, ou por {@code load} quando falta, está velho,
+     * o Redis falha ou o cache está
+     * desligado; {@code load} carregado depois de uma falta é guardado sem que a
+     * resposta espere a gravação. As falhas
      * de {@code load} (inclusive o 404) passam adiante sem nada guardar.
      */
     public Uni<StorefrontProduct> get(UUID tenantId, UUID productId, Supplier<Uni<StorefrontProduct>> load) {
@@ -40,7 +45,8 @@ public class StorefrontCache {
                 .flatMap(lookup -> switch (lookup.result()) {
                     case HIT -> decode(lookup.content(), load);
                     case MISS -> load.get().invoke(shown -> store(key, lookup.content(), shown));
-                    // WHY: a geração da loja só vale se lida antes da carga; sem o mapa, ela não foi lida.
+                    // WHY: a geração da loja só vale se lida antes da carga; sem o mapa, ela não
+                    // foi lida.
                     case UNMAPPED -> load.get().invoke(shown -> CatalogCache
                             .detach(cache.remember(tenantId, productId, shown.product().storeId())));
                     case BYPASS -> load.get();

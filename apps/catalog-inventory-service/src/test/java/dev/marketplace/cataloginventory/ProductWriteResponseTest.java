@@ -9,9 +9,12 @@ import static dev.marketplace.cataloginventory.Api.sku;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Resposta das gravações de um produto quando a leitura do saldo, feita depois do commit, estoura o prazo: a
- * gravação vale e a resposta sai com o estado gravado, sem o {@code OUT_OF_STOCK} calculado e sem o saldo dos SKUs,
- * como no lote. Se outra leitura falhar, como a das ofertas, a resposta sai sem as ações e o que depende delas. A
+ * Resposta das gravações de um produto quando a leitura do saldo, feita depois
+ * do commit, estoura o prazo: a
+ * gravação vale e a resposta sai com o estado gravado, sem o
+ * {@code OUT_OF_STOCK} calculado e sem o saldo dos SKUs,
+ * como no lote. Se outra leitura falhar, como a das ofertas, a resposta sai sem
+ * as ações e o que depende delas. A
  * leitura sem gravação continua respondendo 503.
  */
 @QuarkusTest

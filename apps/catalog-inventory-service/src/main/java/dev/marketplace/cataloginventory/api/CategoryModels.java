@@ -55,8 +55,8 @@ public final class CategoryModels {
      * {@code parentId} precisa vir no corpo, mesmo nulo, para que um campo com
      * nome errado não torne a categoria raiz.
      */
-    public record MoveCategoryRequest(@JsonProperty(required = true) @Schema(required = true, nullable = true,
-            description = "Novo pai; nulo torna a categoria raiz") UUID parentId) {
+    public record MoveCategoryRequest(
+            @JsonProperty(required = true) @Schema(required = true, nullable = true, description = "Novo pai; nulo torna a categoria raiz") UUID parentId) {
     }
 
     @Schema(description = "Categoria no caminho, da raiz até o pai")
@@ -128,7 +128,9 @@ public final class CategoryModels {
             @Schema(description = "Situação nova; ausente na falha e na exclusão", nullable = true) Boolean active,
             @Schema(description = "Versão nova, para o próximo If-Match; ausente na falha e na exclusão", nullable = true) Long version,
             @Schema(description = "Problema que o endpoint de um item responderia; ausente no sucesso", nullable = true) Problem problem) {
-        /** Resultado do item; a categoria excluída não tem situação nem versão novas. */
+        /**
+         * Resultado do item; a categoria excluída não tem situação nem versão novas.
+         */
         static CategoryBatchResult of(CategoryBatchAction action, Batch.Outcome<Category> outcome, String path) {
             return outcome.value().map(c -> action == CategoryBatchAction.DELETE
                     ? new CategoryBatchResult(c.id(), BatchOutcome.SUCCEEDED, null, null, null)

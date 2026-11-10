@@ -149,7 +149,8 @@ public class ProblemMappers {
     }
 
     /**
-     * Responde 409 {@code category-has-children} ou {@code category-has-products}, com o mesmo código em
+     * Responde 409 {@code category-has-children} ou {@code category-has-products},
+     * com o mesmo código em
      * {@code reasons}.
      */
     @ServerExceptionMapper
@@ -212,8 +213,10 @@ public class ProblemMappers {
     }
 
     /**
-     * Responde 400 {@code validation-failed}, como {@link #constraintViolation}, quando um texto do corpo traz o
-     * caractere nulo (U+0000), com o caminho dele em {@code errors}. A leitura do corpo para no primeiro, e a
+     * Responde 400 {@code validation-failed}, como {@link #constraintViolation},
+     * quando um texto do corpo traz o
+     * caractere nulo (U+0000), com o caminho dele em {@code errors}. A leitura do
+     * corpo para no primeiro, e a
      * validação dos demais campos não chega a rodar.
      */
     @ServerExceptionMapper
@@ -258,12 +261,14 @@ public class ProblemMappers {
     /**
      * Preserva o status da exceção JAX-RS (rota inexistente, método ou mídia não
      * aceitos) com o
-     * código {@code http-<status>}; o 400 do JSON malformado vira {@code malformed-body}.
+     * código {@code http-<status>}; o 400 do JSON malformado vira
+     * {@code malformed-body}.
      */
     @ServerExceptionMapper
     public RestResponse<Problem> webApplication(WebApplicationException e, UriInfo uri) {
         int status = e.getResponse().getStatus();
-        // WHY: o leitor JSON do Quarkus REST embrulha a sintaxe inválida (StreamReadException) num 400 genérico.
+        // WHY: o leitor JSON do Quarkus REST embrulha a sintaxe inválida
+        // (StreamReadException) num 400 genérico.
         Throwable cause = e.getCause();
         while (cause != null && !(cause instanceof JsonProcessingException))
             cause = cause.getCause();

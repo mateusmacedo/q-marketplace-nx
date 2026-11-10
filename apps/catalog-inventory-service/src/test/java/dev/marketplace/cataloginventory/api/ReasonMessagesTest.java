@@ -22,7 +22,8 @@ class ReasonMessagesTest {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\d+)}");
     private static final Pattern WITH_ARITY = Pattern.compile("(.+)\\.(\\d+)");
 
-    // WHY: os registros por camada são a fonte dos códigos que podem chegar ao cliente; registro novo entra aqui.
+    // WHY: os registros por camada são a fonte dos códigos que podem chegar ao
+    // cliente; registro novo entra aqui.
     static Set<String> registeredCodes() {
         return Stream.of(DomainReasons.values(), ApplicationReasons.values(), ImportFileReasons.values())
                 .flatMap(Stream::of).map(ReasonCode::code).collect(Collectors.toCollection(TreeSet::new));

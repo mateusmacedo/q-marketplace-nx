@@ -26,11 +26,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Retratos serializados no Redis, separados dos objetos de domínio: mudar o domínio não muda o formato guardado sem
- * passar por aqui. Valores monetários e medidas são texto decimal exato. Ao ler, o retrato volta a ser agregado pelos
+ * Retratos serializados no Redis, separados dos objetos de domínio: mudar o
+ * domínio não muda o formato guardado sem
+ * passar por aqui. Valores monetários e medidas são texto decimal exato. Ao
+ * ler, o retrato volta a ser agregado pelos
  * métodos {@code restore}, com as mesmas validações da leitura do banco.
  */
-// WHY: o Jackson serializa estes records fora do REST; na imagem nativa, sem registro, os componentes não são achados.
+// WHY: o Jackson serializa estes records fora do REST; na imagem nativa, sem
+// registro, os componentes não são achados.
 @RegisterForReflection
 final class Snapshots {
     private Snapshots() {
@@ -59,7 +62,8 @@ final class Snapshots {
         }
 
         Product restore() {
-            // WHY: só produto visível (ACTIVE) entra no cache, e fora da moderação a entrada na fila é nula.
+            // WHY: só produto visível (ACTIVE) entra no cache, e fora da moderação a
+            // entrada na fila é nula.
             return Product.restore(id, tenantId, storeId, categoryId, currency, title, description, attributes,
                     skus.stream().map(SkuSnapshot::restore).toList(), status, version, createdAt, updatedAt, null);
         }
@@ -90,7 +94,10 @@ final class Snapshots {
         }
     }
 
-    /** Oferta com preço base e todas as promoções: o preço vigente é calculado a cada leitura, com o instante dela. */
+    /**
+     * Oferta com preço base e todas as promoções: o preço vigente é calculado a
+     * cada leitura, com o instante dela.
+     */
     record OfferSnapshot(UUID skuId, UUID productId, UUID tenantId, UUID storeId, String currency, String listPrice,
             String salePrice, long priceVersion, List<PromotionSnapshot> promotions, long version, Instant createdAt,
             Instant updatedAt) {
@@ -119,7 +126,10 @@ final class Snapshots {
         }
     }
 
-    /** Lista de categorias de uma leitura da taxonomia (cadeia até a raiz ou página de subcategorias). */
+    /**
+     * Lista de categorias de uma leitura da taxonomia (cadeia até a raiz ou página
+     * de subcategorias).
+     */
     record Categories(List<CategorySnapshot> items) {
         static Categories of(List<Category> categories) {
             return new Categories(categories.stream().map(CategorySnapshot::of).toList());
@@ -154,7 +164,10 @@ final class Snapshots {
         }
     }
 
-    /** Catálogo de motivos de moderação de um tenant, ativos e inativos, na ordem de exibição. */
+    /**
+     * Catálogo de motivos de moderação de um tenant, ativos e inativos, na ordem de
+     * exibição.
+     */
     record ModerationReasons(List<ModerationReasonSnapshot> items) {
         static ModerationReasons of(List<ModerationReasonEntry> reasons) {
             return new ModerationReasons(reasons.stream().map(ModerationReasonSnapshot::of).toList());

@@ -56,10 +56,14 @@ public class PgCategoryRepository implements CategoryRepository {
             GROUP BY parent_id""";
     private static final String DEPTHS = """
             SELECT id, cardinality(ancestry) AS depth FROM category WHERE tenant_id = $1 AND id = ANY ($2::uuid[])""";
-    // WHY: a recursão desce pelo índice dos filhos montando o caminho de cada categoria, e a chave dos códigos do
-    // caminho (CategoryNode.pathKey) dá a ordem da árvore e o cursor; a contagem de filhos roda só na página. Com
-    // cursor, ela só desce na categoria que vem depois dele ou é ancestral dele: no COLLATE "C" o espaço vem antes
-    // de qualquer caractere de código, então os descendentes ficam logo depois da categoria, e os de uma anterior
+    // WHY: a recursão desce pelo índice dos filhos montando o caminho de cada
+    // categoria, e a chave dos códigos do
+    // caminho (CategoryNode.pathKey) dá a ordem da árvore e o cursor; a contagem de
+    // filhos roda só na página. Com
+    // cursor, ela só desce na categoria que vem depois dele ou é ancestral dele: no
+    // COLLATE "C" o espaço vem antes
+    // de qualquer caractere de código, então os descendentes ficam logo depois da
+    // categoria, e os de uma anterior
     // ao cursor que não o contém também vêm antes dele.
     private static final String TREE = """
             WITH RECURSIVE tree AS (
@@ -233,8 +237,10 @@ public class PgCategoryRepository implements CategoryRepository {
     }
 
     /**
-     * Serializa até o fim da transação as mudanças de estrutura da árvore do tenant e confere que o caminho
-     * gravado do pai ainda é o que a categoria recebeu; divergência falha com {@link ConcurrentUpdateException}.
+     * Serializa até o fim da transação as mudanças de estrutura da árvore do tenant
+     * e confere que o caminho
+     * gravado do pai ainda é o que a categoria recebeu; divergência falha com
+     * {@link ConcurrentUpdateException}.
      */
     private static Uni<Void> lockTree(SqlConnection conn, Category c) {
         Uni<RowSet<Row>> locked = conn.preparedQuery(LOCK_TREE).execute(Tuple.of(c.tenantId()));
@@ -250,8 +256,10 @@ public class PgCategoryRepository implements CategoryRepository {
     }
 
     /**
-     * Traduz a violação de {@code category_depth} em conflito de atualização: o domínio já recusou a
-     * profundidade lida, então ela só ocorre se a subárvore cresceu depois da leitura.
+     * Traduz a violação de {@code category_depth} em conflito de atualização: o
+     * domínio já recusou a
+     * profundidade lida, então ela só ocorre se a subárvore cresceu depois da
+     * leitura.
      */
     private static Throwable depthExceeded(Throwable failure) {
         if (failure instanceof PgException e && CHECK_VIOLATION.equals(e.getSqlState())
@@ -261,8 +269,10 @@ public class PgCategoryRepository implements CategoryRepository {
     }
 
     /**
-     * Traduz as chaves estrangeiras da subcategoria e do produto, que barram a exclusão mesmo quando gravados depois
-     * da leitura, na recusa da categoria que não está vazia; demais falhas seguem inalteradas.
+     * Traduz as chaves estrangeiras da subcategoria e do produto, que barram a
+     * exclusão mesmo quando gravados depois
+     * da leitura, na recusa da categoria que não está vazia; demais falhas seguem
+     * inalteradas.
      */
     private static Throwable notEmpty(Throwable failure, Category c) {
         if (failure instanceof PgException e && FOREIGN_KEY_VIOLATION.equals(e.getSqlState())) {

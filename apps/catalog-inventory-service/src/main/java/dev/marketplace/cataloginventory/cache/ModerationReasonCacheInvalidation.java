@@ -12,8 +12,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Motivo criado, revisado, ativado ou desativado invalida o catálogo de motivos do tenant antes de devolver o
- * resultado, também na falha (ADR 024), como {@link CategoryCacheInvalidation} faz com a taxonomia.
+ * Motivo criado, revisado, ativado ou desativado invalida o catálogo de motivos
+ * do tenant antes de devolver o
+ * resultado, também na falha (ADR 024), como {@link CategoryCacheInvalidation}
+ * faz com a taxonomia.
  */
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)

@@ -12,9 +12,12 @@ import java.util.UUID;
 import org.jboss.logging.Logger;
 
 /**
- * Catálogo de motivos de moderação em cache (ADR 024), por tenant, dependente da geração dos motivos do tenant, que
- * {@link ModerationReasonCacheInvalidation} incrementa a cada motivo criado, revisado, ativado ou desativado. Cada
- * decisão de moderação com motivo lê o catálogo, e o motivo desativado deixa de valer na leitura seguinte à escrita.
+ * Catálogo de motivos de moderação em cache (ADR 024), por tenant, dependente
+ * da geração dos motivos do tenant, que
+ * {@link ModerationReasonCacheInvalidation} incrementa a cada motivo criado,
+ * revisado, ativado ou desativado. Cada
+ * decisão de moderação com motivo lê o catálogo, e o motivo desativado deixa de
+ * valer na leitura seguinte à escrita.
  */
 @ApplicationScoped
 public class ModerationReasonCache {
@@ -28,7 +31,8 @@ public class ModerationReasonCache {
     }
 
     /**
-     * Porta com {@code catalog} pelo cache; a busca por código, que confere a versão antes de gravar, e as escritas
+     * Porta com {@code catalog} pelo cache; a busca por código, que confere a
+     * versão antes de gravar, e as escritas
      * vão direto a {@code reasons}. Com o cache desligado, devolve {@code reasons}.
      */
     public ModerationReasonRepository over(ModerationReasonRepository reasons) {

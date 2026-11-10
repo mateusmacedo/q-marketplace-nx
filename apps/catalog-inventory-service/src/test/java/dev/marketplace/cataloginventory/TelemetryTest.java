@@ -38,9 +38,12 @@ import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Instrumentação de ponta a ponta (ADR 021): a árvore de spans de cada operação, da entrada às consultas e à
- * publicação do evento; contexto de negócio no span e no log de cada requisição; recusas e eventos de domínio no
- * span; e etapas do worker com as mesmas chaves de negócio das requisições do agregado.
+ * Instrumentação de ponta a ponta (ADR 021): a árvore de spans de cada
+ * operação, da entrada às consultas e à
+ * publicação do evento; contexto de negócio no span e no log de cada
+ * requisição; recusas e eventos de domínio no
+ * span; e etapas do worker com as mesmas chaves de negócio das requisições do
+ * agregado.
  */
 @QuarkusTest
 @TestProfile(TelemetryTest.Traced.class)
@@ -48,7 +51,8 @@ class TelemetryTest {
     public static class Traced implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {
-            // WHY: não há Collector no teste; o teste lê os spans em memória, sem exportá-los.
+            // WHY: não há Collector no teste; o teste lê os spans em memória, sem
+            // exportá-los.
             return Map.of("quarkus.otel.sdk.disabled", "false", "quarkus.otel.traces.exporter", "none",
                     "quarkus.otel.logs.exporter", "none");
         }
@@ -57,7 +61,8 @@ class TelemetryTest {
     record Logged(String message, Map<String, String> mdc) {
     }
 
-    // WHY: no pacote, o handler recebe tanto as linhas de requisição quanto os logs das tarefas agendadas.
+    // WHY: no pacote, o handler recebe tanto as linhas de requisição quanto os logs
+    // das tarefas agendadas.
     static final Logger SERVICE = Logger.getLogger("dev.marketplace.cataloginventory");
     final List<Logged> logged = new CopyOnWriteArrayList<>();
     final Handler capture = new Handler() {
@@ -168,8 +173,10 @@ class TelemetryTest {
                 .post("/inventory/reservations").then().statusCode(201);
 
         SpanData server = spans.await(server(traceId, "POST /inventory/reservations"));
-        assertTrue(server.getEvents().stream().anyMatch(e -> e.getName().equals("quarkus.security.authentication.success")));
-        assertTrue(server.getEvents().stream().anyMatch(e -> e.getName().equals("quarkus.security.authorization.success")));
+        assertTrue(server.getEvents().stream()
+                .anyMatch(e -> e.getName().equals("quarkus.security.authentication.success")));
+        assertTrue(server.getEvents().stream()
+                .anyMatch(e -> e.getName().equals("quarkus.security.authorization.success")));
         SpanData handler = spans.await(child(server, "ReservationResource.create"));
         spans.await(child(handler, "PgReservationRepository.findByIdempotencyKey"));
         spans.await(child(handler, "PgInventoryRepository.candidates"));
@@ -178,7 +185,8 @@ class TelemetryTest {
         assertFalse(queriesOf(insert).isEmpty(), "os INSERT e o UPDATE da reserva ficam no adaptador");
         assertEquals(List.of("INSERT outbox_event"), queriesOf(append));
         assertTrue(queriesOf(server).isEmpty(), "nenhuma consulta fica solta no span da requisição");
-        assertEquals(s.api.tenant.toString(), attribute(server, "marketplace.tenant.id"), "as chaves seguem na operação");
+        assertEquals(s.api.tenant.toString(), attribute(server, "marketplace.tenant.id"),
+                "as chaves seguem na operação");
 
         SpanData publish = spans.await(span -> span.getTraceId().equals(traceId)
                 && span.getName().equals("outbox publish catalog-inventory.inventory.v1"));
@@ -218,7 +226,8 @@ class TelemetryTest {
         given().header("traceparent", traceParent(traceId)).get("/storefront/" + api.tenant + "/products/" + productId)
                 .then().statusCode(200);
 
-        // WHY: a vitrine lê situação da loja e ofertas em paralelo (Uni.combine); cada leitura fica filha do resource.
+        // WHY: a vitrine lê situação da loja e ofertas em paralelo (Uni.combine); cada
+        // leitura fica filha do resource.
         SpanData handler = spans.await(span -> span.getTraceId().equals(traceId)
                 && span.getName().equals("StorefrontResource.get"));
         assertFalse(queriesOf(spans.await(child(handler, "PgSellerEligibilityRepository.statusOf"))).isEmpty());
@@ -238,7 +247,8 @@ class TelemetryTest {
         given().header("traceparent", traceParent(loaded)).get("/storefront/" + api.tenant + "/products/" + productId)
                 .then().statusCode(200);
 
-        // WHY: na falta, a leitura do cache, a carga do banco e a gravação no cache ficam irmãs, filhas do resource.
+        // WHY: na falta, a leitura do cache, a carga do banco e a gravação no cache
+        // ficam irmãs, filhas do resource.
         SpanData missed = spans.await(span -> span.getTraceId().equals(loaded)
                 && span.getName().equals("StorefrontResource.get"));
         SpanData read = spans.await(child(missed, "CatalogCache.read"));
@@ -279,7 +289,8 @@ class TelemetryTest {
                 && id.equals(attribute(span, "marketplace.reservation.id")));
         assertEquals(s.api.tenant.toString(), attribute(expire, "marketplace.tenant.id"));
         assertFalse(spans.all(span -> span.getKind() == SpanKind.CLIENT
-                && expire.getSpanId().equals(span.getParentSpanId())).isEmpty(), "as consultas da expiração são filhas");
+                && expire.getSpanId().equals(span.getParentSpanId())).isEmpty(),
+                "as consultas da expiração são filhas");
         assertTrue(scalar(pool, "SELECT count(*) AS n FROM outbox_event WHERE event_type = 'InventoryUpdated'"
                 + " AND trace_parent LIKE $1", "n", Long.class, "00-" + expire.getTraceId() + "-%") > 0,
                 "o evento da expiração sai no trace da etapa");
@@ -309,16 +320,20 @@ class TelemetryTest {
         assertEquals(api.store.toString(), attribute(processed, "marketplace.store.id"));
         assertTrue(scalar(pool, "SELECT count(*) AS n FROM outbox_event WHERE event_type = 'ProductCreated'"
                 + " AND tenant_id = $1 AND trace_parent LIKE $2", "n", Long.class, api.tenant,
-                "00-" + processed.getTraceId() + "-%") > 0, "o produto criado pela importação publica no trace da etapa");
+                "00-" + processed.getTraceId() + "-%") > 0,
+                "o produto criado pela importação publica no trace da etapa");
     }
 
     @Test
     void scheduledExecutionStaysActiveForItsQueries() {
-        // O relay roda pelo agendador real a cada segundo no perfil de teste. A trava consultiva (SELECT), dentro da
-        // transação cujo callback perdia o contexto, e a contagem do backlog (SELECT outbox_event) ficam nos spans do
+        // O relay roda pelo agendador real a cada segundo no perfil de teste. A trava
+        // consultiva (SELECT), dentro da
+        // transação cujo callback perdia o contexto, e a contagem do backlog (SELECT
+        // outbox_event) ficam nos spans do
         // adaptador, filhos da execução.
-        SpanData relay = spans.await(span -> span.getName().equals("outbox-relay") && spans.all(adapter ->
-                adapter.getName().startsWith("PgOutbox.") && span.getSpanId().equals(adapter.getParentSpanId()))
+        SpanData relay = spans.await(span -> span.getName().equals("outbox-relay") && spans
+                .all(adapter -> adapter.getName().startsWith("PgOutbox.")
+                        && span.getSpanId().equals(adapter.getParentSpanId()))
                 .stream().flatMap(adapter -> queriesOf(adapter).stream())
                 .collect(java.util.stream.Collectors.toSet()).containsAll(List.of("SELECT", "SELECT outbox_event")));
         assertNotNull(relay.getAttributes().get(AttributeKey.longKey("marketplace.outbox.published")),

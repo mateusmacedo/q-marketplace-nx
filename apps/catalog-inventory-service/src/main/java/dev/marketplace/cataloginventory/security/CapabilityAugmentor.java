@@ -11,9 +11,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Dá à identidade autenticada as capacidades que o {@link CallerContext} deriva dos papéis do token, como permissões
- * que o {@code @PermissionsAllowed} dos endpoints confere. Assim o mapa de papel para capacidade fica só no
- * {@code CallerContext}, e o mesmo mapa responde o {@code GET /me}, protege a rota e decide no caso de uso.
+ * Dá à identidade autenticada as capacidades que o {@link CallerContext} deriva
+ * dos papéis do token, como permissões
+ * que o {@code @PermissionsAllowed} dos endpoints confere. Assim o mapa de
+ * papel para capacidade fica só no
+ * {@code CallerContext}, e o mesmo mapa responde o {@code GET /me}, protege a
+ * rota e decide no caso de uso.
  */
 @ApplicationScoped
 public class CapabilityAugmentor implements SecurityIdentityAugmentor {

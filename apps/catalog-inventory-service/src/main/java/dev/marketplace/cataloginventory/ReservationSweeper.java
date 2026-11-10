@@ -41,11 +41,11 @@ public class ReservationSweeper {
      * contando-as em {@code catalog.reservations.expired} e no atributo
      * {@code marketplace.reservations.expired} do span da execução; cada reserva é
      * uma etapa filha ({@code reservation expire}). Falha é registrada e a execução
-     * seguinte tenta de novo; {@code concurrentExecution = SKIP} impede sobreposição
+     * seguinte tenta de novo; {@code concurrentExecution = SKIP} impede
+     * sobreposição
      * no mesmo pod.
      */
-    @Scheduled(identity = "reservation-sweeper", every = "${catalog.reservations.sweep-interval}", concurrentExecution = SKIP,
-            skipExecutionIf = ApplicationNotRunning.class)
+    @Scheduled(identity = "reservation-sweeper", every = "${catalog.reservations.sweep-interval}", concurrentExecution = SKIP, skipExecutionIf = ApplicationNotRunning.class)
     public Uni<Void> sweep() {
         Span job = Span.current();
         return lifecycle.job(() -> reservations.expireDue(config.reservations().sweepBatch())

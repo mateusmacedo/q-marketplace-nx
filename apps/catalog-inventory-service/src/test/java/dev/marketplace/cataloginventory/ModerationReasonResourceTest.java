@@ -7,8 +7,10 @@ import static dev.marketplace.cataloginventory.Api.sku;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Catálogo de motivos de moderação como dado de cada tenant: o catalog-admin cria, revisa, ativa e desativa, com
- * If-Match; o moderador vê só os ativos, e as decisões passadas guardam o rótulo da época.
+ * Catálogo de motivos de moderação como dado de cada tenant: o catalog-admin
+ * cria, revisa, ativa e desativa, com
+ * If-Match; o moderador vê só os ativos, e as decisões passadas guardam o
+ * rótulo da época.
  */
 @QuarkusTest
 class ModerationReasonResourceTest {
@@ -108,7 +110,8 @@ class ModerationReasonResourceTest {
 
         String id = other.createProduct(sku("TEN-P", "P", "50"));
         other.submit(id).then().statusCode(200);
-        as(other.moderator).body("{\"reasonCodes\":[\"prohibited-item\"]}").post("/moderation/products/" + id + "/block")
+        as(other.moderator).body("{\"reasonCodes\":[\"prohibited-item\"]}")
+                .post("/moderation/products/" + id + "/block")
                 .then().statusCode(422).body("reasons", contains("unknown-reason:prohibited-item"));
     }
 }

@@ -9,7 +9,9 @@ import static dev.marketplace.cataloginventory.ModerationResourceTest.batch;
 import static dev.marketplace.cataloginventory.ModerationResourceTest.item;
 import static org.hamcrest.Matchers.*;
 
-/** Lote do seller: envio, pausa, retomada e arquivamento, cada produto isolado. */
+/**
+ * Lote do seller: envio, pausa, retomada e arquivamento, cada produto isolado.
+ */
 @QuarkusTest
 class ProductBatchResourceTest {
     @Test
@@ -52,7 +54,8 @@ class ProductBatchResourceTest {
                 .body("results[0].problem.instance", nullValue())
                 .body("results[1].status", is("PENDING_MODERATION"));
         as(api.moderator).get("/moderation/products").then().body("items.id", contains(complete));
-        as(api.seller).body(batch("ARCHIVE", "", item(incomplete, 0), item(complete, 0))).post("/products/batch")
+        as(api.seller).body(batch("ARCHIVE", "", item(incomplete, 0), item(complete, 0)))
+                .post("/products/batch")
                 .then().statusCode(200)
                 .body("results.outcome", contains("SUCCEEDED", "FAILED"))
                 .body("results[0].status", is("ARCHIVED"))
@@ -68,12 +71,16 @@ class ProductBatchResourceTest {
         as(api.seller).body(batch("ARCHIVE", "")).post("/products/batch").then().statusCode(400)
                 .body("type", endsWith("/validation-failed"));
         as(api.seller).body(batch("DELETE", "", item(id, null))).post("/products/batch").then().statusCode(400);
-        as(api.seller).body("{\"action\":\"ARCHIVE\",\"items\":[{\"version\":1}]}").post("/products/batch").then()
+        as(api.seller).body("{\"action\":\"ARCHIVE\",\"items\":[{\"version\":1}]}").post("/products/batch")
+                .then()
                 .statusCode(400);
-        as(api.moderator).body(batch("ARCHIVE", "", item(id, null))).post("/products/batch").then().statusCode(403);
+        as(api.moderator).body(batch("ARCHIVE", "", item(id, null))).post("/products/batch").then()
+                .statusCode(403);
         as(TestTokens.claims(api.tenant, "seller").sign()).body(batch("ARCHIVE", "", item(id, null)))
-                .post("/products/batch").then().statusCode(403).body("type", endsWith("/access-denied"));
-        as(api.seller).body(batch("ARCHIVE", "", item(UUID.randomUUID().toString(), null))).post("/products/batch")
+                .post("/products/batch").then().statusCode(403)
+                .body("type", endsWith("/access-denied"));
+        as(api.seller).body(batch("ARCHIVE", "", item(UUID.randomUUID().toString(), null)))
+                .post("/products/batch")
                 .then().statusCode(200).body("results[0].problem.status", is(404));
         as(api.seller).get("/products/" + id).then().body("status", is("DRAFT"));
     }

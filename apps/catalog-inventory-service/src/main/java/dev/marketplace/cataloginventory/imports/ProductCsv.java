@@ -25,10 +25,13 @@ public final class ProductCsv {
     public static final List<String> COLUMNS = List.of("product_ref", "category_code", "title", "description",
             "attributes", "seller_sku", "variant_attributes", "physical", "height_cm", "width_cm", "length_cm",
             "weight_g", "currency", "list_price", "sale_price", "on_hand");
-    /** Colunas que o SKU já existente na loja usa; erro só nas demais não o afeta. */
+    /**
+     * Colunas que o SKU já existente na loja usa; erro só nas demais não o afeta.
+     */
     private static final Set<String> PRICE_AND_STOCK_COLUMNS = Set.of("seller_sku", "currency", "list_price",
             "sale_price", "on_hand");
-    // WHY: o limite de dígitos vem antes do new BigDecimal, que tem custo quadrático no tamanho da entrada; 17 dígitos
+    // WHY: o limite de dígitos vem antes do new BigDecimal, que tem custo
+    // quadrático no tamanho da entrada; 17 dígitos
     // inteiros cobrem o Money.MAX.
     private static final Pattern DECIMAL = Pattern.compile("-?\\d{1,17}(\\.\\d{1,4})?");
     private static final Pattern INTEGER = Pattern.compile("-?\\d{1,9}");
@@ -69,7 +72,9 @@ public final class ProductCsv {
         return new Validated(content, rows);
     }
 
-    /** Converte as linhas de dados de um conteúdo já validado, na ordem do arquivo. */
+    /**
+     * Converte as linhas de dados de um conteúdo já validado, na ordem do arquivo.
+     */
     public static List<ImportRow> rows(String content) {
         return CsvParser.parse(content).stream().skip(1).map(ProductCsv::toRow).toList();
     }
@@ -152,7 +157,9 @@ public final class ProductCsv {
         return value.length() <= SHOWN_MAX_LENGTH ? value : value.substring(0, SHOWN_MAX_LENGTH) + "…";
     }
 
-    /** Leitura tipada dos campos de um registro, acumulando os erros de conversão. */
+    /**
+     * Leitura tipada dos campos de um registro, acumulando os erros de conversão.
+     */
     private static final class Fields {
         private final List<String> values;
         private final List<String> errors = new ArrayList<>();
@@ -210,7 +217,10 @@ public final class ProductCsv {
             return null;
         }
 
-        /** Pares {@code chave=valor} separados por ';', sem escape; vazio vira mapa vazio. */
+        /**
+         * Pares {@code chave=valor} separados por ';', sem escape; vazio vira mapa
+         * vazio.
+         */
         Map<String, String> pairs(String column) {
             String value = text(column);
             Map<String, String> pairs = new LinkedHashMap<>();

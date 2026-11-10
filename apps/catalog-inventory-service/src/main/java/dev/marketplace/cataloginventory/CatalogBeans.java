@@ -9,8 +9,10 @@ import jakarta.inject.Singleton;
 import java.time.Clock;
 
 /**
- * Raiz de composição: liga os casos de uso (sem framework) aos adaptadores. As leituras de categoria passam pelo cache
- * da taxonomia ({@link TaxonomyCache}) e as do catálogo de motivos, pelo {@link ModerationReasonCache}; as invalidações
+ * Raiz de composição: liga os casos de uso (sem framework) aos adaptadores. As
+ * leituras de categoria passam pelo cache
+ * da taxonomia ({@link TaxonomyCache}) e as do catálogo de motivos, pelo
+ * {@link ModerationReasonCache}; as invalidações
  * ficam nos decorators das portas.
  */
 public class CatalogBeans {

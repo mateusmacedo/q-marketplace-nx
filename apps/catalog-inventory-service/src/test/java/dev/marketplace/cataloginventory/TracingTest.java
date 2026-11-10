@@ -26,7 +26,8 @@ class TracingTest {
     public static class Tracing implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {
-            // WHY: não há Collector no teste; o teste lê os spans em memória, sem exportá-los.
+            // WHY: não há Collector no teste; o teste lê os spans em memória, sem
+            // exportá-los.
             return Map.of("quarkus.otel.sdk.disabled", "false", "quarkus.otel.traces.exporter", "none",
                     "quarkus.otel.logs.exporter", "none");
         }

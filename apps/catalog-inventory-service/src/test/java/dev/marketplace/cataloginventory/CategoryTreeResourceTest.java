@@ -27,7 +27,8 @@ class CategoryTreeResourceTest {
     static String category(Api api, String parentId, String code, String attributes) {
         String parent = parentId == null ? "" : "\"parentId\":\"" + parentId + "\",";
         return as(api.admin).body("{" + parent + "\"code\":\"" + code + "\",\"name\":\"Nome " + code
-                + "\",\"attributes\":[" + attributes + "]}").post("/categories").then().statusCode(201).extract()
+                + "\",\"attributes\":[" + attributes + "]}").post("/categories").then().statusCode(201)
+                .extract()
                 .path("id");
     }
 
@@ -66,8 +67,10 @@ class CategoryTreeResourceTest {
         JsonPath first = as(api.seller).queryParam("limit", 2).get("/categories/tree").then().statusCode(200)
                 .extract().jsonPath();
         assertEquals(List.of("a", "x"), first.getList("items.code"));
-        JsonPath second = as(api.seller).queryParam("limit", 2).queryParam("cursor", first.getString("nextCursor"))
-                .get("/categories/tree").then().statusCode(200).body("nextCursor", nullValue()).extract().jsonPath();
+        JsonPath second = as(api.seller).queryParam("limit", 2)
+                .queryParam("cursor", first.getString("nextCursor"))
+                .get("/categories/tree").then().statusCode(200).body("nextCursor", nullValue())
+                .extract().jsonPath();
         assertEquals(List.of("y", "a-b"), second.getList("items.code"));
         assertEquals(List.of("a", "x"), second.getList("items[0].ancestors.code"));
         assertEquals(3, second.getInt("items[0].level"));
@@ -83,12 +86,16 @@ class CategoryTreeResourceTest {
                 .body("items", empty());
     }
 
-    /** Lê a árvore inteira em páginas de até {@code limit} itens e devolve os códigos na ordem lida. */
+    /**
+     * Lê a árvore inteira em páginas de até {@code limit} itens e devolve os
+     * códigos na ordem lida.
+     */
     static List<String> pagedTree(String token, int limit, boolean usable) {
         List<String> codes = new ArrayList<>();
         String cursor = null;
         do {
-            RequestSpecification request = as(token).queryParam("limit", limit).queryParam("usable", usable);
+            RequestSpecification request = as(token).queryParam("limit", limit).queryParam("usable",
+                    usable);
             if (cursor != null)
                 request = request.queryParam("cursor", cursor);
             JsonPath page = request.get("/categories/tree").then().statusCode(200).extract().jsonPath();
@@ -152,7 +159,8 @@ class CategoryTreeResourceTest {
         as(api.seller).queryParam("ids", home).queryParam("parentId", fashion).get("/categories").then()
                 .statusCode(400);
         as(api.seller).queryParam("ids", home).queryParam("cursor", Base64.getUrlEncoder().withoutPadding()
-                .encodeToString("casa".getBytes(StandardCharsets.UTF_8))).get("/categories").then().statusCode(400);
+                .encodeToString("casa".getBytes(StandardCharsets.UTF_8))).get("/categories").then()
+                .statusCode(400);
         as(api.seller).queryParam("ids", home + ",x").get("/categories").then().statusCode(400)
                 .body("type", endsWith("/invalid-request"));
     }
@@ -164,7 +172,8 @@ class CategoryTreeResourceTest {
         String path = "/categories/" + api.categoryId;
         as(api.admin).delete(path).then().statusCode(428);
         as(api.admin).header("If-Match", "\"0\"").delete(path).then().statusCode(409)
-                .body("type", endsWith("/category-has-children")).body("reasons", contains("category-has-children"));
+                .body("type", endsWith("/category-has-children"))
+                .body("reasons", contains("category-has-children"));
         as(api.seller).header("If-Match", "\"0\"").delete("/categories/" + tanks).then().statusCode(403);
         as(api.admin).header("If-Match", "\"3\"").delete("/categories/" + tanks).then().statusCode(412);
         as(api.admin).header("If-Match", "\"0\"").delete("/categories/" + tanks).then().statusCode(204);
@@ -174,7 +183,8 @@ class CategoryTreeResourceTest {
         String product = api.draftProduct(Api.sku("CAM-P", "P", "50"));
         as(api.seller).delete("/products/" + product).then().statusCode(200).body("status", is("ARCHIVED"));
         as(api.admin).header("If-Match", "\"0\"").delete(path).then().statusCode(409)
-                .body("type", endsWith("/category-has-products")).body("reasons", contains("category-has-products"));
+                .body("type", endsWith("/category-has-products"))
+                .body("reasons", contains("category-has-products"));
     }
 
     @Test
@@ -182,10 +192,12 @@ class CategoryTreeResourceTest {
         Api api = new Api().withCategory();
         List<Integer> statuses = Api.race(2, attempt -> attempt == 0
                 ? as(api.admin).header("If-Match", "\"0\"").delete("/categories/" + api.categoryId)
-                : as(api.seller).body(api.productBody("Acme", Api.sku("RACE-P", "P", "50"))).post("/products"));
+                : as(api.seller).body(api.productBody("Acme", Api.sku("RACE-P", "P", "50")))
+                        .post("/products"));
         long products = scalar(pool, "SELECT count(*) AS n FROM product WHERE tenant_id = $1", "n", Long.class,
                 api.tenant);
-        long categories = scalar(pool, "SELECT count(*) AS n FROM category WHERE tenant_id = $1", "n", Long.class,
+        long categories = scalar(pool, "SELECT count(*) AS n FROM category WHERE tenant_id = $1", "n",
+                Long.class,
                 api.tenant);
         if (statuses.get(0) == 204) {
             assertTrue(Set.of(404, 409).contains(statuses.get(1)), "produto: " + statuses);
@@ -217,7 +229,8 @@ class CategoryTreeResourceTest {
         as(api.admin).get("/categories/" + polos).then().body("usable", is(false));
 
         as(api.admin).body("{\"action\":\"DELETE\",\"items\":[{\"id\":\"" + fashion + "\",\"version\":1},"
-                + "{\"id\":\"" + polos + "\",\"version\":0},{\"id\":\"" + shirts + "\",\"version\":0}]}")
+                + "{\"id\":\"" + polos + "\",\"version\":0},{\"id\":\"" + shirts
+                + "\",\"version\":0}]}")
                 .post("/categories/batch").then().statusCode(200)
                 .body("results.id", contains(fashion, polos, shirts))
                 .body("results.outcome", everyItem(is("SUCCEEDED")))
@@ -225,7 +238,8 @@ class CategoryTreeResourceTest {
         as(api.admin).get("/categories/tree").then().body("items.code", contains("casa"));
 
         as(api.admin).body("{\"action\":\"ACTIVATE\",\"items\":[{\"id\":\"" + home + "\",\"version\":0},"
-                + "{\"id\":\"" + home + "\",\"version\":0}]}").post("/categories/batch").then().statusCode(400);
+                + "{\"id\":\"" + home + "\",\"version\":0}]}").post("/categories/batch").then()
+                .statusCode(400);
         as(api.admin).body("{\"action\":\"ACTIVATE\",\"items\":[]}").post("/categories/batch").then()
                 .statusCode(400);
         as(api.seller).body("{\"action\":\"ACTIVATE\",\"items\":[{\"id\":\"" + home + "\",\"version\":0}]}")

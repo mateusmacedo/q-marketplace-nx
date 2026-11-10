@@ -17,14 +17,19 @@ import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 
 /**
- * Taxonomia em cache (ADR 024): a cadeia até a raiz e as páginas de subcategorias, por tenant, dependentes da geração
- * da taxonomia do tenant, que {@link CategoryCacheInvalidation} incrementa a cada categoria criada, revisada, movida ou
+ * Taxonomia em cache (ADR 024): a cadeia até a raiz e as páginas de
+ * subcategorias, por tenant, dependentes da geração
+ * da taxonomia do tenant, que {@link CategoryCacheInvalidation} incrementa a
+ * cada categoria criada, revisada, movida ou
  * excluída.
  * As escritas seguem protegidas pela versão otimista do banco.
  */
 @ApplicationScoped
 public class TaxonomyCache {
-    /** Cursor maior que isto não vira chave: é texto do chamador, e um código de categoria tem até 60 caracteres. */
+    /**
+     * Cursor maior que isto não vira chave: é texto do chamador, e um código de
+     * categoria tem até 60 caracteres.
+     */
     private static final int MAX_CURSOR = 120;
     private static final Logger LOG = Logger.getLogger(TaxonomyCache.class);
     private final CatalogCache cache;
@@ -36,7 +41,8 @@ public class TaxonomyCache {
     }
 
     /**
-     * Porta de categorias com {@code chain} e {@code children} pelo cache; as demais leituras e as escritas vão direto
+     * Porta de categorias com {@code chain} e {@code children} pelo cache; as
+     * demais leituras e as escritas vão direto
      * a {@code categories}. Com o cache desligado, devolve {@code categories}.
      */
     public CategoryRepository over(CategoryRepository categories) {
@@ -50,7 +56,10 @@ public class TaxonomyCache {
             this.categories = categories;
         }
 
-        /** Cadeia vazia (categoria inexistente) não é guardada, para ids ao acaso não ocuparem o cache. */
+        /**
+         * Cadeia vazia (categoria inexistente) não é guardada, para ids ao acaso não
+         * ocuparem o cache.
+         */
         @Override
         public Uni<List<Category>> chain(UUID tenantId, UUID categoryId) {
             return cached(tenantId, CacheKeys.chain(tenantId, categoryId), () -> categories.chain(tenantId, categoryId),

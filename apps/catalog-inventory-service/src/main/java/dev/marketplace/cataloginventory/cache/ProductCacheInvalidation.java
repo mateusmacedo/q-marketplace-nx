@@ -16,8 +16,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Toda gravação de produto (criação, edição, SKU, transição, moderação, arquivamento, importação) invalida a vitrine
- * dele antes de devolver o resultado: o bloqueio sai do ar antes da resposta ao moderador (ADR 024). Invalida também
+ * Toda gravação de produto (criação, edição, SKU, transição, moderação,
+ * arquivamento, importação) invalida a vitrine
+ * dele antes de devolver o resultado: o bloqueio sai do ar antes da resposta ao
+ * moderador (ADR 024). Invalida também
  * na falha, porque um prazo estourado não prova que o commit não aconteceu.
  */
 @Decorator

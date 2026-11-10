@@ -12,8 +12,10 @@ import java.lang.reflect.Method;
 import java.util.function.Supplier;
 
 /**
- * Abre o span de {@link Traced}, com {@code code.namespace} e {@code code.function}, nos métodos que devolvem
- * {@code Uni}: porta de entrada, adaptador com a conexão de quem chama ({@link Lifecycle#sharing}) ou adaptador.
+ * Abre o span de {@link Traced}, com {@code code.namespace} e
+ * {@code code.function}, nos métodos que devolvem
+ * {@code Uni}: porta de entrada, adaptador com a conexão de quem chama
+ * ({@link Lifecycle#sharing}) ou adaptador.
  */
 @Traced
 @Interceptor
