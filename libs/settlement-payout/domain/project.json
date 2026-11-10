@@ -1,9 +1,5 @@
 {
   "name": "settlement-payout-domain",
   "projectType": "library",
-  "tags": [
-    "scope:settlement-payout",
-    "layer:domain",
-    "lang:java"
-  ]
+  "tags": ["scope:settlement-payout", "layer:domain", "lang:java"]
 }

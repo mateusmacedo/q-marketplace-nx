@@ -11,13 +11,14 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        loadComponent: () => import('./imports-page.component').then(m => m.ImportsPageComponent)
+        loadComponent: () => import('./imports-page.component').then((m) => m.ImportsPageComponent),
       },
       {
         path: ':id',
-        loadComponent: () => import('./import-batch-page.component').then(m => m.ImportBatchPageComponent),
-        data: { title: 'Resultado da importação' }
-      }
-    ]
-  }
+        loadComponent: () =>
+          import('./import-batch-page.component').then((m) => m.ImportBatchPageComponent),
+        data: { title: 'Resultado da importação' },
+      },
+    ],
+  },
 ];

@@ -8,16 +8,18 @@ export const routes: Routes = [
   {
     path: '',
     providers: [CategoryEvents],
-    loadComponent: () => import('./categories-page.component').then(m => m.CategoriesPageComponent),
+    loadComponent: () =>
+      import('./categories-page.component').then((m) => m.CategoriesPageComponent),
     canDeactivate: [leaveGuard],
     data: { title: 'Categorias' },
     children: [
       {
         path: ':id',
-        loadComponent: () => import('./category-page.component').then(m => m.CategoryPageComponent),
+        loadComponent: () =>
+          import('./category-page.component').then((m) => m.CategoryPageComponent),
         canDeactivate: [leaveGuard],
-        data: { title: 'Categoria' }
-      }
-    ]
-  }
+        data: { title: 'Categoria' },
+      },
+    ],
+  },
 ];

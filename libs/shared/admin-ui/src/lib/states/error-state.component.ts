@@ -17,7 +17,7 @@ import { type Problem, problemMessages } from '@marketplace/shared-web-util';
         {{ actionLabel() }}
       </button>
     </div>
-  `
+  `,
 })
 export class ErrorStateComponent {
   readonly message = input('Não foi possível carregar os dados.');

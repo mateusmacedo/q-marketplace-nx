@@ -9,17 +9,25 @@ import { routes } from './lib.routes';
 
 /** Cada tela com o título dela ou, na tela de envio, o do grupo que ela herda, como o roteador faz em `path: ''`. */
 function screens(list: Routes, inherited?: unknown): { route: Route; title: unknown }[] {
-  return list.flatMap(route => {
+  return list.flatMap((route) => {
     const title = route.data?.['title'] ?? inherited;
-    return [...(route.loadComponent ? [{ route, title }] : []), ...screens(route.children ?? [], title)];
+    return [
+      ...(route.loadComponent ? [{ route, title }] : []),
+      ...screens(route.children ?? [], title),
+    ];
   });
 }
 
 describe('rotas da feature', () => {
   beforeEach(() =>
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
-    })
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideCatalogInventoryApi(),
+      ],
+    }),
   );
 
   for (const [name, list] of Object.entries({ routes })) {

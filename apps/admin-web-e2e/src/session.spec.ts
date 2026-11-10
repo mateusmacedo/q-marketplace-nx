@@ -16,7 +16,7 @@ const MENU_BY_USER: readonly { user: DemoUser; sections: string; menu: string }[
         - link "Categorias"
         - link "Motivos de moderação"
         - link "Produtos de todas as lojas"
-    `
+    `,
   },
   {
     user: 'seller-demo',
@@ -29,7 +29,7 @@ const MENU_BY_USER: readonly { user: DemoUser; sections: string; menu: string }[
         - link "Produtos"
         - link "Importações"
         - link "Situação da loja"
-    `
+    `,
   },
   {
     user: 'moderator-demo',
@@ -42,8 +42,8 @@ const MENU_BY_USER: readonly { user: DemoUser; sections: string; menu: string }[
         - link /^Fila de produtos( \\d+)?$/
         - text: Plataforma
         - link "Produtos de todas as lojas"
-    `
-  }
+    `,
+  },
 ];
 
 for (const { user, sections, menu } of MENU_BY_USER) {
@@ -58,14 +58,20 @@ for (const { user, sections, menu } of MENU_BY_USER) {
   });
 }
 
-test('duas sessões no mesmo teste ficam separadas, cada uma com o próprio menu e usuário', async ({ pageAs }) => {
+test('duas sessões no mesmo teste ficam separadas, cada uma com o próprio menu e usuário', async ({
+  pageAs,
+}) => {
   const seller = await pageAs('seller-demo');
   const moderator = await pageAs('moderator-demo', '/moderacao/fila');
 
   await expect(sidebarNav(seller).getByRole('link', { name: 'Situação da loja' })).toBeVisible();
   await expect(sidebarNav(seller).getByRole('link', { name: /^Fila de produtos/ })).toHaveCount(0);
-  await expect(sidebarNav(moderator).getByRole('link', { name: /^Fila de produtos/ })).toBeVisible();
-  await expect(sidebarNav(moderator).getByRole('link', { name: 'Situação da loja' })).toHaveCount(0);
+  await expect(
+    sidebarNav(moderator).getByRole('link', { name: /^Fila de produtos/ }),
+  ).toBeVisible();
+  await expect(sidebarNav(moderator).getByRole('link', { name: 'Situação da loja' })).toHaveCount(
+    0,
+  );
 
   await userMenuButton(seller).click();
   await expect(seller.getByRole('heading', { name: 'seller-demo' })).toBeVisible();

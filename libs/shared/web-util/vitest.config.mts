@@ -16,6 +16,6 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: '../../../coverage/libs/shared/web-util',
       provider: 'v8' as const,
-    }
+    },
   },
 }));

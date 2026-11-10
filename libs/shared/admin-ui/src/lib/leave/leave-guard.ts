@@ -10,7 +10,8 @@ export interface LeaveGuarded {
   leaveWarning(): string | null;
 }
 
-export const UNSAVED_CHANGES_WARNING = 'As alterações que você fez nesta tela ainda não foram salvas e se perdem se você sair.';
+export const UNSAVED_CHANGES_WARNING =
+  'As alterações que você fez nesta tela ainda não foram salvas e se perdem se você sair.';
 
 export const BATCH_RUNNING_WARNING =
   'Há um lote em andamento. Se você sair, os grupos ainda não enviados não serão processados; o grupo já enviado é processado inteiro.';
@@ -53,7 +54,7 @@ export class LeaveConfirmation {
       return Promise.resolve(this.#document.defaultView?.confirm(message) ?? true);
     }
     this.#pending()?.answer(false);
-    return new Promise(resolve => this.#pending.set({ message, answer: resolve }));
+    return new Promise((resolve) => this.#pending.set({ message, answer: resolve }));
   }
 
   /** Resposta do modal; o host chama ao confirmar ou ao fechar. */
@@ -77,7 +78,7 @@ export class LeaveConfirmation {
  * Guard `canDeactivate` das telas com `LeaveGuarded`: sem aviso, libera; com aviso, pergunta antes de sair. Vale também
  * para trocar de aba quando cada aba é uma rota.
  */
-export const leaveGuard: CanDeactivateFn<Partial<LeaveGuarded> | null> = component => {
+export const leaveGuard: CanDeactivateFn<Partial<LeaveGuarded> | null> = (component) => {
   const warning = component?.leaveWarning?.() ?? null;
   return warning === null ? true : inject(LeaveConfirmation).ask(warning);
 };

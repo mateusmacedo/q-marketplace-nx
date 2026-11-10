@@ -7,8 +7,8 @@ import java.util.Objects;
  * depois não muda o que o histórico e os eventos mostram.
  */
 public record ReasonLabel(String code, String label) {
-    public ReasonLabel {
-        Objects.requireNonNull(code, "código obrigatório");
-        Objects.requireNonNull(label, "rótulo obrigatório");
-    }
+  public ReasonLabel {
+    Objects.requireNonNull(code, "código obrigatório");
+    Objects.requireNonNull(label, "rótulo obrigatório");
+  }
 }

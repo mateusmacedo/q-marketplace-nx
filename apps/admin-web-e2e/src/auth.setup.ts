@@ -4,7 +4,10 @@ import { openPanel, signInThroughKeycloak, userMenuButton } from './support/pane
 import { DEMO_USERS, storageStatePath } from './support/users';
 
 for (const user of DEMO_USERS) {
-  test(`entra pela tela do Keycloak como ${user} e guarda a sessão`, async ({ browser, page }, testInfo) => {
+  test(`entra pela tela do Keycloak como ${user} e guarda a sessão`, async ({
+    browser,
+    page,
+  }, testInfo) => {
     const path = storageStatePath(user, testInfo.project);
 
     await page.goto('/');

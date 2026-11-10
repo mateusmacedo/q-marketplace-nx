@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, model, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  model,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import {
   ButtonCloseDirective,
@@ -11,26 +21,34 @@ import {
   ModalFooterComponent,
   ModalHeaderComponent,
   ModalTitleDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import {
   type CategorySummary,
   createProduct,
   CreateProductRequestSchema,
   listCategoryTree,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
-import { buildCategoryOptions, type CategoryNode, CategorySelectComponent } from '@marketplace/catalog-inventory-admin-ui';
+import {
+  buildCategoryOptions,
+  type CategoryNode,
+  CategorySelectComponent,
+} from '@marketplace/catalog-inventory-admin-ui';
 import {
   applyServerErrors,
   controlMessage,
   ProblemAlertComponent,
   schemaValidator,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import { apiData, fieldRules, type Problem, toProblem } from '@marketplace/shared-web-util';
 
-const FIELD_LABELS: Readonly<Record<string, string>> = { categoryId: 'Categoria', title: 'Título', currency: 'Moeda' };
+const FIELD_LABELS: Readonly<Record<string, string>> = {
+  categoryId: 'Categoria',
+  title: 'Título',
+  currency: 'Moeda',
+};
 
 /**
  * Novo produto (proposta de design, tela 3): modal com categoria, título e moeda. A categoria sai de um `form-select`
@@ -54,7 +72,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = { categoryId: 'Categoria'
     ModalTitleDirective,
     ProblemAlertComponent,
     ReactiveFormsModule,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <c-modal [(visible)]="visible" aria-labelledby="new-product-title" id="new-product-modal">
@@ -137,7 +155,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = { categoryId: 'Categoria'
         </c-modal-footer>
       </form>
     </c-modal>
-  `
+  `,
 })
 export class NewProductModalComponent {
   readonly #toast = inject(ToastService);
@@ -148,16 +166,16 @@ export class NewProductModalComponent {
 
   readonly form = new FormGroup({
     categoryId: new FormControl<string | null>(null, {
-      validators: [schemaValidator(fieldRules(CreateProductRequestSchema, 'categoryId'))]
+      validators: [schemaValidator(fieldRules(CreateProductRequestSchema, 'categoryId'))],
     }),
     title: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(CreateProductRequestSchema, 'title'))]
+      validators: [schemaValidator(fieldRules(CreateProductRequestSchema, 'title'))],
     }),
     currency: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(CreateProductRequestSchema, 'currency'))]
-    })
+      validators: [schemaValidator(fieldRules(CreateProductRequestSchema, 'currency'))],
+    }),
   });
 
   readonly fieldLabels = FIELD_LABELS;
@@ -166,11 +184,16 @@ export class NewProductModalComponent {
   readonly categories = signal<readonly CategorySummary[]>([]);
   readonly categoriesLoading = signal(false);
   readonly categoriesProblem = signal<Problem | null>(null);
-  readonly categoryOptions = computed(() => buildCategoryOptions(this.categories().flatMap(toCategoryNode)));
-  readonly noCategories = computed(
-    () => !this.categoriesLoading() && !this.categoriesProblem() && this.categoryOptions().length === 0
+  readonly categoryOptions = computed(() =>
+    buildCategoryOptions(this.categories().flatMap(toCategoryNode)),
   );
-  readonly categoryHelpId = computed(() => (this.noCategories() ? 'new-product-category-help' : null));
+  readonly noCategories = computed(
+    () =>
+      !this.categoriesLoading() && !this.categoriesProblem() && this.categoryOptions().length === 0,
+  );
+  readonly categoryHelpId = computed(() =>
+    this.noCategories() ? 'new-product-category-help' : null,
+  );
 
   /** Aumenta a cada mudança dos erros dos campos, para a tela redesenhar as mensagens. */
   readonly #validation = signal(0);
@@ -181,7 +204,7 @@ export class NewProductModalComponent {
         untracked(() => this.#open());
       }
     });
-    this.form.events.subscribe(() => this.#validation.update(count => count + 1));
+    this.form.events.subscribe(() => this.#validation.update((count) => count + 1));
   }
 
   /** Mensagem do campo depois de tocado: a do servidor, a do limite do contrato ou a de obrigatório. */
@@ -214,7 +237,9 @@ export class NewProductModalComponent {
       const nodes: CategorySummary[] = [];
       let cursor: string | undefined;
       do {
-        const page = await apiData(listCategoryTree({ query: { usable: true, ...(cursor ? { cursor } : {}) } }));
+        const page = await apiData(
+          listCategoryTree({ query: { usable: true, ...(cursor ? { cursor } : {}) } }),
+        );
         nodes.push(...(page.items ?? []));
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
@@ -237,15 +262,19 @@ export class NewProductModalComponent {
     this.problem.set(null);
     try {
       const data: unknown = await apiData(
-        createProduct({ body: { categoryId: categoryId ?? '', title: title.trim(), currency } })
+        createProduct({ body: { categoryId: categoryId ?? '', title: title.trim(), currency } }),
       );
-      this.#toast.success('Produto criado em rascunho. Complete o conteúdo para enviar à moderação.');
+      this.#toast.success(
+        'Produto criado em rascunho. Complete o conteúdo para enviar à moderação.',
+      );
       this.visible.set(false);
       this.created.emit(isProduct(data) ? data : {});
     } catch (error) {
       const problem = toProblem(error);
       const unmatched = applyServerErrors(this.form, problem);
-      this.problem.set(problem.errors?.length && !unmatched.length ? null : { ...problem, errors: unmatched });
+      this.problem.set(
+        problem.errors?.length && !unmatched.length ? null : { ...problem, errors: unmatched },
+      );
     } finally {
       this.saving.set(false);
     }
@@ -266,15 +295,20 @@ function toCategoryNode(category: CategorySummary): CategoryNode[] {
     {
       id: category.id,
       name: category.name,
-      ancestors: (category.ancestors ?? []).map(ancestor => ({ id: ancestor.id ?? '', name: ancestor.name ?? '' })),
+      ancestors: (category.ancestors ?? []).map((ancestor) => ({
+        id: ancestor.id ?? '',
+        name: ancestor.name ?? '',
+      })),
       level: category.level,
       usable: category.usable,
-      childCount: category.childCount
-    }
+      childCount: category.childCount,
+    },
   ];
 }
 
 // NOTE: o contrato declara o 201 de `POST /products` sem corpo, mas o servidor responde o produto criado.
 function isProduct(value: unknown): value is ProductResponse {
-  return typeof value === 'object' && value !== null && typeof (value as ProductResponse).id === 'string';
+  return (
+    typeof value === 'object' && value !== null && typeof (value as ProductResponse).id === 'string'
+  );
 }

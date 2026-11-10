@@ -1,8 +1,5 @@
 {
   "name": "catalog-inventory-contracts",
   "projectType": "library",
-  "tags": [
-    "scope:catalog-inventory",
-    "layer:contract"
-  ]
+  "tags": ["scope:catalog-inventory", "layer:contract"]
 }

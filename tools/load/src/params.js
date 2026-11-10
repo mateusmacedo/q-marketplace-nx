@@ -5,14 +5,28 @@ import { minimumMassProducts } from './mass-plan.js';
 export const PROFILES = ['smoke', 'average', 'stress', 'spike', 'soak', 'breakpoint'];
 // WHY: kyb_verdicts não tem executor no k6; o run.sh envia os vereditos pelo Kafka e o teardown confere o efeito.
 export const SCENARIOS = [
-  'hot_sku', 'spread_reserve_release', 'stock_adjust', 'last_unit', 'catalog_browse', 'storefront', 'product_lifecycle',
-  'moderation', 'offer_pricing', 'reservation_lifecycle', 'reservation_expiry', 'category_admin', 'product_import',
+  'hot_sku',
+  'spread_reserve_release',
+  'stock_adjust',
+  'last_unit',
+  'catalog_browse',
+  'storefront',
+  'product_lifecycle',
+  'moderation',
+  'offer_pricing',
+  'reservation_lifecycle',
+  'reservation_expiry',
+  'category_admin',
+  'product_import',
   'kyb_verdicts',
 ];
 export const HOT_MODES = ['contend', 'exhaust'];
 // WHY: no exhaust (o modo antigo), o estoque pequeno é o ponto: acaba em segundos e o resto vira 409, a 100/s. Na
 // disputa contínua, cada iteração escreve duas vezes na mesma linha; a 100/s ela satura e esgota o pool do catálogo.
-const HOT_MODE_DEFAULTS = { HOT_STOCK: { contend: '10000', exhaust: '200' }, HOT_RATE: { contend: '20', exhaust: '100' } };
+const HOT_MODE_DEFAULTS = {
+  HOT_STOCK: { contend: '10000', exhaust: '200' },
+  HOT_RATE: { contend: '20', exhaust: '100' },
+};
 const MAX_LAST_UNIT_STOCK = 500;
 // WHY: catalog.reservations.max-ttl do serviço vale 2 h.
 export const MAX_RESERVATION_TTL_S = 7200;
@@ -126,13 +140,15 @@ export function parseParams(source) {
   const integer = (name, min, max) => {
     const raw = read(name);
     const value = Number(raw);
-    if (!/^\d+$/.test(raw) || value < min || value > max) fail(name, `deve ser inteiro de ${min} a ${max}`, raw);
+    if (!/^\d+$/.test(raw) || value < min || value > max)
+      fail(name, `deve ser inteiro de ${min} a ${max}`, raw);
     return value;
   };
   const decimal = (name, min, max) => {
     const raw = read(name);
     const value = Number(raw);
-    if (!/^\d+(\.\d+)?$/.test(raw) || value <= min || value > max) fail(name, `deve ser número maior que ${min} e até ${max}`, raw);
+    if (!/^\d+(\.\d+)?$/.test(raw) || value <= min || value > max)
+      fail(name, `deve ser número maior que ${min} e até ${max}`, raw);
     return value;
   };
   const choice = (name, options) => {
@@ -147,7 +163,8 @@ export function parseParams(source) {
   };
 
   const profile = env.PROFILE ?? '';
-  if (!PROFILES.includes(profile)) fail('PROFILE', `deve ser um de ${PROFILES.join(', ')}`, profile);
+  if (!PROFILES.includes(profile))
+    fail('PROFILE', `deve ser um de ${PROFILES.join(', ')}`, profile);
   const testid = env.TESTID === undefined || env.TESTID === '' ? null : String(env.TESTID);
   if (testid !== null && (!TESTID_FORMAT.test(testid) || testid.length > TESTID_MAX)) {
     fail('TESTID', `deve ter até ${TESTID_MAX} caracteres em minúsculas, dígitos e hífens`, testid);
@@ -163,13 +180,25 @@ export function parseParams(source) {
   };
 
   const scenariosRaw = read('SCENARIOS');
-  const scenarios = scenariosRaw.split(',').map((s) => s.trim()).filter(Boolean);
-  if (scenarios.length === 0 || scenarios.some((s) => !SCENARIOS.includes(s)) || new Set(scenarios).size !== scenarios.length) {
-    fail('SCENARIOS', `deve listar sem repetir um ou mais de ${SCENARIOS.join(', ')}`, scenariosRaw);
+  const scenarios = scenariosRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (
+    scenarios.length === 0 ||
+    scenarios.some((s) => !SCENARIOS.includes(s)) ||
+    new Set(scenarios).size !== scenarios.length
+  ) {
+    fail(
+      'SCENARIOS',
+      `deve listar sem repetir um ou mais de ${SCENARIOS.join(', ')}`,
+      scenariosRaw,
+    );
   }
 
   const durationRaw = read('DURATION');
-  if (durationRaw !== '' && !/^[1-9]\d*[smh]$/.test(durationRaw)) fail('DURATION', 'deve ser duração como 30s, 10m ou 1h', durationRaw);
+  if (durationRaw !== '' && !/^[1-9]\d*[smh]$/.test(durationRaw))
+    fail('DURATION', 'deve ser duração como 30s, 10m ou 1h', durationRaw);
 
   const hotMode = choice('HOT_MODE', HOT_MODES);
   for (const [name, byMode] of Object.entries(HOT_MODE_DEFAULTS)) {
@@ -190,10 +219,18 @@ export function parseParams(source) {
     testid,
     allowRemote,
     baseUrl: target('BASE_URL'),
-    managementUrls: [target('API_MANAGEMENT_URL'), target('API_2_MANAGEMENT_URL'), target('WORKER_MANAGEMENT_URL')],
+    managementUrls: [
+      target('API_MANAGEMENT_URL'),
+      target('API_2_MANAGEMENT_URL'),
+      target('WORKER_MANAGEMENT_URL'),
+    ],
     keycloakUrl: target('KEYCLOAK_URL'),
     keycloakRealm: formatted('KEYCLOAK_REALM', NAME_FORMAT, 'deve casar ^[A-Za-z0-9._-]{1,64}$'),
-    keycloakClientId: formatted('KEYCLOAK_CLIENT_ID', NAME_FORMAT, 'deve casar ^[A-Za-z0-9._-]{1,64}$'),
+    keycloakClientId: formatted(
+      'KEYCLOAK_CLIENT_ID',
+      NAME_FORMAT,
+      'deve casar ^[A-Za-z0-9._-]{1,64}$',
+    ),
     tenantId: formatted('TENANT_ID', UUID_FORMAT, 'deve ser um UUID'),
     storeId: formatted('STORE_ID', UUID_FORMAT, 'deve ser um UUID'),
     scenarios,
@@ -230,7 +267,8 @@ export function parseParams(source) {
   };
 
   const needs = (scenario, value, minimum, name) => {
-    if (scenarios.includes(scenario) && value < minimum) fail(name, `deve ser ao menos ${minimum} com ${scenario}`, value);
+    if (scenarios.includes(scenario) && value < minimum)
+      fail(name, `deve ser ao menos ${minimum} com ${scenario}`, value);
   };
   needs('spread_reserve_release', params.spreadSkus, 1, 'SPREAD_SKUS');
   needs('stock_adjust', params.adjustSkus, 1, 'ADJUST_SKUS');
@@ -242,7 +280,11 @@ export function parseParams(source) {
   needs('kyb_verdicts', params.kybStores, 1, 'KYB_STORES');
   const minimum = minimumMassProducts(params);
   if (params.massProducts < minimum) {
-    fail('MASS_PRODUCTS', `deve ser ao menos ${minimum} (produtos dos grupos de SKU e da moderação, mais um por estado)`, params.massProducts);
+    fail(
+      'MASS_PRODUCTS',
+      `deve ser ao menos ${minimum} (produtos dos grupos de SKU e da moderação, mais um por estado)`,
+      params.massProducts,
+    );
   }
 
   return Object.freeze({ ...params, effective: Object.freeze(effective) });

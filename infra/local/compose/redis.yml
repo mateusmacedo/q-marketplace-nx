@@ -11,21 +11,21 @@ services:
     command:
       - redis-server
       - --save
-      - ''
+      - ""
       - --appendonly
-      - 'no'
+      - "no"
       - --maxmemory
       - 64mb
       - --maxmemory-policy
       - allkeys-lru
       - --user
       - default
-      - 'off'
+      - "off"
       - --user
       - catalog
-      - 'on'
-      - '>${REDIS_CATALOG_PASSWORD:-catalog-local-redis}'
-      - '~catalog:*'
+      - "on"
+      - ">${REDIS_CATALOG_PASSWORD:-catalog-local-redis}"
+      - "~catalog:*"
       - -@all
       - +hello
       - +auth
@@ -39,8 +39,8 @@ services:
       - +evalsha
       - --user
       - exporter
-      - 'on'
-      - '>${REDIS_EXPORTER_PASSWORD:-exporter-local-redis}'
+      - "on"
+      - ">${REDIS_EXPORTER_PASSWORD:-exporter-local-redis}"
       - -@all
       - +info
       - +ping
@@ -53,9 +53,9 @@ services:
       - +command|info
       - --user
       - inspector
-      - 'on'
-      - '>${REDIS_INSPECTOR_PASSWORD:-inspector-local-redis}'
-      - '%R~*'
+      - "on"
+      - ">${REDIS_INSPECTOR_PASSWORD:-inspector-local-redis}"
+      - "%R~*"
       - -@all
       - +@read
       - +@connection
@@ -63,7 +63,11 @@ services:
       - +info
     ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user catalog --pass '${REDIS_CATALOG_PASSWORD:-catalog-local-redis}' ping | grep -q PONG"]
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli --no-auth-warning --user catalog --pass '${REDIS_CATALOG_PASSWORD:-catalog-local-redis}' ping | grep -q PONG",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -71,5 +75,5 @@ services:
     # 1, que a thread única nunca estrangula: com 0,25, a cota parou 2,6% dos períodos CFS do average.
     deploy:
       resources:
-        limits: {cpus: "0.50", memory: 128M}
-        reservations: {memory: 32M}
+        limits: { cpus: "0.50", memory: 128M }
+        reservations: { memory: 32M }

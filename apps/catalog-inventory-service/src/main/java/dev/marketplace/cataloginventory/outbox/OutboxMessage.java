@@ -8,6 +8,6 @@ import java.util.UUID;
  * depois no tópico.
  */
 public record OutboxMessage(UUID id, UUID tenantId, String topic, String key, String eventType, String payload,
-        Instant createdAt,
-        String traceParent) {
+    Instant createdAt,
+    String traceParent) {
 }

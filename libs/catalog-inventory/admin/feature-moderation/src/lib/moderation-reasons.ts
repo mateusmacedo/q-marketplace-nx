@@ -1,7 +1,7 @@
 import {
   listModerationReasonsResource,
   type ModerationDecision,
-  type ModerationReasonResponse
+  type ModerationReasonResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 
 /** Decisão do moderador que pede motivo: rejeitar ou bloquear. */
@@ -22,9 +22,10 @@ export function moderationReasonsResource(decision: () => ReasonDecision | null 
 /** Opções do modal: os motivos ativos que aceitam a decisão, na ordem recebida. */
 export function reasonOptions(
   reasons: readonly ModerationReasonResponse[] | null | undefined,
-  decision: ReasonDecision
+  decision: ReasonDecision,
 ): ModerationReasonResponse[] {
   return (reasons ?? []).filter(
-    reason => !!reason.code && reason.active !== false && (reason.decisions ?? []).includes(decision)
+    (reason) =>
+      !!reason.code && reason.active !== false && (reason.decisions ?? []).includes(decision),
   );
 }

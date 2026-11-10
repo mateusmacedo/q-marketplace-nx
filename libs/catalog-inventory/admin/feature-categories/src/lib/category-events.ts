@@ -34,11 +34,11 @@ export class CategoryEvents {
   readonly gone = this.#gone.asReadonly();
 
   listChanged(): void {
-    this.#listStamp.update(stamp => stamp + 1);
+    this.#listStamp.update((stamp) => stamp + 1);
   }
 
   detailChanged(): void {
-    this.#detailStamp.update(stamp => stamp + 1);
+    this.#detailStamp.update((stamp) => stamp + 1);
   }
 
   left(id: string): void {

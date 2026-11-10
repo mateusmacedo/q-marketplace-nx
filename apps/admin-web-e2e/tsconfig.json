@@ -4,9 +4,7 @@
     "allowJs": true,
     "outDir": "../../dist/out-tsc",
     "sourceMap": false,
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "strict": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,

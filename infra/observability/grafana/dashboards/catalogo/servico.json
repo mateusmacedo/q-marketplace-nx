@@ -2,10 +2,7 @@
   "uid": "marketplace-catalog-service",
   "title": "Marketplace · Catálogo · Serviço",
   "description": "Tráfego HTTP, processo, pools, Kafka, cache Redis, logs e traces dos papéis api e worker do catálogo.",
-  "tags": [
-    "marketplace",
-    "catalogo"
-  ],
+  "tags": ["marketplace", "catalogo"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -20,9 +17,7 @@
     {
       "title": "Painéis do marketplace",
       "type": "dashboards",
-      "tags": [
-        "marketplace"
-      ],
+      "tags": ["marketplace"],
       "asDropdown": true,
       "keepTime": true,
       "includeVars": true
@@ -532,9 +527,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -595,9 +588,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -650,9 +641,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -705,9 +694,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },

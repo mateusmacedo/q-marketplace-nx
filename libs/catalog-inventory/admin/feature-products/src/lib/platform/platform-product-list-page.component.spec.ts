@@ -1,9 +1,16 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideCatalogInventoryApi, type ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  provideCatalogInventoryApi,
+  type ProductResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 
 import { PlatformProductListPageComponent } from './platform-product-list-page.component';
@@ -20,7 +27,7 @@ const BLOCKED: ProductResponse = {
   skus: [{}],
   createdAt: '2026-11-01T10:00:00Z',
   updatedAt: '2026-11-08T10:00:00Z',
-  actions: ['UNBLOCK']
+  actions: ['UNBLOCK'],
 };
 const PENDING: ProductResponse = {
   id: 'p-8',
@@ -28,7 +35,7 @@ const PENDING: ProductResponse = {
   title: 'Caneca 300ml',
   status: 'PENDING_MODERATION',
   version: 1,
-  actions: ['APPROVE', 'REJECT', 'BLOCK']
+  actions: ['APPROVE', 'REJECT', 'BLOCK'],
 };
 
 class InertIntersectionObserver {
@@ -55,12 +62,15 @@ describe('PlatformProductListPageComponent', () => {
   const paramsOf = (request: TestRequest) =>
     Object.fromEntries(new URL(request.request.urlWithParams, 'http://localhost').searchParams);
   const listRequest = () =>
-    http.expectOne(request => request.method === 'GET' && request.url.startsWith(`${API}/products?`));
+    http.expectOne(
+      (request) => request.method === 'GET' && request.url.startsWith(`${API}/products?`),
+    );
   const rows = () => Array.from(element().querySelectorAll('tbody tr')) as HTMLTableRowElement[];
-  const row = (title: string) => rows().find(item => item.textContent?.includes(title)) as HTMLTableRowElement;
+  const row = (title: string) =>
+    rows().find((item) => item.textContent?.includes(title)) as HTMLTableRowElement;
   const buttonByText = (root: ParentNode, label: string) =>
     (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      button => button.textContent?.replace(/\s+/g, ' ').trim() === label
+      (button) => button.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const render = () => TestBed.tick();
   const settle = async () => {
@@ -80,8 +90,10 @@ describe('PlatformProductListPageComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        provideRouter([{ path: 'plataforma/produtos', component: PlatformProductListPageComponent }])
-      ]
+        provideRouter([
+          { path: 'plataforma/produtos', component: PlatformProductListPageComponent },
+        ]),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
@@ -95,7 +107,10 @@ describe('PlatformProductListPageComponent', () => {
 
   beforeAll(() => {
     if (!('IntersectionObserver' in globalThis)) {
-      Object.defineProperty(globalThis, 'IntersectionObserver', { configurable: true, value: InertIntersectionObserver });
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        configurable: true,
+        value: InertIntersectionObserver,
+      });
     }
   });
 
@@ -104,7 +119,12 @@ describe('PlatformProductListPageComponent', () => {
   it('lista os produtos de todas as lojas, só leitura, com o início do UUID da loja e o completo no tooltip', async () => {
     const list = await open(`/plataforma/produtos?storeId=${STORE}&status=BLOCKED`);
 
-    expect(paramsOf(list)).toEqual({ storeId: STORE, status: 'BLOCKED', sort: '-updatedAt', limit: '20' });
+    expect(paramsOf(list)).toEqual({
+      storeId: STORE,
+      status: 'BLOCKED',
+      sort: '-updatedAt',
+      limit: '20',
+    });
     expect(element().querySelector('h1')?.textContent?.trim()).toBe('Produtos de todas as lojas');
     expect(element().querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(text()).not.toContain('Novo produto');
@@ -112,17 +132,19 @@ describe('PlatformProductListPageComponent', () => {
     expect(store.querySelector('[aria-hidden="true"]')?.textContent?.trim()).toBe('3f2a9c1e…');
     expect(store.querySelector('.visually-hidden')?.textContent?.trim()).toBe(STORE);
     expect(storeInput().value).toBe(STORE);
-    expect((row('Relógio Smart').querySelector('a') as HTMLAnchorElement).getAttribute('href')).toBe(
-      '/plataforma/produtos/p-9'
-    );
+    expect(
+      (row('Relógio Smart').querySelector('a') as HTMLAnchorElement).getAttribute('href'),
+    ).toBe('/plataforma/produtos/p-9');
   });
 
   it('mostra no menu só o que o servidor libera e o painel apresenta: o Desbloquear', async () => {
     await open();
 
-    expect(Array.from(row('Relógio Smart').querySelectorAll('[cDropdownItem]')).map(item => item.textContent?.trim())).toEqual(
-      ['Desbloquear']
-    );
+    expect(
+      Array.from(row('Relógio Smart').querySelectorAll('[cDropdownItem]')).map((item) =>
+        item.textContent?.trim(),
+      ),
+    ).toEqual(['Desbloquear']);
     expect(row('Caneca 300ml').querySelector('[cDropdownToggle]')).toBeNull();
   });
 
@@ -130,16 +152,20 @@ describe('PlatformProductListPageComponent', () => {
     await open();
 
     buttonByText(row('Relógio Smart'), 'Desbloquear').click();
-    const unblock = await vi.waitFor(() => http.expectOne(`${API}/moderation/products/p-9/unblock`));
+    const unblock = await vi.waitFor(() =>
+      http.expectOne(`${API}/moderation/products/p-9/unblock`),
+    );
 
     expect(unblock.request.method).toBe('POST');
     expect(unblock.request.headers.get('If-Match')).toBe('"6"');
     unblock.flush({ ...BLOCKED, status: 'PENDING_MODERATION' });
     (await nextList()).flush({ items: [] });
     await settle();
-    expect(TestBed.inject(ToastService).toasts().map(toast => toast.message)).toEqual([
-      'Produto desbloqueado. Ele volta para a fila de moderação.'
-    ]);
+    expect(
+      TestBed.inject(ToastService)
+        .toasts()
+        .map((toast) => toast.message),
+    ).toEqual(['Produto desbloqueado. Ele volta para a fila de moderação.']);
     expect(text()).toContain('Nenhum produto cadastrado.');
   });
 
@@ -151,7 +177,7 @@ describe('PlatformProductListPageComponent', () => {
     buttonByText(element(), 'Filtrar').click();
     render();
     expect(text()).toContain('Confira o formato deste campo. Cole o ID completo da loja.');
-    http.expectNone(request => request.url.startsWith(`${API}/products?`));
+    http.expectNone((request) => request.url.startsWith(`${API}/products?`));
 
     storeInput().value = ` ${STORE} `;
     storeInput().dispatchEvent(new Event('input'));

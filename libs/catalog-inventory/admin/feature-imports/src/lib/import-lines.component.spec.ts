@@ -14,26 +14,37 @@ const LINES: ImportLineResponse[] = [
     code: 'invalid-product',
     message: 'Produto inválido',
     reasonDetails: [
-      { code: 'missing-variant-attribute', params: ['CAM-PP', 'cor'], message: 'O SKU CAM-PP não tem o atributo Cor' }
-    ]
+      {
+        code: 'missing-variant-attribute',
+        params: ['CAM-PP', 'cor'],
+        message: 'O SKU CAM-PP não tem o atributo Cor',
+      },
+    ],
   },
-  { lineNumber: 15, outcome: 'FAILED', code: 'group-rejected', message: 'Produto P1 não criado por erro na(s) linha(s) 14' }
+  {
+    lineNumber: 15,
+    outcome: 'FAILED',
+    code: 'group-rejected',
+    message: 'Produto P1 não criado por erro na(s) linha(s) 14',
+  },
 ];
 
 describe('ImportLinesComponent', () => {
   let fixture: ComponentFixture<ImportLinesComponent>;
 
-  const rows = () => Array.from(fixture.nativeElement.querySelectorAll('tbody tr')) as HTMLTableRowElement[];
-  const cells = (row: HTMLTableRowElement) => Array.from(row.cells).map(cell => cell.textContent?.trim().replace(/\s+/g, ' '));
+  const rows = () =>
+    Array.from(fixture.nativeElement.querySelectorAll('tbody tr')) as HTMLTableRowElement[];
+  const cells = (row: HTMLTableRowElement) =>
+    Array.from(row.cells).map((cell) => cell.textContent?.trim().replace(/\s+/g, ' '));
   const radio = (label: string) => {
-    const element = (Array.from(fixture.nativeElement.querySelectorAll('label')) as HTMLLabelElement[]).find(
-      item => item.textContent?.trim() === label
-    );
+    const element = (
+      Array.from(fixture.nativeElement.querySelectorAll('label')) as HTMLLabelElement[]
+    ).find((item) => item.textContent?.trim() === label);
     return fixture.nativeElement.querySelector(`#${element?.htmlFor}`) as HTMLInputElement;
   };
   const button = (text: string) =>
     (Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.trim() === text
+      (item) => item.textContent?.trim() === text,
     ) as HTMLButtonElement;
 
   beforeEach(async () => {
@@ -44,20 +55,20 @@ describe('ImportLinesComponent', () => {
   });
 
   it('lista cada linha com o SKU, o resultado e a mensagem do servidor, sem o código cru', () => {
-    expect(rows().map(row => cells(row).slice(0, 3))).toEqual([
+    expect(rows().map((row) => cells(row).slice(0, 3))).toEqual([
       ['2', 'CAM-P', 'Criada'],
       ['3', 'CAM-M', 'Sem mudança'],
       ['14', 'CAM-PP', 'Falha'],
-      ['15', 'Sem SKU', 'Falha']
+      ['15', 'Sem SKU', 'Falha'],
     ]);
     expect(cells(rows()[0])[3]).toBe('');
     expect(cells(rows()[3])[3]).toBe('Produto P1 não criado por erro na(s) linha(s) 14');
     expect(fixture.nativeElement.textContent).not.toContain('invalid-product');
     expect(fixture.nativeElement.textContent).not.toContain('missing-variant-attribute');
     expect(rows()[2].cells[3].querySelector('div')?.textContent).toBe('Produto inválido');
-    expect(Array.from(rows()[2].querySelectorAll('li')).map(item => item.textContent?.trim())).toEqual([
-      'O SKU CAM-PP não tem o atributo Cor'
-    ]);
+    expect(
+      Array.from(rows()[2].querySelectorAll('li')).map((item) => item.textContent?.trim()),
+    ).toEqual(['O SKU CAM-PP não tem o atributo Cor']);
   });
 
   it('leva ao produto da linha pelo productId', () => {
@@ -69,7 +80,7 @@ describe('ImportLinesComponent', () => {
   it('filtra só as falhas e volta para todas', async () => {
     radio('Só falhas').click();
     await fixture.whenStable();
-    expect(rows().map(row => row.cells[0].textContent?.trim())).toEqual(['14', '15']);
+    expect(rows().map((row) => row.cells[0].textContent?.trim())).toEqual(['14', '15']);
     expect(radio('Só falhas').checked).toBe(true);
 
     radio('Todas').click();
@@ -90,7 +101,7 @@ describe('ImportLinesComponent', () => {
       lineNumber: index + 2,
       sellerSku: `SKU-${index}`,
       outcome: index === 55 ? 'FAILED' : 'UPDATED',
-      message: index === 55 ? 'Preço inválido' : null
+      message: index === 55 ? 'Preço inválido' : null,
     }));
     fixture.componentRef.setInput('lines', many);
     await fixture.whenStable();
@@ -105,7 +116,7 @@ describe('ImportLinesComponent', () => {
 
     radio('Só falhas').click();
     await fixture.whenStable();
-    expect(rows().map(row => row.cells[0].textContent?.trim())).toEqual(['57']);
+    expect(rows().map((row) => row.cells[0].textContent?.trim())).toEqual(['57']);
     expect(fixture.nativeElement.querySelector('app-cursor-pagination')).toBeNull();
   });
 });

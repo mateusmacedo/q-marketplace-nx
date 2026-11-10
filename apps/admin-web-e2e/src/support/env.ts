@@ -16,7 +16,8 @@ export const E2E_ENV = {
   tenantId: '11111111-1111-4111-8111-111111111111',
   /** Loja do `seller-demo`. */
   sellerStoreId: '22222222-2222-4222-8222-222222222222',
-  composeFile: process.env['E2E_COMPOSE_FILE'] ?? path.join(workspaceRoot, 'infra/local/docker-compose.yml')
+  composeFile:
+    process.env['E2E_COMPOSE_FILE'] ?? path.join(workspaceRoot, 'infra/local/docker-compose.yml'),
 } as const;
 
 /** Base da API do catálogo pelo gateway; os caminhos do contrato entram depois dela (`/products`). */

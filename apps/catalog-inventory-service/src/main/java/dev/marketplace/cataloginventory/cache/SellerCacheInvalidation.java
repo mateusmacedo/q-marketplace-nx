@@ -13,34 +13,32 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Veredito KYB/KYC aplicado invalida a vitrine de todos os produtos da loja
- * antes de a mensagem ser confirmada; entrega
- * repetida ou veredito obsoleto não mudam a loja e não invalidam. Na falha
- * invalida também (ADR 024).
+ * Veredito KYB/KYC aplicado invalida a vitrine de todos os produtos da loja antes de a mensagem ser confirmada; entrega
+ * repetida ou veredito obsoleto não mudam a loja e não invalidam. Na falha invalida também (ADR 024).
  */
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class SellerCacheInvalidation implements SellerEligibilityRepository {
-    @Inject
-    @Delegate
-    SellerEligibilityRepository delegate;
-    @Inject
-    CatalogCache cache;
+  @Inject
+  @Delegate
+  SellerEligibilityRepository delegate;
+  @Inject
+  CatalogCache cache;
 
-    @Override
-    public Uni<SellerVerdict.Outcome> apply(String consumer, SellerVerdict verdict) {
-        return CacheInvalidation.when(cache, delegate.apply(consumer, verdict),
-                (outcome, failure) -> failure != null || outcome == SellerVerdict.Outcome.APPLIED,
-                () -> cache.storeChanged(verdict.tenantId(), verdict.storeId()));
-    }
+  @Override
+  public Uni<SellerVerdict.Outcome> apply(String consumer, SellerVerdict verdict) {
+    return CacheInvalidation.when(cache, delegate.apply(consumer, verdict),
+        (outcome, failure) -> failure != null || outcome == SellerVerdict.Outcome.APPLIED,
+        () -> cache.storeChanged(verdict.tenantId(), verdict.storeId()));
+  }
 
-    @Override
-    public Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId) {
-        return delegate.statusOf(tenantId, storeId);
-    }
+  @Override
+  public Uni<SellerStatus> statusOf(UUID tenantId, UUID storeId) {
+    return delegate.statusOf(tenantId, storeId);
+  }
 
-    @Override
-    public Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds) {
-        return delegate.statusesOf(tenantId, storeIds);
-    }
+  @Override
+  public Uni<Map<UUID, SellerStatus>> statusesOf(UUID tenantId, Collection<UUID> storeIds) {
+    return delegate.statusesOf(tenantId, storeIds);
+  }
 }

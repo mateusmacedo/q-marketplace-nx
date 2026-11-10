@@ -10,11 +10,11 @@ import java.util.List;
  * cliente pode recotar e tentar de novo.
  */
 public class ReservationRefusal extends DomainRuleViolation {
-    public ReservationRefusal(ReasonCode code, String message, List<Reason> reasons) {
-        super(code, message, reasons);
-    }
+  public ReservationRefusal(ReasonCode code, String message, List<Reason> reasons) {
+    super(code, message, reasons);
+  }
 
-    public ReservationRefusal(Reason reason, String message, List<Reason> reasons) {
-        super(reason, message, reasons);
-    }
+  public ReservationRefusal(Reason reason, String message, List<Reason> reasons) {
+    super(reason, message, reasons);
+  }
 }

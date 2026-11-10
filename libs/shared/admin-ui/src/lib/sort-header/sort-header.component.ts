@@ -22,7 +22,7 @@ import { formatSort, nextSort, parseSort, type SortDirection } from '@marketplac
       <ng-content />
       <svg [cIcon]="icon()" [class.text-body-tertiary]="!active()" aria-hidden="true" class="ms-1" size="sm"></svg>
     </button>
-  `
+  `,
 })
 export class SortHeaderComponent {
   /** Campo de ordenação da coluna na API. */

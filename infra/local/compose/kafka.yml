@@ -7,8 +7,8 @@ services:
     deploy:
       resources:
         # Teto de CPU como disjuntor (ADR 019): com 0,75, o boot e a JVM do healthcheck eram estrangulados em 9% do tempo.
-        limits: {cpus: "1.5", memory: 1536M}
-        reservations: {memory: 512M}
+        limits: { cpus: "1.5", memory: 1536M }
+        reservations: { memory: 512M }
     profiles: [infra, catalog, all]
     ports: ["127.0.0.1:${KAFKA_PORT:-9094}:9094"]
     environment:
@@ -29,7 +29,11 @@ services:
     # WHY: cada checagem sobe uma JVM; com os padrões do script e a cada 5 s, custava ~5 s de CPU por vez, perto de um
     # núcleo o tempo todo. Heap pequeno e só o C1 cortam metade, e fora da partida basta checar a cada 30 s.
     healthcheck:
-      test: ["CMD-SHELL", "KAFKA_HEAP_OPTS=-Xmx64m KAFKA_JVM_PERFORMANCE_OPTS='-XX:TieredStopAtLevel=1 -XX:+UseSerialGC' /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      test:
+        [
+          "CMD-SHELL",
+          "KAFKA_HEAP_OPTS=-Xmx64m KAFKA_JVM_PERFORMANCE_OPTS='-XX:TieredStopAtLevel=1 -XX:+UseSerialGC' /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -40,11 +44,11 @@ services:
     image: apache/kafka:4.2.0@sha256:9516fb7634bad307d17c33b589fde9023003b0cb761374f500002b980a3149b9
     deploy:
       resources:
-        limits: {cpus: "0.20", memory: 384M}
-        reservations: {memory: 64M}
+        limits: { cpus: "0.20", memory: 384M }
+        reservations: { memory: 64M }
     profiles: [infra, catalog, all]
     depends_on:
-      kafka: {condition: service_healthy}
+      kafka: { condition: service_healthy }
     restart: "no"
     environment:
       BOOTSTRAP_SERVERS: kafka:9092

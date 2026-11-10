@@ -1,8 +1,5 @@
 {
   "name": "fulfillment-logistics-contracts",
   "projectType": "library",
-  "tags": [
-    "scope:fulfillment-logistics",
-    "layer:contract"
-  ]
+  "tags": ["scope:fulfillment-logistics", "layer:contract"]
 }

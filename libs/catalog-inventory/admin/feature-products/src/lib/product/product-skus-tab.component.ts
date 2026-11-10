@@ -6,7 +6,7 @@ import {
   DOCUMENT,
   inject,
   signal,
-  untracked
+  untracked,
 } from '@angular/core';
 import {
   AlertComponent,
@@ -16,14 +16,14 @@ import {
   CardComponent,
   ProgressComponent,
   TableDirective,
-  TooltipDirective
+  TooltipDirective,
 } from '@coreui/angular';
 import { cilPlus, cilTrash } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
 import {
   getCategoryResource,
   removeSku,
-  type SkuResponse
+  type SkuResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   type ActionMenuChoice,
@@ -34,7 +34,7 @@ import {
   EmptyStateComponent,
   MoneyPipe,
   ProblemAlertComponent,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import {
   apiDataWithVersion,
@@ -42,7 +42,7 @@ import {
   isEditConflict,
   plural,
   type Problem,
-  toProblem
+  toProblem,
 } from '@marketplace/shared-web-util';
 
 import { availablePercent } from '../home/recent-products';
@@ -83,7 +83,7 @@ const ADD_SKU_BUTTON = 'product-add-sku';
     ProgressComponent,
     SkuPanelComponent,
     TableDirective,
-    TooltipDirective
+    TooltipDirective,
   ],
   styles: '.numeric { font-variant-numeric: tabular-nums; }',
   template: `
@@ -229,7 +229,7 @@ const ADD_SKU_BUTTON = 'product-add-sku';
       <p class="fw-semibold mb-2">{{ removeTarget()?.sellerSku }}</p>
       <p class="mb-0">O SKU sai do produto, com o preço e as promoções dele.</p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class ProductSkusTabComponent {
   readonly store = inject(ProductStore);
@@ -247,7 +247,9 @@ export class ProductSkusTabComponent {
     return id ? { path: { id } } : undefined;
   });
   readonly variantFields = computed(() =>
-    this.category.hasValue() ? attributeFields(this.category.value().effectiveAttributes, true) : []
+    this.category.hasValue()
+      ? attributeFields(this.category.value().effectiveAttributes, true)
+      : [],
   );
   readonly skus = computed(() => this.store.product()?.skus ?? []);
   readonly count = computed(() => plural(this.skus().length, 'SKU', 'SKUs'));
@@ -261,13 +263,23 @@ export class ProductSkusTabComponent {
     }
     return state.blockedReason === undefined
       ? []
-      : [{ id: 'REMOVE_SKU', label: 'Remover SKU', icon: cilTrash, danger: true, disabledReason: state.blockedReason }];
+      : [
+          {
+            id: 'REMOVE_SKU',
+            label: 'Remover SKU',
+            icon: cilTrash,
+            danger: true,
+            disabledReason: state.blockedReason,
+          },
+        ];
   });
 
   readonly addOpen = signal(false);
   readonly panelOpen = signal(false);
   readonly #panelSkuId = signal<string | null>(null);
-  readonly panelSku = computed(() => this.skus().find(sku => sku.id === this.#panelSkuId()) ?? null);
+  readonly panelSku = computed(
+    () => this.skus().find((sku) => sku.id === this.#panelSkuId()) ?? null,
+  );
   readonly panelVariation = computed(() => {
     const sku = this.panelSku();
     return sku ? this.variation(sku) : '';
@@ -290,12 +302,18 @@ export class ProductSkusTabComponent {
       }
       untracked(() => {
         this.store.focus.set(null);
-        const sku = item.sellerSku ? this.skus().find(candidate => candidate.sellerSku === item.sellerSku) : undefined;
+        const sku = item.sellerSku
+          ? this.skus().find((candidate) => candidate.sellerSku === item.sellerSku)
+          : undefined;
         if (sku && item.field === 'offer') {
           this.openPanel(sku, true);
           return;
         }
-        const target = sku ? this.rowId(sku) : this.store.rules().addSku.allowed ? ADD_SKU_BUTTON : 'product-skus-heading';
+        const target = sku
+          ? this.rowId(sku)
+          : this.store.rules().addSku.allowed
+            ? ADD_SKU_BUTTON
+            : 'product-skus-heading';
         this.#document.getElementById(target)?.focus();
       });
     });
@@ -343,7 +361,10 @@ export class ProductSkusTabComponent {
     this.removeProblem.set(null);
     try {
       const result = await apiDataWithVersion(
-        removeSku({ path: { id: product.id, skuId: sku.id }, headers: ifMatch(this.store.version()) })
+        removeSku({
+          path: { id: product.id, skuId: sku.id },
+          headers: ifMatch(this.store.version()),
+        }),
       );
       this.store.accept(result);
       this.#toast.success('SKU removido.');

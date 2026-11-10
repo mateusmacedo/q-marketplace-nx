@@ -132,25 +132,25 @@ Rode o `check:memory` antes dos testes do front, do e2e e do build nativo, e uma
 
 Com o compose no ar (profiles `infra`, `catalog` ou `all`), o PostgreSQL e o Redis aceitam conexões do host em `127.0.0.1`, sem TLS, de clientes como DBeaver, pgAdmin, psql e RedisInsight. As senhas são os padrões locais; se `infra/local/.env` as trocar, valem as de lá (variáveis entre parênteses, modelo em `infra/local/.env.example`). Cada role do PostgreSQL abre no próprio schema (`search_path`), então as tabelas aparecem sem prefixo.
 
-| Recurso | Host e porta | Usuário | Senha padrão | Acesso |
-|---|---|---|---|---|
-| PostgreSQL, banco `marketplace` | `localhost:5432` (`POSTGRES_PORT`) | `catalog_inventory` | `catalog-inventory-local` (`CATALOG_INVENTORY_DB_PASSWORD`) | Só DML no schema `catalog_inventory`, como o serviço |
-| | | `catalog_inventory_migrator` | `catalog-inventory-migrator-local` (`CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD`) | Dono do schema, com DDL, como o Flyway |
-| | | `postgres` | `postgres-local` (`POSTGRES_PASSWORD`) | Superusuário, só para administração |
-| Redis, banco 0 | `localhost:6379` (`REDIS_PORT`) | `inspector` | `inspector-local-redis` (`REDIS_INSPECTOR_PASSWORD`) | Só leitura: chaves (`SCAN`, `GET`, `TYPE`, `TTL`) e `INFO`, sem escrita |
+| Recurso                         | Host e porta                       | Usuário                      | Senha padrão                                                                  | Acesso                                                                  |
+| ------------------------------- | ---------------------------------- | ---------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| PostgreSQL, banco `marketplace` | `localhost:5432` (`POSTGRES_PORT`) | `catalog_inventory`          | `catalog-inventory-local` (`CATALOG_INVENTORY_DB_PASSWORD`)                   | Só DML no schema `catalog_inventory`, como o serviço                    |
+|                                 |                                    | `catalog_inventory_migrator` | `catalog-inventory-migrator-local` (`CATALOG_INVENTORY_DB_MIGRATOR_PASSWORD`) | Dono do schema, com DDL, como o Flyway                                  |
+|                                 |                                    | `postgres`                   | `postgres-local` (`POSTGRES_PASSWORD`)                                        | Superusuário, só para administração                                     |
+| Redis, banco 0                  | `localhost:6379` (`REDIS_PORT`)    | `inspector`                  | `inspector-local-redis` (`REDIS_INSPECTOR_PASSWORD`)                          | Só leitura: chaves (`SCAN`, `GET`, `TYPE`, `TTL`) e `INFO`, sem escrita |
 
 ## Serviços
 
-| Projeto Nx | Porta de desenvolvimento | Implementação |
-|---|---:|---|
-| identity-organization-service | 8081 | Estrutura + saúde + informações |
-| kyb-kyc-service | 8082 | Estrutura + saúde + informações |
-| catalog-inventory-service | 8083 | Categorias, produtos, ofertas, moderação, estoque, reservas e eventos (reativo, PostgreSQL, Kafka, JWT) |
-| cart-checkout-service | 8084 | Estrutura + saúde + informações |
-| order-management-service | 8085 | Estrutura + saúde + informações |
-| payment-split-service | 8086 | Estrutura + saúde + informações |
-| fulfillment-logistics-service | 8087 | Estrutura + saúde + informações |
-| settlement-payout-service | 8088 | Estrutura + saúde + informações |
+| Projeto Nx                    | Porta de desenvolvimento | Implementação                                                                                           |
+| ----------------------------- | -----------------------: | ------------------------------------------------------------------------------------------------------- |
+| identity-organization-service |                     8081 | Estrutura + saúde + informações                                                                         |
+| kyb-kyc-service               |                     8082 | Estrutura + saúde + informações                                                                         |
+| catalog-inventory-service     |                     8083 | Categorias, produtos, ofertas, moderação, estoque, reservas e eventos (reativo, PostgreSQL, Kafka, JWT) |
+| cart-checkout-service         |                     8084 | Estrutura + saúde + informações                                                                         |
+| order-management-service      |                     8085 | Estrutura + saúde + informações                                                                         |
+| payment-split-service         |                     8086 | Estrutura + saúde + informações                                                                         |
+| fulfillment-logistics-service |                     8087 | Estrutura + saúde + informações                                                                         |
+| settlement-payout-service     |                     8088 | Estrutura + saúde + informações                                                                         |
 
 Todos expõem `/q/health/ready` e `/q/health/live`, e `/internal/info` na porta de negócio, que no catálogo só a api abre; no catálogo, saúde e métricas ficam na porta de gestão 9000, e em produção o papel vem de `QUARKUS_PROFILE=prod,api` ou `prod,worker` (ADR 020). O catálogo também publica métricas Prometheus em `/q/metrics`, incluindo as de negócio do PRD e suas consultas PromQL ([ADR 017](docs/decisoes.md)). Os testes do catálogo usam porta aleatória.
 
@@ -167,7 +167,7 @@ docker compose -f infra/local/docker-compose.yml --profile catalog up --build
 npx nx run catalog-inventory-service:native
 ```
 
-Os targets dos módulos Java vêm do próprio Gradle, pelo `@nx/gradle` ([ADR 025](docs/decisoes.md)): `npx nx show project <módulo>` lista todos, `npm run graph` mostra também essas tarefas inferidas, e `test-ci` divide o teste por classe. A CI usa o cache remoto e distribui as tarefas entre três agentes pelo Nx Cloud ([ADR 026](docs/decisoes.md)); localmente, o cache remoto só entra depois do `npx nx connect`. `npm run build` roda o `assemble` de cada módulo e produz artefatos JVM sem rodar testes; a CI (`.github/workflows/ci.yml`) confere imagens, observabilidade, chart, perfis de carga e vulnerabilidades, testa os projetos afetados (o `admin-web` no Chromium headless; o e2e fica fora e roda sob demanda) e faz o build completo antes do smoke, sem cluster ([ADR 023](docs/decisoes.md)). O workflow `sonar.yml` envia a análise ao SonarQube Cloud, fora do check obrigatório: no PR, com a cobertura só dos projetos afetados; na `main`, completa, toda segunda-feira e sob demanda ([ADR 032](docs/decisoes.md)); localmente, `./gradlew -Pcoverage test` gera o JaCoCo dos módulos Java, e `--coverage` nos testes do painel gera o lcov em `coverage/`. Cada verificação roda sozinha: `npm run check:images`, `check:observability`, `check:chart`, `check:vulnerabilities` e `npx nx run load:check`. `npm run infra:budget` soma os tetos de CPU e memória da stack local e reprova acima de 97% da máquina ([ADR 019](docs/decisoes.md)). A carga fica em `tools/load`, por perfil (`npm run load:smoke`, `load:average` etc., [ADR 022](docs/decisoes.md)), e roda também sob demanda no workflow `load.yml`. `smoke` inicia os oito JARs e confere saúde e informações; para o catálogo, sobe PostgreSQL e Kafka efêmeros. O Kafka do smoke usa a imagem `apache/kafka-native`, de partida rápida; o compose usa `apache/kafka`, na mesma versão. Os contêineres rodam como executável nativo: `native` compila com o builder Mandrel padrão do Quarkus (distribuição do GraalVM) dentro de Docker/Podman, sem GraalVM local, e leva alguns minutos e vários GB de RAM por serviço; `container` depende dele e empacota o executável em `infra/docker/Dockerfile.native`. Builds nativos e containers não utilizam o cache Nx. A imagem base usa tag legível; fixe seu digest antes de uma release de produção.
+Os targets dos módulos Java vêm do próprio Gradle, pelo `@nx/gradle` ([ADR 025](docs/decisoes.md)): `npx nx show project <módulo>` lista todos, `npm run graph` mostra também essas tarefas inferidas, e `test-ci` divide o teste por classe. A CI usa o cache remoto e distribui as tarefas entre três agentes pelo Nx Cloud ([ADR 026](docs/decisoes.md)); localmente, o cache remoto só entra depois do `npx nx connect`. `npm run build` roda o `assemble` de cada módulo e produz artefatos JVM sem rodar testes; a CI (`.github/workflows/ci.yml`) confere imagens, observabilidade, chart, perfis de carga e vulnerabilidades, testa os projetos afetados (o `admin-web` no Chromium headless; o e2e fica fora e roda sob demanda) e faz o build completo antes do smoke, sem cluster ([ADR 023](docs/decisoes.md)). O workflow `sonar.yml` envia a análise ao SonarQube Cloud, fora do check obrigatório: no PR, com a cobertura só dos projetos afetados; na `main`, completa, toda segunda-feira e sob demanda ([ADR 032](docs/decisoes.md)); localmente, `./gradlew -Pcoverage test` gera o JaCoCo dos módulos Java, e `--coverage` nos testes do painel gera o lcov em `coverage/`. `npm run format` aplica o Prettier e o Spotless em todo o repositório, e `npm run format:check` só confere ([ADR 033](docs/decisoes.md)); a CI confere só o que a mudança toca. Cada verificação roda sozinha: `npm run check:images`, `check:observability`, `check:chart`, `check:vulnerabilities` e `npx nx run load:check`. `npm run infra:budget` soma os tetos de CPU e memória da stack local e reprova acima de 97% da máquina ([ADR 019](docs/decisoes.md)). A carga fica em `tools/load`, por perfil (`npm run load:smoke`, `load:average` etc., [ADR 022](docs/decisoes.md)), e roda também sob demanda no workflow `load.yml`. `smoke` inicia os oito JARs e confere saúde e informações; para o catálogo, sobe PostgreSQL e Kafka efêmeros. O Kafka do smoke usa a imagem `apache/kafka-native`, de partida rápida; o compose usa `apache/kafka`, na mesma versão. Os contêineres rodam como executável nativo: `native` compila com o builder Mandrel padrão do Quarkus (distribuição do GraalVM) dentro de Docker/Podman, sem GraalVM local, e leva alguns minutos e vários GB de RAM por serviço; `container` depende dele e empacota o executável em `infra/docker/Dockerfile.native`. Builds nativos e containers não utilizam o cache Nx. A imagem base usa tag legível; fixe seu digest antes de uma release de produção.
 
 ## Implantação
 
@@ -191,15 +191,15 @@ Antes de cada instalação ou upgrade, um Job cria os tópicos do catálogo e a 
 
 ## Organização e documentação
 
-| Diretório | Conteúdo |
-|---|---|
-| `apps/<contexto>-service` | Composição Quarkus, adaptadores REST e infraestrutura do contexto |
-| `libs/<contexto>/domain` | Modelo e invariantes, Java puro |
-| `libs/<contexto>/application` | Casos de uso e portas; Java puro mais Mutiny (ADR 009) |
-| `contracts/<contexto>` | Contratos públicos do contexto: OpenAPI e JSON Schema dos eventos |
-| `infra` | Docker, Compose, realm do Keycloak e Helm chart do catálogo (`infra/helm`) |
-| `tools` | Ponte Gradle/Nx, smoke e verificação de limites |
-| `docs` | Proposta técnica, decisões, plano de implementação e relatório de validação |
+| Diretório                     | Conteúdo                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `apps/<contexto>-service`     | Composição Quarkus, adaptadores REST e infraestrutura do contexto           |
+| `libs/<contexto>/domain`      | Modelo e invariantes, Java puro                                             |
+| `libs/<contexto>/application` | Casos de uso e portas; Java puro mais Mutiny (ADR 009)                      |
+| `contracts/<contexto>`        | Contratos públicos do contexto: OpenAPI e JSON Schema dos eventos           |
+| `infra`                       | Docker, Compose, realm do Keycloak e Helm chart do catálogo (`infra/helm`)  |
+| `tools`                       | Ponte Gradle/Nx, smoke e verificação de limites                             |
+| `docs`                        | Proposta técnica, decisões, plano de implementação e relatório de validação |
 
 Leia [a proposta](docs/proposta-tecnica.md), [as decisões](docs/decisoes.md), [o plano](docs/plano-implementacao.md) e [o relatório de validação](docs/validacao.md).
 

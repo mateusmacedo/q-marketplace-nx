@@ -9,7 +9,7 @@ import {
   input,
   output,
   signal,
-  untracked
+  untracked,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -21,7 +21,7 @@ import {
   InputGroupTextDirective,
   ListGroupDirective,
   ListGroupItemDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import {
   cancelPromotion,
@@ -31,7 +31,7 @@ import {
   type OfferResponse,
   PromotionRequestSchema,
   type PromotionResponse,
-  schedulePromotion
+  schedulePromotion,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   applyServerErrors,
@@ -44,7 +44,7 @@ import {
   MoneyPipe,
   ProblemAlertComponent,
   schemaValidator,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import {
   type ActionState,
@@ -56,7 +56,7 @@ import {
   type Problem,
   toProblem,
   type Versioned,
-  versionTag
+  versionTag,
 } from '@marketplace/shared-web-util';
 
 import { ifMatch } from '../product/product-store';
@@ -93,7 +93,7 @@ export const SALE_PRICE_FIELD = 'sku-panel-sale-price';
     MoneyPipe,
     ProblemAlertComponent,
     ReactiveFormsModule,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   styles: '.numeric { font-variant-numeric: tabular-nums; }',
   template: `
@@ -303,7 +303,7 @@ export const SALE_PRICE_FIELD = 'sku-panel-sale-price';
       }
       <p class="mb-0">A promoção deixa de valer e sai da lista.</p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class SkuOfferSectionComponent {
   readonly skuId = input.required<string>();
@@ -326,7 +326,7 @@ export class SkuOfferSectionComponent {
     promotions: `${this.#prefix}-promotions`,
     startsAt: `${this.#prefix}-starts-at`,
     endsAt: `${this.#prefix}-ends-at`,
-    promotionPrice: `${this.#prefix}-promotion-price`
+    promotionPrice: `${this.#prefix}-promotion-price`,
   };
 
   readonly #amountRules = fieldRules(MoneyDtoSchema, 'amount');
@@ -339,8 +339,10 @@ export class SkuOfferSectionComponent {
   readonly promotions = computed(() => listedPromotions(this.offer()));
 
   readonly priceForm = new FormGroup({
-    listPrice: new FormControl<number | null>(null, [schemaValidator({ ...this.#amountRules, required: false })]),
-    salePrice: new FormControl<number | null>(null, [schemaValidator(this.#amountRules)])
+    listPrice: new FormControl<number | null>(null, [
+      schemaValidator({ ...this.#amountRules, required: false }),
+    ]),
+    salePrice: new FormControl<number | null>(null, [schemaValidator(this.#amountRules)]),
   });
   readonly savingPrice = signal(false);
   readonly priceProblem = signal<Problem | null>(null);
@@ -349,20 +351,22 @@ export class SkuOfferSectionComponent {
   readonly promotionForm = new FormGroup({
     startsAt: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(PromotionRequestSchema, 'startsAt'))]
+      validators: [schemaValidator(fieldRules(PromotionRequestSchema, 'startsAt'))],
     }),
     endsAt: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(PromotionRequestSchema, 'endsAt'))]
+      validators: [schemaValidator(fieldRules(PromotionRequestSchema, 'endsAt'))],
     }),
-    salePrice: new FormControl<number | null>(null, [schemaValidator(this.#amountRules)])
+    salePrice: new FormControl<number | null>(null, [schemaValidator(this.#amountRules)]),
   });
   readonly scheduling = signal(false);
   readonly savingPromotion = signal(false);
   readonly promotionProblem = signal<Problem | null>(null);
   readonly #promotionAction = signal<'schedule' | 'cancel'>('schedule');
   readonly promotionHeading = computed(() =>
-    this.#promotionAction() === 'schedule' ? 'Não foi possível agendar a promoção' : 'Não foi possível cancelar a promoção'
+    this.#promotionAction() === 'schedule'
+      ? 'Não foi possível agendar a promoção'
+      : 'Não foi possível cancelar a promoção',
   );
   readonly promotionConflict = computed(() => isEditConflict(this.promotionProblem()));
 
@@ -463,7 +467,7 @@ export class SkuOfferSectionComponent {
       const call = defineOffer({
         path: { skuId: this.skuId() },
         ...(creating ? {} : { headers: ifMatch(this.#version()) }),
-        body: { salePrice, listPrice: moneyOf(value.listPrice, this.currency()) }
+        body: { salePrice, listPrice: moneyOf(value.listPrice, this.currency()) },
       });
       if (creating) {
         await apiData(call);
@@ -478,8 +482,8 @@ export class SkuOfferSectionComponent {
       const unmatched =
         problem.status === 400
           ? applyServerErrors(this.priceForm, problem, {
-            fields: { 'salePrice.amount': 'salePrice', 'listPrice.amount': 'listPrice' }
-          })
+              fields: { 'salePrice.amount': 'salePrice', 'listPrice.amount': 'listPrice' },
+            })
           : (problem.errors ?? []);
       this.priceProblem.set({ ...problem, errors: unmatched });
     } finally {
@@ -523,8 +527,8 @@ export class SkuOfferSectionComponent {
         schedulePromotion({
           path: { skuId: this.skuId() },
           headers: ifMatch(this.#version()),
-          body: { salePrice, startsAt, endsAt }
-        })
+          body: { salePrice, startsAt, endsAt },
+        }),
       );
       await this.load(this.skuId(), true);
       this.scheduling.set(false);
@@ -534,7 +538,9 @@ export class SkuOfferSectionComponent {
       const problem = toProblem(error);
       const unmatched =
         problem.status === 400
-          ? applyServerErrors(this.promotionForm, problem, { fields: { 'salePrice.amount': 'salePrice' } })
+          ? applyServerErrors(this.promotionForm, problem, {
+              fields: { 'salePrice.amount': 'salePrice' },
+            })
           : (problem.errors ?? []);
       this.promotionProblem.set({ ...problem, errors: unmatched });
     } finally {
@@ -560,8 +566,8 @@ export class SkuOfferSectionComponent {
       const result = await apiDataWithVersion(
         cancelPromotion({
           path: { skuId: this.skuId(), promotionId: promotion.id },
-          headers: ifMatch(this.#version())
-        })
+          headers: ifMatch(this.#version()),
+        }),
       );
       this.#acceptWrite(result, true);
       this.#toast.success('Promoção cancelada.');
@@ -590,7 +596,7 @@ export class SkuOfferSectionComponent {
     }
     this.priceForm.reset({
       listPrice: result?.data.price?.listPrice?.amount ?? null,
-      salePrice: result?.data.price?.salePrice?.amount ?? null
+      salePrice: result?.data.price?.salePrice?.amount ?? null,
     });
   }
 }

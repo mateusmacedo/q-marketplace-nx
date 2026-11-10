@@ -6,8 +6,8 @@ services:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     deploy:
       resources:
-        limits: {cpus: "0.05", memory: 64M}
-        reservations: {memory: 16M}
+        limits: { cpus: "0.05", memory: 64M }
+        reservations: { memory: 16M }
     profiles: [observability, all]
     environment:
       DATA_SOURCE_NAME: postgresql://exporter:${POSTGRES_EXPORTER_PASSWORD:-exporter-local-postgres}@postgres:5432/marketplace?sslmode=disable
@@ -17,8 +17,8 @@ services:
     image: oliver006/redis_exporter:v1.91.1@sha256:c67a432dba6b4ae30f471e3c77cf14a289133bbeeb89abb0bb03e6092efb2836
     deploy:
       resources:
-        limits: {cpus: "0.05", memory: 64M}
-        reservations: {memory: 16M}
+        limits: { cpus: "0.05", memory: 64M }
+        reservations: { memory: 16M }
     profiles: [observability, all]
     command: ["--redis.addr=redis://redis:6379", "--redis.user=exporter"]
     environment:
@@ -30,8 +30,8 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.52.1@sha256:f40e65878e25c2e78ea037f73a449527a0fb994e303dc3e34cb6b187b4b91435
     deploy:
       resources:
-        limits: {cpus: "0.15", memory: 256M}
-        reservations: {memory: 64M}
+        limits: { cpus: "0.15", memory: 256M }
+        reservations: { memory: 64M }
     profiles: [observability, all]
     privileged: true
     command:

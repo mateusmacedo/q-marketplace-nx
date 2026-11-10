@@ -11,7 +11,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       <p class="mb-2">{{ message() }}</p>
       <ng-content />
     </div>
-  `
+  `,
 })
 export class EmptyStateComponent {
   readonly message = input.required<string>();

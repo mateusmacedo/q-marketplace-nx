@@ -15,7 +15,7 @@ import {
   PRODUCT_ATTRIBUTE,
   type Product,
   uniqueSuffix,
-  VARIANT_ATTRIBUTE
+  VARIANT_ATTRIBUTE,
 } from './support/catalog-data';
 import { expect, test } from './support/fixtures';
 import { openPanel, sidebarNav } from './support/panel';
@@ -23,9 +23,15 @@ import { openPanel, sidebarNav } from './support/panel';
 test.use({ user: 'seller-demo' });
 
 test.describe('loja do seller-demo', () => {
-  test('a situação da loja mostra Aprovada com os efeitos que o servidor calcula', async ({ page }) => {
+  test('a situação da loja mostra Aprovada com os efeitos que o servidor calcula', async ({
+    page,
+  }) => {
     const eligibility = await getStoreEligibility();
-    expect(eligibility).toMatchObject({ status: 'APPROVED', canPublish: true, visibleInStorefront: true });
+    expect(eligibility).toMatchObject({
+      status: 'APPROVED',
+      canPublish: true,
+      visibleInStorefront: true,
+    });
 
     await openPanel(page);
     await sidebarNav(page).getByRole('link', { name: 'Situação da loja' }).click();
@@ -33,12 +39,14 @@ test.describe('loja do seller-demo', () => {
     await expect(page).toHaveURL(/\/loja\/situacao$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Situação da loja' })).toBeVisible();
     await expect(page.getByText('Aprovada', { exact: true })).toBeVisible();
-    await expect(page.getByText('Produtos aprovados vão para a vitrine, e os pausados podem ser reativados.')).toBeVisible();
+    await expect(
+      page.getByText('Produtos aprovados vão para a vitrine, e os pausados podem ser reativados.'),
+    ).toBeVisible();
     await expect(page.getByText('Os produtos ativos aparecem na vitrine.')).toBeVisible();
   });
 
   test('o Início mostra os indicadores da loja e o rascunho recém-criado entre os atualizados por último', async ({
-    page
+    page,
   }) => {
     const category = await createCategory();
     const draft = await createDraftProduct({ category, title: `Início E2E ${uniqueSuffix()}` });
@@ -49,7 +57,9 @@ test.describe('loja do seller-demo', () => {
       await expect(page.getByRole('button', { name: `Opções de ${title}` })).toBeVisible();
     }
     await expect(page.getByText('Produtos atualizados por último')).toBeVisible();
-    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: draft.title, exact: true }) });
+    const row = page
+      .getByRole('row')
+      .filter({ has: page.getByRole('link', { name: draft.title, exact: true }) });
     await expect(row).toContainText('Rascunho');
     await expect(row).toContainText(`${category.name} | 0 SKUs`);
     await expect(row).toContainText('Sem preço');
@@ -57,8 +67,11 @@ test.describe('loja do seller-demo', () => {
     await page.getByRole('button', { name: 'Opções de Em rascunho' }).click();
     await page.getByRole('link', { name: 'Ver os rascunhos' }).click();
     await expect(page).toHaveURL(/\/loja\/produtos\?status=DRAFT$/);
-    await expect(page.getByRole('navigation', { name: 'Status dos produtos' }).getByRole('link', { name: 'Rascunho', exact: true }))
-      .toHaveAttribute('aria-current', 'page');
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Status dos produtos' })
+        .getByRole('link', { name: 'Rascunho', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
 
     await openPanel(page, '/inicio');
     await page.getByRole('link', { name: draft.title, exact: true }).click();
@@ -66,7 +79,9 @@ test.describe('loja do seller-demo', () => {
     await expect(productHeading(page)).toContainText(draft.title);
   });
 
-  test('novo produto pelo modal resolve as pendências do servidor e vai para a moderação', async ({ page }) => {
+  test('novo produto pelo modal resolve as pendências do servidor e vai para a moderação', async ({
+    page,
+  }) => {
     const category = await createCategory();
     const suffix = uniqueSuffix();
     const title = `Novo E2E ${suffix}`;
@@ -91,11 +106,15 @@ test.describe('loja do seller-demo', () => {
     for (const message of issueMessages(created)) {
       await expect(checklistItem(page, message)).toBeVisible();
     }
-    await expect(page.getByText('Conferido pelo servidor com as regras de publicação.')).toBeVisible();
+    await expect(
+      page.getByText('Conferido pelo servidor com as regras de publicação.'),
+    ).toBeVisible();
 
     await page.getByLabel(PRODUCT_ATTRIBUTE.label).fill('Acme');
     await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-    await expect.poll(async () => (await getProduct(productId)).attributes[PRODUCT_ATTRIBUTE.code]).toBe('Acme');
+    await expect
+      .poll(async () => (await getProduct(productId)).attributes[PRODUCT_ATTRIBUTE.code])
+      .toBe('Acme');
     await expect(checklistItem(page, issueMessage(created, 'missing-attribute'))).toHaveCount(0);
     await expect(checklistItem(page, issueMessage(created, 'no-sku'))).toBeVisible();
 
@@ -115,7 +134,7 @@ test.describe('loja do seller-demo', () => {
     const skuButton = page.getByRole('button', { name: sellerSku, exact: true });
     await expect(skuButton).toBeVisible();
     const withSku = await getProduct(productId);
-    expect(withSku.skus.map(sku => sku.sellerSku)).toEqual([sellerSku]);
+    expect(withSku.skus.map((sku) => sku.sellerSku)).toEqual([sellerSku]);
     expect(issueCodes(withSku)).not.toContain('no-sku');
     expect(issueCodes(withSku).length).toBeGreaterThan(0);
     for (const message of issueMessages(withSku)) {
@@ -147,10 +166,14 @@ test.describe('loja do seller-demo', () => {
     expect((await getProduct(productId)).status).toBe('PENDING_MODERATION');
   });
 
-  test('a busca pelo título acha os produtos, e o lote pausa e reativa os dois ativos', async ({ page }) => {
+  test('a busca pelo título acha os produtos, e o lote pausa e reativa os dois ativos', async ({
+    page,
+  }) => {
     const category = await createCategory();
     const base = `Lote E2E ${uniqueSuffix()}`;
-    const products = await Promise.all([`${base} A`, `${base} B`].map(title => createActiveProduct(category, title)));
+    const products = await Promise.all(
+      [`${base} A`, `${base} B`].map((title) => createActiveProduct(category, title)),
+    );
 
     await openPanel(page, '/loja/produtos');
     await page.getByRole('searchbox', { name: 'Buscar por título ou SKU' }).fill(base);
@@ -186,12 +209,22 @@ test.describe('loja do seller-demo', () => {
   });
 
   test('a planilha no formato do modelo cria a linha válida, recusa a inválida com a mensagem do servidor e leva ao produto', async ({
-    page
+    page,
   }) => {
     const category = await createCategory();
     const suffix = uniqueSuffix();
-    const valid = { ref: `ref-${suffix}-a`, title: `Importado E2E ${suffix}`, sku: `IMP-${suffix}-A`, variant: 'P' };
-    const invalid = { ref: `ref-${suffix}-b`, title: `Recusado E2E ${suffix}`, sku: `IMP-${suffix}-B`, variant: 'XG' };
+    const valid = {
+      ref: `ref-${suffix}-a`,
+      title: `Importado E2E ${suffix}`,
+      sku: `IMP-${suffix}-A`,
+      variant: 'P',
+    };
+    const invalid = {
+      ref: `ref-${suffix}-b`,
+      title: `Recusado E2E ${suffix}`,
+      sku: `IMP-${suffix}-B`,
+      variant: 'XG',
+    };
 
     await openPanel(page, '/loja/importacoes');
     const download = page.waitForEvent('download');
@@ -203,9 +236,19 @@ test.describe('loja do seller-demo', () => {
     const csv = csvFrom(columns, [csvLine(category, valid), csvLine(category, invalid)]);
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Enviar planilha' }).click();
-    await (await chooser).setFiles({ name: `importacao-${suffix}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv) });
+    await (
+      await chooser
+    ).setFiles({
+      name: `importacao-${suffix}.csv`,
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv),
+    });
 
-    await expect(page.getByText(`A planilha importacao-${suffix}.csv foi recebida e será processada em instantes.`)).toBeVisible();
+    await expect(
+      page.getByText(
+        `A planilha importacao-${suffix}.csv foi recebida e será processada em instantes.`,
+      ),
+    ).toBeVisible();
     const createdRow = page.getByRole('row').filter({ hasText: valid.sku });
     const failedRow = page.getByRole('row').filter({ hasText: invalid.sku });
     await expect(createdRow).toContainText('Criada');
@@ -214,7 +257,9 @@ test.describe('loja do seller-demo', () => {
     await page.getByRole('link', { name: /^Lote de / }).click();
     await expect(page).toHaveURL(/\/loja\/importacoes\/[0-9a-f-]{36}$/);
     await expect(page.getByText('Concluída', { exact: true })).toBeVisible();
-    const report = await apiAs('seller-demo').get<ImportReport>(`/products/imports/${lastPathSegment(page)}`);
+    const report = await apiAs('seller-demo').get<ImportReport>(
+      `/products/imports/${lastPathSegment(page)}`,
+    );
     const createdLine = lineOf(report, valid.sku);
     const failedLine = lineOf(report, invalid.sku);
     expect(createdLine).toMatchObject({ outcome: 'CREATED', productId: expect.any(String) });
@@ -267,7 +312,9 @@ function checklistItem(page: Page, message: string) {
 }
 
 function productRow(page: Page, product: Product) {
-  return page.getByRole('row').filter({ has: page.getByRole('link', { name: product.title, exact: true }) });
+  return page
+    .getByRole('row')
+    .filter({ has: page.getByRole('link', { name: product.title, exact: true }) });
 }
 
 async function selectProducts(page: Page, products: readonly Product[]): Promise<void> {
@@ -284,19 +331,19 @@ async function createActiveProduct(category: Category, title: string): Promise<P
 }
 
 async function statusesOf(products: readonly Product[]): Promise<string[]> {
-  return Promise.all(products.map(async product => (await getProduct(product)).status));
+  return Promise.all(products.map(async (product) => (await getProduct(product)).status));
 }
 
 function issueCodes(product: Product): string[] {
-  return (product.publishingIssues ?? []).map(issue => issue.code);
+  return (product.publishingIssues ?? []).map((issue) => issue.code);
 }
 
 function issueMessages(product: Product): string[] {
-  return (product.publishingIssues ?? []).map(issue => issue.message);
+  return (product.publishingIssues ?? []).map((issue) => issue.message);
 }
 
 function issueMessage(product: Product, code: string): string {
-  const issue = product.publishingIssues?.find(item => item.code === code);
+  const issue = product.publishingIssues?.find((item) => item.code === code);
   if (!issue) {
     throw new Error(`O produto ${product.id} não tem a pendência ${code}`);
   }
@@ -314,11 +361,11 @@ function productIdFromUrl(page: Page): string {
 
 /** Mensagens de cada motivo da recusa da linha, na ordem do servidor. */
 function reasonMessages(line: ImportLine): string[] {
-  return (line.reasonDetails ?? []).map(reason => String(reason.message));
+  return (line.reasonDetails ?? []).map((reason) => String(reason.message));
 }
 
 function lineOf(report: ImportReport, sellerSku: string): ImportLine {
-  const line = report.lines.find(item => item.sellerSku === sellerSku);
+  const line = report.lines.find((item) => item.sellerSku === sellerSku);
   if (!line) {
     throw new Error(`O lote ${report.id} não tem a linha do SKU ${sellerSku}`);
   }
@@ -343,12 +390,15 @@ function csvLine(category: Category, product: CsvProduct): Readonly<Record<strin
     currency: 'BRL',
     list_price: '79.90',
     sale_price: '59.90',
-    on_hand: '5'
+    on_hand: '5',
   };
 }
 
 /** CSV na ordem das colunas do modelo baixado, com a quebra CRLF do modelo; coluna sem valor fica vazia. */
-function csvFrom(columns: readonly string[], lines: readonly Readonly<Record<string, string>>[]): string {
-  const rows = lines.map(line => columns.map(column => line[column] ?? '').join(','));
+function csvFrom(
+  columns: readonly string[],
+  lines: readonly Readonly<Record<string, string>>[],
+): string {
+  const rows = lines.map((line) => columns.map((column) => line[column] ?? '').join(','));
   return [columns.join(','), ...rows].join('\r\n') + '\r\n';
 }

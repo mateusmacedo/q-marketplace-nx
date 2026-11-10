@@ -1,4 +1,3 @@
-
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { DefaultFooterComponent } from './default-footer.component';
@@ -9,7 +8,7 @@ describe('DefaultFooterComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DefaultFooterComponent]
+      imports: [DefaultFooterComponent],
     }).compileComponents();
   });
 

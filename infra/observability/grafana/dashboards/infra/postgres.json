@@ -2,10 +2,7 @@
   "uid": "marketplace-infra-postgres",
   "title": "Marketplace · PostgreSQL",
   "description": "O PostgreSQL compartilhado (banco marketplace, um schema por contexto) pelo postgres-exporter: conexões, volume transacional, cache, locks e WAL. Só no Compose: o Kubernetes não tem postgres-exporter.",
-  "tags": [
-    "marketplace",
-    "infra"
-  ],
+  "tags": ["marketplace", "infra"],
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
@@ -19,9 +16,7 @@
     {
       "title": "Painéis do marketplace",
       "type": "dashboards",
-      "tags": [
-        "marketplace"
-      ],
+      "tags": ["marketplace"],
       "asDropdown": true,
       "keepTime": true,
       "includeVars": true
@@ -44,12 +39,8 @@
         "sort": 1,
         "allValue": ".+",
         "current": {
-          "text": [
-            "marketplace"
-          ],
-          "value": [
-            "marketplace"
-          ]
+          "text": ["marketplace"],
+          "value": ["marketplace"]
         }
       }
     ]
@@ -133,9 +124,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -195,9 +184,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },

@@ -1,9 +1,5 @@
 {
   "name": "identity-organization-application",
   "projectType": "library",
-  "tags": [
-    "scope:identity-organization",
-    "layer:application",
-    "lang:java"
-  ]
+  "tags": ["scope:identity-organization", "layer:application", "lang:java"]
 }

@@ -5,8 +5,8 @@ services:
     image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
     deploy:
       resources:
-        limits: {cpus: "1", memory: 1G}
-        reservations: {memory: 512M}
+        limits: { cpus: "1", memory: 1G }
+        reservations: { memory: 512M }
     profiles: [infra, catalog, all]
     command: ["start-dev", "--import-realm"]
     ports: ["127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"]
@@ -21,11 +21,33 @@ services:
       - ../../keycloak:/opt/keycloak/data/import:ro
       # Tema de login do painel (ADR 028), com o CSS e os ícones do CoreUI do node_modules (exige `npm ci`).
       - ../../keycloak/themes/marketplace:/opt/keycloak/themes/marketplace:ro
-      - {type: bind, source: ../../../node_modules/@coreui/coreui/dist/css, target: /opt/keycloak/themes/coreui/common/resources/css, read_only: true, bind: {create_host_path: false}}
-      - {type: bind, source: ../../../node_modules/@coreui/icons/css, target: /opt/keycloak/themes/coreui/common/resources/icons/css, read_only: true, bind: {create_host_path: false}}
-      - {type: bind, source: ../../../node_modules/@coreui/icons/fonts, target: /opt/keycloak/themes/coreui/common/resources/icons/fonts, read_only: true, bind: {create_host_path: false}}
+      - {
+          type: bind,
+          source: ../../../node_modules/@coreui/coreui/dist/css,
+          target: /opt/keycloak/themes/coreui/common/resources/css,
+          read_only: true,
+          bind: { create_host_path: false },
+        }
+      - {
+          type: bind,
+          source: ../../../node_modules/@coreui/icons/css,
+          target: /opt/keycloak/themes/coreui/common/resources/icons/css,
+          read_only: true,
+          bind: { create_host_path: false },
+        }
+      - {
+          type: bind,
+          source: ../../../node_modules/@coreui/icons/fonts,
+          target: /opt/keycloak/themes/coreui/common/resources/icons/fonts,
+          read_only: true,
+          bind: { create_host_path: false },
+        }
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 40

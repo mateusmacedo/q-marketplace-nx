@@ -5,7 +5,7 @@ package dev.marketplace.cataloginventory.application;
  * reler e repetir.
  */
 public class ConcurrentUpdateException extends RuntimeException {
-    public ConcurrentUpdateException() {
-        super("O recurso foi alterado por outra operação; releia e tente novamente");
-    }
+  public ConcurrentUpdateException() {
+    super("O recurso foi alterado por outra operação; releia e tente novamente");
+  }
 }

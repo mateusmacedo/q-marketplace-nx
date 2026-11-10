@@ -11,26 +11,26 @@ import java.util.stream.Stream;
  * (o rótulo do atributo), o texto pronto; sem ele, vale o texto do código.
  */
 public record Reason(String code, List<String> params, String message) {
-    public Reason {
-        Objects.requireNonNull(code, "code");
-        params = List.copyOf(params);
-    }
+  public Reason {
+    Objects.requireNonNull(code, "code");
+    params = List.copyOf(params);
+  }
 
-    /** Motivo sem texto próprio; cada parâmetro vira texto. */
-    public static Reason of(ReasonCode code, Object... params) {
-        return new Reason(code.code(), Stream.of(params).map(String::valueOf).toList(), null);
-    }
+  /** Motivo sem texto próprio; cada parâmetro vira texto. */
+  public static Reason of(ReasonCode code, Object... params) {
+    return new Reason(code.code(), Stream.of(params).map(String::valueOf).toList(), null);
+  }
 
-    /** Cópia com o texto pronto para quem lê a recusa. */
-    public Reason withMessage(String message) {
-        return new Reason(code, params, message);
-    }
+  /** Cópia com o texto pronto para quem lê a recusa. */
+  public Reason withMessage(String message) {
+    return new Reason(code, params, message);
+  }
 
-    /**
-     * Forma compacta usada em {@code reasons}: o código e os parâmetros separados
-     * por dois-pontos ({@code missing-variant-attribute:CAM-P:cor}).
-     */
-    public String key() {
-        return Stream.concat(Stream.of(code), params.stream()).collect(Collectors.joining(":"));
-    }
+  /**
+   * Forma compacta usada em {@code reasons}: o código e os parâmetros separados
+   * por dois-pontos ({@code missing-variant-attribute:CAM-P:cor}).
+   */
+  public String key() {
+    return Stream.concat(Stream.of(code), params.stream()).collect(Collectors.joining(":"));
+  }
 }

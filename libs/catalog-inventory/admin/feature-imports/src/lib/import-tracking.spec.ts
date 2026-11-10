@@ -4,18 +4,31 @@ import {
   createEnvironmentInjector,
   EnvironmentInjector,
   runInInjectionContext,
-  signal
+  signal,
 } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { type ImportLineResponse, provideCatalogInventoryApi } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  type ImportLineResponse,
+  provideCatalogInventoryApi,
+} from '@marketplace/catalog-inventory-admin-data-access';
 
-import { type ImportTracking, POLL_INTERVAL_MS, retryAfterMs, trackImport } from './import-tracking';
+import {
+  type ImportTracking,
+  POLL_INTERVAL_MS,
+  retryAfterMs,
+  trackImport,
+} from './import-tracking';
 import { API, importProgress, importReport, settle } from './testing';
 
 const B1 = `${API}/products/imports/b1`;
 const B1_PROGRESS = `${B1}?lines=false`;
 const B2 = `${API}/products/imports/b2`;
-const LINE: ImportLineResponse = { lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' };
+const LINE: ImportLineResponse = {
+  lineNumber: 2,
+  sellerSku: 'CAM-P',
+  outcome: 'CREATED',
+  productId: 'p1',
+};
 
 describe('retryAfterMs', () => {
   it('lê o Retry-After em segundos ou como data HTTP e ignora o valor que não se lê', () => {
@@ -45,7 +58,7 @@ describe('acompanhamento do lote', () => {
     hidden = false;
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     injector = createEnvironmentInjector([], TestBed.inject(EnvironmentInjector));
@@ -123,7 +136,9 @@ describe('acompanhamento do lote', () => {
   });
 
   it('segue o Retry-After da resposta quando o servidor manda', async () => {
-    http.expectOne(B1_PROGRESS).flush(importProgress('PROCESSING'), { headers: { 'Retry-After': '5' } });
+    http
+      .expectOne(B1_PROGRESS)
+      .flush(importProgress('PROCESSING'), { headers: { 'Retry-After': '5' } });
     await settle();
 
     await advance(POLL_INTERVAL_MS);
@@ -195,12 +210,15 @@ describe('acompanhamento do lote', () => {
   });
 
   it('mostra o problema do servidor quando o lote não existe', async () => {
-    http
-      .expectOne(B1_PROGRESS)
-      .flush(
-        { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', status: 404, detail: 'Importação não encontrada' },
-        { status: 404, statusText: 'Not Found' }
-      );
+    http.expectOne(B1_PROGRESS).flush(
+      {
+        type: 'https://marketplace.dev/problems/not-found',
+        title: 'Não encontrado',
+        status: 404,
+        detail: 'Importação não encontrada',
+      },
+      { status: 404, statusText: 'Not Found' },
+    );
     await settle();
 
     expect(tracking.report()).toBeUndefined();

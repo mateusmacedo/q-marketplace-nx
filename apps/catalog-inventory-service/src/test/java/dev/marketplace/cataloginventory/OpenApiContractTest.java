@@ -17,17 +17,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @QuarkusTest
 class OpenApiContractTest {
-    @Test
-    void generatedSpecMatchesVersionedContract() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-        JsonNode generated = mapper.readTree(given().queryParam("format", "json").get("/q/openapi")
-                .then().statusCode(200).extract().asString());
-        Path contract = Path.of(System.getProperty("contract.file"));
-        if (Boolean.getBoolean("contract.update")) {
-            Files.writeString(contract, mapper.writeValueAsString(generated) + "\n");
-        }
-        assertEquals(mapper.readTree(Files.readString(contract)), generated,
-                "OpenAPI gerada diverge de " + contract
-                        + "; rode o teste com -Dcontract.update=true se a mudança for intencional");
+  @Test
+  void generatedSpecMatchesVersionedContract() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+    JsonNode generated = mapper.readTree(given().queryParam("format", "json").get("/q/openapi")
+        .then().statusCode(200).extract().asString());
+    Path contract = Path.of(System.getProperty("contract.file"));
+    if (Boolean.getBoolean("contract.update")) {
+      Files.writeString(contract, mapper.writeValueAsString(generated) + "\n");
     }
+    assertEquals(mapper.readTree(Files.readString(contract)), generated,
+        "OpenAPI gerada diverge de " + contract
+            + "; rode o teste com -Dcontract.update=true se a mudança for intencional");
+  }
 }

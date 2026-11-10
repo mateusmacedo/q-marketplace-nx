@@ -4,7 +4,7 @@ import type {
   ModerationStatsResponse,
   MonthValueResponse,
   StatusCountsResponse,
-  StoreStatsResponse
+  StoreStatsResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 
 import type { HomeLinks } from './home-links';
@@ -44,33 +44,43 @@ export function storeIndicators(stats: StoreStatsResponse, links: HomeLinks): Ho
   return inOrder([
     fromServer('active', 'Produtos ativos', stats.active, [
       list('Ver os ativos', 'ACTIVE'),
-      list('Ver os pausados', 'PAUSED_BY_SELLER')
+      list('Ver os pausados', 'PAUSED_BY_SELLER'),
     ]),
     fromServer('draft', 'Em rascunho', stats.draft, [list('Ver os rascunhos', 'DRAFT')]),
-    fromServer('outOfStock', 'Sem estoque', stats.outOfStock, [list('Ver os sem estoque', 'OUT_OF_STOCK')]),
-    fromServer('blocked', 'Bloqueados', stats.blocked, [list('Ver os bloqueados', 'BLOCKED')])
+    fromServer('outOfStock', 'Sem estoque', stats.outOfStock, [
+      list('Ver os sem estoque', 'OUT_OF_STOCK'),
+    ]),
+    fromServer('blocked', 'Bloqueados', stats.blocked, [list('Ver os bloqueados', 'BLOCKED')]),
   ]);
 }
 
 // WHY: cópia pendente (ADR 031); saída: lista indicators em /stats/store, /stats/moderation e /stats/categories (code,
 // label, value, previous, change e months), com o painel mapeando code para ícone e cor.
 /** Fila e decisões do mês da moderação (`GET /stats/moderation`). */
-export function moderationIndicators(stats: ModerationStatsResponse, links: HomeLinks): HomeIndicator[] {
+export function moderationIndicators(
+  stats: ModerationStatsResponse,
+  links: HomeLinks,
+): HomeIndicator[] {
   const queue = link('Abrir a fila', links.moderationQueue);
   return inOrder([
     fromServer('queue', 'Na fila de moderação', stats.queue, [queue]),
-    fromServer('approved', 'Aprovados no mês', stats.approved, [link('Ver os produtos', links.tenantProducts)]),
+    fromServer('approved', 'Aprovados no mês', stats.approved, [
+      link('Ver os produtos', links.tenantProducts),
+    ]),
     fromServer('rejected', 'Rejeitados no mês', stats.rejected, [queue]),
     fromServer('blocked', 'Bloqueados no mês', stats.blocked, [
-      link('Ver os bloqueados', links.tenantProducts, { status: 'BLOCKED' })
-    ])
+      link('Ver os bloqueados', links.tenantProducts, { status: 'BLOCKED' }),
+    ]),
   ]);
 }
 
 // WHY: cópia pendente (ADR 031); saída: lista indicators em /stats/store, /stats/moderation e /stats/categories (code,
 // label, value, previous, change e months), com o painel mapeando code para ícone e cor.
 /** Números da árvore de categorias (`GET /stats/categories`), que não trazem variação nem série. */
-export function categoryIndicators(stats: CategoryStatsResponse, links: HomeLinks): HomeIndicator[] {
+export function categoryIndicators(
+  stats: CategoryStatsResponse,
+  links: HomeLinks,
+): HomeIndicator[] {
   const tree = link('Abrir as categorias', links.categories);
   return inOrder([
     { key: 'total', title: 'Categorias', value: stats.total ?? 0, links: compact([tree]) },
@@ -80,8 +90,8 @@ export function categoryIndicators(stats: CategoryStatsResponse, links: HomeLink
       key: 'withProducts',
       title: 'Com produtos',
       value: stats.withProducts ?? 0,
-      links: compact([link('Ver os produtos', links.tenantProducts)])
-    }
+      links: compact([link('Ver os produtos', links.tenantProducts)]),
+    },
   ]);
 }
 
@@ -101,14 +111,14 @@ export function statusShares(counts: StatusCountsResponse): StatusShare[] {
     label,
     count: count ?? 0,
     percent: total > 0 ? Math.round(((count ?? 0) * 100) / total) : 0,
-    color
+    color,
   });
   return [
     share('Ativos', counts.active, 'success'),
     share('Em rascunho', counts.draft, 'info'),
     share('Em moderação', counts.pendingModeration, 'warning'),
     share('Bloqueados', counts.blocked, 'danger'),
-    share('Pausados', counts.pausedBySeller, 'primary')
+    share('Pausados', counts.pausedBySeller, 'primary'),
   ];
 }
 
@@ -116,7 +126,7 @@ function fromServer(
   key: string,
   title: string,
   indicator: IndicatorResponse | undefined,
-  links: readonly (IndicatorLink | undefined)[]
+  links: readonly (IndicatorLink | undefined)[],
 ): IndicatorDraft {
   const hasChange =
     indicator?.previous !== null &&
@@ -129,11 +139,15 @@ function fromServer(
     value: indicator?.value ?? 0,
     change: hasChange ? (indicator.change ?? undefined) : undefined,
     months: indicator?.months?.length ? indicator.months : undefined,
-    links: compact(links)
+    links: compact(links),
   };
 }
 
-function link(label: string, url: string | undefined, query?: Record<string, string>): IndicatorLink | undefined {
+function link(
+  label: string,
+  url: string | undefined,
+  query?: Record<string, string>,
+): IndicatorLink | undefined {
   return url ? { label, url, ...(query ? { query } : {}) } : undefined;
 }
 

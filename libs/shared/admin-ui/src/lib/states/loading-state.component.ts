@@ -17,12 +17,14 @@ const WIDTHS = [12, 10, 11, 8, 9, 7];
         </p>
       }
     </div>
-  `
+  `,
 })
 export class LoadingStateComponent {
   readonly rows = input(5);
   /** Texto para leitor de tela. */
   readonly label = input('Carregando…');
 
-  readonly widths = computed(() => Array.from({ length: this.rows() }, (_, index) => WIDTHS[index % WIDTHS.length]));
+  readonly widths = computed(() =>
+    Array.from({ length: this.rows() }, (_, index) => WIDTHS[index % WIDTHS.length]),
+  );
 }

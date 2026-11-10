@@ -12,9 +12,15 @@ describe('ordem das listas', () => {
 
   it('inverte a coluna ativa e usa a ordem padrão em outra coluna', () => {
     const current = parseSort('-updatedAt');
-    expect(nextSort(current, 'updatedAt', 'desc')).toEqual({ field: 'updatedAt', direction: 'asc' });
+    expect(nextSort(current, 'updatedAt', 'desc')).toEqual({
+      field: 'updatedAt',
+      direction: 'asc',
+    });
     expect(nextSort(current, 'title', 'asc')).toEqual({ field: 'title', direction: 'asc' });
-    expect(nextSort(current, 'createdAt', 'desc')).toEqual({ field: 'createdAt', direction: 'desc' });
+    expect(nextSort(current, 'createdAt', 'desc')).toEqual({
+      field: 'createdAt',
+      direction: 'desc',
+    });
     expect(nextSort(null, 'title', 'asc')).toEqual({ field: 'title', direction: 'asc' });
   });
 });

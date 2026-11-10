@@ -4,7 +4,7 @@ import {
   formatDateTime,
   formatShortDateTime,
   formatTime,
-  type Instant
+  type Instant,
 } from '@marketplace/shared-web-util';
 
 /** Forma da data: `full` "08/11/2026 14:02", `short` "08/11 14:02", `date` "08/11/2026" e `time` "14:02". */
@@ -14,7 +14,7 @@ const FORMATS: Readonly<Record<DateTimeFormat, (instant: Instant | null | undefi
   full: formatDateTime,
   short: formatShortDateTime,
   date: formatDate,
-  time: formatTime
+  time: formatTime,
 };
 
 /** Data e hora no fuso de São Paulo (ADR 028): `{{ product.updatedAt | dateTime: 'short' }}`. */

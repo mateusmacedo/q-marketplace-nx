@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { AlertComponent, ButtonDirective, CardBodyComponent, CardComponent } from '@coreui/angular';
 import { cilPlus } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -8,7 +16,7 @@ import {
   listProductsResource,
   type ProductBatchAction,
   ProductBatchRequestSchema,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   abortOnDestroy,
@@ -29,7 +37,7 @@ import {
   ProblemAlertComponent,
   serverActionMenu,
   ToastService,
-  warnBeforeUnload
+  warnBeforeUnload,
 } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -39,7 +47,7 @@ import {
   plural,
   type Problem,
   runBatch,
-  toProblem
+  toProblem,
 } from '@marketplace/shared-web-util';
 
 import { NewProductModalComponent } from '../new-product/new-product-modal.component';
@@ -47,11 +55,16 @@ import {
   PRODUCT_BATCH_PRESENTATIONS,
   type ProductActionPresentation,
   productActionPresentation,
-  productActionPresentations
+  productActionPresentations,
 } from '../product-actions';
 import { ProductActionRunner } from './product-action-runner';
 import { ProductListFiltersComponent } from './product-list-filters.component';
-import { emptyListMessage, productListRequest, searchError, selectionScope } from './product-list-query';
+import {
+  emptyListMessage,
+  productListRequest,
+  searchError,
+  selectionScope,
+} from './product-list-query';
 import { injectProductListRoute } from './product-list-route';
 import { type ProductRowAction, ProductTableComponent } from './product-table.component';
 
@@ -62,7 +75,11 @@ const LIST_ACTIONS = productActionPresentations('list');
 
 /** Ação que pede o modal de confirmação antes da chamada: de um produto ou dos selecionados. */
 type PendingConfirmation =
-  | { readonly kind: 'item'; readonly product: ProductResponse; readonly action: ProductActionPresentation }
+  | {
+      readonly kind: 'item';
+      readonly product: ProductResponse;
+      readonly action: ProductActionPresentation;
+    }
   | { readonly kind: 'batch'; readonly action: ProductActionPresentation; readonly count: number };
 
 /**
@@ -90,7 +107,7 @@ type PendingConfirmation =
     NewProductModalComponent,
     ProblemAlertComponent,
     ProductListFiltersComponent,
-    ProductTableComponent
+    ProductTableComponent,
   ],
   template: `
     <c-card class="mb-4">
@@ -207,7 +224,7 @@ type PendingConfirmation =
     </app-confirm-modal>
 
     <app-new-product-modal (created)="openCreated($event)" [(visible)]="newProductOpen" />
-  `
+  `,
 })
 export class ProductListPageComponent implements LeaveGuarded {
   readonly #session = inject(AdminSession);
@@ -232,10 +249,10 @@ export class ProductListPageComponent implements LeaveGuarded {
   });
   /** Só a resposta do servidor liga o aviso; sem ela, como numa falha da consulta, a tela segue sem aviso. */
   readonly storeNotApproved = computed(
-    () => this.eligibility.hasValue() && this.eligibility.value()?.canPublish === false
+    () => this.eligibility.hasValue() && this.eligibility.value()?.canPublish === false,
   );
 
-  readonly selection = new ListSelection<ProductResponse>({ id: product => product.id ?? '' });
+  readonly selection = new ListSelection<ProductResponse>({ id: (product) => product.id ?? '' });
   readonly batchActions = computed(() => this.selection.batchActions(PRODUCT_BATCH_PRESENTATIONS));
   readonly running = signal<ProductBatchAction | null>(null);
   readonly failures = signal<readonly BatchFailure[]>([]);
@@ -355,22 +372,31 @@ export class ProductListPageComponent implements LeaveGuarded {
     this.running.set(action);
     const run = await runBatch({
       items,
-      id: product => product.id ?? '',
+      id: (product) => product.id ?? '',
       size: BATCH_SIZE,
       signal: this.#abort,
-      send: group =>
+      send: (group) =>
         apiData(
           batchProducts({
-            body: { action, items: group.map(product => ({ id: product.id ?? '', version: product.version })) }
-          })
-        ).then(response => response.results)
+            body: {
+              action,
+              items: group.map((product) => ({ id: product.id ?? '', version: product.version })),
+            },
+          }),
+        ).then((response) => response.results),
     });
     this.running.set(null);
     if (this.#abort.aborted) {
       return;
     }
     this.selection.completeBatch(run);
-    this.failures.set(batchFailures(run.failed, product => product.id ?? '', product => product.title ?? ''));
+    this.failures.set(
+      batchFailures(
+        run.failed,
+        (product) => product.id ?? '',
+        (product) => product.title ?? '',
+      ),
+    );
     this.batchProblem.set(run.error ?? null);
     const counts = batchRunCounts(run, ignored);
     const summary = batchSummary(counts, presentation.done);

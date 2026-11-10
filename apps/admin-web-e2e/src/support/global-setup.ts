@@ -19,25 +19,42 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:4200';
   const probes: Probe[] = [
     { name: 'gateway', url: `${E2E_ENV.gatewayUrl}/healthz`, expected: [200], hint: STACK_HINT },
-    { name: 'API do catálogo pelo gateway', url: `${CATALOG_API_URL}/me`, expected: [401], hint: STACK_HINT },
+    {
+      name: 'API do catálogo pelo gateway',
+      url: `${CATALOG_API_URL}/me`,
+      expected: [401],
+      hint: STACK_HINT,
+    },
     {
       name: 'Keycloak',
       url: `${KEYCLOAK_REALM_URL}/.well-known/openid-configuration`,
       expected: [200],
-      hint: STACK_HINT
+      hint: STACK_HINT,
     },
-    { name: 'dev server do painel', url: baseURL, expected: [200], hint: 'rode `npm run dev:admin`' }
+    {
+      name: 'dev server do painel',
+      url: baseURL,
+      expected: [200],
+      hint: 'rode `npm run dev:admin`',
+    },
   ];
-  const failures = (await Promise.all(probes.map(check))).filter((failure): failure is string => failure !== undefined);
+  const failures = (await Promise.all(probes.map(check))).filter(
+    (failure): failure is string => failure !== undefined,
+  );
   if (failures.length > 0) {
-    throw new Error(`Ambiente do e2e fora do ar:\n${failures.map(failure => `  - ${failure}`).join('\n')}`);
+    throw new Error(
+      `Ambiente do e2e fora do ar:\n${failures.map((failure) => `  - ${failure}`).join('\n')}`,
+    );
   }
   await ensureSellerStoreApproved();
 }
 
 async function check(probe: Probe): Promise<string | undefined> {
   try {
-    const response = await fetch(probe.url, { signal: AbortSignal.timeout(5_000), redirect: 'manual' });
+    const response = await fetch(probe.url, {
+      signal: AbortSignal.timeout(5_000),
+      redirect: 'manual',
+    });
     if (probe.expected.includes(response.status)) {
       return undefined;
     }

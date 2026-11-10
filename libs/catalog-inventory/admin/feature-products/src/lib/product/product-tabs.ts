@@ -2,5 +2,5 @@
 export const PRODUCT_TABS = [
   { path: 'conteudo', label: 'Conteúdo' },
   { path: 'skus', label: 'SKUs, preço e estoque' },
-  { path: 'historico', label: 'Histórico' }
+  { path: 'historico', label: 'Histórico' },
 ] as const;

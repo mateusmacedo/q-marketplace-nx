@@ -4,16 +4,19 @@ import {
   CardBodyComponent,
   CardComponent,
   ListGroupDirective,
-  ListGroupItemDirective
+  ListGroupItemDirective,
 } from '@coreui/angular';
-import { productHistoryResource, type StatusChangeResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  productHistoryResource,
+  type StatusChangeResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { productStatusLabel, transitionActorLabel } from '@marketplace/catalog-inventory-admin-ui';
 import {
   DateTimePipe,
   EmptyStateComponent,
   ErrorStateComponent,
   LoadingStateComponent,
-  RelativeTimePipe
+  RelativeTimePipe,
 } from '@marketplace/shared-admin-ui';
 import { toProblem } from '@marketplace/shared-web-util';
 
@@ -38,7 +41,7 @@ import { ProductStore } from './product-store';
     ListGroupDirective,
     ListGroupItemDirective,
     LoadingStateComponent,
-    RelativeTimePipe
+    RelativeTimePipe,
   ],
   template: `
     <c-card class="mb-4">
@@ -102,7 +105,7 @@ import { ProductStore } from './product-store';
         }
       </c-card-body>
     </c-card>
-  `
+  `,
 })
 export class ProductHistoryTabComponent {
   readonly store = inject(ProductStore);
@@ -118,7 +121,9 @@ export class ProductHistoryTabComponent {
     const error = this.history.error();
     return error ? toProblem(error) : null;
   });
-  readonly entries = computed(() => (this.history.hasValue() ? newestFirst(this.history.value()) : []));
+  readonly entries = computed(() =>
+    this.history.hasValue() ? newestFirst(this.history.value()) : [],
+  );
 
   readonly statusLabel = productStatusLabel;
   readonly label = (entry: StatusChangeResponse) => transitionLabel(entry.transition);
@@ -127,6 +132,10 @@ export class ProductHistoryTabComponent {
 
   /** Cor do item: a rejeição e o bloqueio em destaque. */
   highlight(entry: StatusChangeResponse): string | undefined {
-    return entry.transition === 'BLOCK' ? 'danger' : entry.transition === 'REJECT' ? 'warning' : undefined;
+    return entry.transition === 'BLOCK'
+      ? 'danger'
+      : entry.transition === 'REJECT'
+        ? 'warning'
+        : undefined;
   }
 }

@@ -10,46 +10,46 @@ O painel não repete regra nem catálogo do servidor (ADR 031). As ações permi
 
 ## Decisões
 
-| Tema | Decisão | Custo aceito |
-|---|---|---|
-| Menu lateral | Grupos por área num menu só: **Minha loja**, **Moderação** e **Plataforma**. Cada item aparece se a sessão, lida de `GET /me`, tiver a capacidade que ele exige | Uma chamada a mais no início da sessão, com estado de erro e nova tentativa se ela falhar; quem acumula capacidades vê um menu mais longo |
-| Página inicial | Formato do dashboard do template: 4 indicadores com minigráfico, gráfico principal com rodapé de números e tabela dos produtos atualizados, com os números de `/stats/*` | Os cards de cada papel são campos fixos do contrato até a lista de indicadores (pendente, ver [Valores fixos](#valores-fixos-com-saída-pendente)) |
-| Telas | Pensado para desktop e usável no celular | Editar produto com muitos SKUs no celular dá mais trabalho |
-| Filtros | Abas por status, busca por texto (`q`) e filtros na URL | A busca por texto pede o plano customizado no banco (ADR 006) |
-| Paginação | `c-pagination` do template só com Anterior e Próxima, e 20 ou 50 itens por página ou o máximo do contrato | Sem salto para uma página nem total; o máximo (100) é copiado no painel até ser lido do schema gerado (pendente) |
-| Ações na lista | O título do item é o link que abre o registro, e o dropdown do template (o mesmo dos indicadores) traz as ações que a API devolve em `actions`. A tela individual repete o mesmo menu e mostra a ação principal como botão | Um clique a mais por ação, e a ação principal aparece em dois lugares na tela individual |
-| Ordenação | Pelo backend, clicando no cabeçalho de Produto, Criado e Atualizado, com `sort` na URL e cursor composto. Padrão: Atualizado, mais recente primeiro. A fila de moderação vem em ordem de chegada. É a única parte própria das listas, escolhida pelo usuário, porque só a Smart Table da PRO ordena | Mudança de contrato e de cursor, com índices novos, e um cabeçalho ordenável escrito no projeto |
-| Seleção em lote | Caixas de seleção em Produtos da loja, Fila de moderação e Categorias, com a barra de botões do template (`btn-toolbar`) e o resultado de cada item. Cada grupo de até 100 selecionados vai numa chamada do endpoint em lote | Fechar a aba interrompe os grupos ainda não enviados; o resultado do lote não traz `actions`, e a lista é recarregada no fim; o tamanho do grupo é o `maxItems` do pedido, lido do schema gerado |
-| Tela do produto | Abas (Conteúdo, SKUs, preço e estoque, Histórico) e checklist de envio ao lado, com as pendências calculadas pelo servidor (`publishingIssues` e `POST /products/{id}/check`) | O checklist do formulário não salvo depende de uma chamada à API, com debounce e estado de carregamento |
-| Troca de categoria | Botão **Trocar** ao lado da categoria, com prévia do efeito calculada pelo servidor (`POST /products/{id}/check`): atributos que somem, obrigatórios novos e SKUs incompatíveis, que impedem a troca | A prévia espera a resposta da API ao escolher o destino |
-| Preço e estoque | Painel lateral (offcanvas) por SKU, com mudanças em massa pela planilha | Um SKU por vez na tela |
-| Formulários secundários | Modal para 1 ou 2 campos e confirmações, offcanvas para formulários médios | Dois padrões para seguir |
-| Moderação | Fila e detalhe lado a lado, com avanço automático | Pede tela larga, e no celular vira lista e detalhe |
-| Motivo de moderação | Motivos prontos do catálogo do tenant, lidos de `GET /moderation/reasons` e administrados em **Plataforma > Motivos de moderação**, com complemento livre (ADR 030) | Uma tela a mais em Plataforma para manter o catálogo; o tenant novo começa sem motivos |
-| Categorias | Lista por nível (`list-group`) com breadcrumb e card de detalhe. Escolher categoria em modais usa um `form-select` com o caminho completo | Não mostra a hierarquia inteira de uma vez |
-| Exclusão de categoria | Só da categoria vazia: sem subcategorias e sem nenhum produto, nem arquivado. A categoria já usada só é desativada | Excluir não tem volta |
-| Importação | Envio, andamento, resultado por linha e histórico de lotes | O modelo CSV e o intervalo do andamento seguem fixos no painel, e o tamanho do arquivo só é conferido pelo servidor, até a saída de cada um (pendente) |
-| Avisos | Toast do template (marcador de cor, título, hora e barra de tempo) para sucesso, e erro no lugar onde aconteceu, com o texto que o servidor manda | Menos controle sobre o tom de cada mensagem, compensado por sobrescritas pontuais no painel |
-| Conflito de edição | Aviso com "Carregar versão atual", sem perder o que foi digitado | A pessoa refaz as alterações por cima da versão nova |
-| Cabeçalho | Igual ao da demo: botão de busca (telas, produtos e categorias, também com Ctrl+K), ícones de notificações, tarefas e mensagens, seletor de tema e menu do usuário. Revisa a ADR 028, que reduzia o cabeçalho | Os três ícones ficam sem função até existir um contexto de notificações |
-| Tema claro e escuro | Seletor Claro, Escuro e Automático do template, guardado no navegador, com as cores do `_theme.scss` | Nenhum |
+| Tema                    | Decisão                                                                                                                                                                                                                                                                                             | Custo aceito                                                                                                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Menu lateral            | Grupos por área num menu só: **Minha loja**, **Moderação** e **Plataforma**. Cada item aparece se a sessão, lida de `GET /me`, tiver a capacidade que ele exige                                                                                                                                     | Uma chamada a mais no início da sessão, com estado de erro e nova tentativa se ela falhar; quem acumula capacidades vê um menu mais longo                                                        |
+| Página inicial          | Formato do dashboard do template: 4 indicadores com minigráfico, gráfico principal com rodapé de números e tabela dos produtos atualizados, com os números de `/stats/*`                                                                                                                            | Os cards de cada papel são campos fixos do contrato até a lista de indicadores (pendente, ver [Valores fixos](#valores-fixos-com-saída-pendente))                                                |
+| Telas                   | Pensado para desktop e usável no celular                                                                                                                                                                                                                                                            | Editar produto com muitos SKUs no celular dá mais trabalho                                                                                                                                       |
+| Filtros                 | Abas por status, busca por texto (`q`) e filtros na URL                                                                                                                                                                                                                                             | A busca por texto pede o plano customizado no banco (ADR 006)                                                                                                                                    |
+| Paginação               | `c-pagination` do template só com Anterior e Próxima, e 20 ou 50 itens por página ou o máximo do contrato                                                                                                                                                                                           | Sem salto para uma página nem total; o máximo (100) é copiado no painel até ser lido do schema gerado (pendente)                                                                                 |
+| Ações na lista          | O título do item é o link que abre o registro, e o dropdown do template (o mesmo dos indicadores) traz as ações que a API devolve em `actions`. A tela individual repete o mesmo menu e mostra a ação principal como botão                                                                          | Um clique a mais por ação, e a ação principal aparece em dois lugares na tela individual                                                                                                         |
+| Ordenação               | Pelo backend, clicando no cabeçalho de Produto, Criado e Atualizado, com `sort` na URL e cursor composto. Padrão: Atualizado, mais recente primeiro. A fila de moderação vem em ordem de chegada. É a única parte própria das listas, escolhida pelo usuário, porque só a Smart Table da PRO ordena | Mudança de contrato e de cursor, com índices novos, e um cabeçalho ordenável escrito no projeto                                                                                                  |
+| Seleção em lote         | Caixas de seleção em Produtos da loja, Fila de moderação e Categorias, com a barra de botões do template (`btn-toolbar`) e o resultado de cada item. Cada grupo de até 100 selecionados vai numa chamada do endpoint em lote                                                                        | Fechar a aba interrompe os grupos ainda não enviados; o resultado do lote não traz `actions`, e a lista é recarregada no fim; o tamanho do grupo é o `maxItems` do pedido, lido do schema gerado |
+| Tela do produto         | Abas (Conteúdo, SKUs, preço e estoque, Histórico) e checklist de envio ao lado, com as pendências calculadas pelo servidor (`publishingIssues` e `POST /products/{id}/check`)                                                                                                                       | O checklist do formulário não salvo depende de uma chamada à API, com debounce e estado de carregamento                                                                                          |
+| Troca de categoria      | Botão **Trocar** ao lado da categoria, com prévia do efeito calculada pelo servidor (`POST /products/{id}/check`): atributos que somem, obrigatórios novos e SKUs incompatíveis, que impedem a troca                                                                                                | A prévia espera a resposta da API ao escolher o destino                                                                                                                                          |
+| Preço e estoque         | Painel lateral (offcanvas) por SKU, com mudanças em massa pela planilha                                                                                                                                                                                                                             | Um SKU por vez na tela                                                                                                                                                                           |
+| Formulários secundários | Modal para 1 ou 2 campos e confirmações, offcanvas para formulários médios                                                                                                                                                                                                                          | Dois padrões para seguir                                                                                                                                                                         |
+| Moderação               | Fila e detalhe lado a lado, com avanço automático                                                                                                                                                                                                                                                   | Pede tela larga, e no celular vira lista e detalhe                                                                                                                                               |
+| Motivo de moderação     | Motivos prontos do catálogo do tenant, lidos de `GET /moderation/reasons` e administrados em **Plataforma > Motivos de moderação**, com complemento livre (ADR 030)                                                                                                                                 | Uma tela a mais em Plataforma para manter o catálogo; o tenant novo começa sem motivos                                                                                                           |
+| Categorias              | Lista por nível (`list-group`) com breadcrumb e card de detalhe. Escolher categoria em modais usa um `form-select` com o caminho completo                                                                                                                                                           | Não mostra a hierarquia inteira de uma vez                                                                                                                                                       |
+| Exclusão de categoria   | Só da categoria vazia: sem subcategorias e sem nenhum produto, nem arquivado. A categoria já usada só é desativada                                                                                                                                                                                  | Excluir não tem volta                                                                                                                                                                            |
+| Importação              | Envio, andamento, resultado por linha e histórico de lotes                                                                                                                                                                                                                                          | O modelo CSV e o intervalo do andamento seguem fixos no painel, e o tamanho do arquivo só é conferido pelo servidor, até a saída de cada um (pendente)                                           |
+| Avisos                  | Toast do template (marcador de cor, título, hora e barra de tempo) para sucesso, e erro no lugar onde aconteceu, com o texto que o servidor manda                                                                                                                                                   | Menos controle sobre o tom de cada mensagem, compensado por sobrescritas pontuais no painel                                                                                                      |
+| Conflito de edição      | Aviso com "Carregar versão atual", sem perder o que foi digitado                                                                                                                                                                                                                                    | A pessoa refaz as alterações por cima da versão nova                                                                                                                                             |
+| Cabeçalho               | Igual ao da demo: botão de busca (telas, produtos e categorias, também com Ctrl+K), ícones de notificações, tarefas e mensagens, seletor de tema e menu do usuário. Revisa a ADR 028, que reduzia o cabeçalho                                                                                       | Os três ícones ficam sem função até existir um contexto de notificações                                                                                                                          |
+| Tema claro e escuro     | Seletor Claro, Escuro e Automático do template, guardado no navegador, com as cores do `_theme.scss`                                                                                                                                                                                                | Nenhum                                                                                                                                                                                           |
 
 ## Revisão pelo template grátis
 
 As escolhas da entrevista foram revistas contra o que a demo grátis do CoreUI entrega (<https://coreui.io/demos/angular/latest/free/#/dashboard>, mesma versão do pacote do projeto). O que o template entrega passou a ser feito com ele. Nos três pontos em que ele não entrega nada parecido, o usuário decidiu.
 
-| Escolha anterior | Template grátis | Resultado |
-|---|---|---|
-| Página inicial com cards por papel | Entrega o dashboard: indicadores com minigráfico, gráfico principal com rodapé e tabela | Segue o dashboard |
-| Anterior e Próxima em botões | Entrega `c-pagination` | Paginação do template |
-| Clicar na linha abre o produto | A tabela do template não tem linha clicável | O título vira link |
-| Toast colorido | Entrega toast com cabeçalho e barra de tempo | Toast do template |
-| Barra de lote própria | Entrega `btn-toolbar` e `btn-group` | Barra do template |
-| Linha do tempo no histórico | Não tem | `list-group` |
-| Badge suave, marca própria e painel flutuante de controles | Não tem | Badge sólido, logo do painel e controles do protótipo no menu do usuário |
-| Árvore de categorias (CDK) | Não existe nem na PRO | Lista por nível com breadcrumb e `form-select` de caminhos, por decisão do usuário |
-| Ordenar clicando no cabeçalho | Só a Smart Table, que é PRO | Mantido como parte própria, por decisão do usuário |
-| Cabeçalho reduzido (ADR 028) | Traz busca e ícones de notificação | Igual à demo, por decisão do usuário. A ADR 029 atualizou a ADR 028 |
+| Escolha anterior                                           | Template grátis                                                                         | Resultado                                                                          |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Página inicial com cards por papel                         | Entrega o dashboard: indicadores com minigráfico, gráfico principal com rodapé e tabela | Segue o dashboard                                                                  |
+| Anterior e Próxima em botões                               | Entrega `c-pagination`                                                                  | Paginação do template                                                              |
+| Clicar na linha abre o produto                             | A tabela do template não tem linha clicável                                             | O título vira link                                                                 |
+| Toast colorido                                             | Entrega toast com cabeçalho e barra de tempo                                            | Toast do template                                                                  |
+| Barra de lote própria                                      | Entrega `btn-toolbar` e `btn-group`                                                     | Barra do template                                                                  |
+| Linha do tempo no histórico                                | Não tem                                                                                 | `list-group`                                                                       |
+| Badge suave, marca própria e painel flutuante de controles | Não tem                                                                                 | Badge sólido, logo do painel e controles do protótipo no menu do usuário           |
+| Árvore de categorias (CDK)                                 | Não existe nem na PRO                                                                   | Lista por nível com breadcrumb e `form-select` de caminhos, por decisão do usuário |
+| Ordenar clicando no cabeçalho                              | Só a Smart Table, que é PRO                                                             | Mantido como parte própria, por decisão do usuário                                 |
+| Cabeçalho reduzido (ADR 028)                               | Traz busca e ícones de notificação                                                      | Igual à demo, por decisão do usuário. A ADR 029 atualizou a ADR 028                |
 
 Continuam como estavam, porque o template entrega: menu agrupado por área, abas, busca com `input-group`, dropdown de ações, abas da tela do produto, offcanvas, modal, fila e detalhe lado a lado (grade, `list-group` e card), motivos de moderação com `form-check` e importação com progresso e tabela.
 
@@ -57,12 +57,12 @@ Continuam como estavam, porque o template entrega: menu agrupado por área, abas
 
 O painel não conhece papéis nem lê claims do token. Ele carrega a sessão de `GET /me` (`tenantId`, `storeId`, `capabilities` e as permissões compostas em `can`) e decide o que mostra pelas capacidades. O papel que concede cada capacidade é regra do servidor, só em `CallerContext`, e os endpoints exigem a capacidade, não o papel (ADR 007).
 
-| Quem | Capacidades (`GET /me`) | Grupo do menu | O que faz | Recursos da API |
-|---|---|---|---|---|
-| Lojista | `MANAGE_OWN_PRODUCTS`, com `storeId` | Minha loja | Cadastra produtos e SKUs, define preço, promoções e estoque, importa planilhas e acompanha a situação da loja | `Products`, `Offers`, `Inventory`, `GET /stores/{storeId}/eligibility` |
-| Moderador | `MODERATE_PRODUCTS`, `READ_SELLER_ELIGIBILITY` e `can.readTenantCatalog` | Moderação, e Produtos de todas as lojas em Plataforma | Aprova, rejeita, bloqueia e desbloqueia produtos | `Moderation`, leitura de `Products`, `Offers` e `Inventory` e elegibilidade de qualquer loja |
-| Administrador do catálogo | `MANAGE_TAXONOMY`, `MANAGE_MODERATION_REASONS`, `READ_TENANT_CATALOG`, `READ_SELLER_ELIGIBILITY` e `can.readTenantCatalog` | Plataforma | Mantém a árvore de categorias e o catálogo de motivos de moderação do tenant e consulta produtos de qualquer loja | `Categories`, `/moderation/reasons` e leitura de `Products`, `Offers`, `Inventory` e elegibilidade |
-| Checkout | `MANAGE_RESERVATIONS` | nenhum | Conta de serviço | `Inventory` (reservas), sem tela |
+| Quem                      | Capacidades (`GET /me`)                                                                                                    | Grupo do menu                                         | O que faz                                                                                                         | Recursos da API                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Lojista                   | `MANAGE_OWN_PRODUCTS`, com `storeId`                                                                                       | Minha loja                                            | Cadastra produtos e SKUs, define preço, promoções e estoque, importa planilhas e acompanha a situação da loja     | `Products`, `Offers`, `Inventory`, `GET /stores/{storeId}/eligibility`                             |
+| Moderador                 | `MODERATE_PRODUCTS`, `READ_SELLER_ELIGIBILITY` e `can.readTenantCatalog`                                                   | Moderação, e Produtos de todas as lojas em Plataforma | Aprova, rejeita, bloqueia e desbloqueia produtos                                                                  | `Moderation`, leitura de `Products`, `Offers` e `Inventory` e elegibilidade de qualquer loja       |
+| Administrador do catálogo | `MANAGE_TAXONOMY`, `MANAGE_MODERATION_REASONS`, `READ_TENANT_CATALOG`, `READ_SELLER_ELIGIBILITY` e `can.readTenantCatalog` | Plataforma                                            | Mantém a árvore de categorias e o catálogo de motivos de moderação do tenant e consulta produtos de qualquer loja | `Categories`, `/moderation/reasons` e leitura de `Products`, `Offers`, `Inventory` e elegibilidade |
+| Checkout                  | `MANAGE_RESERVATIONS`                                                                                                      | nenhum                                                | Conta de serviço                                                                                                  | `Inventory` (reservas), sem tela                                                                   |
 
 ## Navegação
 
@@ -92,18 +92,18 @@ PLATAFORMA
 
 ### Rotas
 
-| Rota | Tela | Capacidade | Lib |
-|---|---|---|---|
-| `/inicio` | Início | qualquer sessão | app |
-| `/loja/produtos` | Produtos da loja | `MANAGE_OWN_PRODUCTS` | `feature-products` |
-| `/loja/produtos/:id/conteudo`, `/skus`, `/historico` | Produto, uma rota por aba | `MANAGE_OWN_PRODUCTS` | `feature-products` |
-| `/loja/importacoes` | Importações | `MANAGE_OWN_PRODUCTS` | `feature-imports` |
-| `/loja/importacoes/:id` | Resultado de um lote | `MANAGE_OWN_PRODUCTS` | `feature-imports` |
-| `/loja/situacao` | Situação da loja | `MANAGE_OWN_PRODUCTS` | `feature-store` |
-| `/moderacao/fila`, `/moderacao/fila/:id` | Fila de moderação | `MODERATE_PRODUCTS` | `feature-moderation` |
-| `/plataforma/categorias`, `/plataforma/categorias/:id` | Categorias | `MANAGE_TAXONOMY` | `feature-categories` |
-| `/plataforma/motivos-de-moderacao` | Motivos de moderação | `MANAGE_MODERATION_REASONS` | `feature-moderation` |
-| `/plataforma/produtos`, `/plataforma/produtos/:id` | Produtos de todas as lojas | `can.readTenantCatalog` | `feature-products` |
+| Rota                                                   | Tela                       | Capacidade                  | Lib                  |
+| ------------------------------------------------------ | -------------------------- | --------------------------- | -------------------- |
+| `/inicio`                                              | Início                     | qualquer sessão             | app                  |
+| `/loja/produtos`                                       | Produtos da loja           | `MANAGE_OWN_PRODUCTS`       | `feature-products`   |
+| `/loja/produtos/:id/conteudo`, `/skus`, `/historico`   | Produto, uma rota por aba  | `MANAGE_OWN_PRODUCTS`       | `feature-products`   |
+| `/loja/importacoes`                                    | Importações                | `MANAGE_OWN_PRODUCTS`       | `feature-imports`    |
+| `/loja/importacoes/:id`                                | Resultado de um lote       | `MANAGE_OWN_PRODUCTS`       | `feature-imports`    |
+| `/loja/situacao`                                       | Situação da loja           | `MANAGE_OWN_PRODUCTS`       | `feature-store`      |
+| `/moderacao/fila`, `/moderacao/fila/:id`               | Fila de moderação          | `MODERATE_PRODUCTS`         | `feature-moderation` |
+| `/plataforma/categorias`, `/plataforma/categorias/:id` | Categorias                 | `MANAGE_TAXONOMY`           | `feature-categories` |
+| `/plataforma/motivos-de-moderacao`                     | Motivos de moderação       | `MANAGE_MODERATION_REASONS` | `feature-moderation` |
+| `/plataforma/produtos`, `/plataforma/produtos/:id`     | Produtos de todas as lojas | `can.readTenantCatalog`     | `feature-products`   |
 
 - Um `capabilityGuard` (ou um `permissionGuard`, para as permissões compostas de `can`) por rota ou grupo complementa o `authGuard` atual e lê a sessão (`SessionStore`), carregada de `GET /me` por um `provideAppInitializer` depois do retorno do login. Sem a capacidade, a rota volta para `/inicio` com o aviso "Você não tem acesso a esta área". O guard e o menu nunca comparam nome de papel nem status.
 - Filtros, aba e cursor ficam na URL (`?status=DRAFT&q=camiseta&limit=50&cursor=...`). O link pode ser salvo e o botão voltar do navegador refaz a lista.
@@ -152,11 +152,11 @@ A referência é a demo grátis do CoreUI Angular, feita com o mesmo template de
 
 ### Formulários
 
-| Tipo | Componente | Exemplos |
-|---|---|---|
-| 1 ou 2 campos e confirmações | Modal | Novo produto, motivo da rejeição, confirmar arquivamento, mover categoria |
+| Tipo                                        | Componente          | Exemplos                                                                            |
+| ------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------- |
+| 1 ou 2 campos e confirmações                | Modal               | Novo produto, motivo da rejeição, confirmar arquivamento, mover categoria           |
 | Formulário médio que pede ver a lista atrás | Offcanvas à direita | Painel do SKU, novo SKU, agendar promoção, nova categoria, novo motivo de moderação |
-| Formulário principal | Página | Conteúdo do produto |
+| Formulário principal                        | Página              | Conteúdo do produto                                                                 |
 
 - Para avisar antes do envio, os formulários precisam dos limites do contrato (`pattern`, `maxLength` e obrigatórios, como o código de 60 caracteres, o nome de 120, o título de 200, a descrição de 5000, até 100 opções e o padrão do SKU). Os formulários leem esses limites do schema gerado pelo plugin `@hey-api/schemas` no codegen de `admin/data-access`, com `fieldRules` de `libs/shared/web-util`, e as features passam os limites aos componentes de `admin/ui`; nenhum formulário copia um limite. O 400 e o 422 continuam sendo a palavra final: os `errors` (`field`, `message`) vão para os campos e as mensagens de `reasonDetails` para o alerta do formulário.
 - Os atributos do produto e do SKU são montados pelo tipo do atributo efetivo da categoria: `TEXT` vira campo de texto, `INTEGER` e `DECIMAL` viram campos numéricos, `BOOLEAN` vira switch e `OPTION` vira select. O atributo `variant` vai para o SKU.
@@ -177,11 +177,11 @@ Cada chamada de gravação envia o `If-Match` com a versão lida, porque o clien
 
 ### Confirmações
 
-| Ação | Confirmação |
-|---|---|
-| Arquivar produto, remover SKU, bloquear produto, excluir categoria, desativar motivo de moderação | Modal com o nome do item e o efeito ("O produto sai da vitrine na hora") |
-| Salvar conteúdo ou SKU de produto publicado (`saveReturnsToModeration`) | Modal: "Salvar devolve o produto à moderação, e ele sai da vitrine até ser aprovado" |
-| Pausar, reativar, enviar para moderação | Sem modal. O toast confirma, e a ação contrária desfaz |
+| Ação                                                                                              | Confirmação                                                                          |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Arquivar produto, remover SKU, bloquear produto, excluir categoria, desativar motivo de moderação | Modal com o nome do item e o efeito ("O produto sai da vitrine na hora")             |
+| Salvar conteúdo ou SKU de produto publicado (`saveReturnsToModeration`)                           | Modal: "Salvar devolve o produto à moderação, e ele sai da vitrine até ser aprovado" |
+| Pausar, reativar, enviar para moderação                                                           | Sem modal. O toast confirma, e a ação contrária desfaz                               |
 
 ### Telas pequenas
 
@@ -277,15 +277,15 @@ Camiseta Basic   [Rascunho]          [Enviar p/ moderação] [...]
 
 Ações por status. Pausar, reativar, enviar e arquivar ficam no menu "..." da lista e da tela do produto, e a primeira delas que vier em `actions` também vira botão na tela do produto. O servidor calcula as ações (`ProductActions`), e a tabela descreve o resultado para o lojista, sem cópia no front:
 
-| Status | Ações do lojista |
-|---|---|
-| `DRAFT` | Salvar, adicionar e remover SKU, enviar para moderação, arquivar |
-| `PENDING_MODERATION` | Salvar (continua na fila), adicionar SKU, arquivar |
-| `ACTIVE` | Salvar (volta à moderação, com confirmação), adicionar SKU, pausar, arquivar |
-| `OUT_OF_STOCK` | Como `ACTIVE`, com o aviso "Sem estoque disponível" na aba de SKUs |
-| `PAUSED_BY_SELLER` | Salvar (volta à moderação, com confirmação), adicionar SKU, reativar, arquivar |
-| `BLOCKED` | Conteúdo só leitura, com o motivo do bloqueio em destaque. Pode arquivar e ajustar preço e estoque |
-| `ARCHIVED` | Só leitura |
+| Status               | Ações do lojista                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| `DRAFT`              | Salvar, adicionar e remover SKU, enviar para moderação, arquivar                                   |
+| `PENDING_MODERATION` | Salvar (continua na fila), adicionar SKU, arquivar                                                 |
+| `ACTIVE`             | Salvar (volta à moderação, com confirmação), adicionar SKU, pausar, arquivar                       |
+| `OUT_OF_STOCK`       | Como `ACTIVE`, com o aviso "Sem estoque disponível" na aba de SKUs                                 |
+| `PAUSED_BY_SELLER`   | Salvar (volta à moderação, com confirmação), adicionar SKU, reativar, arquivar                     |
+| `BLOCKED`            | Conteúdo só leitura, com o motivo do bloqueio em destaque. Pode arquivar e ajustar preço e estoque |
+| `ARCHIVED`           | Só leitura                                                                                         |
 
 Fora do rascunho, a remoção de SKU vem em `blockedActions` com `sku-removal-requires-draft`, e reativar com a loja não aprovada vem com `seller-not-eligible`: os botões aparecem desabilitados com o motivo. Preço e estoque seguem `EDIT_OFFER` e `EDIT_STOCK`.
 
@@ -364,10 +364,10 @@ Histórico
 
 Callout com o status de `GET /stores/{storeId}/eligibility`. O front guarda só o rótulo e a cor de cada `SellerStatus`; o efeito vem dos campos que o servidor calcula, `canPublish` (produtos podem ser aprovados e reativados) e `visibleInStorefront` (produtos ativos aparecem na vitrine):
 
-| Campo | Verdadeiro | Falso |
-|---|---|---|
-| `canPublish` | Produtos aprovados vão para a vitrine, e os pausados podem ser reativados. | Você pode cadastrar produtos, mas eles só são aprovados e reativados depois da aprovação no KYB/KYC. |
-| `visibleInStorefront` | Os produtos ativos aparecem na vitrine. | Os produtos não aparecem na vitrine. |
+| Campo                 | Verdadeiro                                                                 | Falso                                                                                                |
+| --------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `canPublish`          | Produtos aprovados vão para a vitrine, e os pausados podem ser reativados. | Você pode cadastrar produtos, mas eles só são aprovados e reativados depois da aprovação no KYB/KYC. |
+| `visibleInStorefront` | Os produtos ativos aparecem na vitrine.                                    | Os produtos não aparecem na vitrine.                                                                 |
 
 ### 8. Fila de moderação
 
@@ -467,18 +467,18 @@ price-out-of-range
 
 Todos existem no contrato (`contracts/catalog-inventory/openapi.json`):
 
-| Tela | Endpoints |
-|---|---|
-| Sessão, menu e rotas | `GET /me` |
-| Início | `GET /stats/store`, `/stats/moderation` e `/stats/categories`, `GET /products?sort=-updatedAt` e `GET /categories?ids=` (nomes das categorias da tabela) |
-| Produtos da loja, Produtos de todas as lojas | `GET /products` com `status`, `q`, `sort`, `storeId`, `limit` e `cursor`; `POST /products/batch` |
-| Produto | `GET`, `PUT` e `DELETE /products/{id}`, `POST /products/{id}/submit`, `/pause` e `/resume`, `POST /products/{id}/check`, `GET /products/{id}/history`, `POST /products/{id}/skus`, `PUT` e `DELETE /products/{id}/skus/{skuId}`; `GET /categories/tree?usable=true` e `GET /categories/{id}` para escolher a categoria e montar os atributos |
-| Painel do SKU | `GET` e `PUT /offers/{skuId}`, `POST /offers/{skuId}/promotions`, `DELETE /offers/{skuId}/promotions/{promotionId}`, `GET` e `PUT /inventory/skus/{skuId}` |
-| Importações | `POST` e `GET /products/imports`, `GET /products/imports/{id}` (com `lines=false` no andamento) |
-| Situação da loja | `GET /stores/{storeId}/eligibility` |
-| Fila de moderação | `GET /moderation/products`, `POST /moderation/products/{id}/approve`, `/reject`, `/block` e `/unblock`, `POST /moderation/products/batch`, `GET /moderation/reasons?decision=`, `GET /stats/moderation/queue` (badge do menu) |
-| Categorias | `GET /categories`, `/categories/tree` e `/categories/{id}`, `POST /categories`, `PUT` e `DELETE /categories/{id}`, `PUT /categories/{id}/parent`, `POST /categories/batch` |
-| Motivos de moderação | `GET /moderation/reasons?includeInactive=true`, `GET /moderation/reasons/{code}`, `POST /moderation/reasons`, `PUT /moderation/reasons/{code}`, `POST /moderation/reasons/{code}/activate` e `/deactivate` |
+| Tela                                         | Endpoints                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sessão, menu e rotas                         | `GET /me`                                                                                                                                                                                                                                                                                                                                    |
+| Início                                       | `GET /stats/store`, `/stats/moderation` e `/stats/categories`, `GET /products?sort=-updatedAt` e `GET /categories?ids=` (nomes das categorias da tabela)                                                                                                                                                                                     |
+| Produtos da loja, Produtos de todas as lojas | `GET /products` com `status`, `q`, `sort`, `storeId`, `limit` e `cursor`; `POST /products/batch`                                                                                                                                                                                                                                             |
+| Produto                                      | `GET`, `PUT` e `DELETE /products/{id}`, `POST /products/{id}/submit`, `/pause` e `/resume`, `POST /products/{id}/check`, `GET /products/{id}/history`, `POST /products/{id}/skus`, `PUT` e `DELETE /products/{id}/skus/{skuId}`; `GET /categories/tree?usable=true` e `GET /categories/{id}` para escolher a categoria e montar os atributos |
+| Painel do SKU                                | `GET` e `PUT /offers/{skuId}`, `POST /offers/{skuId}/promotions`, `DELETE /offers/{skuId}/promotions/{promotionId}`, `GET` e `PUT /inventory/skus/{skuId}`                                                                                                                                                                                   |
+| Importações                                  | `POST` e `GET /products/imports`, `GET /products/imports/{id}` (com `lines=false` no andamento)                                                                                                                                                                                                                                              |
+| Situação da loja                             | `GET /stores/{storeId}/eligibility`                                                                                                                                                                                                                                                                                                          |
+| Fila de moderação                            | `GET /moderation/products`, `POST /moderation/products/{id}/approve`, `/reject`, `/block` e `/unblock`, `POST /moderation/products/batch`, `GET /moderation/reasons?decision=`, `GET /stats/moderation/queue` (badge do menu)                                                                                                                |
+| Categorias                                   | `GET /categories`, `/categories/tree` e `/categories/{id}`, `POST /categories`, `PUT` e `DELETE /categories/{id}`, `PUT /categories/{id}/parent`, `POST /categories/batch`                                                                                                                                                                   |
+| Motivos de moderação                         | `GET /moderation/reasons?includeInactive=true`, `GET /moderation/reasons/{code}`, `POST /moderation/reasons`, `PUT /moderation/reasons/{code}`, `POST /moderation/reasons/{code}/activate` e `/deactivate`                                                                                                                                   |
 
 ## Valores fixos com saída pendente
 
@@ -486,24 +486,24 @@ Esta proposta não aceita repetir no painel uma regra, um catálogo ou um númer
 
 **Já no código.** Os valores abaixo estão fixos hoje, e a saída de cada um está pendente:
 
-| Valor fixo hoje | Onde | Saída |
-|---|---|---|
-| Fuso `America/Sao_Paulo` | `dates.ts` em `libs/shared/web-util` e `CatalogStatsService` | Chave `catalog.time-zone` no serviço, entregue por `GET /settings` (`timeZone`) |
-| 100 itens por chamada em lote | `BATCH_LIMIT` em `libs/shared/web-util`, cópia de `Batch.MAX_ITEMS` | `maxItems` do pedido no schema gerado (plugin `@hey-api/schemas`) |
-| Máximo de 100 itens por página | `PAGE_SIZES` em `libs/shared/web-util`, cópia de `Page.MAX_SIZE` | `maximum` do parâmetro `limit` no schema gerado |
-| Profundidade máxima da árvore, que o modal de mover não usa | Domínio (`Category`) e `CHECK` do banco; o painel não a copia | `categoryMaxDepth` em `GET /settings`, para filtrar os destinos |
-| Indicadores da página inicial | Campos fixos de `StoreStatsResponse` e `ModerationStatsResponse`, no servidor | Lista `indicators` com `code`, `label`, `value`, `previous`, `change` e `months`, com o painel mapeando `code` para ícone e cor |
-| Issuer, `clientId` e scope do login | `auth.config.ts`, um build por ambiente (ADR 027) | `/config.json` gerado na entrada do contêiner a partir dos values do Helm e lido antes do login |
-| Tamanho máximo da busca (100) | `SEARCH_MAX_LENGTH` em `admin/feature-products`, cópia do `maxLength` do parâmetro `q` de `GET /products` | `maxLength` do parâmetro `q` no schema gerado |
-| Um card por campo dos indicadores | `home-indicators.ts` em `admin/feature-products`, para `/stats/store`, `/stats/moderation` e `/stats/categories` | Lista `indicators`, como acima |
-| Intervalo da consulta do andamento (2 segundos) | `POLL_INTERVAL_MS` em `admin/feature-imports`, usado enquanto a resposta não traz `Retry-After` | `Retry-After` em `GET /products/imports/{id}` enquanto o lote está em andamento |
-| Cabeçalho do modelo CSV | `TEMPLATE_COLUMNS` em `admin/feature-imports`, cópia de `ProductCsv.COLUMNS` | `GET /products/imports/template` (`text/csv`) |
-| Excluir só a categoria sem subcategorias (`childCount` zero) | `category-model.ts` em `admin/feature-categories`, no botão de cada categoria; o lote manda todas as marcadas, e o servidor recusa item a item; `category-has-products` fica com o servidor | Campo `deletable` calculado pelo servidor na resposta da categoria |
+| Valor fixo hoje                                              | Onde                                                                                                                                                                                        | Saída                                                                                                                           |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Fuso `America/Sao_Paulo`                                     | `dates.ts` em `libs/shared/web-util` e `CatalogStatsService`                                                                                                                                | Chave `catalog.time-zone` no serviço, entregue por `GET /settings` (`timeZone`)                                                 |
+| 100 itens por chamada em lote                                | `BATCH_LIMIT` em `libs/shared/web-util`, cópia de `Batch.MAX_ITEMS`                                                                                                                         | `maxItems` do pedido no schema gerado (plugin `@hey-api/schemas`)                                                               |
+| Máximo de 100 itens por página                               | `PAGE_SIZES` em `libs/shared/web-util`, cópia de `Page.MAX_SIZE`                                                                                                                            | `maximum` do parâmetro `limit` no schema gerado                                                                                 |
+| Profundidade máxima da árvore, que o modal de mover não usa  | Domínio (`Category`) e `CHECK` do banco; o painel não a copia                                                                                                                               | `categoryMaxDepth` em `GET /settings`, para filtrar os destinos                                                                 |
+| Indicadores da página inicial                                | Campos fixos de `StoreStatsResponse` e `ModerationStatsResponse`, no servidor                                                                                                               | Lista `indicators` com `code`, `label`, `value`, `previous`, `change` e `months`, com o painel mapeando `code` para ícone e cor |
+| Issuer, `clientId` e scope do login                          | `auth.config.ts`, um build por ambiente (ADR 027)                                                                                                                                           | `/config.json` gerado na entrada do contêiner a partir dos values do Helm e lido antes do login                                 |
+| Tamanho máximo da busca (100)                                | `SEARCH_MAX_LENGTH` em `admin/feature-products`, cópia do `maxLength` do parâmetro `q` de `GET /products`                                                                                   | `maxLength` do parâmetro `q` no schema gerado                                                                                   |
+| Um card por campo dos indicadores                            | `home-indicators.ts` em `admin/feature-products`, para `/stats/store`, `/stats/moderation` e `/stats/categories`                                                                            | Lista `indicators`, como acima                                                                                                  |
+| Intervalo da consulta do andamento (2 segundos)              | `POLL_INTERVAL_MS` em `admin/feature-imports`, usado enquanto a resposta não traz `Retry-After`                                                                                             | `Retry-After` em `GET /products/imports/{id}` enquanto o lote está em andamento                                                 |
+| Cabeçalho do modelo CSV                                      | `TEMPLATE_COLUMNS` em `admin/feature-imports`, cópia de `ProductCsv.COLUMNS`                                                                                                                | `GET /products/imports/template` (`text/csv`)                                                                                   |
+| Excluir só a categoria sem subcategorias (`childCount` zero) | `category-model.ts` em `admin/feature-categories`, no botão de cada categoria; o lote manda todas as marcadas, e o servidor recusa item a item; `category-has-products` fica com o servidor | Campo `deletable` calculado pelo servidor na resposta da categoria                                                              |
 
 **Sem cópia no painel.** A importação não confere o arquivo antes do envio: manda a planilha e mostra a recusa do servidor (400 `invalid-import-file`), sem copiar os números. A conferência antes do envio espera a saída:
 
-| Valor | Tela | Saída |
-|---|---|---|
+| Valor                           | Tela       | Saída                                                 |
+| ------------------------------- | ---------- | ----------------------------------------------------- |
 | 1 MB e 5000 linhas por planilha | Importação | `importMaxBytes` e `importMaxRows` em `GET /settings` |
 
 Os limites dos formulários (`pattern`, `maxLength`, obrigatórios e o contador de 500 do complemento da moderação) e o tamanho de cada chamada em lote já saem do schema gerado (`fieldRules`); o `BATCH_LIMIT` de `libs/shared/web-util` ficou só como padrão de `chunk`, ainda marcado como cópia pendente.
@@ -514,17 +514,17 @@ Ficam no painel de propósito, sem saída: os rótulos e as cores dos status, a 
 
 Segue a ADR 027. Toda lib leva também a tag `lang:ts`:
 
-| Lib | Tags | Conteúdo |
-|---|---|---|
-| `libs/catalog-inventory/admin/data-access` | `scope:catalog-inventory`, `layer:data-access`, `framework:angular` | Cliente gerado (já existe) |
-| `libs/catalog-inventory/admin/feature-products` | `scope:catalog-inventory`, `layer:feature`, `framework:angular` | Lista, produto, painel do SKU, novo produto, produtos de todas as lojas, e os indicadores, o gráfico e a tabela da página inicial |
-| `libs/catalog-inventory/admin/feature-imports` | idem | Importações |
-| `libs/catalog-inventory/admin/feature-store` | idem | Situação da loja |
-| `libs/catalog-inventory/admin/feature-moderation` | idem | Fila de moderação e Motivos de moderação |
-| `libs/catalog-inventory/admin/feature-categories` | idem | Categorias |
-| `libs/catalog-inventory/admin/ui` | `scope:catalog-inventory`, `layer:ui`, `framework:angular` | Badge de status do produto, checklist de envio e seletor de categoria (`form-select` com o caminho) |
-| `libs/shared/admin-ui` | `scope:shared`, `layer:ui`, `framework:angular` | Paginação por cursor sobre o `c-pagination`, cabeçalho ordenável (a única parte própria), barra de lote, bloco de número, modal de confirmação, alerta de problema RFC 9457, serviço de toasts sobre o `c-toaster` e o `AdminSession`, contrato da sessão que as features injetam e que o `SessionStore` do app implementa com `GET /me` |
-| `libs/shared/web-util` | `scope:shared`, `layer:util`, `framework:none` | Moeda, datas no fuso de São Paulo, escolha da mensagem de um problema (sobrescritas do painel, `reasonDetails`, `detail` e `title`), cursor e lote |
+| Lib                                               | Tags                                                                | Conteúdo                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `libs/catalog-inventory/admin/data-access`        | `scope:catalog-inventory`, `layer:data-access`, `framework:angular` | Cliente gerado (já existe)                                                                                                                                                                                                                                                                                                               |
+| `libs/catalog-inventory/admin/feature-products`   | `scope:catalog-inventory`, `layer:feature`, `framework:angular`     | Lista, produto, painel do SKU, novo produto, produtos de todas as lojas, e os indicadores, o gráfico e a tabela da página inicial                                                                                                                                                                                                        |
+| `libs/catalog-inventory/admin/feature-imports`    | idem                                                                | Importações                                                                                                                                                                                                                                                                                                                              |
+| `libs/catalog-inventory/admin/feature-store`      | idem                                                                | Situação da loja                                                                                                                                                                                                                                                                                                                         |
+| `libs/catalog-inventory/admin/feature-moderation` | idem                                                                | Fila de moderação e Motivos de moderação                                                                                                                                                                                                                                                                                                 |
+| `libs/catalog-inventory/admin/feature-categories` | idem                                                                | Categorias                                                                                                                                                                                                                                                                                                                               |
+| `libs/catalog-inventory/admin/ui`                 | `scope:catalog-inventory`, `layer:ui`, `framework:angular`          | Badge de status do produto, checklist de envio e seletor de categoria (`form-select` com o caminho)                                                                                                                                                                                                                                      |
+| `libs/shared/admin-ui`                            | `scope:shared`, `layer:ui`, `framework:angular`                     | Paginação por cursor sobre o `c-pagination`, cabeçalho ordenável (a única parte própria), barra de lote, bloco de número, modal de confirmação, alerta de problema RFC 9457, serviço de toasts sobre o `c-toaster` e o `AdminSession`, contrato da sessão que as features injetam e que o `SessionStore` do app implementa com `GET /me` |
+| `libs/shared/web-util`                            | `scope:shared`, `layer:util`, `framework:none`                      | Moeda, datas no fuso de São Paulo, escolha da mensagem de um problema (sobrescritas do painel, `reasonDetails`, `detail` e `title`), cursor e lote                                                                                                                                                                                       |
 
 - O seletor de categoria fica em `admin/ui` porque três telas usam o mesmo componente (novo produto, trocar categoria e mover categoria), e uma feature não importa outra.
 - A página inicial fica no app e monta os indicadores, o gráfico e a tabela que `feature-products` exporta, com o `@coreui/angular-chartjs` e o `chart.js` carregados só nessa rota (ADR 028).

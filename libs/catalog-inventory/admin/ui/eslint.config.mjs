@@ -1,38 +1,34 @@
-import nx from "@nx/eslint-plugin";
-import baseConfig from "../../../../eslint.config.mjs";
+import nx from '@nx/eslint-plugin';
+import baseConfig from '../../../../eslint.config.mjs';
 
 export default [
-  ...nx.configs["flat/angular"],
-  ...nx.configs["flat/angular-template"],
+  ...nx.configs['flat/angular'],
+  ...nx.configs['flat/angular-template'],
   ...baseConfig,
   {
-    files: [
-      "**/*.ts"
-    ],
+    files: ['**/*.ts'],
     rules: {
-      "@angular-eslint/directive-selector": [
-        "error",
+      '@angular-eslint/directive-selector': [
+        'error',
         {
-          type: "attribute",
-          prefix: "app",
-          style: "camelCase"
-        }
+          type: 'attribute',
+          prefix: 'app',
+          style: 'camelCase',
+        },
       ],
-      "@angular-eslint/component-selector": [
-        "error",
+      '@angular-eslint/component-selector': [
+        'error',
         {
-          type: "element",
-          prefix: "app",
-          style: "kebab-case"
-        }
-      ]
-    }
+          type: 'element',
+          prefix: 'app',
+          style: 'kebab-case',
+        },
+      ],
+    },
   },
   {
-    files: [
-      "**/*.html"
-    ],
+    files: ['**/*.html'],
     // Override or add rules here
-    rules: {}
-  }
+    rules: {},
+  },
 ];

@@ -20,7 +20,7 @@ import { AlertComponent, ButtonDirective, SpinnerComponent } from '@coreui/angul
         Carregar versão atual
       </button>
     </c-alert>
-  `
+  `,
 })
 export class EditConflictAlertComponent {
   /** Carregando a versão atual: trava o botão e mostra o spinner. */

@@ -86,6 +86,12 @@ jobs:
       - name: Fronteiras entre contextos
         run: npm run check
 
+      # Só o que a mudança toca (ADR 033): o Prettier nos arquivos afetados e o Spotless nos projetos Java afetados.
+      - name: Formatação
+        run: |
+          npx nx format:check
+          npx nx affected -t spotlessCheck
+
       - name: Observabilidade
         run: npm run check:observability
 

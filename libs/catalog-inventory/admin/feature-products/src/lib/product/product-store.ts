@@ -2,7 +2,7 @@ import { computed, Injectable, signal } from '@angular/core';
 import {
   getProduct,
   type ProductCheckRequest,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import type { ChecklistItem, PublishingIssue } from '@marketplace/catalog-inventory-admin-ui';
 import {
@@ -10,7 +10,7 @@ import {
   type Problem,
   toProblem,
   type Versioned,
-  versionTag
+  versionTag,
 } from '@marketplace/shared-web-util';
 
 import { productEditRules, type ProductEditRules } from '../product-actions';
@@ -99,7 +99,7 @@ export class ProductStore {
     }
     const loaded = await this.load(id);
     if (loaded && discard) {
-      this.#discards.update(count => count + 1);
+      this.#discards.update((count) => count + 1);
     }
     return loaded;
   }

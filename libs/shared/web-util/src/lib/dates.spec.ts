@@ -5,7 +5,7 @@ import {
   formatShortDateTime,
   formatTime,
   fromDateTimeLocal,
-  toDateTimeLocal
+  toDateTimeLocal,
 } from './dates';
 
 describe('datas no fuso de São Paulo', () => {

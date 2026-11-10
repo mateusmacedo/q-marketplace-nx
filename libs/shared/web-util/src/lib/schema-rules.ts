@@ -21,11 +21,26 @@ export interface FieldRules {
 
 /** Limite que o valor desrespeita; `limit` é o número do contrato, quando a regra tem um. */
 export interface RuleViolation {
-  readonly kind: 'required' | 'pattern' | 'maxLength' | 'minLength' | 'maxItems' | 'minItems' | 'maximum' | 'minimum';
+  readonly kind:
+    | 'required'
+    | 'pattern'
+    | 'maxLength'
+    | 'minLength'
+    | 'maxItems'
+    | 'minItems'
+    | 'maximum'
+    | 'minimum';
   readonly limit?: number;
 }
 
-const NUMERIC_KEYS = ['maxLength', 'minLength', 'maxItems', 'minItems', 'maximum', 'minimum'] as const;
+const NUMERIC_KEYS = [
+  'maxLength',
+  'minLength',
+  'maxItems',
+  'minItems',
+  'maximum',
+  'minimum',
+] as const;
 
 /**
  * Limites da propriedade no schema do contrato. Lança erro quando a propriedade não existe no schema, para que um nome
@@ -37,7 +52,7 @@ export function fieldRules(schema: ObjectSchema, property: string): FieldRules {
     throw new Error(`O schema não tem a propriedade "${property}"`);
   }
   const rules: { -readonly [K in keyof FieldRules]: FieldRules[K] } = {
-    required: schema.required?.includes(property) === true
+    required: schema.required?.includes(property) === true,
   };
   if (typeof source['pattern'] === 'string') {
     rules.pattern = source['pattern'];
@@ -108,7 +123,7 @@ function exceeds(
   max: number | undefined,
   min: number | undefined,
   maxKind: RuleViolation['kind'],
-  minKind: RuleViolation['kind']
+  minKind: RuleViolation['kind'],
 ): RuleViolation | null {
   if (max !== undefined && value > max) {
     return { kind: maxKind, limit: max };

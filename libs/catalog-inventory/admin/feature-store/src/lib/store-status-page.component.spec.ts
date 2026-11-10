@@ -23,7 +23,8 @@ describe('situação da loja', () => {
   let fixture: ComponentFixture<StoreStatusPageComponent>;
 
   const text = (element: Element | null) => element?.textContent?.replace(/\s+/g, ' ').trim();
-  const element = (selector: string) => fixture.nativeElement.querySelector(selector) as HTMLElement | null;
+  const element = (selector: string) =>
+    fixture.nativeElement.querySelector(selector) as HTMLElement | null;
   const render = () => {
     fixture = TestBed.createComponent(StoreStatusPageComponent);
     fixture.detectChanges();
@@ -45,8 +46,8 @@ describe('situação da loja', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        { provide: AdminSession, useValue: session }
-      ]
+        { provide: AdminSession, useValue: session },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -57,7 +58,12 @@ describe('situação da loja', () => {
     render();
     expect(element('app-loading-state')).not.toBeNull();
 
-    await answer({ storeId: STORE, status: 'APPROVED', canPublish: true, visibleInStorefront: true });
+    await answer({
+      storeId: STORE,
+      status: 'APPROVED',
+      canPublish: true,
+      visibleInStorefront: true,
+    });
 
     expect(text(element('h1'))).toBe('Situação da loja');
     expect(text(element('h1 + div'))).toBe('KYB/KYC da loja 3f2a9c1e');
@@ -65,23 +71,33 @@ describe('situação da loja', () => {
     expect(text(element('c-callout c-badge'))).toBe('Aprovada');
     expect(Array.from(fixture.nativeElement.querySelectorAll('c-callout p'), text)).toEqual([
       'Produtos aprovados vão para a vitrine, e os pausados podem ser reativados.',
-      'Os produtos ativos aparecem na vitrine.'
+      'Os produtos ativos aparecem na vitrine.',
     ]);
   });
 
   it('tira o efeito dos campos calculados, mesmo que o status não combine com eles', async () => {
     render();
-    await answer({ storeId: STORE, status: 'APPROVED', canPublish: false, visibleInStorefront: false });
+    await answer({
+      storeId: STORE,
+      status: 'APPROVED',
+      canPublish: false,
+      visibleInStorefront: false,
+    });
 
     expect(Array.from(fixture.nativeElement.querySelectorAll('c-callout p'), text)).toEqual([
       'Você pode cadastrar produtos, mas eles só são aprovados e reativados depois da aprovação no KYB/KYC.',
-      'Os produtos não aparecem na vitrine.'
+      'Os produtos não aparecem na vitrine.',
     ]);
   });
 
   it('mostra o status que a tela não conhece como veio, em cinza', async () => {
     render();
-    await answer({ storeId: STORE, status: 'SUSPENDED', canPublish: false, visibleInStorefront: false });
+    await answer({
+      storeId: STORE,
+      status: 'SUSPENDED',
+      canPublish: false,
+      visibleInStorefront: false,
+    });
 
     expect(element('c-callout')?.classList).toContain('callout-secondary');
     expect(text(element('c-callout c-badge'))).toBe('SUSPENDED');
@@ -90,15 +106,26 @@ describe('situação da loja', () => {
   it('mostra o erro com o texto do servidor e tenta de novo', async () => {
     render();
     await answer(
-      { type: 'https://marketplace.dev/problems/http-503', title: 'Indisponível', detail: 'Serviço fora do ar.' },
-      503
+      {
+        type: 'https://marketplace.dev/problems/http-503',
+        title: 'Indisponível',
+        detail: 'Serviço fora do ar.',
+      },
+      503,
     );
 
-    expect(text(element('app-error-state'))).toContain('Não foi possível carregar a situação da loja.');
+    expect(text(element('app-error-state'))).toContain(
+      'Não foi possível carregar a situação da loja.',
+    );
     expect(text(element('app-error-state'))).toContain('Serviço fora do ar.');
 
     element('app-error-state button')?.click();
-    await answer({ storeId: STORE, status: 'PENDING', canPublish: false, visibleInStorefront: false });
+    await answer({
+      storeId: STORE,
+      status: 'PENDING',
+      canPublish: false,
+      visibleInStorefront: false,
+    });
     expect(element('app-error-state')).toBeNull();
     expect(text(element('c-callout c-badge'))).toBe('Em análise');
   });

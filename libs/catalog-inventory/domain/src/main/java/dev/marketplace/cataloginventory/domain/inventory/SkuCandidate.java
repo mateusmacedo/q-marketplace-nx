@@ -10,5 +10,5 @@ import java.util.UUID;
  * {@code offer} só falta em produto não publicado.
  */
 public record SkuCandidate(UUID productId, UUID storeId, ProductStatus productStatus, SellerStatus seller,
-        Offer offer) {
+    Offer offer) {
 }

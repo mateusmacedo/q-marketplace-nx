@@ -13,7 +13,7 @@ import {
   HeaderModule,
   NavModule,
   ProgressModule,
-  SidebarModule
+  SidebarModule,
 } from '@coreui/angular';
 import { IconModule, IconSetService } from '@coreui/icons-angular';
 import { iconSubset } from '../../../icons/icon-subset';
@@ -26,8 +26,22 @@ describe('DefaultHeaderComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [GridModule, HeaderModule, IconModule, NavModule, BadgeModule, AvatarModule, DropdownModule, BreadcrumbModule, SidebarModule, ProgressModule, ButtonGroupModule, ReactiveFormsModule, DefaultHeaderComponent],
-      providers: [IconSetService, provideRouter([]), provideHttpClient(), provideOAuthClient()]
+      imports: [
+        GridModule,
+        HeaderModule,
+        IconModule,
+        NavModule,
+        BadgeModule,
+        AvatarModule,
+        DropdownModule,
+        BreadcrumbModule,
+        SidebarModule,
+        ProgressModule,
+        ButtonGroupModule,
+        ReactiveFormsModule,
+        DefaultHeaderComponent,
+      ],
+      providers: [IconSetService, provideRouter([]), provideHttpClient(), provideOAuthClient()],
     }).compileComponents();
   });
 
@@ -55,7 +69,7 @@ describe('DefaultHeaderComponent', () => {
 
   it('filtra as telas pelo texto digitado, sem diferenciar maiúsculas', () => {
     component.searchQuery.set('INÍ');
-    expect(component.searchResults().map(result => result.url)).toEqual(['/inicio']);
+    expect(component.searchResults().map((result) => result.url)).toEqual(['/inicio']);
 
     component.searchQuery.set('pedidos');
     expect(component.searchResults()).toEqual([]);

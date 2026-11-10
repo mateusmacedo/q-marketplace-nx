@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, input, linkedSignal, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  linkedSignal,
+  output,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   ButtonDirective,
@@ -7,7 +15,7 @@ import {
   InputGroupTextDirective,
   NavComponent,
   NavItemComponent,
-  NavLinkDirective
+  NavLinkDirective,
 } from '@coreui/angular';
 import { cilSearch } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -31,7 +39,7 @@ import { SEARCH_MAX_LENGTH, STATUS_TABS } from './product-list-query';
     NavComponent,
     NavItemComponent,
     NavLinkDirective,
-    RouterLink
+    RouterLink,
   ],
   template: `
     <c-nav aria-label="Status dos produtos" class="mb-3" variant="tabs">
@@ -74,7 +82,7 @@ import { SEARCH_MAX_LENGTH, STATUS_TABS } from './product-list-query';
       </form>
       <ng-content />
     </div>
-  `
+  `,
 })
 export class ProductListFiltersComponent {
   /** Aba ativa; `null` é Todos. */
@@ -93,7 +101,7 @@ export class ProductListFiltersComponent {
   readonly draft = linkedSignal(() => this.q());
   readonly #tooLong = signal(false);
   readonly shownError = computed(() =>
-    this.#tooLong() ? `A busca aceita até ${SEARCH_MAX_LENGTH} caracteres.` : this.error()
+    this.#tooLong() ? `A busca aceita até ${SEARCH_MAX_LENGTH} caracteres.` : this.error(),
   );
 
   typed(event: Event): void {

@@ -6,6 +6,5 @@ package dev.marketplace.cataloginventory.application;
  * ignora o que não conhece.
  */
 public enum ProductAction {
-    EDIT, CHANGE_CATEGORY, ADD_SKU, REMOVE_SKU, EDIT_OFFER, EDIT_STOCK, SUBMIT, PAUSE, RESUME, ARCHIVE, APPROVE,
-    REJECT, BLOCK, UNBLOCK
+  EDIT, CHANGE_CATEGORY, ADD_SKU, REMOVE_SKU, EDIT_OFFER, EDIT_STOCK, SUBMIT, PAUSE, RESUME, ARCHIVE, APPROVE, REJECT, BLOCK, UNBLOCK
 }

@@ -12,7 +12,7 @@ describe('modelo CSV da importação', () => {
   it('tem só o cabeçalho exato que o servidor aceita, com quebra CRLF', () => {
     expect(templateCsv()).toBe(
       'product_ref,category_code,title,description,attributes,seller_sku,variant_attributes,physical,height_cm,' +
-      'width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand\r\n'
+        'width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand\r\n',
     );
   });
 
@@ -25,7 +25,9 @@ describe('modelo CSV da importação', () => {
     const revoke = vi.fn();
     URL.revokeObjectURL = revoke;
     const clicked: HTMLAnchorElement[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
       clicked.push(this);
     });
 
@@ -38,7 +40,7 @@ describe('modelo CSV da importação', () => {
     expect(clicked[0].isConnected).toBe(false);
     expect(blobs[0].type).toBe('text/csv;charset=utf-8');
     expect(await readText(blobs[0])).toBe(templateCsv());
-    await new Promise(resolve => setTimeout(resolve));
+    await new Promise((resolve) => setTimeout(resolve));
     expect(revoke).toHaveBeenCalledWith('blob:modelo');
   });
 });

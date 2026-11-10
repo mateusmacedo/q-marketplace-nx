@@ -1,8 +1,5 @@
 {
   "name": "cart-checkout-contracts",
   "projectType": "library",
-  "tags": [
-    "scope:cart-checkout",
-    "layer:contract"
-  ]
+  "tags": ["scope:cart-checkout", "layer:contract"]
 }

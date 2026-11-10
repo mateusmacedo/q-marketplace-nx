@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, model, output, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { type AbstractControl, FormArray, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import {
+  type AbstractControl,
+  FormArray,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+} from '@angular/forms';
 import {
   ButtonDirective,
   CardBodyComponent,
@@ -14,7 +20,7 @@ import {
   FormLabelDirective,
   FormSelectDirective,
   FormTextDirective,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import { cilPlus } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -27,9 +33,15 @@ import {
   CreateCategoryRequestSchema,
   getCategory,
   reviseCategory,
-  ReviseCategoryRequestSchema
+  ReviseCategoryRequestSchema,
 } from '@marketplace/catalog-inventory-admin-data-access';
-import { applyServerErrors, controlMessage, FormOffcanvasComponent, schemaValidator, SERVER_ERROR } from '@marketplace/shared-admin-ui';
+import {
+  applyServerErrors,
+  controlMessage,
+  FormOffcanvasComponent,
+  schemaValidator,
+  SERVER_ERROR,
+} from '@marketplace/shared-admin-ui';
 import {
   apiData,
   apiDataWithVersion,
@@ -39,11 +51,16 @@ import {
   problemCode,
   problemMessages,
   toProblem,
-  type Versioned
+  type Versioned,
 } from '@marketplace/shared-web-util';
 import { map } from 'rxjs';
 
-import { ATTRIBUTE_TYPE_LABELS, ATTRIBUTE_TYPES, categoryFieldLabel, type CategoryStep } from './category-model';
+import {
+  ATTRIBUTE_TYPE_LABELS,
+  ATTRIBUTE_TYPES,
+  categoryFieldLabel,
+  type CategoryStep,
+} from './category-model';
 
 /** Pai da categoria nova, com o caminho para mostrar no formulário. */
 export interface CategoryFormParent extends CategoryStep {
@@ -72,19 +89,19 @@ type AttributeForm = FormGroup<{
 const CREATE_RULES = {
   name: fieldRules(CreateCategoryRequestSchema, 'name'),
   code: fieldRules(CreateCategoryRequestSchema, 'code'),
-  attributes: fieldRules(CreateCategoryRequestSchema, 'attributes')
+  attributes: fieldRules(CreateCategoryRequestSchema, 'attributes'),
 };
 
 const REVISE_RULES = {
   name: fieldRules(ReviseCategoryRequestSchema, 'name'),
-  attributes: fieldRules(ReviseCategoryRequestSchema, 'attributes')
+  attributes: fieldRules(ReviseCategoryRequestSchema, 'attributes'),
 };
 
 const ATTRIBUTE_RULES = {
   code: fieldRules(AttributeDtoSchema, 'code'),
   label: fieldRules(AttributeDtoSchema, 'label'),
   type: fieldRules(AttributeDtoSchema, 'type'),
-  options: fieldRules(AttributeDtoSchema, 'options')
+  options: fieldRules(AttributeDtoSchema, 'options'),
 };
 
 const DUPLICATE_CODE = 'duplicate-category-code';
@@ -115,7 +132,7 @@ let nextId = 0;
     FormTextDirective,
     IconDirective,
     ReactiveFormsModule,
-    RowComponent
+    RowComponent,
   ],
   template: `
     <app-form-offcanvas
@@ -277,7 +294,7 @@ let nextId = 0;
         </button>
       </div>
     </app-form-offcanvas>
-  `
+  `,
 })
 export class CategoryFormComponent {
   readonly visible = model(false);
@@ -290,7 +307,7 @@ export class CategoryFormComponent {
   readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true }),
     code: new FormControl('', { nonNullable: true }),
-    attributes: new FormArray<AttributeForm>([])
+    attributes: new FormArray<AttributeForm>([]),
   });
 
   readonly types = ATTRIBUTE_TYPES;
@@ -306,7 +323,9 @@ export class CategoryFormComponent {
   readonly #problem = signal<Problem | null>(null);
   readonly unmatchedErrors = signal<FieldError[]>([]);
 
-  readonly #dirty = toSignal(this.form.events.pipe(map(() => this.form.dirty)), { initialValue: false });
+  readonly #dirty = toSignal(this.form.events.pipe(map(() => this.form.dirty)), {
+    initialValue: false,
+  });
   /** O formulário aberto tem alterações não salvas, para o aviso de saída da tela. */
   readonly dirty = computed(() => this.visible() && this.#dirty());
 
@@ -327,7 +346,9 @@ export class CategoryFormComponent {
     return target?.parent ? `Dentro de ${target.parent.path}` : undefined;
   });
   readonly saveLabel = computed(() => (this.editing() ? 'Salvar' : 'Criar categoria'));
-  readonly problemHeading = computed(() => (this.editing() ? 'Não foi possível salvar' : 'Não foi possível criar a categoria'));
+  readonly problemHeading = computed(() =>
+    this.editing() ? 'Não foi possível salvar' : 'Não foi possível criar a categoria',
+  );
   readonly alertProblem = computed(() => {
     const problem = this.#problem();
     const unmatched = this.unmatchedErrors();
@@ -335,8 +356,10 @@ export class CategoryFormComponent {
   });
   readonly fieldLabels = computed(() =>
     Object.fromEntries(
-      this.unmatchedErrors().flatMap(({ field }) => (field ? [[field, categoryFieldLabel(field)]] : []))
-    )
+      this.unmatchedErrors().flatMap(({ field }) =>
+        field ? [[field, categoryFieldLabel(field)]] : [],
+      ),
+    ),
   );
 
   /** Abre o formulário com os valores do alvo; o que foi digitado antes é descartado. */
@@ -382,7 +405,11 @@ export class CategoryFormComponent {
     this.saving.set(true);
     this.#setProblem(null);
     try {
-      this.saved.emit(target.mode === 'create' ? await this.#create(target.parent) : await this.#revise(target.category));
+      this.saved.emit(
+        target.mode === 'create'
+          ? await this.#create(target.parent)
+          : await this.#revise(target.category),
+      );
       this.form.markAsPristine();
       this.visible.set(false);
     } catch (error) {
@@ -401,7 +428,9 @@ export class CategoryFormComponent {
     }
     this.reloading.set(true);
     try {
-      const fresh = await apiDataWithVersion(getCategory({ path: { id: target.category.data.id ?? '' } }));
+      const fresh = await apiDataWithVersion(
+        getCategory({ path: { id: target.category.data.id ?? '' } }),
+      );
       this.#load({ mode: 'edit', category: fresh });
       this.reloaded.emit(fresh);
     } catch (error) {
@@ -419,9 +448,9 @@ export class CategoryFormComponent {
           ...(parent ? { parentId: parent.id } : {}),
           code: value.code.trim(),
           name: value.name.trim(),
-          attributes: this.#attributes()
-        }
-      })
+          attributes: this.#attributes(),
+        },
+      }),
     );
     return { mode: 'create', parentId: parent?.id ?? null, id: createdId(created) };
   }
@@ -430,22 +459,26 @@ export class CategoryFormComponent {
     const category = await apiDataWithVersion(
       reviseCategory({
         path: { id: current.data.id ?? '' },
-        body: { name: this.form.getRawValue().name.trim(), attributes: this.#attributes(), active: current.data.active !== false },
-        ...(current.version ? { headers: { 'If-Match': current.version } } : {})
-      })
+        body: {
+          name: this.form.getRawValue().name.trim(),
+          attributes: this.#attributes(),
+          active: current.data.active !== false,
+        },
+        ...(current.version ? { headers: { 'If-Match': current.version } } : {}),
+      }),
     );
     this.#target.set({ mode: 'edit', category });
     return { mode: 'edit', category };
   }
 
   #attributes(): AttributeDto[] {
-    return this.form.controls.attributes.getRawValue().map(attribute => ({
+    return this.form.controls.attributes.getRawValue().map((attribute) => ({
       code: attribute.code.trim(),
       label: attribute.label.trim(),
       type: attribute.type,
       required: attribute.required,
       variant: attribute.variant,
-      ...(attribute.type === 'OPTION' ? { options: attribute.options } : {})
+      ...(attribute.type === 'OPTION' ? { options: attribute.options } : {}),
     }));
   }
 
@@ -499,23 +532,36 @@ function attributeValue(attribute: AttributeDto): Required<AttributeDto> {
     type: attribute.type ?? 'TEXT',
     required: attribute.required === true,
     variant: attribute.variant === true,
-    options: [...(attribute.options ?? [])]
+    options: [...(attribute.options ?? [])],
   };
 }
 
 function attributeForm(): AttributeForm {
   return new FormGroup({
-    code: new FormControl('', { nonNullable: true, validators: schemaValidator(ATTRIBUTE_RULES.code) }),
-    label: new FormControl('', { nonNullable: true, validators: schemaValidator(ATTRIBUTE_RULES.label) }),
-    type: new FormControl<AttributeType>('TEXT', { nonNullable: true, validators: schemaValidator(ATTRIBUTE_RULES.type) }),
+    code: new FormControl('', {
+      nonNullable: true,
+      validators: schemaValidator(ATTRIBUTE_RULES.code),
+    }),
+    label: new FormControl('', {
+      nonNullable: true,
+      validators: schemaValidator(ATTRIBUTE_RULES.label),
+    }),
+    type: new FormControl<AttributeType>('TEXT', {
+      nonNullable: true,
+      validators: schemaValidator(ATTRIBUTE_RULES.type),
+    }),
     required: new FormControl(false, { nonNullable: true }),
     variant: new FormControl(false, { nonNullable: true }),
-    options: new FormControl<string[]>([], { nonNullable: true, validators: schemaValidator(ATTRIBUTE_RULES.options) })
+    options: new FormControl<string[]>([], {
+      nonNullable: true,
+      validators: schemaValidator(ATTRIBUTE_RULES.options),
+    }),
   });
 }
 
 // WHY: o contrato não declara o corpo do 201 de `POST /categories`, mas o servidor devolve a `CategoryResponse` criada.
 function createdId(body: unknown): string | undefined {
-  const id = typeof body === 'object' && body !== null ? (body as { readonly id?: unknown }).id : undefined;
+  const id =
+    typeof body === 'object' && body !== null ? (body as { readonly id?: unknown }).id : undefined;
   return typeof id === 'string' && id ? id : undefined;
 }

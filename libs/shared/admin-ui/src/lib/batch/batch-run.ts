@@ -7,12 +7,12 @@ import type { BatchFailure } from './batch-result-alert.component';
 export function batchFailures<T>(
   failures: readonly BatchRunFailure<T>[],
   id: (item: T) => string,
-  label: (item: T) => string
+  label: (item: T) => string,
 ): BatchFailure[] {
-  return failures.map(failure => ({
+  return failures.map((failure) => ({
     id: id(failure.item),
     label: label(failure.item),
-    messages: problemMessages(failure.problem)
+    messages: problemMessages(failure.problem),
   }));
 }
 

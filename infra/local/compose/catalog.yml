@@ -37,7 +37,13 @@ x-catalog: &catalog
   # Pronto quando o readiness da porta de gestão responde UP; `up --wait` depende disto. A micro image não tem curl,
   # então o próprio bash faz a requisição pelo /dev/tcp.
   healthcheck:
-    test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /q/health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]"]
+    test:
+      [
+        "CMD",
+        "bash",
+        "-c",
+        "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /q/health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]",
+      ]
     interval: 5s
     timeout: 3s
     retries: 30
@@ -55,13 +61,13 @@ x-catalog-api: &catalog-api
   <<: *catalog
   deploy:
     resources:
-      limits: {cpus: "1", memory: 512M}
-      reservations: {memory: 128M}
+      limits: { cpus: "1", memory: 512M }
+      reservations: { memory: 128M }
   depends_on:
-    postgres-init: {condition: service_completed_successfully}
-    redis: {condition: service_healthy}
-    keycloak: {condition: service_healthy}
-    otel-collector: {condition: service_started}
+    postgres-init: { condition: service_completed_successfully }
+    redis: { condition: service_healthy }
+    keycloak: { condition: service_healthy }
+    otel-collector: { condition: service_started }
   environment:
     <<: *catalog-env
     QUARKUS_PROFILE: prod,api
@@ -84,16 +90,15 @@ services:
     <<: *catalog
     deploy:
       resources:
-        limits: {cpus: "0.50", memory: 256M}
-        reservations: {memory: 64M}
+        limits: { cpus: "0.50", memory: 256M }
+        reservations: { memory: 64M }
     ports:
       - "127.0.0.1:${CATALOG_WORKER_MANAGEMENT_PORT:-9311}:9000"
     depends_on:
-      postgres-init: {condition: service_completed_successfully}
-      redis: {condition: service_healthy}
-      kafka-init: {condition: service_completed_successfully}
-      otel-collector: {condition: service_started}
+      postgres-init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+      otel-collector: { condition: service_started }
     environment:
       <<: *catalog-env
       QUARKUS_PROFILE: prod,worker
-

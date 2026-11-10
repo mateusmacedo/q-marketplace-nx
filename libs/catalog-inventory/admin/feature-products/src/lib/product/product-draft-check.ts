@@ -6,7 +6,7 @@ import {
   type ProductCheckRequest,
   type ProductCheckResponse,
   type ProductResponse,
-  type PublishingIssueResponse
+  type PublishingIssueResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import { type Problem, toProblem } from '@marketplace/shared-web-util';
 import { debounceTime } from 'rxjs';
@@ -43,7 +43,7 @@ type CheckedProduct = Pick<ProductResponse, 'id' | 'publishingIssues'>;
 export function productDraftCheck(
   product: () => CheckedProduct | null | undefined,
   draft: () => ProductCheckRequest | null | undefined,
-  delay = DRAFT_CHECK_DELAY_MS
+  delay = DRAFT_CHECK_DELAY_MS,
 ): ProductDraftCheck {
   const request = computed<CheckRequest | undefined>(
     () => {
@@ -51,16 +51,18 @@ export function productDraftCheck(
       const body = draft();
       return id && body ? { id, body } : undefined;
     },
-    { equal: sameRequest }
+    { equal: sameRequest },
   );
-  const settled = toSignal(toObservable(request).pipe(debounceTime(delay)), { initialValue: undefined });
+  const settled = toSignal(toObservable(request).pipe(debounceTime(delay)), {
+    initialValue: undefined,
+  });
   const check = checkProductResource(() => {
     const current = settled();
     return current ? { path: { id: current.id }, body: current.body } : undefined;
   });
   const last = linkedSignal<ProductCheckResponse | undefined, ProductCheckResponse | undefined>({
     source: () => (check.hasValue() ? check.value() : undefined),
-    computation: (next, previous) => next ?? previous?.value
+    computation: (next, previous) => next ?? previous?.value,
   });
   const active = computed(() => request() !== undefined);
 
@@ -74,7 +76,7 @@ export function productDraftCheck(
     }),
     reload: () => {
       check.reload();
-    }
+    },
   };
 }
 

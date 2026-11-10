@@ -5,7 +5,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { type ProductListQuery, readProductListQuery } from './product-list-query';
 
 /** Mudança no recorte da URL; `null` tira o parâmetro. */
-export type ProductListChanges = Readonly<Partial<Record<keyof ProductListQuery, string | number | null>>>;
+export type ProductListChanges = Readonly<
+  Partial<Record<keyof ProductListQuery, string | number | null>>
+>;
 
 /** Recorte da lista lido da URL e a navegação que o muda, para as duas listas de produtos. */
 export interface ProductListRoute {
@@ -23,11 +25,15 @@ export function injectProductListRoute(): ProductListRoute {
   const params = toSignal(route.queryParamMap, { requireSync: true });
   return {
     query: computed(() => readProductListQuery(params())),
-    navigate: changes => {
-      void router.navigate([], { relativeTo: route, queryParams: changes, queryParamsHandling: 'merge' });
+    navigate: (changes) => {
+      void router.navigate([], {
+        relativeTo: route,
+        queryParams: changes,
+        queryParamsHandling: 'merge',
+      });
     },
-    open: commands => {
+    open: (commands) => {
       void router.navigate(commands, { relativeTo: route });
-    }
+    },
   };
 }

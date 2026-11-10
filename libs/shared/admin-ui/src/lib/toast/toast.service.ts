@@ -24,7 +24,7 @@ const DEFAULT_TITLES: Readonly<Record<ToastKind, string>> = {
   success: 'Pronto',
   info: 'Aviso',
   warning: 'Atenção',
-  danger: 'Erro'
+  danger: 'Erro',
 };
 
 /**
@@ -45,9 +45,9 @@ export class ToastService {
       kind,
       title: options.title ?? DEFAULT_TITLES[kind],
       message,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
-    this.#toasts.update(toasts => [...toasts, toast]);
+    this.#toasts.update((toasts) => [...toasts, toast]);
     return toast.id;
   }
 
@@ -68,6 +68,6 @@ export class ToastService {
   }
 
   dismiss(id: number): void {
-    this.#toasts.update(toasts => toasts.filter(toast => toast.id !== id));
+    this.#toasts.update((toasts) => toasts.filter((toast) => toast.id !== id));
   }
 }

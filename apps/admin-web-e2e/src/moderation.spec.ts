@@ -11,7 +11,7 @@ import {
   type Product,
   rejectProduct,
   submitProduct,
-  uniqueSuffix
+  uniqueSuffix,
 } from './support/catalog-data';
 import { expect, test as base } from './support/fixtures';
 import { sidebarNav } from './support/panel';
@@ -31,24 +31,27 @@ interface ModerationFixtures {
 
 const test = base.extend<ModerationFixtures>({
   // eslint-disable-next-line no-empty-pattern
-  createReason: async ({ }, use) => {
+  createReason: async ({}, use) => {
     const created: string[] = [];
-    await use(async decisions => {
+    await use(async (decisions) => {
       const reason = await createModerationReason({ decisions });
       created.push(reason.code);
       return reason;
     });
-    await Promise.all(created.map(code => deactivateModerationReason(code)));
-  }
+    await Promise.all(created.map((code) => deactivateModerationReason(code)));
+  },
 });
 
 test('rejeitar com motivo e complemento tira o produto da fila, e o lojista vê o badge Rejeitado com o motivo e o histórico da decisão', async ({
   createReason,
-  pageAs
+  pageAs,
 }) => {
   const suffix = uniqueSuffix();
   const reason = await createReason(['REJECT']);
-  const product = await createPendingProduct({ category: await createCategory(), title: `Produto rejeitado ${suffix}` });
+  const product = await createPendingProduct({
+    category: await createCategory(),
+    title: `Produto rejeitado ${suffix}`,
+  });
   const note = `A foto principal não mostra o produto ${suffix}`;
 
   const moderator = await pageAs('moderator-demo', queuePath(product.id));
@@ -64,7 +67,9 @@ test('rejeitar com motivo e complemento tira o produto da fila, e o lojista vê 
   await expect(dialog.getByText(`${note.length} de ${NOTE_MAX_LENGTH}`)).toBeVisible();
   await dialog.getByRole('button', { name: 'Rejeitar' }).click();
 
-  await expect(moderator.getByText('Produto rejeitado. Ele voltou ao rascunho do lojista.')).toBeVisible();
+  await expect(
+    moderator.getByText('Produto rejeitado. Ele voltou ao rascunho do lojista.'),
+  ).toBeVisible();
   await expect(dialog).toBeHidden();
   await expect(moderator).not.toHaveURL(new RegExp(product.id));
   expect((await getProduct(product)).status).toBe('DRAFT');
@@ -77,7 +82,9 @@ test('rejeitar com motivo e complemento tira o produto da fila, e o lojista vê 
   // NOTE: regex em getByText e hasText casa com o texto bruto do elemento, que começa pelo espaço do template.
   const rejected = row.getByText(/^\s*Rejeitado/);
   await rejected.hover();
-  await expect(seller.getByRole('tooltip')).toHaveText(`Motivo: ${reason.label}. Complemento: ${note}`);
+  await expect(seller.getByRole('tooltip')).toHaveText(
+    `Motivo: ${reason.label}. Complemento: ${note}`,
+  );
 
   await seller.goto(`/loja/produtos/${product.id}/historico`);
   const rejection = seller.getByRole('listitem').filter({ hasText: /^\s*Rejeitado/ });
@@ -87,9 +94,14 @@ test('rejeitar com motivo e complemento tira o produto da fila, e o lojista vê 
   await expect(rejection.getByText(note, { exact: true })).toBeVisible();
 });
 
-test('aprovar o produto reenviado depois da rejeição deixa o produto Ativo para o lojista', async ({ pageAs }) => {
+test('aprovar o produto reenviado depois da rejeição deixa o produto Ativo para o lojista', async ({
+  pageAs,
+}) => {
   const suffix = uniqueSuffix();
-  const pending = await createPendingProduct({ category: await createCategory(), title: `Produto reenviado ${suffix}` });
+  const pending = await createPendingProduct({
+    category: await createCategory(),
+    title: `Produto reenviado ${suffix}`,
+  });
   await rejectProduct(pending, { note: `Falta a foto do verso ${suffix}` });
   const product = await submitProduct(pending);
   expect(product.status).toBe('PENDING_MODERATION');
@@ -110,12 +122,15 @@ test('aprovar o produto reenviado depois da rejeição deixa o produto Ativo par
 
 test('bloquear um produto ativo com um motivo de bloqueio o tira da vitrine, e Desbloquear em Produtos de todas as lojas o devolve à fila', async ({
   createReason,
-  pageAs
+  pageAs,
 }) => {
   const suffix = uniqueSuffix();
   const reason = await createReason(['BLOCK']);
   const product = await approveProduct(
-    await createPendingProduct({ category: await createCategory(), title: `Produto bloqueado ${suffix}` })
+    await createPendingProduct({
+      category: await createCategory(),
+      title: `Produto bloqueado ${suffix}`,
+    }),
   );
   expect(product.status).toBe('ACTIVE');
 
@@ -142,7 +157,9 @@ test('bloquear um produto ativo com um motivo de bloqueio o tira da vitrine, e D
   await row.getByRole('button', { name: `Ações de ${product.title}` }).click();
   await moderator.getByRole('button', { name: 'Desbloquear' }).click();
 
-  await expect(moderator.getByText('Produto desbloqueado. Ele volta para a fila de moderação.')).toBeVisible();
+  await expect(
+    moderator.getByText('Produto desbloqueado. Ele volta para a fila de moderação.'),
+  ).toBeVisible();
   await expect(row.getByText('Em moderação', { exact: true })).toBeVisible();
   expect((await getProduct(product)).status).toBe('PENDING_MODERATION');
 
@@ -151,7 +168,7 @@ test('bloquear um produto ativo com um motivo de bloqueio o tira da vitrine, e D
 });
 
 test('aprovar em lote os dois produtos selecionados pelo título mostra o resumo do lote e tira os dois da fila', async ({
-  pageAs
+  pageAs,
 }) => {
   const suffix = uniqueSuffix();
   const category = await createCategory();
@@ -160,7 +177,9 @@ test('aprovar em lote os dois produtos selecionados pelo título mostra o resumo
   const titles = [first.title, second.title];
 
   const moderator = await pageAs('moderator-demo', queuePath());
-  const missing = await walkQueue(moderator, titles, entry => entry.getByRole('checkbox').check());
+  const missing = await walkQueue(moderator, titles, (entry) =>
+    entry.getByRole('checkbox').check(),
+  );
   expect(missing).toEqual([]);
 
   const batchBar = moderator.getByRole('toolbar', { name: 'Ações em lote' });
@@ -173,16 +192,19 @@ test('aprovar em lote os dois produtos selecionados pelo título mostra o resumo
   await expect(moderator.getByText('2 aprovados', { exact: true })).toBeVisible();
   await expect(dialog).toBeHidden();
   await expect(moderator.getByText('Alguns produtos não foram decididos')).toHaveCount(0);
-  await expect.poll(async () => Promise.all([first, second].map(async product => (await getProduct(product)).status))).toEqual([
-    'ACTIVE',
-    'ACTIVE'
-  ]);
+  await expect
+    .poll(async () =>
+      Promise.all([first, second].map(async (product) => (await getProduct(product)).status)),
+    )
+    .toEqual(['ACTIVE', 'ACTIVE']);
   await moderator.goto(queuePath());
   expect(await walkQueue(moderator, titles)).toEqual(titles);
 
   const seller = await pageAs('seller-demo', `/loja/produtos?q=${suffix}`);
   for (const product of [first, second]) {
-    await expect(productRow(seller, product.title).getByText('Ativo', { exact: true })).toBeVisible();
+    await expect(
+      productRow(seller, product.title).getByText('Ativo', { exact: true }),
+    ).toBeVisible();
   }
 });
 
@@ -193,7 +215,9 @@ function decisions(page: Page): Locator {
 
 /** Linha da tabela de produtos com o título exato, na lista da loja ou na de todas as lojas. */
 function productRow(page: Page, title: Product['title']): Locator {
-  return page.getByRole('row').filter({ has: page.getByRole('link', { name: title, exact: true }) });
+  return page
+    .getByRole('row')
+    .filter({ has: page.getByRole('link', { name: title, exact: true }) });
 }
 
 /**
@@ -203,24 +227,26 @@ function productRow(page: Page, title: Product['title']): Locator {
 async function walkQueue(
   page: Page,
   titles: readonly string[],
-  found: (entry: Locator) => Promise<void> = async () => undefined
+  found: (entry: Locator) => Promise<void> = async () => undefined,
 ): Promise<string[]> {
   // WHY: a fila é compartilhada e cresce entre execuções; o produto do teste pode não estar na primeira página.
   const list = page.getByRole('list', { name: 'Produtos na fila' });
   const empty = page.getByText('Nenhum produto aguardando moderação.');
   const next = page.getByRole('button', { name: 'Próxima' });
   let missing = [...titles];
-  for (; ;) {
+  for (;;) {
     await expect(list.or(empty)).toBeVisible();
     if (await empty.isVisible()) {
       return missing;
     }
     await expect(list).toHaveAttribute('aria-busy', 'false');
     for (const title of missing) {
-      const entry = list.getByRole('listitem').filter({ has: page.getByRole('link', { name: title, exact: true }) });
+      const entry = list
+        .getByRole('listitem')
+        .filter({ has: page.getByRole('link', { name: title, exact: true }) });
       if (await entry.count()) {
         await found(entry);
-        missing = missing.filter(other => other !== title);
+        missing = missing.filter((other) => other !== title);
       }
     }
     if (!missing.length || (await next.isDisabled())) {
@@ -233,5 +259,8 @@ async function walkQueue(
 }
 
 function isQueueResponse(response: Response): boolean {
-  return response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith('/moderation/products');
+  return (
+    response.request().method() === 'GET' &&
+    new URL(response.url()).pathname.endsWith('/moderation/products')
+  );
 }

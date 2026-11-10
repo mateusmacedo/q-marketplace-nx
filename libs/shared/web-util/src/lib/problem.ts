@@ -62,7 +62,9 @@ export async function apiData<T>(call: Promise<ApiResult<T>>): Promise<T> {
 
 /** Indica se o valor tem a forma de um problema RFC 9457: `type` ou `title` em texto. */
 export function isProblem(value: unknown): value is Problem {
-  return isRecord(value) && (typeof value['type'] === 'string' || typeof value['title'] === 'string');
+  return (
+    isRecord(value) && (typeof value['type'] === 'string' || typeof value['title'] === 'string')
+  );
 }
 
 /** Código estável do problema, o fim do `type` ("https://marketplace.dev/problems/version-mismatch"). */
@@ -82,7 +84,7 @@ export function problemCode(problem: Problem): string {
 export function problemMessages(problem: Problem): string[] {
   const details = problemReasons(problem);
   const reasons = details.length ? details : [{ code: problemCode(problem) }];
-  return [...new Set(reasons.map(reason => translateReason(reason, problem)))];
+  return [...new Set(reasons.map((reason) => translateReason(reason, problem)))];
 }
 
 /** Motivos da recusa: os de `reasonDetails` ou, sem eles, os de `reasons` separados em código e parâmetros. */

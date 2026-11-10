@@ -1,4 +1,12 @@
-import { Component, computed, DestroyRef, DOCUMENT, effect, inject, untracked } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  DOCUMENT,
+  effect,
+  inject,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -15,7 +23,7 @@ import {
   SidebarHeaderComponent,
   SidebarNavComponent,
   SidebarToggleDirective,
-  SidebarTogglerDirective
+  SidebarTogglerDirective,
 } from '@coreui/angular';
 import { getModerationQueueStats } from '@marketplace/catalog-inventory-admin-data-access';
 import {
@@ -24,7 +32,7 @@ import {
   LeaveConfirmHostComponent,
   LoadingStateComponent,
   NavBadgeService,
-  ToastHostComponent
+  ToastHostComponent,
 } from '@marketplace/shared-admin-ui';
 import { apiData } from '@marketplace/shared-web-util';
 
@@ -57,8 +65,8 @@ import { buildNav, navItems, QUEUE_BADGE } from './_nav';
     RouterLink,
     ShadowOnScrollDirective,
     LeaveConfirmHostComponent,
-    ToastHostComponent
-  ]
+    ToastHostComponent,
+  ],
 })
 export class DefaultLayoutComponent {
   readonly #auth = inject(AuthSession);
@@ -69,20 +77,24 @@ export class DefaultLayoutComponent {
   readonly sessionStatus = this.#session.status;
   readonly sessionProblem = this.#session.problem;
   /** Menu do que a sessão libera, com os badges que as features alimentam. */
-  readonly navItems = computed(() => buildNav(navItems, this.#session.grants(), this.#badges.counts()));
+  readonly navItems = computed(() =>
+    buildNav(navItems, this.#session.grants(), this.#badges.counts()),
+  );
   /** Item da Fila, quando a sessão carregada o libera. */
   readonly #queueItem = computed(() =>
     this.#session.status() === 'ready'
-      ? navItems.find(item => item.badgeKey === QUEUE_BADGE && allowsAccess(this.#session.grants(), item))
-      : undefined
+      ? navItems.find(
+          (item) => item.badgeKey === QUEUE_BADGE && allowsAccess(this.#session.grants(), item),
+        )
+      : undefined,
   );
   /** Caminho da rota, sem a query string: trocar só filtros ou cursor não muda o valor. */
   readonly #path = toSignal(
     this.#router.events.pipe(
-      filter(event => event instanceof NavigationEnd),
-      map(event => pathOf(event.urlAfterRedirects))
+      filter((event) => event instanceof NavigationEnd),
+      map((event) => pathOf(event.urlAfterRedirects)),
     ),
-    { initialValue: pathOf(this.#router.url) }
+    { initialValue: pathOf(this.#router.url) },
   );
 
   constructor() {
@@ -122,7 +134,10 @@ export class DefaultLayoutComponent {
    * leitura dos últimos 60 s.
    */
   #refreshQueueBadge(): Promise<void> {
-    return this.#badges.refresh(QUEUE_BADGE, async () => (await apiData(getModerationQueueStats())).count);
+    return this.#badges.refresh(
+      QUEUE_BADGE,
+      async () => (await apiData(getModerationQueueStats())).count,
+    );
   }
 }
 

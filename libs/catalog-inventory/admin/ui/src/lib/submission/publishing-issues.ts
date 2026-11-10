@@ -30,12 +30,20 @@ export interface ChecklistItem {
 const SKU_FIELD = /^skus(?:\[([^\]]+)\])?(?:\.(.+))?$/;
 
 /** Transforma as pendências do servidor em itens do checklist, com a aba e o campo tirados do caminho `field`. */
-export function checklistItems(issues: readonly PublishingIssue[] | null | undefined): ChecklistItem[] {
-  return (issues ?? []).map(issue => ({ code: issue.code, message: translateReason(issue), ...issueTarget(issue.field) }));
+export function checklistItems(
+  issues: readonly PublishingIssue[] | null | undefined,
+): ChecklistItem[] {
+  return (issues ?? []).map((issue) => ({
+    code: issue.code,
+    message: translateReason(issue),
+    ...issueTarget(issue.field),
+  }));
 }
 
 /** Aba, campo e SKU do caminho que o servidor devolve; sem caminho, a pendência fica na aba de conteúdo. */
-export function issueTarget(field: string | null | undefined): Pick<ChecklistItem, 'tab' | 'field' | 'sellerSku'> {
+export function issueTarget(
+  field: string | null | undefined,
+): Pick<ChecklistItem, 'tab' | 'field' | 'sellerSku'> {
   const sku = SKU_FIELD.exec(field ?? '');
   if (sku) {
     const [, sellerSku, rest] = sku;

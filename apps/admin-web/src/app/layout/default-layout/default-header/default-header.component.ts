@@ -34,7 +34,7 @@ import {
   ModalTitleDirective,
   NavLinkDirective,
   SearchButtonComponent,
-  SidebarToggleDirective
+  SidebarToggleDirective,
 } from '@coreui/angular';
 
 import { IconDirective } from '@coreui/icons-angular';
@@ -71,23 +71,22 @@ import { breadcrumbs } from './breadcrumbs';
     NavLinkDirective,
     NgTemplateOutlet,
     SearchButtonComponent,
-    SidebarToggleDirective
-  ]
+    SidebarToggleDirective,
+  ],
 })
 export class DefaultHeaderComponent extends HeaderComponent {
-
   readonly #colorModeService = inject(ColorModeService);
   readonly colorMode = this.#colorModeService.colorMode;
 
   readonly colorModes = [
     { name: 'light', text: 'Claro', icon: 'cilSun' },
     { name: 'dark', text: 'Escuro', icon: 'cilMoon' },
-    { name: 'auto', text: 'Automático', icon: 'cilContrast' }
+    { name: 'auto', text: 'Automático', icon: 'cilContrast' },
   ];
 
   readonly icons = computed(() => {
     const currentMode = this.colorMode();
-    return this.colorModes.find(mode => mode.name === currentMode)?.icon ?? 'cilSun';
+    return this.colorModes.find((mode) => mode.name === currentMode)?.icon ?? 'cilSun';
   });
 
   readonly sidebarId = input('sidebar1');
@@ -96,10 +95,10 @@ export class DefaultHeaderComponent extends HeaderComponent {
   /** Trilha da rota ativa, refeita a cada navegação concluída. */
   readonly crumbs = toSignal(
     this.#router.events.pipe(
-      filter(event => event instanceof NavigationEnd),
-      map(() => breadcrumbs(this.#router.routerState.snapshot.root))
+      filter((event) => event instanceof NavigationEnd),
+      map(() => breadcrumbs(this.#router.routerState.snapshot.root)),
     ),
-    { initialValue: breadcrumbs(this.#router.routerState.snapshot.root) }
+    { initialValue: breadcrumbs(this.#router.routerState.snapshot.root) },
   );
   readonly #session = inject(AuthSession);
   readonly #grants = inject(SessionStore).grants;
@@ -109,9 +108,9 @@ export class DefaultHeaderComponent extends HeaderComponent {
   readonly searchResults = computed(() => {
     const query = this.searchQuery().trim().toLocaleLowerCase('pt-BR');
     return buildNav(navItems, this.#grants())
-      .filter(item => typeof item.url === 'string' && !item.title)
-      .map(item => ({ name: item.name ?? '', url: item.url as string }))
-      .filter(item => !query || item.name.toLocaleLowerCase('pt-BR').includes(query));
+      .filter((item) => typeof item.url === 'string' && !item.title)
+      .map((item) => ({ name: item.name ?? '', url: item.url as string }))
+      .filter((item) => !query || item.name.toLocaleLowerCase('pt-BR').includes(query));
   });
 
   openResult(url: string): void {
@@ -125,5 +124,4 @@ export class DefaultHeaderComponent extends HeaderComponent {
   logout(): void {
     this.#session.logout();
   }
-
 }

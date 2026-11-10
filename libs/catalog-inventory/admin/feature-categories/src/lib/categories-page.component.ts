@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, resource, signal, untracked, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  resource,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink, RouterOutlet } from '@angular/router';
 import {
@@ -14,7 +24,7 @@ import {
   FormCheckLabelDirective,
   ListGroupDirective,
   ListGroupItemDirective,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import { cilChevronRight, cilPlus } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -24,7 +34,7 @@ import {
   type CategoryBatchResult,
   type CategorySummary,
   getCategory,
-  getCategoryStats
+  getCategoryStats,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   abortOnDestroy,
@@ -41,7 +51,7 @@ import {
   LoadingStateComponent,
   ProblemAlertComponent,
   ToastService,
-  warnBeforeUnload
+  warnBeforeUnload,
 } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -49,7 +59,7 @@ import {
   batchSummary,
   plural,
   type Problem,
-  runBatch
+  runBatch,
 } from '@marketplace/shared-web-util';
 import { map } from 'rxjs';
 
@@ -64,7 +74,7 @@ import {
   categoryTrail,
   isCategoryBatchAction,
   loadLevel,
-  resourceProblem
+  resourceProblem,
 } from './category-model';
 
 /** Texto do modal de confirmação das ações em lote que pedem confirmação. */
@@ -72,7 +82,7 @@ const BATCH_CONFIRMATIONS: Readonly<Partial<Record<CategoryBatchAction, string>>
   DEACTIVATE: 'Elas e as subcategorias deixam de aceitar produtos novos.',
   DELETE:
     'As categorias são excluídas definitivamente, das subcategorias para as categorias pai. As recusadas continuam ' +
-    'selecionadas, com o motivo. Não há como desfazer.'
+    'selecionadas, com o motivo. Não há como desfazer.',
 };
 
 /**
@@ -107,7 +117,7 @@ const BATCH_CONFIRMATIONS: Readonly<Partial<Record<CategoryBatchAction, string>>
     ProblemAlertComponent,
     RouterLink,
     RouterOutlet,
-    RowComponent
+    RowComponent,
   ],
   template: `
     <app-batch-result-alert
@@ -270,7 +280,7 @@ const BATCH_CONFIRMATIONS: Readonly<Partial<Record<CategoryBatchAction, string>>
     >
       <p class="mb-0">{{ batchWarning() }}</p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class CategoriesPageComponent implements LeaveGuarded {
   readonly #route = inject(ActivatedRoute);
@@ -288,14 +298,20 @@ export class CategoriesPageComponent implements LeaveGuarded {
   readonly rootLink = { queryParams: { parentId: null } };
 
   /** Nível aberto: o pai das categorias listadas, ou `null` na raiz. */
-  readonly parentId = toSignal(this.#route.queryParamMap.pipe(map(params => params.get('parentId') || null)), {
-    requireSync: true
-  });
+  readonly parentId = toSignal(
+    this.#route.queryParamMap.pipe(map((params) => params.get('parentId') || null)),
+    {
+      requireSync: true,
+    },
+  );
 
   /** Categorias do nível, todas as páginas, com o pai que as produziu. */
   readonly level = resource({
     params: () => ({ parentId: this.parentId() }),
-    loader: async ({ params }) => ({ parentId: params.parentId, items: await loadLevel(params.parentId) })
+    loader: async ({ params }) => ({
+      parentId: params.parentId,
+      items: await loadLevel(params.parentId),
+    }),
   });
   /** Pai do nível aberto, para o breadcrumb e para criar a subcategoria. */
   readonly parent = resource({
@@ -303,14 +319,18 @@ export class CategoriesPageComponent implements LeaveGuarded {
       const id = this.parentId();
       return id ? { id } : undefined;
     },
-    loader: ({ params }) => apiData(getCategory({ path: { id: params.id } }))
+    loader: ({ params }) => apiData(getCategory({ path: { id: params.id } })),
   });
   readonly stats = resource({ loader: () => apiData(getCategoryStats()) });
 
   readonly items = computed(() => (this.level.hasValue() ? this.level.value().items : []));
   readonly levelProblem = computed(() => resourceProblem(this.level.error()));
-  readonly trail = computed(() => (this.parent.hasValue() && this.parent.value() ? categoryTrail(this.parent.value()) : []));
-  readonly canCreate = computed(() => !this.parentId() || (this.parent.hasValue() && !!this.parent.value()));
+  readonly trail = computed(() =>
+    this.parent.hasValue() && this.parent.value() ? categoryTrail(this.parent.value()) : [],
+  );
+  readonly canCreate = computed(
+    () => !this.parentId() || (this.parent.hasValue() && !!this.parent.value()),
+  );
   readonly summary = computed(() => {
     if (!this.stats.hasValue()) {
       return '';
@@ -321,7 +341,10 @@ export class CategoriesPageComponent implements LeaveGuarded {
   readonly openId = this.#events.openId.asReadonly();
   readonly detailOpen = signal(false);
 
-  readonly selection = new ListSelection<CategorySummary>({ id: category => category.id ?? '', accepts: acceptsCategoryAction });
+  readonly selection = new ListSelection<CategorySummary>({
+    id: (category) => category.id ?? '',
+    accepts: acceptsCategoryAction,
+  });
   readonly selecting = signal(false);
   readonly running = signal<CategoryBatchAction | null>(null);
   readonly pendingBatch = signal<CategoryBatchAction | null>(null);
@@ -335,14 +358,16 @@ export class CategoriesPageComponent implements LeaveGuarded {
     const count = plural(this.selection.countFor(action), 'categoria', 'categorias');
     return action === 'DELETE' ? `Excluir ${count}` : `Desativar ${count}`;
   });
-  readonly batchLabel = computed(() => (this.pendingBatch() === 'DELETE' ? 'Excluir' : 'Desativar'));
+  readonly batchLabel = computed(() =>
+    this.pendingBatch() === 'DELETE' ? 'Excluir' : 'Desativar',
+  );
   readonly batchWarning = computed(() => {
     const action = this.pendingBatch();
     return action ? (BATCH_CONFIRMATIONS[action] ?? '') : '';
   });
 
   readonly leaveWarning = computed(() =>
-    leaveWarning({ batchRunning: this.running() !== null, unsaved: this.form().dirty() })
+    leaveWarning({ batchRunning: this.running() !== null, unsaved: this.form().dirty() }),
   );
 
   constructor() {
@@ -391,7 +416,10 @@ export class CategoriesPageComponent implements LeaveGuarded {
   /** Categoria nova no nível aberto: raiz na raiz, subcategoria do pai dentro de um nível. */
   create(event: Event): void {
     const parent = this.parent.hasValue() ? this.parent.value() : undefined;
-    const target = this.parentId() && parent?.id ? { id: parent.id, name: parent.name ?? '', path: categoryPath(parent) } : null;
+    const target =
+      this.parentId() && parent?.id
+        ? { id: parent.id, name: parent.name ?? '', path: categoryPath(parent) }
+        : null;
     this.form().open({ mode: 'create', parent: target }, event.currentTarget as HTMLElement);
   }
 
@@ -399,7 +427,7 @@ export class CategoriesPageComponent implements LeaveGuarded {
     if (this.selecting()) {
       this.selection.clear();
     }
-    this.selecting.update(selecting => !selecting);
+    this.selecting.update((selecting) => !selecting);
   }
 
   onSaved(result: CategoryFormResult): void {
@@ -442,22 +470,34 @@ export class CategoriesPageComponent implements LeaveGuarded {
     this.batchProblem.set(null);
     const run = await runBatch<CategorySummary, CategoryBatchResult>({
       items,
-      id: category => category.id ?? '',
+      id: (category) => category.id ?? '',
       size: this.#batchSize,
       signal: this.#abort,
-      send: group =>
+      send: (group) =>
         apiData(
           batchCategories({
-            body: { action, items: group.map(category => ({ id: category.id ?? '', version: category.version })) }
-          })
-        ).then(response => response.results)
+            body: {
+              action,
+              items: group.map((category) => ({
+                id: category.id ?? '',
+                version: category.version,
+              })),
+            },
+          }),
+        ).then((response) => response.results),
     });
     this.running.set(null);
     if (this.#abort.aborted) {
       return;
     }
     this.selection.completeBatch(run);
-    this.failures.set(batchFailures(run.failed, category => category.id ?? '', category => category.name ?? ''));
+    this.failures.set(
+      batchFailures(
+        run.failed,
+        (category) => category.id ?? '',
+        (category) => category.name ?? '',
+      ),
+    );
     this.batchProblem.set(run.error ?? null);
     const counts = batchRunCounts(run, ignored);
     const summary = batchSummary(counts, CATEGORY_BATCH_VERBS[action]);
@@ -467,8 +507,15 @@ export class CategoriesPageComponent implements LeaveGuarded {
       this.#toast.success(summary);
     }
     const openId = this.openId();
-    if (action === 'DELETE' && openId && run.succeeded.some(success => success.item.id === openId)) {
-      await this.#router.navigate(['.'], { relativeTo: this.#route, queryParamsHandling: 'preserve' });
+    if (
+      action === 'DELETE' &&
+      openId &&
+      run.succeeded.some((success) => success.item.id === openId)
+    ) {
+      await this.#router.navigate(['.'], {
+        relativeTo: this.#route,
+        queryParamsHandling: 'preserve',
+      });
     }
     this.#events.listChanged();
     this.#events.detailChanged();
@@ -478,7 +525,7 @@ export class CategoriesPageComponent implements LeaveGuarded {
   async #reveal(created: CreatedCategory): Promise<void> {
     await this.#router.navigate(created.id ? [created.id] : [], {
       relativeTo: this.#route,
-      queryParams: { parentId: created.parentId }
+      queryParams: { parentId: created.parentId },
     });
   }
 }

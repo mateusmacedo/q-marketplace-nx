@@ -1,7 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideCatalogInventoryApi, type ModerationReasonResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  provideCatalogInventoryApi,
+  type ModerationReasonResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 
 import { ModerationReasonsPageComponent } from './moderation-reasons-page.component';
@@ -10,16 +13,30 @@ const API = '/api/catalog-inventory/moderation/reasons';
 const LIST = `${API}?includeInactive=true`;
 
 const CATALOG: ModerationReasonResponse[] = [
-  { code: 'wrong-category', label: 'Categoria incorreta', decisions: ['REJECT'], position: 10, active: true, version: 2 },
-  { code: 'prohibited-item', label: 'Item proibido na plataforma', decisions: ['BLOCK'], position: 20, active: true, version: 1 },
+  {
+    code: 'wrong-category',
+    label: 'Categoria incorreta',
+    decisions: ['REJECT'],
+    position: 10,
+    active: true,
+    version: 2,
+  },
+  {
+    code: 'prohibited-item',
+    label: 'Item proibido na plataforma',
+    decisions: ['BLOCK'],
+    position: 20,
+    active: true,
+    version: 1,
+  },
   {
     code: 'price-out-of-range',
     label: 'Preço fora do padrão',
     decisions: ['REJECT', 'BLOCK'],
     position: 30,
     active: false,
-    version: 4
-  }
+    version: 4,
+  },
 ];
 
 describe('ModerationReasonsPageComponent', () => {
@@ -30,16 +47,18 @@ describe('ModerationReasonsPageComponent', () => {
   const element = () => fixture.nativeElement as HTMLElement;
   const rows = () => Array.from(element().querySelectorAll('tbody tr')) as HTMLTableRowElement[];
   const buttonIn = (root: Element, text: string) =>
-    (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(button =>
-      button.textContent?.trim().startsWith(text)
+    (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find((button) =>
+      button.textContent?.trim().startsWith(text),
     ) as HTMLButtonElement;
   const menuItem = (row: HTMLTableRowElement, text: string) =>
     (Array.from(row.querySelectorAll('[cDropdownItem]')) as HTMLButtonElement[]).find(
-      item => item.textContent?.trim() === text
+      (item) => item.textContent?.trim() === text,
     ) as HTMLButtonElement;
-  const showInactive = () => element().querySelector('#moderation-reasons-show-inactive') as HTMLInputElement;
+  const showInactive = () =>
+    element().querySelector('#moderation-reasons-show-inactive') as HTMLInputElement;
   const offcanvas = () => element().querySelector('c-offcanvas') as HTMLElement;
-  const field = (id: string) => element().querySelector(`#moderation-reason-${id}`) as HTMLInputElement;
+  const field = (id: string) =>
+    element().querySelector(`#moderation-reason-${id}`) as HTMLInputElement;
   const lastToast = () => toast.toasts().at(-1)?.message;
 
   /**
@@ -47,7 +66,7 @@ describe('ModerationReasonsPageComponent', () => {
    * porque uma leitura pendente do `httpResource` só termina com o `flush` do teste.
    */
   async function settle(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve));
+    await new Promise((resolve) => setTimeout(resolve));
     TestBed.tick();
   }
 
@@ -77,13 +96,15 @@ describe('ModerationReasonsPageComponent', () => {
   }
 
   function offcanvasSaveLabel(): string {
-    return element().querySelector('[cOffcanvasTitle]')?.textContent?.includes('Novo') ? 'Criar motivo' : 'Salvar';
+    return element().querySelector('[cOffcanvasTitle]')?.textContent?.includes('Novo')
+      ? 'Criar motivo'
+      : 'Salvar';
   }
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ModerationReasonsPageComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     toast = TestBed.inject(ToastService);
@@ -95,37 +116,46 @@ describe('ModerationReasonsPageComponent', () => {
     await render();
 
     expect(showInactive().checked).toBe(false);
-    expect(rows().map(row => Array.from(row.cells[0].querySelectorAll('div')).map(line => line.textContent?.trim()))).toEqual([
+    expect(
+      rows().map((row) =>
+        Array.from(row.cells[0].querySelectorAll('div')).map((line) => line.textContent?.trim()),
+      ),
+    ).toEqual([
       ['Categoria incorreta', 'wrong-category'],
-      ['Item proibido na plataforma', 'prohibited-item']
+      ['Item proibido na plataforma', 'prohibited-item'],
     ]);
     expect(rows()[0].cells[1].textContent?.trim()).toBe('Rejeitar');
     expect(rows()[0].cells[2].textContent?.trim()).toBe('Ativo');
     expect(rows()[0].cells[3].textContent?.trim()).toBe('10');
-    expect(Array.from(rows()[0].querySelectorAll('[cDropdownItem]')).map(item => item.textContent?.trim())).toEqual([
-      'Editar',
-      'Desativar'
-    ]);
+    expect(
+      Array.from(rows()[0].querySelectorAll('[cDropdownItem]')).map((item) =>
+        item.textContent?.trim(),
+      ),
+    ).toEqual(['Editar', 'Desativar']);
     expect(element().textContent).not.toContain('Excluir');
 
     showInactive().click();
     await settle();
 
     expect(rows().length).toBe(3);
-    expect(Array.from(rows()[2].cells[1].querySelectorAll('c-badge')).map(badge => badge.textContent?.trim())).toEqual([
-      'Rejeitar',
-      'Bloquear'
-    ]);
+    expect(
+      Array.from(rows()[2].cells[1].querySelectorAll('c-badge')).map((badge) =>
+        badge.textContent?.trim(),
+      ),
+    ).toEqual(['Rejeitar', 'Bloquear']);
     expect(rows()[2].cells[2].textContent?.trim()).toBe('Inativo');
-    expect(Array.from(rows()[2].querySelectorAll('[cDropdownItem]')).map(item => item.textContent?.trim())).toEqual([
-      'Editar',
-      'Reativar'
-    ]);
+    expect(
+      Array.from(rows()[2].querySelectorAll('[cDropdownItem]')).map((item) =>
+        item.textContent?.trim(),
+      ),
+    ).toEqual(['Editar', 'Reativar']);
   });
 
   it('mostra o estado vazio com Criar motivo e avisa quando só há inativos', async () => {
     await render([]);
-    expect(element().textContent).toContain('Nenhum motivo cadastrado. Sem motivos, o moderador decide só com o complemento.');
+    expect(element().textContent).toContain(
+      'Nenhum motivo cadastrado. Sem motivos, o moderador decide só com o complemento.',
+    );
 
     buttonIn(element().querySelector('app-empty-state') as Element, 'Criar motivo').click();
     await settle();
@@ -133,7 +163,9 @@ describe('ModerationReasonsPageComponent', () => {
 
     fixture.componentInstance.reasons.reload();
     await reloadList([CATALOG[2]]);
-    expect(element().textContent).toContain('Nenhum motivo ativo. Ligue Mostrar inativos para ver os desativados.');
+    expect(element().textContent).toContain(
+      'Nenhum motivo ativo. Ligue Mostrar inativos para ver os desativados.',
+    );
   });
 
   it('cria o motivo sem posição, avisa no toast e recarrega a lista', async () => {
@@ -151,10 +183,21 @@ describe('ModerationReasonsPageComponent', () => {
 
     const request = http.expectOne(API);
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ code: 'missing-photo', label: 'Foto ausente', decisions: ['REJECT'] });
+    expect(request.request.body).toEqual({
+      code: 'missing-photo',
+      label: 'Foto ausente',
+      decisions: ['REJECT'],
+    });
     request.flush(
-      { code: 'missing-photo', label: 'Foto ausente', decisions: ['REJECT'], position: 40, active: true, version: 0 },
-      { status: 201, statusText: 'Created', headers: { ETag: '"0"' } }
+      {
+        code: 'missing-photo',
+        label: 'Foto ausente',
+        decisions: ['REJECT'],
+        position: 40,
+        active: true,
+        version: 0,
+      },
+      { status: 201, statusText: 'Created', headers: { ETag: '"0"' } },
     );
     await settle();
     await reloadList();
@@ -191,14 +234,16 @@ describe('ModerationReasonsPageComponent', () => {
         type: 'https://marketplace.dev/problems/duplicate-moderation-reason-code',
         title: 'Código já usado',
         status: 409,
-        detail: 'Já existe um motivo com o código price-out-of-range, talvez inativo.'
+        detail: 'Já existe um motivo com o código price-out-of-range, talvez inativo.',
       },
-      { status: 409, statusText: 'Conflict' }
+      { status: 409, statusText: 'Conflict' },
     );
     await settle();
     await reloadList();
 
-    expect(offcanvas().textContent).toContain('Já existe um motivo com o código price-out-of-range, talvez inativo.');
+    expect(offcanvas().textContent).toContain(
+      'Já existe um motivo com o código price-out-of-range, talvez inativo.',
+    );
     expect(showInactive().checked).toBe(true);
     expect(rows().length).toBe(3);
   });
@@ -213,13 +258,17 @@ describe('ModerationReasonsPageComponent', () => {
     await submit();
 
     http.expectOne(API).flush(
-      { title: 'Requisição inválida', status: 400, errors: [{ field: 'label', message: 'O rótulo não pode ficar em branco' }] },
-      { status: 400, statusText: 'Bad Request' }
+      {
+        title: 'Requisição inválida',
+        status: 400,
+        errors: [{ field: 'label', message: 'O rótulo não pode ficar em branco' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
     );
     await settle();
-    expect(offcanvas().querySelector('#moderation-reason-label + .invalid-feedback')?.textContent).toContain(
-      'O rótulo não pode ficar em branco'
-    );
+    expect(
+      offcanvas().querySelector('#moderation-reason-label + .invalid-feedback')?.textContent,
+    ).toContain('O rótulo não pode ficar em branco');
 
     await fill('label', 'Foto ausente de novo');
     await submit();
@@ -230,10 +279,14 @@ describe('ModerationReasonsPageComponent', () => {
         status: 422,
         reasons: ['moderation-reason-limit:100'],
         reasonDetails: [
-          { code: 'moderation-reason-limit', params: ['100'], message: 'O tenant já tem 100 motivos ativos. Desative um.' }
-        ]
+          {
+            code: 'moderation-reason-limit',
+            params: ['100'],
+            message: 'O tenant já tem 100 motivos ativos. Desative um.',
+          },
+        ],
       },
-      { status: 422, statusText: 'Unprocessable Entity' }
+      { status: 422, statusText: 'Unprocessable Entity' },
     );
     await settle();
 
@@ -263,8 +316,15 @@ describe('ModerationReasonsPageComponent', () => {
     const request = http.expectOne(`${API}/wrong-category`);
     expect(request.request.method).toBe('PUT');
     expect(request.request.headers.get('If-Match')).toBe('"3"');
-    expect(request.request.body).toEqual({ label: 'Categoria errada', decisions: ['REJECT'], position: 10 });
-    request.flush({ ...CATALOG[0], label: 'Categoria errada', version: 4 }, { headers: { ETag: '"4"' } });
+    expect(request.request.body).toEqual({
+      label: 'Categoria errada',
+      decisions: ['REJECT'],
+      position: 10,
+    });
+    request.flush(
+      { ...CATALOG[0], label: 'Categoria errada', version: 4 },
+      { headers: { ETag: '"4"' } },
+    );
     await settle();
     await reloadList();
 
@@ -275,17 +335,21 @@ describe('ModerationReasonsPageComponent', () => {
     await render();
     menuItem(rows()[0], 'Editar').click();
     await settle();
-    http.expectOne(`${API}/wrong-category`).flush({ ...CATALOG[0], version: 3 }, { headers: { ETag: '"3"' } });
+    http
+      .expectOne(`${API}/wrong-category`)
+      .flush({ ...CATALOG[0], version: 3 }, { headers: { ETag: '"3"' } });
     await settle();
 
     await fill('label', 'Meu rótulo');
     await submit();
-    http
-      .expectOne(`${API}/wrong-category`)
-      .flush(
-        { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão desatualizada', status: 412 },
-        { status: 412, statusText: 'Precondition Failed' }
-      );
+    http.expectOne(`${API}/wrong-category`).flush(
+      {
+        type: 'https://marketplace.dev/problems/version-mismatch',
+        title: 'Versão desatualizada',
+        status: 412,
+      },
+      { status: 412, statusText: 'Precondition Failed' },
+    );
     await settle();
 
     expect(offcanvas().textContent).toContain('Outra pessoa alterou este registro');
@@ -295,7 +359,10 @@ describe('ModerationReasonsPageComponent', () => {
     await settle();
     http
       .expectOne(`${API}/wrong-category`)
-      .flush({ ...CATALOG[0], label: 'Categoria trocada', version: 5 }, { headers: { ETag: '"5"' } });
+      .flush(
+        { ...CATALOG[0], label: 'Categoria trocada', version: 5 },
+        { headers: { ETag: '"5"' } },
+      );
     await settle();
 
     expect(field('label').value).toBe('Categoria trocada');
@@ -308,8 +375,12 @@ describe('ModerationReasonsPageComponent', () => {
     await settle();
 
     const modal = element().querySelector('c-modal') as HTMLElement;
-    expect(modal.querySelector('[cModalTitle]')?.textContent?.trim()).toBe('Desativar "Categoria incorreta"?');
-    expect(modal.textContent).toContain('O motivo some da lista do moderador e não vale em decisões novas.');
+    expect(modal.querySelector('[cModalTitle]')?.textContent?.trim()).toBe(
+      'Desativar "Categoria incorreta"?',
+    );
+    expect(modal.textContent).toContain(
+      'O motivo some da lista do moderador e não vale em decisões novas.',
+    );
     buttonIn(modal.querySelector('c-modal-footer') as Element, 'Desativar').click();
     await settle();
 
@@ -331,12 +402,14 @@ describe('ModerationReasonsPageComponent', () => {
     const confirm = () => buttonIn(modal.querySelector('c-modal-footer') as Element, 'Desativar');
     confirm().click();
     await settle();
-    http
-      .expectOne(`${API}/wrong-category/deactivate`)
-      .flush(
-        { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão desatualizada', status: 412 },
-        { status: 412, statusText: 'Precondition Failed' }
-      );
+    http.expectOne(`${API}/wrong-category/deactivate`).flush(
+      {
+        type: 'https://marketplace.dev/problems/version-mismatch',
+        title: 'Versão desatualizada',
+        status: 412,
+      },
+      { status: 412, statusText: 'Precondition Failed' },
+    );
     await settle();
     expect(modal.textContent).toContain('Outra pessoa alterou este registro');
 
@@ -375,19 +448,26 @@ describe('ModerationReasonsPageComponent', () => {
         type: 'https://marketplace.dev/problems/moderation-reason-limit',
         title: 'Limite de motivos',
         status: 422,
-        reasonDetails: [{ code: 'moderation-reason-limit', message: 'O tenant já tem 100 motivos ativos. Desative um antes.' }]
+        reasonDetails: [
+          {
+            code: 'moderation-reason-limit',
+            message: 'O tenant já tem 100 motivos ativos. Desative um antes.',
+          },
+        ],
       },
-      { status: 422, statusText: 'Unprocessable Entity' }
+      { status: 422, statusText: 'Unprocessable Entity' },
     );
     await settle();
 
     expect(element().querySelector('app-problem-alert')?.textContent).toContain(
-      'O tenant já tem 100 motivos ativos. Desative um antes.'
+      'O tenant já tem 100 motivos ativos. Desative um antes.',
     );
 
     menuItem(rows()[2], 'Reativar').click();
     await settle();
-    http.expectOne(`${API}/price-out-of-range/activate`).flush({ ...CATALOG[2], active: true, version: 5 });
+    http
+      .expectOne(`${API}/price-out-of-range/activate`)
+      .flush({ ...CATALOG[2], active: true, version: 5 });
     await settle();
     await reloadList();
 

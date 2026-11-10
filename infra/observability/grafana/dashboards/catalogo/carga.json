@@ -2,10 +2,7 @@
   "uid": "marketplace-catalog-load",
   "title": "Marketplace · Catálogo · Carga",
   "description": "Execuções da suíte de carga do catálogo (tools/load), filtradas por testid: taxa, VUs, latência por cenário, falhas, disputa e último item, desfechos de negócio e respostas inesperadas por cenário e atraso da outbox.",
-  "tags": [
-    "marketplace",
-    "catalogo"
-  ],
+  "tags": ["marketplace", "catalogo"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -20,9 +17,7 @@
     {
       "title": "Painéis do marketplace",
       "type": "dashboards",
-      "tags": [
-        "marketplace"
-      ],
+      "tags": ["marketplace"],
       "asDropdown": true,
       "keepTime": true,
       "includeVars": true
@@ -127,9 +122,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -183,9 +176,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -239,9 +230,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -299,9 +288,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -371,9 +358,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -431,9 +416,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },

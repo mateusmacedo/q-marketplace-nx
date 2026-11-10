@@ -5,7 +5,7 @@ import {
   CardBodyComponent,
   CardComponent,
   SpinnerComponent,
-  TooltipDirective
+  TooltipDirective,
 } from '@coreui/angular';
 import { IconDirective } from '@coreui/icons-angular';
 import { ProductStatusBadgeComponent } from '@marketplace/catalog-inventory-admin-ui';
@@ -15,7 +15,7 @@ import {
   DateTimePipe,
   EditConflictAlertComponent,
   ProblemAlertComponent,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import { isEditConflict, plural, type Problem, toProblem } from '@marketplace/shared-web-util';
 
@@ -23,14 +23,14 @@ import {
   primaryProductAction,
   type ProductActionPresentation,
   type ProductMenuAction,
-  productMenu
+  productMenu,
 } from '../product-actions';
 import {
   actionFailureHeading,
   actionMenuItems,
   productActionPresentation,
   refusalIssues,
-  runProductAction
+  runProductAction,
 } from './product-menu';
 import { ProductModerationNoticeComponent } from './product-moderation-notice.component';
 import { ProductStore } from './product-store';
@@ -60,7 +60,7 @@ const STORE_ID_PREFIX = 8;
     ProductModerationNoticeComponent,
     ProductStatusBadgeComponent,
     SpinnerComponent,
-    TooltipDirective
+    TooltipDirective,
   ],
   template: `
     @if (store.product(); as product) {
@@ -149,7 +149,7 @@ const STORE_ID_PREFIX = 8;
         <p class="mb-0">{{ confirming()?.confirmation?.message }}</p>
       </app-confirm-modal>
     }
-  `
+  `,
 })
 export class ProductHeaderComponent {
   /** Mostra a ação principal como botão ao lado do menu, como na tela do produto da loja. */
@@ -168,8 +168,12 @@ export class ProductHeaderComponent {
     const product = this.store.product();
     return product ? primaryProductAction(product) : null;
   });
-  readonly skuCount = computed(() => plural(this.store.product()?.skus?.length ?? 0, 'SKU', 'SKUs'));
-  readonly shortStore = computed(() => (this.store.product()?.storeId ?? '').slice(0, STORE_ID_PREFIX));
+  readonly skuCount = computed(() =>
+    plural(this.store.product()?.skus?.length ?? 0, 'SKU', 'SKUs'),
+  );
+  readonly shortStore = computed(() =>
+    (this.store.product()?.storeId ?? '').slice(0, STORE_ID_PREFIX),
+  );
 
   readonly running = signal<ProductMenuAction | null>(null);
   /** Ação à espera da confirmação no modal. */

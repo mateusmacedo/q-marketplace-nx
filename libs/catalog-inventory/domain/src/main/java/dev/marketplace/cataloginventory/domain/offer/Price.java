@@ -10,21 +10,21 @@ import static dev.marketplace.cataloginventory.domain.DomainRuleViolation.invali
  * {@code salePrice} (por).
  */
 public record Price(Money listPrice, Money salePrice) {
-    /**
-     * Valida o par de preços; {@code listPrice} é opcional. Recusa com
-     * {@code invalid-value} se faltar {@code salePrice} ou as moedas diferirem,
-     * e com {@code list-price-below-sale-price} se o preço "de" for menor que o
-     * "por".
-     */
-    public Price {
-        if (salePrice == null)
-            throw invalid("Preço de venda é obrigatório");
-        if (listPrice != null && listPrice.compareAmount(salePrice) < 0)
-            throw new DomainRuleViolation(DomainReasons.LIST_PRICE_BELOW_SALE_PRICE,
-                    "Preço \"de\" não pode ser menor que o preço \"por\"");
-    }
+  /**
+   * Valida o par de preços; {@code listPrice} é opcional. Recusa com
+   * {@code invalid-value} se faltar {@code salePrice} ou as moedas diferirem,
+   * e com {@code list-price-below-sale-price} se o preço "de" for menor que o
+   * "por".
+   */
+  public Price {
+    if (salePrice == null)
+      throw invalid("Preço de venda é obrigatório");
+    if (listPrice != null && listPrice.compareAmount(salePrice) < 0)
+      throw new DomainRuleViolation(DomainReasons.LIST_PRICE_BELOW_SALE_PRICE,
+          "Preço \"de\" não pode ser menor que o preço \"por\"");
+  }
 
-    public String currency() {
-        return salePrice.currency();
-    }
+  public String currency() {
+    return salePrice.currency();
+  }
 }

@@ -24,14 +24,16 @@ export const test = base.extend<PanelFixtures>({
   pageAs: async ({ browser }, use, testInfo) => {
     const contexts: BrowserContext[] = [];
     await use(async (user, path = '/inicio') => {
-      const context = await browser.newContext({ storageState: storageStatePath(user, testInfo.project) });
+      const context = await browser.newContext({
+        storageState: storageStatePath(user, testInfo.project),
+      });
       contexts.push(context);
       const page = await context.newPage();
       await openPanel(page, path);
       return page;
     });
-    await Promise.all(contexts.map(context => context.close()));
-  }
+    await Promise.all(contexts.map((context) => context.close()));
+  },
 });
 
 export { expect } from '@playwright/test';

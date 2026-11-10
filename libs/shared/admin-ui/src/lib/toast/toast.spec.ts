@@ -10,13 +10,15 @@ describe('ToastService', () => {
     const first = service.success('Produto enviado para moderação');
     service.warning('Você não tem acesso a esta área', 'Acesso');
 
-    expect(service.toasts().map(toast => [toast.kind, toast.title, toast.message])).toEqual([
+    expect(service.toasts().map((toast) => [toast.kind, toast.title, toast.message])).toEqual([
       ['success', 'Pronto', 'Produto enviado para moderação'],
-      ['warning', 'Acesso', 'Você não tem acesso a esta área']
+      ['warning', 'Acesso', 'Você não tem acesso a esta área'],
     ]);
 
     service.dismiss(first);
-    expect(service.toasts().map(toast => toast.message)).toEqual(['Você não tem acesso a esta área']);
+    expect(service.toasts().map((toast) => toast.message)).toEqual([
+      'Você não tem acesso a esta área',
+    ]);
   });
 });
 
@@ -43,7 +45,9 @@ describe('ToastHostComponent', () => {
     expect(element.querySelector('rect')?.getAttribute('fill')).toBe('var(--cui-success)');
     expect(element.querySelector('c-toast-header strong')?.textContent).toBe('Catálogo');
     expect(element.querySelector('c-toast-header small')?.textContent).toMatch(/^\d{2}:\d{2}$/);
-    expect(element.querySelector('c-toast-body p')?.textContent).toBe('Produto enviado para moderação');
+    expect(element.querySelector('c-toast-body p')?.textContent).toBe(
+      'Produto enviado para moderação',
+    );
     expect(element.querySelector('c-progress')).toBeTruthy();
   });
 

@@ -2,13 +2,13 @@ import {
   type CategoryAncestor,
   type CategoryResponse,
   type CategorySummary,
-  listCategoryTree
+  listCategoryTree,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   buildCategoryOptions,
   CATEGORY_PATH_SEPARATOR,
   type CategoryNode,
-  type CategoryOption
+  type CategoryOption,
 } from '@marketplace/catalog-inventory-admin-ui';
 import { apiData } from '@marketplace/shared-web-util';
 
@@ -20,16 +20,18 @@ export function categoryNode(category: CategorySummary | CategoryResponse): Cate
     ancestors: (category.ancestors ?? []).map(ancestorNode),
     level: category.level,
     usable: category.usable,
-    childCount: category.childCount
+    childCount: category.childCount,
   };
 }
 
 /** Caminho da categoria, da raiz até ela ("Vestuário › Camisas"), com os ancestrais que o servidor devolve. */
-export function categoryPath(category: CategoryResponse | CategorySummary | null | undefined): string {
+export function categoryPath(
+  category: CategoryResponse | CategorySummary | null | undefined,
+): string {
   if (!category) {
     return '';
   }
-  return [...(category.ancestors ?? []).map(ancestor => ancestor.name ?? ''), category.name ?? '']
+  return [...(category.ancestors ?? []).map((ancestor) => ancestor.name ?? ''), category.name ?? '']
     .filter(Boolean)
     .join(CATEGORY_PATH_SEPARATOR);
 }
@@ -43,7 +45,7 @@ export async function loadUsableCategories(signal?: AbortSignal): Promise<Catego
   let cursor: string | undefined;
   do {
     const page = await apiData(
-      listCategoryTree({ query: { usable: true, ...(cursor ? { cursor } : {}) } })
+      listCategoryTree({ query: { usable: true, ...(cursor ? { cursor } : {}) } }),
     );
     if (signal?.aborted) {
       return [];

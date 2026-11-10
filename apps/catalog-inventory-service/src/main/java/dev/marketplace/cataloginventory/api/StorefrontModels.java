@@ -18,37 +18,37 @@ import java.util.UUID;
  * disponibilidade, sem quantidades.
  */
 public final class StorefrontModels {
-    private StorefrontModels() {
-    }
+  private StorefrontModels() {
+  }
 
-    public record StorefrontSkuResponse(UUID id, String sellerSku, Map<String, String> variantAttributes,
-            boolean physical,
-            DimensionsDto dimensions,
-            EffectivePriceDto price,
-            @Schema(description = "Há saldo disponível; a quantidade exata não é exposta") boolean inStock) {
-        /**
-         * INVARIANT: produto visível tem oferta e saldo em todo SKU; a publicação e a
-         * criação do SKU garantem.
-         */
-        static StorefrontSkuResponse of(Sku s, Offer offer, StockLevel level, Instant now) {
-            return new StorefrontSkuResponse(s.id(), s.sellerSku(), s.variantAttributes(), s.physical(),
-                    DimensionsDto.of(s.dimensions().orElse(null)), EffectivePriceDto.of(offer.effectivePrice(now)),
-                    level.available() > 0);
-        }
+  public record StorefrontSkuResponse(UUID id, String sellerSku, Map<String, String> variantAttributes,
+      boolean physical,
+      DimensionsDto dimensions,
+      EffectivePriceDto price,
+      @Schema(description = "Há saldo disponível; a quantidade exata não é exposta") boolean inStock) {
+    /**
+     * INVARIANT: produto visível tem oferta e saldo em todo SKU; a publicação e a
+     * criação do SKU garantem.
+     */
+    static StorefrontSkuResponse of(Sku s, Offer offer, StockLevel level, Instant now) {
+      return new StorefrontSkuResponse(s.id(), s.sellerSku(), s.variantAttributes(), s.physical(),
+          DimensionsDto.of(s.dimensions().orElse(null)), EffectivePriceDto.of(offer.effectivePrice(now)),
+          level.available() > 0);
     }
+  }
 
-    public record StorefrontProductResponse(UUID id, UUID storeId, UUID categoryId, String title, String description,
-            Map<String, String> attributes,
-            @Schema(description = "ACTIVE ou OUT_OF_STOCK (visível, mas não vendável)") ProductStatus status,
-            List<StorefrontSkuResponse> skus) {
-        static StorefrontProductResponse of(StorefrontProduct shown, Map<UUID, StockLevel> stock, Instant now) {
-            var p = shown.product();
-            return new StorefrontProductResponse(p.id(), p.storeId(), p.categoryId(), p.title(), p.description(),
-                    p.attributes(),
-                    p.effectiveStatus(ProductModels.anyAvailable(p, stock)),
-                    p.skus().stream()
-                            .map(s -> StorefrontSkuResponse.of(s, shown.offers().get(s.id()), stock.get(s.id()), now))
-                            .toList());
-        }
+  public record StorefrontProductResponse(UUID id, UUID storeId, UUID categoryId, String title, String description,
+      Map<String, String> attributes,
+      @Schema(description = "ACTIVE ou OUT_OF_STOCK (visível, mas não vendável)") ProductStatus status,
+      List<StorefrontSkuResponse> skus) {
+    static StorefrontProductResponse of(StorefrontProduct shown, Map<UUID, StockLevel> stock, Instant now) {
+      var p = shown.product();
+      return new StorefrontProductResponse(p.id(), p.storeId(), p.categoryId(), p.title(), p.description(),
+          p.attributes(),
+          p.effectiveStatus(ProductModels.anyAvailable(p, stock)),
+          p.skus().stream()
+              .map(s -> StorefrontSkuResponse.of(s, shown.offers().get(s.id()), stock.get(s.id()), now))
+              .toList());
     }
+  }
 }

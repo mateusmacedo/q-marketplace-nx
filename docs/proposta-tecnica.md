@@ -22,18 +22,18 @@ O repositório contém 24 projetos Java e oito espaços de contratos. O catálog
 
 ## Ferramentas e responsabilidades
 
-| Ferramenta | Responsabilidade | Decisão |
-|---|---|---|
-| Nx 24.0.4 | Seleção de projetos, dependências e cache de tarefas | Versão exata no npm lockfile |
-| Java 21 | Linguagem e runtime JVM | Toolchain explícita |
-| Quarkus 3.40.1.1 | REST, injeção, saúde e empacotamento | BOM e plugin alinhados |
-| Gradle 9.7.0 | Build multiprojeto e testes Java | Wrapper oficial com checksum |
-| JUnit/REST Assured | Testes de invariantes e HTTP | Versões governadas pelo BOM |
-| PostgreSQL 16 | Persistência do catálogo | Dev Services em dev/test; imagem fixa no compose |
-| Apache Kafka 4.2.0 | Eventos do catálogo | KRaft no compose; Dev Services em dev/test |
-| Keycloak 26.8.1 | Provedor OIDC local | Realm de desenvolvimento versionado em `infra/keycloak` |
-| Mandrel (GraalVM) | Executável nativo dos contêineres | Builder padrão do Quarkus, em contêiner (ADR 005) |
-| Docker/Kubernetes/Helm | Empacotamento e implantação | Chart Helm do catálogo (ADR 018); sem provisionamento de cluster |
+| Ferramenta             | Responsabilidade                                     | Decisão                                                          |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| Nx 24.0.4              | Seleção de projetos, dependências e cache de tarefas | Versão exata no npm lockfile                                     |
+| Java 21                | Linguagem e runtime JVM                              | Toolchain explícita                                              |
+| Quarkus 3.40.1.1       | REST, injeção, saúde e empacotamento                 | BOM e plugin alinhados                                           |
+| Gradle 9.7.0           | Build multiprojeto e testes Java                     | Wrapper oficial com checksum                                     |
+| JUnit/REST Assured     | Testes de invariantes e HTTP                         | Versões governadas pelo BOM                                      |
+| PostgreSQL 16          | Persistência do catálogo                             | Dev Services em dev/test; imagem fixa no compose                 |
+| Apache Kafka 4.2.0     | Eventos do catálogo                                  | KRaft no compose; Dev Services em dev/test                       |
+| Keycloak 26.8.1        | Provedor OIDC local                                  | Realm de desenvolvimento versionado em `infra/keycloak`          |
+| Mandrel (GraalVM)      | Executável nativo dos contêineres                    | Builder padrão do Quarkus, em contêiner (ADR 005)                |
+| Docker/Kubernetes/Helm | Empacotamento e implantação                          | Chart Helm do catálogo (ADR 018); sem provisionamento de cluster |
 
 As versões Quarkus/Gradle vieram do gerador oficial em 05/11/2026. Nx foi consultado no registro npm. As versões são deliberadamente fixas; atualização exige validar a matriz em CI.
 

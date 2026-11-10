@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, DOCUMENT, inject, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DOCUMENT,
+  inject,
+  input,
+  output,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   AlertComponent,
@@ -13,7 +21,7 @@ import {
   GutterDirective,
   RowComponent,
   TemplateIdDirective,
-  WidgetStatAComponent
+  WidgetStatAComponent,
 } from '@coreui/angular';
 import { ChartjsComponent } from '@coreui/angular-chartjs';
 import { cilArrowBottom, cilArrowTop, cilOptions } from '@coreui/icons';
@@ -21,7 +29,13 @@ import { IconDirective } from '@coreui/icons-angular';
 import { ErrorStateComponent, LoadingStateComponent } from '@marketplace/shared-admin-ui';
 import { formatInteger, type Problem, problemMessages } from '@marketplace/shared-web-util';
 
-import { type ChartConfig, chartPalette, documentTheme, WIDGET_CHART_KINDS, widgetChart } from './home-charts';
+import {
+  type ChartConfig,
+  chartPalette,
+  documentTheme,
+  WIDGET_CHART_KINDS,
+  widgetChart,
+} from './home-charts';
 import type { HomeIndicator } from './home-indicators';
 
 interface IndicatorChange {
@@ -64,7 +78,7 @@ interface WidgetCard {
     RouterLink,
     RowComponent,
     TemplateIdDirective,
-    WidgetStatAComponent
+    WidgetStatAComponent,
   ],
   template: `
     @if (cards().length && problem()) {
@@ -157,7 +171,7 @@ interface WidgetCard {
         </c-card-body>
       </c-card>
     }
-  `
+  `,
 })
 export class HomeWidgetsComponent {
   readonly #document = inject(DOCUMENT);
@@ -187,8 +201,10 @@ export class HomeWidgetsComponent {
         indicator,
         value: formatInteger(indicator.value),
         change: describeChange(indicator.change),
-        chart: indicator.months ? widgetChart(indicator.months, kind, indicator.title, palette[indicator.color]) : undefined,
-        wideChart: kind === 'area'
+        chart: indicator.months
+          ? widgetChart(indicator.months, kind, indicator.title, palette[indicator.color])
+          : undefined,
+        wideChart: kind === 'area',
       };
     });
   });

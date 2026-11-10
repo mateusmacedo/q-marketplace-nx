@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { BadgeComponent, FormCheckInputDirective, SpinnerComponent, TableDirective, TooltipDirective } from '@coreui/angular';
+import {
+  BadgeComponent,
+  FormCheckInputDirective,
+  SpinnerComponent,
+  TableDirective,
+  TooltipDirective,
+} from '@coreui/angular';
 import type { ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
 import { ProductStatusBadgeComponent } from '@marketplace/catalog-inventory-admin-ui';
 import {
@@ -10,7 +16,7 @@ import {
   DateTimePipe,
   type ListSelection,
   RelativeTimePipe,
-  SortHeaderComponent
+  SortHeaderComponent,
 } from '@marketplace/shared-admin-ui';
 
 import { rejectionSummary, shortId } from './product-list-query';
@@ -40,7 +46,7 @@ export interface ProductRowAction {
     SortHeaderComponent,
     SpinnerComponent,
     TableDirective,
-    TooltipDirective
+    TooltipDirective,
   ],
   styles: '.tabular-nums { font-variant-numeric: tabular-nums; }',
   template: `
@@ -153,7 +159,7 @@ export interface ProductRowAction {
         </tbody>
       </table>
     </div>
-  `
+  `,
 })
 export class ProductTableComponent {
   readonly products = input.required<readonly ProductResponse[]>();
@@ -177,10 +183,16 @@ export class ProductTableComponent {
 
   readonly menus = computed(() => {
     const menu = this.menu();
-    return new Map(this.products().map(product => [product.id ?? '', menu(product)]));
+    return new Map(this.products().map((product) => [product.id ?? '', menu(product)]));
   });
   readonly rejections = computed(
-    () => new Map(this.products().map(product => [product.id ?? '', rejectionSummary(product.lastRejection)]))
+    () =>
+      new Map(
+        this.products().map((product) => [
+          product.id ?? '',
+          rejectionSummary(product.lastRejection),
+        ]),
+      ),
   );
 
   shortStore(product: ProductResponse): string {

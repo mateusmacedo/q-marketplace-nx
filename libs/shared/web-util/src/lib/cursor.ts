@@ -33,7 +33,10 @@ export function back(trail: CursorTrail): CursorTrail {
   if (!trail.previous.length) {
     return trail;
   }
-  return { current: trail.previous[trail.previous.length - 1], previous: trail.previous.slice(0, -1) };
+  return {
+    current: trail.previous[trail.previous.length - 1],
+    previous: trail.previous.slice(0, -1),
+  };
 }
 
 export function canGoBack(trail: CursorTrail): boolean {

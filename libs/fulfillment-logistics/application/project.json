@@ -1,9 +1,5 @@
 {
   "name": "fulfillment-logistics-application",
   "projectType": "library",
-  "tags": [
-    "scope:fulfillment-logistics",
-    "layer:application",
-    "lang:java"
-  ]
+  "tags": ["scope:fulfillment-logistics", "layer:application", "lang:java"]
 }

@@ -5,10 +5,16 @@ import {
   type ProductResponse,
   resumeProduct,
   submitProduct,
-  unblockProduct
+  unblockProduct,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
-import { apiData, isEditConflict, type Problem, toProblem, versionTag } from '@marketplace/shared-web-util';
+import {
+  apiData,
+  isEditConflict,
+  type Problem,
+  toProblem,
+  versionTag,
+} from '@marketplace/shared-web-util';
 
 import type { ProductActionPresentation, ProductMenuAction } from '../product-actions';
 
@@ -25,8 +31,14 @@ export interface ProductActionFailure {
  * Chama o endpoint da ação de um item com o `If-Match` da versão lida na lista. `EDIT` não é chamada: a tela abre o
  * produto.
  */
-export function sendProductAction(code: ProductMenuAction, product: ProductRow): Promise<ProductResponse> {
-  const options = { path: { id: product.id ?? '' }, headers: { 'If-Match': versionTag(product.version) } };
+export function sendProductAction(
+  code: ProductMenuAction,
+  product: ProductRow,
+): Promise<ProductResponse> {
+  const options = {
+    path: { id: product.id ?? '' },
+    headers: { 'If-Match': versionTag(product.version) },
+  };
   switch (code) {
     case 'SUBMIT':
       return apiData(submitProduct(options));
@@ -69,7 +81,10 @@ export class ProductActionRunner {
       if (isEditConflict(problem)) {
         this.conflict.set(true);
       } else {
-        this.failure.set({ heading: `Não foi possível ${action.label.toLowerCase()} “${product.title ?? ''}”`, problem });
+        this.failure.set({
+          heading: `Não foi possível ${action.label.toLowerCase()} “${product.title ?? ''}”`,
+          problem,
+        });
       }
       return false;
     } finally {

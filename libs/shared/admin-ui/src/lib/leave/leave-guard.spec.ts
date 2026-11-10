@@ -10,14 +10,16 @@ import {
   type LeaveGuarded,
   leaveWarning,
   UNSAVED_CHANGES_WARNING,
-  warnBeforeUnload
+  warnBeforeUnload,
 } from './leave-guard';
 
 @Component({ template: '' })
 class FormScreen implements LeaveGuarded {
   readonly dirty = signal(false);
   readonly batchRunning = signal(false);
-  readonly leaveWarning = computed(() => leaveWarning({ unsaved: this.dirty(), batchRunning: this.batchRunning() }));
+  readonly leaveWarning = computed(() =>
+    leaveWarning({ unsaved: this.dirty(), batchRunning: this.batchRunning() }),
+  );
 
   constructor() {
     warnBeforeUnload(this.leaveWarning);
@@ -26,7 +28,12 @@ class FormScreen implements LeaveGuarded {
 
 function runGuard(component: Partial<LeaveGuarded> | null) {
   return TestBed.runInInjectionContext(() =>
-    leaveGuard(component, {} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, {} as RouterStateSnapshot)
+    leaveGuard(
+      component,
+      {} as ActivatedRouteSnapshot,
+      {} as RouterStateSnapshot,
+      {} as RouterStateSnapshot,
+    ),
   );
 }
 
@@ -74,12 +81,16 @@ describe('LeaveConfirmHostComponent', () => {
   let confirmation: LeaveConfirmation;
 
   const button = (text: string) =>
-    (Array.from(fixture.nativeElement.querySelectorAll('c-modal-footer button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.trim() === text
-    ) as HTMLButtonElement;
+    (
+      Array.from(
+        fixture.nativeElement.querySelectorAll('c-modal-footer button'),
+      ) as HTMLButtonElement[]
+    ).find((item) => item.textContent?.trim() === text) as HTMLButtonElement;
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [LeaveConfirmHostComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [LeaveConfirmHostComponent],
+    }).compileComponents();
     fixture = TestBed.createComponent(LeaveConfirmHostComponent);
     confirmation = TestBed.inject(LeaveConfirmation);
     await fixture.whenStable();
@@ -90,7 +101,9 @@ describe('LeaveConfirmHostComponent', () => {
     const answer = runGuard({ leaveWarning: () => BATCH_RUNNING_WARNING });
     await fixture.whenStable();
 
-    expect(fixture.nativeElement.querySelector('c-modal-body')?.textContent).toContain('Há um lote em andamento');
+    expect(fixture.nativeElement.querySelector('c-modal-body')?.textContent).toContain(
+      'Há um lote em andamento',
+    );
     button('Sair').click();
 
     await expect(answer).resolves.toBe(true);

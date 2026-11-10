@@ -12,7 +12,9 @@ export function parseSort(value: string | null | undefined): SortState | null {
   if (!text || text === '-') {
     return null;
   }
-  return text.startsWith('-') ? { field: text.slice(1), direction: 'desc' } : { field: text, direction: 'asc' };
+  return text.startsWith('-')
+    ? { field: text.slice(1), direction: 'desc' }
+    : { field: text, direction: 'asc' };
 }
 
 /** Escreve a ordem no formato da URL e da API. */
@@ -24,7 +26,11 @@ export function formatSort(sort: SortState): string {
  * Ordem depois do clique no cabeçalho: a coluna ativa inverte o sentido, e outra coluna começa no sentido padrão dela
  * (texto em ordem crescente, datas da mais recente para a mais antiga).
  */
-export function nextSort(current: SortState | null, field: string, firstDirection: SortDirection): SortState {
+export function nextSort(
+  current: SortState | null,
+  field: string,
+  firstDirection: SortDirection,
+): SortState {
   if (current?.field === field) {
     return { field, direction: current.direction === 'asc' ? 'desc' : 'asc' };
   }

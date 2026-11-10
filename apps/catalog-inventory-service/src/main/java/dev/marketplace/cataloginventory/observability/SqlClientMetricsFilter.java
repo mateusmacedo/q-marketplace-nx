@@ -15,20 +15,20 @@ import jakarta.inject.Singleton;
  * ({@code queue.delay} continua indicando saturação do pool).
  */
 public class SqlClientMetricsFilter {
-    /**
-     * Identifica os gauges por conexão do cliente SQL: tipo gauge,
-     * {@code clientType=sql} e nome
-     * terminado em {@code .queue.size} ou {@code .current}.
-     */
-    static boolean isPerConnectionSqlGauge(Meter.Id id) {
-        return id.getType() == Meter.Type.GAUGE
-                && "sql".equals(id.getTag("clientType"))
-                && (id.getName().endsWith(".queue.size") || id.getName().endsWith(".current"));
-    }
+  /**
+   * Identifica os gauges por conexão do cliente SQL: tipo gauge,
+   * {@code clientType=sql} e nome
+   * terminado em {@code .queue.size} ou {@code .current}.
+   */
+  static boolean isPerConnectionSqlGauge(Meter.Id id) {
+    return id.getType() == Meter.Type.GAUGE
+        && "sql".equals(id.getTag("clientType"))
+        && (id.getName().endsWith(".queue.size") || id.getName().endsWith(".current"));
+  }
 
-    @Produces
-    @Singleton
-    MeterFilter denyPerConnectionSqlGauges() {
-        return MeterFilter.deny(SqlClientMetricsFilter::isPerConnectionSqlGauge);
-    }
+  @Produces
+  @Singleton
+  MeterFilter denyPerConnectionSqlGauges() {
+    return MeterFilter.deny(SqlClientMetricsFilter::isPerConnectionSqlGauge);
+  }
 }

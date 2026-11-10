@@ -30,7 +30,7 @@ export class NavBadgeService {
   readonly #loads = new Map<string, BadgeLoad>();
 
   set(key: string, count: number | null | undefined): void {
-    this.#counts.update(counts => {
+    this.#counts.update((counts) => {
       const next = { ...counts };
       if (count) {
         next[key] = count;
@@ -59,13 +59,13 @@ export class NavBadgeService {
     const request = ++state.request;
     const pending = load()
       .then(
-        count => {
+        (count) => {
           if (request === state.request) {
             this.set(key, count);
             state.loadedAt = Date.now();
           }
         },
-        () => undefined
+        () => undefined,
       )
       .finally(() => {
         if (state.pending === pending) {

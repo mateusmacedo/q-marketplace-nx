@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, forwardRef, input, model, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  forwardRef,
+  input,
+  model,
+  signal,
+} from '@angular/core';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { FormSelectDirective } from '@coreui/angular';
 
@@ -18,7 +26,13 @@ let nextId = 0;
   selector: 'app-category-select',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormSelectDirective],
-  providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => CategorySelectComponent), multi: true }],
+  providers: [
+    {
+      provide: NG_VALUE_ACCESSOR,
+      useExisting: forwardRef(() => CategorySelectComponent),
+      multi: true,
+    },
+  ],
   template: `
     <select
       (blur)="touched()"
@@ -39,7 +53,7 @@ let nextId = 0;
         </option>
       }
     </select>
-  `
+  `,
 })
 export class CategorySelectComponent implements ControlValueAccessor {
   /** Opções com o caminho montado, na ordem em que aparecem. */
@@ -59,7 +73,7 @@ export class CategorySelectComponent implements ControlValueAccessor {
   readonly root = CATEGORY_ROOT;
   readonly visibleOptions = computed(() => {
     const excluded = new Set(this.excluded());
-    return this.options().filter(option => !excluded.has(option.id));
+    return this.options().filter((option) => !excluded.has(option.id));
   });
 
   readonly #formDisabled = signal(false);

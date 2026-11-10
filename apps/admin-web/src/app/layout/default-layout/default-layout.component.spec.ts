@@ -21,7 +21,7 @@ describe('DefaultLayoutComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DefaultLayoutComponent],
-      providers: [IconSetService, provideRouter([]), provideHttpClient(), provideOAuthClient()]
+      providers: [IconSetService, provideRouter([]), provideHttpClient(), provideOAuthClient()],
     }).compileComponents();
 
     TestBed.inject(IconSetService).icons = { ...iconSubset };
@@ -36,12 +36,14 @@ describe('DefaultLayoutComponent', () => {
   });
 
   it('mostra só o Início sem sessão carregada', () => {
-    expect(component.navItems().map(item => item.name)).toEqual(['Início']);
+    expect(component.navItems().map((item) => item.name)).toEqual(['Início']);
   });
 
   it('tem o host dos toasts e o modal do aviso de saída', () => {
     expect(fixture.nativeElement.querySelector('app-toast-host c-toaster')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('app-leave-confirm-host app-confirm-modal')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('app-leave-confirm-host app-confirm-modal'),
+    ).toBeTruthy();
   });
 
   it('should render the sidebar, header, footer and router outlet', () => {
@@ -78,8 +80,8 @@ describe('DefaultLayoutComponent com a sessão do servidor', () => {
         provideRouter([]),
         provideHttpClient(),
         provideOAuthClient(),
-        { provide: SessionStore, useValue: session }
-      ]
+        { provide: SessionStore, useValue: session },
+      ],
     }).compileComponents();
     TestBed.inject(IconSetService).icons = { ...iconSubset };
     fixture = TestBed.createComponent(DefaultLayoutComponent);
@@ -87,7 +89,11 @@ describe('DefaultLayoutComponent com a sessão do servidor', () => {
 
   it('monta o menu com as capacidades da sessão', async () => {
     await fixture.whenStable();
-    expect(fixture.componentInstance.navItems().map(item => item.name)).toEqual(['Início', 'Plataforma', 'Categorias']);
+    expect(fixture.componentInstance.navItems().map((item) => item.name)).toEqual([
+      'Início',
+      'Plataforma',
+      'Categorias',
+    ]);
   });
 
   it('mostra o carregamento no lugar da tela enquanto a sessão carrega', async () => {
@@ -100,7 +106,11 @@ describe('DefaultLayoutComponent com a sessão do servidor', () => {
 
   it('mostra o erro da sessão e tenta de novo, refazendo a navegação', async () => {
     session.status.set('error');
-    session.problem.set({ type: 'https://marketplace.dev/problems/tenant-not-authorized', status: 403, detail: 'Token sem tenant' });
+    session.problem.set({
+      type: 'https://marketplace.dev/problems/tenant-not-authorized',
+      status: 403,
+      detail: 'Token sem tenant',
+    });
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     await fixture.whenStable();
 
@@ -130,11 +140,13 @@ describe('DefaultLayoutComponent com a sessão do servidor', () => {
         return http.expectOne(STATS);
       });
     const noStats = async () => {
-      await new Promise(resolve => setTimeout(resolve));
+      await new Promise((resolve) => setTimeout(resolve));
       TestBed.tick();
       http.expectNone(STATS);
     };
-    const badge = () => layout.componentInstance.navItems().find(item => item.url === '/moderacao/fila')?.badge?.text;
+    const badge = () =>
+      layout.componentInstance.navItems().find((item) => item.url === '/moderacao/fila')?.badge
+        ?.text;
     const visibility = (isHidden: boolean) => {
       hidden = isHidden;
       document.dispatchEvent(new Event('visibilitychange'));
@@ -150,14 +162,14 @@ describe('DefaultLayoutComponent com a sessão do servidor', () => {
           IconSetService,
           provideRouter([
             { path: 'inicio', children: [] },
-            { path: 'moderacao/fila', children: [] }
+            { path: 'moderacao/fila', children: [] },
           ]),
           provideHttpClient(),
           provideHttpClientTesting(),
           provideCatalogInventoryApi(),
           provideOAuthClient(),
-          { provide: SessionStore, useValue: session }
-        ]
+          { provide: SessionStore, useValue: session },
+        ],
       });
       TestBed.inject(IconSetService).icons = { ...iconSubset };
       http = TestBed.inject(HttpTestingController);
@@ -242,7 +254,9 @@ describe('DefaultLayoutComponent com a sessão do servidor', () => {
   it('oferece Entrar de novo quando o servidor recusou o token, voltando para a rota atual', async () => {
     session.status.set('expired');
     session.problem.set({ type: 'http-401', status: 401 });
-    const login = vi.spyOn(TestBed.inject(AuthSession), 'login').mockImplementation(() => undefined);
+    const login = vi
+      .spyOn(TestBed.inject(AuthSession), 'login')
+      .mockImplementation(() => undefined);
     await fixture.whenStable();
 
     const element: HTMLElement = fixture.nativeElement;

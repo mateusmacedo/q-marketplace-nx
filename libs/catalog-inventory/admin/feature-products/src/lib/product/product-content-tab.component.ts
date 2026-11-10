@@ -8,7 +8,7 @@ import {
   effect,
   inject,
   signal,
-  untracked
+  untracked,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -25,13 +25,13 @@ import {
   FormSelectDirective,
   FormTextDirective,
   SpinnerComponent,
-  TooltipDirective
+  TooltipDirective,
 } from '@coreui/angular';
 import {
   getCategoryResource,
   type ProductResponse,
   reviseProduct,
-  ReviseProductRequestSchema
+  ReviseProductRequestSchema,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   applyServerErrors,
@@ -45,19 +45,22 @@ import {
   ProblemAlertComponent,
   schemaValidator,
   ToastService,
-  warnBeforeUnload
+  warnBeforeUnload,
 } from '@marketplace/shared-admin-ui';
 import {
   apiDataWithVersion,
   fieldRules,
   isEditConflict,
   type Problem,
-  toProblem
+  toProblem,
 } from '@marketplace/shared-web-util';
 import { map } from 'rxjs';
 
 import { SAVE_RETURNS_TO_MODERATION } from '../product-actions';
-import { type CategoryChangeChoice, CategoryChangeModalComponent } from './category-change-modal.component';
+import {
+  type CategoryChangeChoice,
+  CategoryChangeModalComponent,
+} from './category-change-modal.component';
 import {
   type AttributeField,
   attributeFields,
@@ -65,7 +68,7 @@ import {
   type AttributeValue,
   knownAttributes,
   sameAttributes,
-  toControlValue
+  toControlValue,
 } from './product-attributes';
 import { categoryPath } from './product-categories';
 import { ifMatch, ProductStore } from './product-store';
@@ -114,7 +117,7 @@ export function contentFieldId(field: string): string {
     ProblemAlertComponent,
     ReactiveFormsModule,
     SpinnerComponent,
-    TooltipDirective
+    TooltipDirective,
   ],
   template: `
     <c-card class="mb-4">
@@ -317,7 +320,7 @@ export function contentFieldId(field: string): string {
       <p class="fw-semibold mb-2">{{ form.controls.title.value }}</p>
       <p class="mb-0">{{ returnsToModeration.message }}</p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class ProductContentTabComponent implements LeaveGuarded {
   readonly store = inject(ProductStore);
@@ -327,25 +330,25 @@ export class ProductContentTabComponent implements LeaveGuarded {
   readonly ids = {
     title: contentFieldId('title'),
     description: contentFieldId('description'),
-    category: contentFieldId('categoryId')
+    category: contentFieldId('categoryId'),
   };
   readonly returnsToModeration = SAVE_RETURNS_TO_MODERATION;
 
   readonly form = new FormGroup({
     title: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(ReviseProductRequestSchema, 'title'))]
+      validators: [schemaValidator(fieldRules(ReviseProductRequestSchema, 'title'))],
     }),
     description: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(ReviseProductRequestSchema, 'description'))]
+      validators: [schemaValidator(fieldRules(ReviseProductRequestSchema, 'description'))],
     }),
     categoryId: new FormControl('', { nonNullable: true }),
-    attributes: new FormGroup<AttributeControls>({})
+    attributes: new FormGroup<AttributeControls>({}),
   });
 
   readonly #value = toSignal(this.form.valueChanges.pipe(map(() => this.form.getRawValue())), {
-    initialValue: this.form.getRawValue()
+    initialValue: this.form.getRawValue(),
   });
   readonly categoryId = computed(() => this.#value().categoryId);
   readonly category = getCategoryResource(() => {
@@ -365,7 +368,7 @@ export class ProductContentTabComponent implements LeaveGuarded {
     const category = this.#currentCategory();
     return category ? attributeFields(category.effectiveAttributes, false) : null;
   });
-  readonly hasRequired = computed(() => !!this.fields()?.some(field => field.required));
+  readonly hasRequired = computed(() => !!this.fields()?.some((field) => field.required));
   readonly attributes = computed(() => attributeMap(this.fields() ?? [], this.#value().attributes));
   /** Valores gravados de onde os campos de atributo são montados quando a categoria do formulário muda. */
   readonly #attributeSource = signal<Readonly<Record<string, string>>>({});
@@ -373,9 +376,13 @@ export class ProductContentTabComponent implements LeaveGuarded {
    * Atributos que o formulário representa: os campos montados ou, enquanto a categoria carrega ou falha, os valores de
    * onde eles serão montados.
    */
-  readonly currentAttributes = computed(() => (this.fields() ? this.attributes() : this.#attributeSource()));
+  readonly currentAttributes = computed(() =>
+    this.fields() ? this.attributes() : this.#attributeSource(),
+  );
   readonly swap = signal<CategorySwap | null>(null);
-  readonly shownCategoryPath = computed(() => categoryPath(this.#currentCategory()) || this.swap()?.path || '');
+  readonly shownCategoryPath = computed(
+    () => categoryPath(this.#currentCategory()) || this.swap()?.path || '',
+  );
 
   readonly editable = computed(() => this.store.rules().save.allowed);
   /** Versão do produto que o formulário mostra; as mudanças são medidas contra ela. */
@@ -389,7 +396,9 @@ export class ProductContentTabComponent implements LeaveGuarded {
       return true;
     }
     const fields = this.fields();
-    return !!fields && !sameAttributes(this.attributes(), knownAttributes(fields, baseline.attributes));
+    return (
+      !!fields && !sameAttributes(this.attributes(), knownAttributes(fields, baseline.attributes))
+    );
   });
   readonly changed = computed(() => {
     const baseline = this.#baseline();
@@ -403,7 +412,9 @@ export class ProductContentTabComponent implements LeaveGuarded {
       this.attributesChanged()
     );
   });
-  readonly leaveWarning = computed(() => leaveWarning({ unsaved: this.editable() && this.changed() }));
+  readonly leaveWarning = computed(() =>
+    leaveWarning({ unsaved: this.editable() && this.changed() }),
+  );
 
   readonly saving = signal(false);
   readonly reloading = signal(false);
@@ -464,7 +475,7 @@ export class ProductContentTabComponent implements LeaveGuarded {
         this.store.draft.set(
           this.editable() && this.attributesChanged()
             ? { categoryId: this.categoryId(), attributes: this.attributes() }
-            : undefined
+            : undefined,
         );
       }
     });
@@ -535,18 +546,21 @@ export class ProductContentTabComponent implements LeaveGuarded {
             categoryId: value.categoryId,
             title: value.title,
             description: value.description,
-            attributes: this.attributes()
-          }
-        })
+            attributes: this.attributes(),
+          },
+        }),
       );
       this.store.accept(result);
       this.#reset(result.data);
       this.#toast.success(
-        returnsToModeration ? 'Conteúdo salvo. O produto voltou para a moderação.' : 'Conteúdo salvo.'
+        returnsToModeration
+          ? 'Conteúdo salvo. O produto voltou para a moderação.'
+          : 'Conteúdo salvo.',
       );
     } catch (error) {
       const problem = toProblem(error);
-      const unmatched = problem.status === 400 ? applyServerErrors(this.form, problem) : (problem.errors ?? []);
+      const unmatched =
+        problem.status === 400 ? applyServerErrors(this.form, problem) : (problem.errors ?? []);
       this.problem.set({ ...problem, errors: unmatched });
     } finally {
       this.saving.set(false);
@@ -568,15 +582,19 @@ export class ProductContentTabComponent implements LeaveGuarded {
 
   /** Aplica a troca escolhida no modal só no formulário: os atributos que somem saem, e a gravação fica para o Salvar. */
   applyCategoryChange(choice: CategoryChangeChoice): void {
-    const removed = new Set((choice.change.removedAttributes ?? []).map(attribute => attribute.code));
+    const removed = new Set(
+      (choice.change.removedAttributes ?? []).map((attribute) => attribute.code),
+    );
     const current = this.currentAttributes();
-    const carried = Object.fromEntries(Object.entries(current).filter(([code]) => !removed.has(code)));
+    const carried = Object.fromEntries(
+      Object.entries(current).filter(([code]) => !removed.has(code)),
+    );
     const previous = this.swap();
     this.swap.set({
       previousId: previous?.previousId ?? this.categoryId(),
       previousPath: previous?.previousPath ?? this.shownCategoryPath(),
       previousAttributes: previous?.previousAttributes ?? current,
-      path: choice.path
+      path: choice.path,
     });
     this.#attributeSource.set(carried);
     this.form.controls.categoryId.setValue(choice.categoryId);
@@ -602,7 +620,7 @@ export class ProductContentTabComponent implements LeaveGuarded {
     this.form.reset({
       title: product.title ?? '',
       description: product.description ?? '',
-      categoryId: product.categoryId ?? ''
+      categoryId: product.categoryId ?? '',
     });
     const fields = this.fields();
     if (fields) {
@@ -614,7 +632,9 @@ export class ProductContentTabComponent implements LeaveGuarded {
     const controls: AttributeControls = {};
     const source = this.#attributeSource();
     for (const field of fields) {
-      controls[field.code] = new FormControl<AttributeValue>(toControlValue(field, source[field.code]));
+      controls[field.code] = new FormControl<AttributeValue>(
+        toControlValue(field, source[field.code]),
+      );
     }
     const group = new FormGroup<AttributeControls>(controls);
     if (!this.editable()) {

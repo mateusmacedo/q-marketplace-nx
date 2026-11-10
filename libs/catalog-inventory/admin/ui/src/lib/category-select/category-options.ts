@@ -42,24 +42,29 @@ export const CATEGORY_PATH_SEPARATOR = ' › ';
  */
 export function buildCategoryOptions(nodes: readonly CategoryNode[]): CategoryOption[] {
   return [...nodes]
-    .map(node => ({ node, trail: [...(node.ancestors ?? []), node] }))
+    .map((node) => ({ node, trail: [...(node.ancestors ?? []), node] }))
     .sort((left, right) => compareTrails(left.trail, right.trail))
     .map(({ node, trail }) => ({
       id: node.id,
-      path: trail.map(step => step.name).join(CATEGORY_PATH_SEPARATOR),
+      path: trail.map((step) => step.name).join(CATEGORY_PATH_SEPARATOR),
       depth: node.level,
       usable: node.usable,
-      childCount: node.childCount
+      childCount: node.childCount,
     }));
 }
 
 /** Ids das descendentes da categoria, para tirá-las do destino ao mover. */
 export function categoryDescendants(nodes: readonly CategoryNode[], id: string): string[] {
-  return nodes.filter(node => node.ancestors?.some(ancestor => ancestor.id === id)).map(node => node.id);
+  return nodes
+    .filter((node) => node.ancestors?.some((ancestor) => ancestor.id === id))
+    .map((node) => node.id);
 }
 
 // WHY: comparar nível a nível pelo nome e, no empate, pelo id mantém juntas as subcategorias de irmãs homônimas.
-function compareTrails(left: readonly CategoryAncestorNode[], right: readonly CategoryAncestorNode[]): number {
+function compareTrails(
+  left: readonly CategoryAncestorNode[],
+  right: readonly CategoryAncestorNode[],
+): number {
   for (let index = 0; index < Math.min(left.length, right.length); index++) {
     const byName = left[index].name.localeCompare(right[index].name, 'pt-BR');
     if (byName) {

@@ -22,7 +22,7 @@ import { FormOffcanvasComponent } from './form-offcanvas.component';
       <label for="label">Rótulo</label>
       <input id="label" type="text" value="Categoria incorreta" />
     </app-form-offcanvas>
-  `
+  `,
 })
 class OffcanvasHost {
   readonly visible = signal(true);
@@ -40,7 +40,7 @@ describe('FormOffcanvasComponent', () => {
   const element = () => fixture.nativeElement as HTMLElement;
   const button = (text: string) =>
     (Array.from(element().querySelectorAll('c-offcanvas-body button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.trim() === text
+      (item) => item.textContent?.trim() === text,
     ) as HTMLButtonElement;
 
   beforeEach(async () => {
@@ -51,14 +51,18 @@ describe('FormOffcanvasComponent', () => {
 
   it('mostra o título, a linha de apoio e os campos projetados dentro do formulário', () => {
     expect(element().querySelector('[cOffcanvasTitle]')?.textContent?.trim()).toBe('Editar motivo');
-    expect(element().querySelector('c-offcanvas-header small')?.textContent).toContain('wrong-category');
+    expect(element().querySelector('c-offcanvas-header small')?.textContent).toContain(
+      'wrong-category',
+    );
     expect(element().querySelector('form #label')).toBeTruthy();
     expect(button('Cancelar').classList).toContain('btn-secondary');
   });
 
   it('põe cabeçalho e corpo no flex do painel, para o corpo rolar e o botão de salvar ficar alcançável', () => {
     const offcanvas = element().querySelector('.offcanvas') as HTMLElement;
-    const wrapper = offcanvas.querySelector(':scope > div:not(.cdk-focus-trap-anchor)') as HTMLElement;
+    const wrapper = offcanvas.querySelector(
+      ':scope > div:not(.cdk-focus-trap-anchor)',
+    ) as HTMLElement;
 
     expect(wrapper.contains(offcanvas.querySelector('c-offcanvas-body'))).toBe(true);
     expect(getComputedStyle(wrapper).display).toBe('contents');
@@ -66,7 +70,9 @@ describe('FormOffcanvasComponent', () => {
 
   it('emite o envio pelo botão de salvar e pelo Enter no formulário', () => {
     button('Salvar').click();
-    element().querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+    element()
+      .querySelector('form')
+      ?.dispatchEvent(new Event('submit', { cancelable: true }));
     expect(fixture.componentInstance.saves).toBe(2);
   });
 
@@ -80,7 +86,9 @@ describe('FormOffcanvasComponent', () => {
     fixture.componentInstance.saving.set(false);
     fixture.componentInstance.canSave.set(false);
     await fixture.whenStable();
-    element().querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+    element()
+      .querySelector('form')
+      ?.dispatchEvent(new Event('submit', { cancelable: true }));
     expect(fixture.componentInstance.saves).toBe(0);
   });
 
@@ -95,7 +103,9 @@ describe('FormOffcanvasComponent', () => {
     fixture.componentInstance.problem.set({
       type: 'https://marketplace.dev/problems/moderation-reason-limit',
       status: 422,
-      reasonDetails: [{ code: 'moderation-reason-limit', message: 'O tenant já tem 100 motivos ativos.' }]
+      reasonDetails: [
+        { code: 'moderation-reason-limit', message: 'O tenant já tem 100 motivos ativos.' },
+      ],
     });
     await fixture.whenStable();
 
@@ -106,7 +116,10 @@ describe('FormOffcanvasComponent', () => {
   });
 
   it('abre o aviso de conflito no 412 e pede a versão atual', async () => {
-    fixture.componentInstance.problem.set({ type: 'https://marketplace.dev/problems/version-mismatch', status: 412 });
+    fixture.componentInstance.problem.set({
+      type: 'https://marketplace.dev/problems/version-mismatch',
+      status: 412,
+    });
     await fixture.whenStable();
 
     expect(element().querySelector('app-problem-alert')).toBeNull();

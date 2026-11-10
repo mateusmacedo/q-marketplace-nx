@@ -6,7 +6,11 @@
   "type": "object",
   "required": ["eventId", "eventType", "eventVersion", "source", "tenantId", "occurredAt", "data"],
   "properties": {
-    "eventId": { "type": "string", "format": "uuid", "description": "Identifica o evento; o consumidor deduplica por ele." },
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identifica o evento; o consumidor deduplica por ele."
+    },
     "eventType": {
       "enum": ["SellerApproved", "SellerRejected", "ReviewRequired"],
       "description": "No catálogo: SellerApproved = APPROVED, SellerRejected = REJECTED e ReviewRequired = PENDING."

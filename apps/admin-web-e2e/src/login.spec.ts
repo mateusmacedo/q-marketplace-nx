@@ -5,7 +5,9 @@ import { signInThroughKeycloak, userMenuButton } from './support/panel';
 // Depende do Keycloak local no ar (infra/local, perfil catalog) com o realm de infra/keycloak.
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test('entra pela tela do Keycloak e chega à página inicial com o próprio usuário', async ({ page }) => {
+test('entra pela tela do Keycloak e chega à página inicial com o próprio usuário', async ({
+  page,
+}) => {
   await page.goto('/');
 
   await expect(page).toHaveURL(/\/realms\/marketplace\/protocol\/openid-connect\/auth/);

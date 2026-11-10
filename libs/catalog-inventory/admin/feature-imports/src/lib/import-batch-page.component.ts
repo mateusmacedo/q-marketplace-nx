@@ -1,7 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ButtonDirective, CardBodyComponent, CardComponent, ColComponent, RowComponent } from '@coreui/angular';
+import {
+  ButtonDirective,
+  CardBodyComponent,
+  CardComponent,
+  ColComponent,
+  RowComponent,
+} from '@coreui/angular';
 import { map } from 'rxjs';
 
 import { ImportBatchComponent } from './import-batch.component';
@@ -13,7 +19,15 @@ import { ImportBatchComponent } from './import-batch.component';
 @Component({
   selector: 'app-import-batch-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonDirective, CardBodyComponent, CardComponent, ColComponent, ImportBatchComponent, RouterLink, RowComponent],
+  imports: [
+    ButtonDirective,
+    CardBodyComponent,
+    CardComponent,
+    ColComponent,
+    ImportBatchComponent,
+    RouterLink,
+    RowComponent,
+  ],
   template: `
     <c-card class="mb-4">
       <c-card-body>
@@ -31,8 +45,8 @@ import { ImportBatchComponent } from './import-batch.component';
         }
       </c-card-body>
     </c-card>
-  `
+  `,
 })
 export class ImportBatchPageComponent {
-  readonly id = toSignal(inject(ActivatedRoute).paramMap.pipe(map(params => params.get('id'))));
+  readonly id = toSignal(inject(ActivatedRoute).paramMap.pipe(map((params) => params.get('id'))));
 }

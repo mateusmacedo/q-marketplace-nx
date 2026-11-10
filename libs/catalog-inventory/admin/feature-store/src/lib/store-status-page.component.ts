@@ -5,14 +5,14 @@ import {
   CardBodyComponent,
   CardComponent,
   ColComponent,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import { getStoreEligibilityResource } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   AdminSession,
   EmptyStateComponent,
   ErrorStateComponent,
-  LoadingStateComponent
+  LoadingStateComponent,
 } from '@marketplace/shared-admin-ui';
 import { toProblem } from '@marketplace/shared-web-util';
 
@@ -34,7 +34,7 @@ import { sellerStatusLook, storeEffects } from './store-situation';
     EmptyStateComponent,
     ErrorStateComponent,
     LoadingStateComponent,
-    RowComponent
+    RowComponent,
   ],
   template: `
     <c-card class="mb-4">
@@ -67,7 +67,7 @@ import { sellerStatusLook, storeEffects } from './store-situation';
         }
       </c-card-body>
     </c-card>
-  `
+  `,
 })
 export class StoreStatusPageComponent {
   readonly #session = inject(AdminSession);

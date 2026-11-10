@@ -61,7 +61,7 @@ import { type AttributeRow, attributeTypeLabel } from './category-model';
     } @else {
       <p class="text-body-secondary mb-0">{{ empty() }}</p>
     }
-  `
+  `,
 })
 export class CategoryAttributesTableComponent {
   readonly rows = input.required<readonly AttributeRow[]>();

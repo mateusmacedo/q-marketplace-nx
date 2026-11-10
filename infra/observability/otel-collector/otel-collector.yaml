@@ -65,7 +65,8 @@ connectors:
     latency_histogram_buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
     # Banco, Redis e Kafka entram no mapa como nós virtuais, pelo primeiro atributo presente no span de cliente ou
     # produtor. WHY: db.system antes de db.namespace, porque no Redis o namespace é o índice do banco ("0").
-    virtual_node_peer_attributes: [peer.service, db.system, messaging.system, db.namespace, db.name, server.address]
+    virtual_node_peer_attributes:
+      [peer.service, db.system, messaging.system, db.namespace, db.name, server.address]
     store:
       ttl: 2s
       max_items: 10000

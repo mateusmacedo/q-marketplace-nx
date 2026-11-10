@@ -64,13 +64,7 @@
           "format": "uuid"
         },
         "aggregateType": {
-          "enum": [
-            "product",
-            "offer",
-            "sku",
-            "reservation",
-            "store"
-          ]
+          "enum": ["product", "offer", "sku", "reservation", "store"]
         },
         "aggregateId": {
           "type": "string",
@@ -111,12 +105,7 @@
     },
     "promotion": {
       "type": "object",
-      "required": [
-        "promotionId",
-        "salePrice",
-        "startsAt",
-        "endsAt"
-      ],
+      "required": ["promotionId", "salePrice", "startsAt", "endsAt"],
       "properties": {
         "promotionId": {
           "type": "string",
@@ -138,15 +127,7 @@
     "stock": {
       "type": "object",
       "description": "Saldo do SKU depois da mudança. version só cresce: descarte saldo com versão menor que a já aplicada.",
-      "required": [
-        "skuId",
-        "productId",
-        "storeId",
-        "onHand",
-        "reserved",
-        "available",
-        "version"
-      ],
+      "required": ["skuId", "productId", "storeId", "onHand", "reserved", "available", "version"],
       "properties": {
         "skuId": {
           "type": "string",
@@ -192,10 +173,7 @@
       "description": "Motivos prontos da decisão com o rótulo que tinham nela, na ordem de reasonCodes; renomear ou desativar o motivo depois não muda o que foi publicado. Vazio fora da rejeição e do bloqueio. Ausente nos eventos publicados antes deste campo.",
       "items": {
         "type": "object",
-        "required": [
-          "code",
-          "label"
-        ],
+        "required": ["code", "label"],
         "properties": {
           "code": {
             "type": "string",
@@ -236,14 +214,7 @@
         },
         "data": {
           "type": "object",
-          "required": [
-            "productId",
-            "storeId",
-            "categoryId",
-            "currency",
-            "title",
-            "skus"
-          ],
+          "required": ["productId", "storeId", "categoryId", "currency", "title", "skus"],
           "properties": {
             "productId": {
               "type": "string",
@@ -267,10 +238,7 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": [
-                  "skuId",
-                  "sellerSku"
-                ],
+                "required": ["skuId", "sellerSku"],
                 "properties": {
                   "skuId": {
                     "type": "string",
@@ -398,12 +366,7 @@
         },
         "data": {
           "type": "object",
-          "required": [
-            "productId",
-            "storeId",
-            "reason",
-            "reasonCodes"
-          ],
+          "required": ["productId", "storeId", "reason", "reasonCodes"],
           "properties": {
             "productId": {
               "type": "string",
@@ -508,22 +471,13 @@
         },
         "data": {
           "type": "object",
-          "required": [
-            "stock",
-            "cause",
-            "reservationId"
-          ],
+          "required": ["stock", "cause", "reservationId"],
           "properties": {
             "stock": {
               "$ref": "#/$defs/stock"
             },
             "cause": {
-              "enum": [
-                "ADJUSTED",
-                "RELEASED",
-                "EXPIRED",
-                "COMMITTED"
-              ]
+              "enum": ["ADJUSTED", "RELEASED", "EXPIRED", "COMMITTED"]
             },
             "reservationId": {
               "oneOf": [
@@ -556,12 +510,7 @@
         },
         "data": {
           "type": "object",
-          "required": [
-            "reservationId",
-            "orderRef",
-            "expiresAt",
-            "items"
-          ],
+          "required": ["reservationId", "orderRef", "expiresAt", "items"],
           "properties": {
             "reservationId": {
               "type": "string",
@@ -586,10 +535,7 @@
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": [
-                  "quantity",
-                  "stock"
-                ],
+                "required": ["quantity", "stock"],
                 "properties": {
                   "quantity": {
                     "type": "integer",
@@ -621,9 +567,7 @@
         },
         "data": {
           "type": "object",
-          "required": [
-            "stock"
-          ],
+          "required": ["stock"],
           "properties": {
             "stock": {
               "$ref": "#/$defs/stock"
@@ -648,31 +592,17 @@
         },
         "data": {
           "type": "object",
-          "required": [
-            "storeId",
-            "previousStatus",
-            "status",
-            "eligible",
-            "decidedAt"
-          ],
+          "required": ["storeId", "previousStatus", "status", "eligible", "decidedAt"],
           "properties": {
             "storeId": {
               "type": "string",
               "format": "uuid"
             },
             "previousStatus": {
-              "enum": [
-                "PENDING",
-                "APPROVED",
-                "REJECTED"
-              ]
+              "enum": ["PENDING", "APPROVED", "REJECTED"]
             },
             "status": {
-              "enum": [
-                "PENDING",
-                "APPROVED",
-                "REJECTED"
-              ]
+              "enum": ["PENDING", "APPROVED", "REJECTED"]
             },
             "eligible": {
               "type": "boolean",

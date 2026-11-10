@@ -17,7 +17,7 @@ export async function signInThroughKeycloak(page: Page, user: DemoUser): Promise
  */
 export async function openPanel(page: Page, path = '/inicio'): Promise<void> {
   await page.goto(path);
-  await expect(page).toHaveURL(url => isPanelRoute(url, path));
+  await expect(page).toHaveURL((url) => isPanelRoute(url, path));
   await expect(userMenuButton(page)).toBeVisible();
 }
 

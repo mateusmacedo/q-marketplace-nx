@@ -14,7 +14,8 @@ try {
   } else if (command === 'plan') {
     console.log(describePlan(params).join('\n'));
   } else if (command === 'kyb') {
-    for (const round of kybSchedule(params, planFor(params))) console.log(round.map((e) => `${e.storeId}=${e.eventType}`).join(' '));
+    for (const round of kybSchedule(params, planFor(params)))
+      console.log(round.map((e) => `${e.storeId}=${e.eventType}`).join(' '));
   } else {
     throw new Error(`comando desconhecido ${command}; use plan, env ou kyb`);
   }

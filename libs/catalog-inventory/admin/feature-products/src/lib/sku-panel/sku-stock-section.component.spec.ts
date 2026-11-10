@@ -2,18 +2,28 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideCatalogInventoryApi, type StockResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  provideCatalogInventoryApi,
+  type StockResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 import type { ActionState } from '@marketplace/shared-web-util';
 
 import { SkuStockSectionComponent } from './sku-stock-section.component';
 
 const STOCK_URL = '/api/catalog-inventory/inventory/skus/s1';
-const STOCK: StockResponse = { skuId: 's1', onHand: 8, reserved: 3, available: 5, sold: 1200, version: 4 };
+const STOCK: StockResponse = {
+  skuId: 's1',
+  onHand: 8,
+  reserved: 3,
+  available: 5,
+  sold: 1200,
+  version: 4,
+};
 
 @Component({
   imports: [SkuStockSectionComponent],
-  template: `<app-sku-stock-section (changed)="changes = changes + 1" [editStock]="editStock()" skuId="s1" />`
+  template: `<app-sku-stock-section (changed)="changes = changes + 1" [editStock]="editStock()" skuId="s1" />`,
 })
 class Host {
   readonly editStock = signal<ActionState>({ allowed: true });
@@ -28,8 +38,8 @@ describe('SkuStockSectionComponent', () => {
   const text = () => element().textContent?.replace(/\s+/g, ' ') ?? '';
   const render = () => TestBed.tick();
   const blocks = () =>
-    Array.from(element().querySelectorAll('app-number-block')).map(block =>
-      Array.from(block.querySelectorAll('div > div')).map(part => part.textContent?.trim())
+    Array.from(element().querySelectorAll('app-number-block')).map((block) =>
+      Array.from(block.querySelectorAll('div > div')).map((part) => part.textContent?.trim()),
     );
   const onHand = () => element().querySelector('input[type="number"]') as HTMLInputElement;
   const type = (value: string) => {
@@ -42,12 +52,14 @@ describe('SkuStockSectionComponent', () => {
     render();
   };
   const stockRequest = (method = 'GET') =>
-    vi.waitFor(() => http.expectOne(request => request.url === STOCK_URL && request.method === method));
+    vi.waitFor(() =>
+      http.expectOne((request) => request.url === STOCK_URL && request.method === method),
+    );
 
   async function open(editStock: ActionState = { allowed: true }) {
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(Host);
@@ -69,7 +81,7 @@ describe('SkuStockSectionComponent', () => {
     expect(blocks()).toEqual([
       ['Reservado', '3'],
       ['Vendido', '1.200'],
-      ['Disponível', '5']
+      ['Disponível', '5'],
     ]);
   });
 
@@ -109,9 +121,14 @@ describe('SkuStockSectionComponent', () => {
         type: 'https://marketplace.dev/problems/stock-below-reserved',
         title: 'Estoque inválido',
         status: 409,
-        reasonDetails: [{ code: 'stock-below-reserved', message: 'O físico não pode ficar abaixo das 3 unidades reservadas.' }]
+        reasonDetails: [
+          {
+            code: 'stock-below-reserved',
+            message: 'O físico não pode ficar abaixo das 3 unidades reservadas.',
+          },
+        ],
       },
-      { status: 409, statusText: 'Conflict' }
+      { status: 409, statusText: 'Conflict' },
     );
     await vi.waitFor(() => {
       render();
@@ -122,17 +139,24 @@ describe('SkuStockSectionComponent', () => {
     type('20');
     submit();
     (await stockRequest('PUT')).flush(
-      { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão divergente', status: 412 },
-      { status: 412, statusText: 'Precondition Failed' }
+      {
+        type: 'https://marketplace.dev/problems/version-mismatch',
+        title: 'Versão divergente',
+        status: 412,
+      },
+      { status: 412, statusText: 'Precondition Failed' },
     );
     await vi.waitFor(() => {
       render();
       expect(text()).toContain('Outra pessoa alterou este registro');
     });
     (Array.from(element().querySelectorAll('button')) as HTMLButtonElement[])
-      .find(button => button.textContent?.includes('Carregar versão atual'))
+      .find((button) => button.textContent?.includes('Carregar versão atual'))
       ?.click();
-    (await stockRequest()).flush({ ...STOCK, onHand: 30, version: 6 }, { headers: { ETag: '"6"' } });
+    (await stockRequest()).flush(
+      { ...STOCK, onHand: 30, version: 6 },
+      { headers: { ETag: '"6"' } },
+    );
     await vi.waitFor(() => {
       render();
       expect(onHand().valueAsNumber).toBe(30);

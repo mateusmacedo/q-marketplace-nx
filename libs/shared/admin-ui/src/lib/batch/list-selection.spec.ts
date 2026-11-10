@@ -15,16 +15,20 @@ const product = (id: string, actions: readonly string[] = [], version = 1): Prod
   id,
   title: `Produto ${id}`,
   actions,
-  version
+  version,
 });
 
 describe('ListSelection', () => {
-  const page1 = [product('p1', ['PAUSE', 'ARCHIVE']), product('p2', ['ARCHIVE']), product('p3', ['SUBMIT'])];
+  const page1 = [
+    product('p1', ['PAUSE', 'ARCHIVE']),
+    product('p2', ['ARCHIVE']),
+    product('p3', ['SUBMIT']),
+  ];
   const page2 = [product('p4', ['PAUSE']), product('p5', ['RESUME'])];
   let selection: ListSelection<Product>;
 
   beforeEach(() => {
-    selection = new ListSelection<Product>({ id: item => item.id });
+    selection = new ListSelection<Product>({ id: (item) => item.id });
     selection.setPage(page1, { status: 'ACTIVE', cursor: undefined });
   });
 
@@ -49,7 +53,7 @@ describe('ListSelection', () => {
     selection.toggle(page1[0]);
     selection.setPage(page2, { status: 'ACTIVE', cursor: 'abc' });
     selection.toggle(page2[0]);
-    expect(selection.items().map(item => item.id)).toEqual(['p1', 'p4']);
+    expect(selection.items().map((item) => item.id)).toEqual(['p1', 'p4']);
     expect(selection.pageIndeterminate()).toBe(true);
 
     selection.setPage(page1, { status: 'ACTIVE', cursor: undefined });
@@ -71,29 +75,29 @@ describe('ListSelection', () => {
     selection.toggle(page2[0]);
 
     expect(selection.countFor('ARCHIVE')).toBe(2);
-    expect(selection.accepting('PAUSE').map(item => item.id)).toEqual(['p1', 'p4']);
+    expect(selection.accepting('PAUSE').map((item) => item.id)).toEqual(['p1', 'p4']);
     expect(selection.countFor('UNKNOWN')).toBe(0);
     expect(
       selection.batchActions([
         { id: 'PAUSE', label: 'Pausar' },
         { id: 'RESUME', label: 'Reativar' },
-        { id: 'ARCHIVE', label: 'Arquivar', color: 'danger' }
-      ])
+        { id: 'ARCHIVE', label: 'Arquivar', color: 'danger' },
+      ]),
     ).toEqual([
       { id: 'PAUSE', label: 'Pausar', count: 2 },
       { id: 'RESUME', label: 'Reativar', count: 0 },
-      { id: 'ARCHIVE', label: 'Arquivar', color: 'danger', count: 2 }
+      { id: 'ARCHIVE', label: 'Arquivar', color: 'danger', count: 2 },
     ]);
   });
 
   it('aceita a regra da tela sem actions, como Categorias', () => {
     const categories = new ListSelection<{ id: string; active: boolean }>({
-      id: item => item.id,
-      accepts: (item, action) => (action === 'ACTIVATE' ? !item.active : item.active)
+      id: (item) => item.id,
+      accepts: (item, action) => (action === 'ACTIVATE' ? !item.active : item.active),
     });
     categories.setPage([
       { id: 'c1', active: true },
-      { id: 'c2', active: false }
+      { id: 'c2', active: false },
     ]);
     categories.togglePage(true);
     expect(categories.countFor('ACTIVATE')).toBe(1);
@@ -103,7 +107,7 @@ describe('ListSelection', () => {
   it('tira os gravados no fim do lote e mantém as falhas', () => {
     selection.togglePage();
     selection.completeBatch({ succeeded: [{ item: page1[0] }, { item: page1[2] }] });
-    expect(selection.items().map(item => item.id)).toEqual(['p2']);
+    expect(selection.items().map((item) => item.id)).toEqual(['p2']);
 
     selection.clear();
     expect(selection.count()).toBe(0);
@@ -114,7 +118,7 @@ describe('ListSelection', () => {
     selection.setPage(page1.slice(1), { status: 'ACTIVE' });
     selection.remove([page1[0].id, 'desconhecido']);
 
-    expect(selection.items().map(item => item.id)).toEqual(['p2', 'p3']);
+    expect(selection.items().map((item) => item.id)).toEqual(['p2', 'p3']);
   });
 });
 
@@ -124,13 +128,20 @@ describe('resultado do lote na tela', () => {
       [
         {
           item: product('p1'),
-          problem: { status: 422, reasonDetails: [{ code: 'seller-not-eligible', message: 'A loja ainda não foi aprovada.' }] }
-        }
+          problem: {
+            status: 422,
+            reasonDetails: [
+              { code: 'seller-not-eligible', message: 'A loja ainda não foi aprovada.' },
+            ],
+          },
+        },
       ],
-      item => item.id,
-      item => item.title
+      (item) => item.id,
+      (item) => item.title,
     );
-    expect(failures).toEqual([{ id: 'p1', label: 'Produto p1', messages: ['A loja ainda não foi aprovada.'] }]);
+    expect(failures).toEqual([
+      { id: 'p1', label: 'Produto p1', messages: ['A loja ainda não foi aprovada.'] },
+    ]);
   });
 
   it('aborta o sinal quando a tela é destruída', () => {

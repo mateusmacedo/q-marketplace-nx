@@ -45,8 +45,8 @@ async function requestToken(user: DemoUser): Promise<CachedToken> {
       grant_type: 'password',
       client_id: E2E_ENV.tokenClientId,
       username: user,
-      password: user
-    })
+      password: user,
+    }),
   });
   const text = await response.text();
   if (!response.ok) {

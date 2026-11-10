@@ -28,11 +28,11 @@ comentários de código e documentação em PT-BR.
 
 ### Resolução de conflitos
 
-| Nível | Significado | Exemplo |
-|-------|-------------|---------|
+| Nível           | Significado                           | Exemplo                                 |
+| --------------- | ------------------------------------- | --------------------------------------- |
 | **OBRIGATÓRIO** | Quebra build, CI ou deploy se violado | Validação após tarefa, fronteiras do Nx |
-| **RECOMENDADO** | Padrão esperado | Convenções de código |
-| **OPCIONAL** | Melhoria incremental | Remoção proativa de código morto |
+| **RECOMENDADO** | Padrão esperado                       | Convenções de código                    |
+| **OPCIONAL**    | Melhoria incremental                  | Remoção proativa de código morto        |
 
 ## Regras Críticas
 
@@ -213,10 +213,10 @@ Principais diretórios:
 
 ## Glossário
 
-| Termo | Definição |
-|-------|-----------|
-| Capacidade | Permissão derivada do papel no servidor (`Capability`); o painel decide o que mostrar só por ela, via `GET /me` |
-| Cópia pendente | Valor do servidor repetido no painel, marcado com `// WHY: cópia pendente (ADR 031); saída: ...` e listado na proposta |
-| Lote | Chamada `*/batch` com até 100 itens, aplicada a cada item isolado e com o resultado de cada um na ordem do pedido |
-| Ação barrada | Ação que vale no status e para o chamador, mas que um motivo impede agora (`blockedActions`, com o motivo) |
-| Pendência de publicação | Item que impede enviar ou aprovar o produto (`publishingIssues`), calculado pelo servidor |
+| Termo                   | Definição                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Capacidade              | Permissão derivada do papel no servidor (`Capability`); o painel decide o que mostrar só por ela, via `GET /me`        |
+| Cópia pendente          | Valor do servidor repetido no painel, marcado com `// WHY: cópia pendente (ADR 031); saída: ...` e listado na proposta |
+| Lote                    | Chamada `*/batch` com até 100 itens, aplicada a cada item isolado e com o resultado de cada um na ordem do pedido      |
+| Ação barrada            | Ação que vale no status e para o chamador, mas que um motivo impede agora (`blockedActions`, com o motivo)             |
+| Pendência de publicação | Item que impede enviar ou aprovar o produto (`publishingIssues`), calculado pelo servidor                              |

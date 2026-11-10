@@ -8,11 +8,11 @@ import java.util.Locale;
  * todo código emitido tenha texto no catálogo de mensagens do adaptador HTTP.
  */
 public interface ReasonCode {
-    /** Nome da constante; o enum que implementa a interface já o fornece. */
-    String name();
+  /** Nome da constante; o enum que implementa a interface já o fornece. */
+  String name();
 
-    /** O código em kebab-case: {@code MISSING_OFFER} vira {@code missing-offer}. */
-    default String code() {
-        return name().toLowerCase(Locale.ROOT).replace('_', '-');
-    }
+  /** O código em kebab-case: {@code MISSING_OFFER} vira {@code missing-offer}. */
+  default String code() {
+    return name().toLowerCase(Locale.ROOT).replace('_', '-');
+  }
 }

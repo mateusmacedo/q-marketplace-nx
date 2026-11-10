@@ -7,7 +7,7 @@ import {
   locationId,
   outcomePresentation,
   progressPercent,
-  statusPresentation
+  statusPresentation,
 } from './import-presentation';
 
 describe('apresentação da importação', () => {
@@ -40,10 +40,14 @@ describe('apresentação da importação', () => {
       code: 'invalid-product',
       message: 'Produto inválido',
       reasonDetails: [
-        { code: 'missing-variant-attribute', params: ['CAM-P', 'cor'], message: 'O SKU CAM-P não tem o atributo Cor' },
+        {
+          code: 'missing-variant-attribute',
+          params: ['CAM-P', 'cor'],
+          message: 'O SKU CAM-P não tem o atributo Cor',
+        },
         { code: 'invalid-product', message: 'Produto inválido' },
-        { code: 'missing-offer' }
-      ]
+        { code: 'missing-offer' },
+      ],
     });
 
     expect(texts.message).toBe('Produto inválido');
@@ -54,9 +58,12 @@ describe('apresentação da importação', () => {
   it('mostra a mensagem genérica na falha sem texto e nada na linha que deu certo', () => {
     expect(lineTexts({ lineNumber: 3, outcome: 'FAILED', code: 'invalid-row' })).toEqual({
       message: GENERIC_REASON_MESSAGE,
-      reasons: []
+      reasons: [],
     });
-    expect(lineTexts({ lineNumber: 2, outcome: 'CREATED', productId: 'p1' })).toEqual({ message: undefined, reasons: [] });
+    expect(lineTexts({ lineNumber: 2, outcome: 'CREATED', productId: 'p1' })).toEqual({
+      message: undefined,
+      reasons: [],
+    });
   });
 
   it('lê o id do lote no Location da resposta 202', () => {

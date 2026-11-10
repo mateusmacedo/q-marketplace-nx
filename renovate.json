@@ -7,28 +7,18 @@
     ":enableVulnerabilityAlerts"
   ],
   "osvVulnerabilityAlerts": true,
-  "ignorePaths": [
-    "**/node_modules/**",
-    "**/build/**",
-    "tools/load/results/**"
-  ],
+  "ignorePaths": ["**/node_modules/**", "**/build/**", "tools/load/results/**"],
   "docker-compose": {
-    "managerFilePatterns": [
-      "/^infra/local/compose/[^/]+\\.yml$/"
-    ]
+    "managerFilePatterns": ["/^infra/local/compose/[^/]+\\.yml$/"]
   },
   "kubernetes": {
-    "managerFilePatterns": [
-      "/^infra/helm/[^/]+/ci/[^/]+\\.yaml$/"
-    ]
+    "managerFilePatterns": ["/^infra/helm/[^/]+/ci/[^/]+\\.yaml$/"]
   },
   "customManagers": [
     {
       "customType": "regex",
       "description": "Imagens em âncoras YAML do compose, que o manager docker-compose não lê",
-      "managerFilePatterns": [
-        "/^infra/local/compose/[^/]+\\.yml$/"
-      ],
+      "managerFilePatterns": ["/^infra/local/compose/[^/]+\\.yml$/"],
       "matchStrings": [
         "&[\\w-]+ (?<depName>[a-z0-9][a-z0-9.-]*(?:/[a-z0-9._-]+)*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
@@ -37,9 +27,7 @@
     {
       "customType": "regex",
       "description": "Imagens dos Dev Services do Quarkus",
-      "managerFilePatterns": [
-        "/^apps/[^/]+/src/main/resources/application\\.properties$/"
-      ],
+      "managerFilePatterns": ["/^apps/[^/]+/src/main/resources/application\\.properties$/"],
       "matchStrings": [
         "image-name=(?<depName>[a-z0-9][a-z0-9.-]*(?:/[a-z0-9._-]+)*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
@@ -62,17 +50,12 @@
   "packageRules": [
     {
       "description": "Plugin e BOM do Quarkus sobem juntos",
-      "matchPackageNames": [
-        "io.quarkus{/,}**",
-        "io.quarkus.platform{/,}**"
-      ],
+      "matchPackageNames": ["io.quarkus{/,}**", "io.quarkus.platform{/,}**"],
       "groupName": "Quarkus"
     },
     {
       "description": "Dependências de npm saem como chore: no nx release, um fix que toca o package-lock.json da raiz versionaria todos os projetos (ADR 027)",
-      "matchManagers": [
-        "npm"
-      ],
+      "matchManagers": ["npm"],
       "semanticCommitType": "chore"
     },
     {
@@ -98,9 +81,7 @@
     },
     {
       "description": "Versões de API dos manifestos do k3d",
-      "matchDatasources": [
-        "kubernetes-api"
-      ],
+      "matchDatasources": ["kubernetes-api"],
       "enabled": false
     }
   ]

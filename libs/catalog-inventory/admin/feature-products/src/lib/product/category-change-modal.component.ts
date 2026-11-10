@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, model, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  model,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import {
   ButtonCloseDirective,
   ButtonDirective,
@@ -10,16 +20,23 @@ import {
   ModalFooterComponent,
   ModalHeaderComponent,
   ModalTitleDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import { cilMinus, cilPlus, cilX } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
 import {
   type CategoryChangeResponse,
-  checkProductResource
+  checkProductResource,
 } from '@marketplace/catalog-inventory-admin-data-access';
-import { type CategoryOption, CategorySelectComponent } from '@marketplace/catalog-inventory-admin-ui';
-import { ErrorStateComponent, LoadingStateComponent, ProblemAlertComponent } from '@marketplace/shared-admin-ui';
+import {
+  type CategoryOption,
+  CategorySelectComponent,
+} from '@marketplace/catalog-inventory-admin-ui';
+import {
+  ErrorStateComponent,
+  LoadingStateComponent,
+  ProblemAlertComponent,
+} from '@marketplace/shared-admin-ui';
 import { type Problem, toProblem, translateReason } from '@marketplace/shared-web-util';
 
 import { loadUsableCategories } from './product-categories';
@@ -31,7 +48,11 @@ export interface CategoryChangeChoice {
   readonly change: CategoryChangeResponse;
 }
 
-const NO_CHANGE: CategoryChangeResponse = { removedAttributes: [], newRequired: [], blockingSkus: [] };
+const NO_CHANGE: CategoryChangeResponse = {
+  removedAttributes: [],
+  newRequired: [],
+  blockingSkus: [],
+};
 
 let nextId = 0;
 
@@ -59,7 +80,7 @@ let nextId = 0;
     ModalHeaderComponent,
     ModalTitleDirective,
     ProblemAlertComponent,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <c-modal [(visible)]="visible" [attr.aria-labelledby]="titleId" size="lg">
@@ -155,7 +176,7 @@ let nextId = 0;
         <button (click)="confirm()" [disabled]="!canConfirm()" cButton color="primary" type="button">Trocar</button>
       </c-modal-footer>
     </c-modal>
-  `
+  `,
 })
 export class CategoryChangeModalComponent {
   readonly visible = model(false);
@@ -180,20 +201,33 @@ export class CategoryChangeModalComponent {
   readonly check = checkProductResource(() => {
     const categoryId = this.selected();
     return this.visible() && categoryId
-      ? { path: { id: this.productId() }, body: { categoryId, attributes: { ...this.attributes() } } }
+      ? {
+          path: { id: this.productId() },
+          body: { categoryId, attributes: { ...this.attributes() } },
+        }
       : undefined;
   });
   readonly checkProblem = computed(() => {
     const error = this.check.error();
     return error ? toProblem(error) : null;
   });
-  readonly change = computed(() => (this.check.hasValue() ? (this.check.value().categoryChange ?? NO_CHANGE) : null));
+  readonly change = computed(() =>
+    this.check.hasValue() ? (this.check.value().categoryChange ?? NO_CHANGE) : null,
+  );
   readonly hasEffect = computed(() => {
     const change = this.change();
-    return !!(change?.removedAttributes?.length || change?.newRequired?.length || change?.blockingSkus?.length);
+    return !!(
+      change?.removedAttributes?.length ||
+      change?.newRequired?.length ||
+      change?.blockingSkus?.length
+    );
   });
   readonly canConfirm = computed(
-    () => !!this.selected() && !this.check.isLoading() && this.change() !== null && !this.change()?.blockingSkus?.length
+    () =>
+      !!this.selected() &&
+      !this.check.isLoading() &&
+      this.change() !== null &&
+      !this.change()?.blockingSkus?.length,
   );
 
   #loading = false;
@@ -236,7 +270,7 @@ export class CategoryChangeModalComponent {
     if (!categoryId || !change || !this.canConfirm()) {
       return;
     }
-    const path = this.options()?.find(option => option.id === categoryId)?.path ?? '';
+    const path = this.options()?.find((option) => option.id === categoryId)?.path ?? '';
     this.changed.emit({ categoryId, path, change });
     this.visible.set(false);
   }

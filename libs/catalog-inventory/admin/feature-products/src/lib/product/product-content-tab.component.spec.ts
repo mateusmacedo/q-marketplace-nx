@@ -6,7 +6,7 @@ import { By } from '@angular/platform-browser';
 import {
   type CategoryResponse,
   provideCatalogInventoryApi,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService, UNSAVED_CHANGES_WARNING } from '@marketplace/shared-admin-ui';
 
@@ -20,12 +20,18 @@ const CAMISAS: CategoryResponse = {
   name: 'Camisas',
   ancestors: [{ id: 'c0', name: 'Vestuário' }],
   effectiveAttributes: [
-    { code: 'material', label: 'Material', type: 'OPTION', required: true, options: ['Algodão', 'Poliéster'] },
+    {
+      code: 'material',
+      label: 'Material',
+      type: 'OPTION',
+      required: true,
+      options: ['Algodão', 'Poliéster'],
+    },
     { code: 'gola', label: 'Gola', type: 'TEXT' },
     { code: 'gramatura', label: 'Gramatura', type: 'INTEGER' },
     { code: 'organico', label: 'Orgânico', type: 'BOOLEAN' },
-    { code: 'tamanho', label: 'Tamanho', type: 'OPTION', variant: true, options: ['P', 'M'] }
-  ]
+    { code: 'tamanho', label: 'Tamanho', type: 'OPTION', variant: true, options: ['P', 'M'] },
+  ],
 };
 
 const CALCAS: CategoryResponse = {
@@ -33,9 +39,15 @@ const CALCAS: CategoryResponse = {
   name: 'Calças',
   ancestors: [{ id: 'c0', name: 'Vestuário' }],
   effectiveAttributes: [
-    { code: 'material', label: 'Material', type: 'OPTION', required: true, options: ['Algodão', 'Jeans'] },
-    { code: 'cintura', label: 'Cintura (cm)', type: 'DECIMAL', required: true }
-  ]
+    {
+      code: 'material',
+      label: 'Material',
+      type: 'OPTION',
+      required: true,
+      options: ['Algodão', 'Jeans'],
+    },
+    { code: 'cintura', label: 'Cintura (cm)', type: 'DECIMAL', required: true },
+  ],
 };
 
 const DRAFT: ProductResponse = {
@@ -48,13 +60,13 @@ const DRAFT: ProductResponse = {
   version: 3,
   attributes: { material: 'Algodão', gola: 'Redonda', gramatura: '180' },
   actions: ['EDIT', 'CHANGE_CATEGORY', 'REMOVE_SKU', 'SUBMIT'],
-  saveReturnsToModeration: false
+  saveReturnsToModeration: false,
 };
 
 @Component({
   imports: [ProductContentTabComponent],
   providers: [ProductStore],
-  template: '<app-product-content-tab />'
+  template: '<app-product-content-tab />',
 })
 class Host {
   readonly store = inject(ProductStore);
@@ -69,10 +81,11 @@ describe('ProductContentTabComponent', () => {
   const element = () => fixture.nativeElement as HTMLElement;
   const text = () => element().textContent?.replace(/\s+/g, ' ') ?? '';
   const render = () => TestBed.tick();
-  const field = <T extends HTMLElement>(id: string) => element().querySelector(`[id="product-field-${id}"]`) as T;
+  const field = <T extends HTMLElement>(id: string) =>
+    element().querySelector(`[id="product-field-${id}"]`) as T;
   const button = (root: ParentNode, label: string) =>
     (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.replace(/\s+/g, ' ').trim() === label
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const type = (input: HTMLInputElement | HTMLTextAreaElement, value: string) => {
     input.value = value;
@@ -101,12 +114,12 @@ describe('ProductContentTabComponent', () => {
     render();
   };
   const treeRequest = () =>
-    vi.waitFor(() => http.expectOne(req => req.url.startsWith(`${API}/categories/tree?`)));
+    vi.waitFor(() => http.expectOne((req) => req.url.startsWith(`${API}/categories/tree?`)));
 
   function mount(product: ProductResponse = DRAFT) {
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(Host);
@@ -131,14 +144,20 @@ describe('ProductContentTabComponent', () => {
     expect(text()).toContain('Vestuário › Camisas');
     const material = field<HTMLSelectElement>('attributes.material');
     expect(material.tagName).toBe('SELECT');
-    expect(Array.from(material.options).map(option => option.textContent?.trim())).toEqual(['Escolha', 'Algodão', 'Poliéster']);
+    expect(Array.from(material.options).map((option) => option.textContent?.trim())).toEqual([
+      'Escolha',
+      'Algodão',
+      'Poliéster',
+    ]);
     expect(material.value).toBe('Algodão');
     expect(field<HTMLInputElement>('attributes.gramatura').type).toBe('number');
     expect(field<HTMLInputElement>('attributes.gramatura').value).toBe('180');
     expect(field<HTMLInputElement>('attributes.organico').type).toBe('checkbox');
     expect(field<HTMLInputElement>('attributes.gola').type).toBe('text');
     expect(field('attributes.tamanho')).toBeNull();
-    expect(element().querySelector('label[for="product-field-attributes.material"]')?.textContent).toContain('*');
+    expect(
+      element().querySelector('label[for="product-field-attributes.material"]')?.textContent,
+    ).toContain('*');
     expect(tab.leaveWarning()).toBeNull();
     expect(button(element(), 'Salvar').disabled).toBe(true);
   });
@@ -154,7 +173,7 @@ describe('ProductContentTabComponent', () => {
 
     expect(store.draft()).toEqual({
       categoryId: 'c1',
-      attributes: { material: 'Poliéster', gola: 'Redonda', gramatura: '180', organico: 'true' }
+      attributes: { material: 'Poliéster', gola: 'Redonda', gramatura: '180', organico: 'true' },
     });
     expect(tab.leaveWarning()).toBe(UNSAVED_CHANGES_WARNING);
 
@@ -166,11 +185,16 @@ describe('ProductContentTabComponent', () => {
       categoryId: 'c1',
       title: 'Camiseta Basic 2',
       description: 'Malha leve',
-      attributes: { material: 'Poliéster', gola: 'Redonda', gramatura: '180', organico: 'true' }
+      attributes: { material: 'Poliéster', gola: 'Redonda', gramatura: '180', organico: 'true' },
     });
     request.flush(
-      { ...DRAFT, version: 4, title: 'Camiseta Basic 2', attributes: request.request.body.attributes },
-      { headers: { ETag: '"4"' } }
+      {
+        ...DRAFT,
+        version: 4,
+        title: 'Camiseta Basic 2',
+        attributes: request.request.body.attributes,
+      },
+      { headers: { ETag: '"4"' } },
     );
 
     await vi.waitFor(() => expect(store.version()).toBe('"4"'));
@@ -188,11 +212,11 @@ describe('ProductContentTabComponent', () => {
     expect(button(form(), 'Salvar').disabled).toBe(true);
     submit();
     void tab.write();
-    http.expectNone(req => req.method === 'PUT');
+    http.expectNone((req) => req.method === 'PUT');
 
     (await vi.waitFor(() => http.expectOne(`${API}/categories/c1`))).flush(
       { type: 'https://marketplace.dev/problems/unavailable', title: 'Indisponível', status: 503 },
-      { status: 503, statusText: 'Service Unavailable' }
+      { status: 503, statusText: 'Service Unavailable' },
     );
     await vi.waitFor(() => {
       render();
@@ -200,15 +224,22 @@ describe('ProductContentTabComponent', () => {
     });
     expect(button(form(), 'Salvar').disabled).toBe(true);
     submit();
-    http.expectNone(req => req.method === 'PUT');
+    http.expectNone((req) => req.method === 'PUT');
 
     button(form(), 'Tentar de novo').click();
     await flushCategory(CAMISAS);
     expect(button(form(), 'Salvar').disabled).toBe(false);
     submit();
     const request = await vi.waitFor(() => http.expectOne(`${API}/products/p1`));
-    expect(request.request.body.attributes).toEqual({ material: 'Algodão', gola: 'Redonda', gramatura: '180' });
-    request.flush({ ...DRAFT, version: 4, title: 'Camiseta Basic 2' }, { headers: { ETag: '"4"' } });
+    expect(request.request.body.attributes).toEqual({
+      material: 'Algodão',
+      gola: 'Redonda',
+      gramatura: '180',
+    });
+    request.flush(
+      { ...DRAFT, version: 4, title: 'Camiseta Basic 2' },
+      { headers: { ETag: '"4"' } },
+    );
     await vi.waitFor(() => expect(store.version()).toBe('"4"'));
   });
 
@@ -218,12 +249,17 @@ describe('ProductContentTabComponent', () => {
     type(field<HTMLInputElement>('title'), 'Camiseta Nova');
     submit();
     const modal = element().querySelector('app-confirm-modal') as HTMLElement;
-    expect(modal.textContent).toContain('Salvar devolve o produto à moderação, e ele sai da vitrine até ser aprovado.');
+    expect(modal.textContent).toContain(
+      'Salvar devolve o produto à moderação, e ele sai da vitrine até ser aprovado.',
+    );
     http.expectNone(`${API}/products/p1`);
 
     button(modal.querySelector('c-modal-footer') as HTMLElement, 'Salvar').click();
     const request = await vi.waitFor(() => http.expectOne(`${API}/products/p1`));
-    request.flush({ ...DRAFT, status: 'PENDING_MODERATION', version: 4, title: 'Camiseta Nova' }, { headers: { ETag: '"4"' } });
+    request.flush(
+      { ...DRAFT, status: 'PENDING_MODERATION', version: 4, title: 'Camiseta Nova' },
+      { headers: { ETag: '"4"' } },
+    );
     await vi.waitFor(() => expect(store.product()?.status).toBe('PENDING_MODERATION'));
   });
 
@@ -232,7 +268,12 @@ describe('ProductContentTabComponent', () => {
       ...DRAFT,
       status: 'BLOCKED',
       actions: ['ARCHIVE'],
-      blockedActions: [{ action: 'EDIT', reason: { code: 'product-blocked', message: 'Produto bloqueado pela moderação.' } }]
+      blockedActions: [
+        {
+          action: 'EDIT',
+          reason: { code: 'product-blocked', message: 'Produto bloqueado pela moderação.' },
+        },
+      ],
     });
 
     expect(field<HTMLInputElement>('title').disabled).toBe(true);
@@ -252,13 +293,15 @@ describe('ProductContentTabComponent', () => {
         type: 'https://marketplace.dev/problems/validation',
         title: 'Requisição inválida',
         status: 400,
-        errors: [{ field: 'title', message: 'O título é curto demais.' }]
+        errors: [{ field: 'title', message: 'O título é curto demais.' }],
       },
-      { status: 400, statusText: 'Bad Request' }
+      { status: 400, statusText: 'Bad Request' },
     );
     await vi.waitFor(() => {
       render();
-      expect(field<HTMLInputElement>('title').parentElement?.textContent).toContain('O título é curto demais.');
+      expect(field<HTMLInputElement>('title').parentElement?.textContent).toContain(
+        'O título é curto demais.',
+      );
     });
 
     type(field<HTMLInputElement>('title'), 'Camiseta válida');
@@ -269,13 +312,21 @@ describe('ProductContentTabComponent', () => {
         title: 'Atributos inválidos',
         status: 422,
         reasons: ['invalid-attribute:material'],
-        reasonDetails: [{ code: 'invalid-attribute', params: ['material'], message: 'Material não aceita esse valor.' }]
+        reasonDetails: [
+          {
+            code: 'invalid-attribute',
+            params: ['material'],
+            message: 'Material não aceita esse valor.',
+          },
+        ],
       },
-      { status: 422, statusText: 'Unprocessable Content' }
+      { status: 422, statusText: 'Unprocessable Content' },
     );
     await vi.waitFor(() => {
       render();
-      expect(element().querySelector('app-problem-alert')?.textContent).toContain('Material não aceita esse valor.');
+      expect(element().querySelector('app-problem-alert')?.textContent).toContain(
+        'Material não aceita esse valor.',
+      );
     });
     expect(text()).not.toContain('invalid-attribute');
   });
@@ -286,8 +337,12 @@ describe('ProductContentTabComponent', () => {
     type(field<HTMLInputElement>('title'), 'Meu título');
     submit();
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1`))).flush(
-      { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão divergente', status: 412 },
-      { status: 412, statusText: 'Precondition Failed' }
+      {
+        type: 'https://marketplace.dev/problems/version-mismatch',
+        title: 'Versão divergente',
+        status: 412,
+      },
+      { status: 412, statusText: 'Precondition Failed' },
     );
     await vi.waitFor(() => {
       render();
@@ -296,8 +351,13 @@ describe('ProductContentTabComponent', () => {
     expect(field<HTMLInputElement>('title').value).toBe('Meu título');
 
     button(element(), 'Carregar versão atual').click();
-    const reload = await vi.waitFor(() => http.expectOne(req => req.method === 'GET' && req.url === `${API}/products/p1`));
-    reload.flush({ ...DRAFT, version: 7, title: 'Título de outra pessoa' }, { headers: { ETag: '"7"' } });
+    const reload = await vi.waitFor(() =>
+      http.expectOne((req) => req.method === 'GET' && req.url === `${API}/products/p1`),
+    );
+    reload.flush(
+      { ...DRAFT, version: 7, title: 'Título de outra pessoa' },
+      { headers: { ETag: '"7"' } },
+    );
     await vi.waitFor(() => {
       render();
       expect(field<HTMLInputElement>('title').value).toBe('Título de outra pessoa');
@@ -311,13 +371,15 @@ describe('ProductContentTabComponent', () => {
 
     button(form(), 'Trocar').click();
     const tree = await treeRequest();
-    expect(new URL(tree.request.urlWithParams, 'http://localhost').searchParams.get('usable')).toBe('true');
+    expect(new URL(tree.request.urlWithParams, 'http://localhost').searchParams.get('usable')).toBe(
+      'true',
+    );
     tree.flush({
       items: [
         { id: 'c0', name: 'Vestuário', ancestors: [], usable: true },
         { id: 'c1', name: 'Camisas', ancestors: [{ id: 'c0', name: 'Vestuário' }], usable: true },
-        { id: 'c2', name: 'Calças', ancestors: [{ id: 'c0', name: 'Vestuário' }], usable: true }
-      ]
+        { id: 'c2', name: 'Calças', ancestors: [{ id: 'c0', name: 'Vestuário' }], usable: true },
+      ],
     });
     const modal = () => element().querySelector('app-category-change-modal') as HTMLElement;
     const modalText = () => modal().textContent?.replace(/\s+/g, ' ') ?? '';
@@ -327,28 +389,38 @@ describe('ProductContentTabComponent', () => {
       expect(found).toBeTruthy();
       return found;
     });
-    expect(Array.from(select.options).map(option => option.textContent?.trim())).toEqual([
+    expect(Array.from(select.options).map((option) => option.textContent?.trim())).toEqual([
       'Escolha a nova categoria',
       'Vestuário',
-      'Vestuário › Calças'
+      'Vestuário › Calças',
     ]);
 
     choose(select, 'c2');
     const check = await vi.waitFor(() => http.expectOne(`${API}/products/p1/check`));
     expect(check.request.body).toEqual({
       categoryId: 'c2',
-      attributes: { material: 'Algodão', gola: 'Redonda', gramatura: '180' }
+      attributes: { material: 'Algodão', gola: 'Redonda', gramatura: '180' },
     });
     check.flush({
       publishingIssues: [],
       categoryChange: {
         removedAttributes: [
-          { code: 'gola', label: 'Gola', value: 'Redonda', reason: { code: 'unknown-attribute', message: 'Calças não tem Gola.' } },
-          { code: 'gramatura', label: 'Gramatura', value: '180', reason: { code: 'unknown-attribute', message: 'Calças não tem Gramatura.' } }
+          {
+            code: 'gola',
+            label: 'Gola',
+            value: 'Redonda',
+            reason: { code: 'unknown-attribute', message: 'Calças não tem Gola.' },
+          },
+          {
+            code: 'gramatura',
+            label: 'Gramatura',
+            value: '180',
+            reason: { code: 'unknown-attribute', message: 'Calças não tem Gramatura.' },
+          },
         ],
         newRequired: [{ code: 'cintura', label: 'Cintura (cm)', variant: false }],
-        blockingSkus: []
-      }
+        blockingSkus: [],
+      },
     });
     await vi.waitFor(() => {
       render();
@@ -359,7 +431,7 @@ describe('ProductContentTabComponent', () => {
 
     button(modal().querySelector('c-modal-footer') as HTMLElement, 'Trocar').click();
     render();
-    http.expectNone(req => req.method === 'PUT');
+    http.expectNone((req) => req.method === 'PUT');
     await flushCategory(CALCAS);
     expect(text()).toContain('Categoria trocada de Vestuário › Camisas para Vestuário › Calças');
     expect(field<HTMLSelectElement>('attributes.material').value).toBe('Algodão');
@@ -380,7 +452,7 @@ describe('ProductContentTabComponent', () => {
 
     button(form(), 'Trocar').click();
     (await treeRequest()).flush({
-      items: [{ id: 'c2', name: 'Calças', ancestors: [], usable: true }]
+      items: [{ id: 'c2', name: 'Calças', ancestors: [], usable: true }],
     });
     const modal = () => element().querySelector('app-category-change-modal') as HTMLElement;
     const modalText = () => modal().textContent?.replace(/\s+/g, ' ') ?? '';
@@ -394,9 +466,14 @@ describe('ProductContentTabComponent', () => {
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1/check`))).flush({
       categoryChange: {
         blockingSkus: [
-          { sellerSku: 'CAM-P-AZ', reasons: [{ code: 'unknown-attribute', message: 'Calças não tem Tamanho como variação.' }] }
-        ]
-      }
+          {
+            sellerSku: 'CAM-P-AZ',
+            reasons: [
+              { code: 'unknown-attribute', message: 'Calças não tem Tamanho como variação.' },
+            ],
+          },
+        ],
+      },
     });
     await vi.waitFor(() => {
       render();
@@ -404,6 +481,8 @@ describe('ProductContentTabComponent', () => {
     });
 
     expect(modalText()).toContain('Remova esses SKUs, troque a categoria e crie os SKUs de novo.');
-    expect(button(modal().querySelector('c-modal-footer') as HTMLElement, 'Trocar').disabled).toBe(true);
+    expect(button(modal().querySelector('c-modal-footer') as HTMLElement, 'Trocar').disabled).toBe(
+      true,
+    );
   });
 });

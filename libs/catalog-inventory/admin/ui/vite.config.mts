@@ -23,6 +23,6 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: '../../../../coverage/libs/catalog-inventory/admin/ui',
       provider: 'v8' as const,
-    }
+    },
   },
 }));

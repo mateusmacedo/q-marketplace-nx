@@ -33,7 +33,11 @@ export async function apiDataWithVersion<T>(call: Promise<ApiResult<T>>): Promis
  * `If-Match`; prefira a `version` do corpo (`versionTag`).
  */
 export function responseVersion(source: unknown): string | undefined {
-  const headers = isHeaders(source) ? source : isRecord(source) && isHeaders(source['headers']) ? source['headers'] : null;
+  const headers = isHeaders(source)
+    ? source
+    : isRecord(source) && isHeaders(source['headers'])
+      ? source['headers']
+      : null;
   const value = headers?.get('ETag')?.trim();
   return value && !value.startsWith('W/') ? value : undefined;
 }
@@ -53,7 +57,9 @@ export function versionTag(version: number | string | null | undefined): string 
 /** Versão no corpo da resposta (`ProductResponse.version` e afins), como ETag forte. */
 function bodyVersion(data: unknown): string | undefined {
   const version = isRecord(data) ? data['version'] : undefined;
-  return typeof version === 'number' || typeof version === 'string' ? versionTag(version) : undefined;
+  return typeof version === 'number' || typeof version === 'string'
+    ? versionTag(version)
+    : undefined;
 }
 
 function isHeaders(value: unknown): value is ResponseHeaders {

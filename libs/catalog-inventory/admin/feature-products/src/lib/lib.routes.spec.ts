@@ -20,18 +20,20 @@ interface Screen {
 }
 
 function screens(list: Routes, child = false, inherited?: unknown): Screen[] {
-  return list.flatMap(route => {
+  return list.flatMap((route) => {
     const title = route.data?.['title'] ?? inherited;
     return [
       ...(route.loadComponent ? [{ route, title, child }] : []),
-      ...screens(route.children ?? [], child || !!route.loadComponent, title)
+      ...screens(route.children ?? [], child || !!route.loadComponent, title),
     ];
   });
 }
 
 describe('rotas da feature', () => {
   beforeEach(() =>
-    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: AdminSession, useClass: TestSession }] })
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), { provide: AdminSession, useClass: TestSession }],
+    }),
   );
 
   for (const [name, list] of Object.entries({ platformRoutes, routes })) {
@@ -53,13 +55,13 @@ describe('rotas da feature', () => {
   it('põe a lista e o produto no mesmo grupo, para o breadcrumb do produto voltar à lista', () => {
     for (const [list, title] of [
       [routes, 'Produtos'],
-      [platformRoutes, 'Produtos de todas as lojas']
+      [platformRoutes, 'Produtos de todas as lojas'],
     ] as const) {
       const [group] = list;
       expect(group.path).toBe('');
       expect(group.data?.['title']).toBe(title);
       expect(group.loadComponent).toBeUndefined();
-      expect(group.children?.map(route => route.path)).toEqual(['', ':id']);
+      expect(group.children?.map((route) => route.path)).toEqual(['', ':id']);
       expect(group.children?.[0].data?.['title']).toBeUndefined();
     }
   });

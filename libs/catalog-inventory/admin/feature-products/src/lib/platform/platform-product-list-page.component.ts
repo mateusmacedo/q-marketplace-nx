@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, linkedSignal, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  linkedSignal,
+  signal,
+  untracked,
+} from '@angular/core';
 import {
   ButtonDirective,
   CardBodyComponent,
@@ -6,9 +14,13 @@ import {
   FormControlDirective,
   FormTextDirective,
   InputGroupComponent,
-  InputGroupTextDirective
+  InputGroupTextDirective,
 } from '@coreui/angular';
-import { listProductsResource, type ProductResponse, UUIDSchema } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  listProductsResource,
+  type ProductResponse,
+  UUIDSchema,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import {
   CursorPaginationComponent,
   EditConflictAlertComponent,
@@ -16,16 +28,23 @@ import {
   ErrorStateComponent,
   LoadingStateComponent,
   ProblemAlertComponent,
-  serverActionMenu
+  serverActionMenu,
 } from '@marketplace/shared-admin-ui';
 import { checkFieldRules, ruleMessage, toProblem } from '@marketplace/shared-web-util';
 
 import { productActionPresentation, productActionPresentations } from '../product-actions';
 import { ProductActionRunner } from '../product-list/product-action-runner';
 import { ProductListFiltersComponent } from '../product-list/product-list-filters.component';
-import { emptyListMessage, productListRequest, searchError } from '../product-list/product-list-query';
+import {
+  emptyListMessage,
+  productListRequest,
+  searchError,
+} from '../product-list/product-list-query';
 import { injectProductListRoute } from '../product-list/product-list-route';
-import { type ProductRowAction, ProductTableComponent } from '../product-list/product-table.component';
+import {
+  type ProductRowAction,
+  ProductTableComponent,
+} from '../product-list/product-table.component';
 
 const PLATFORM_ACTIONS = productActionPresentations('platform');
 
@@ -55,7 +74,7 @@ const STORE_ID_RULES = { required: false, pattern: UUIDSchema.pattern } as const
     LoadingStateComponent,
     ProblemAlertComponent,
     ProductListFiltersComponent,
-    ProductTableComponent
+    ProductTableComponent,
   ],
   template: `
     <c-card class="mb-4">
@@ -145,7 +164,7 @@ const STORE_ID_RULES = { required: false, pattern: UUIDSchema.pattern } as const
         }
       </c-card-body>
     </c-card>
-  `
+  `,
 })
 export class PlatformProductListPageComponent {
   readonly listRoute = injectProductListRoute();
@@ -204,7 +223,7 @@ export class PlatformProductListPageComponent {
   onAction({ product, choice }: ProductRowAction): void {
     const action = productActionPresentation(choice.id);
     if (action) {
-      void this.runner.run(product, action).then(done => done && this.products.reload());
+      void this.runner.run(product, action).then((done) => done && this.products.reload());
     }
   }
 

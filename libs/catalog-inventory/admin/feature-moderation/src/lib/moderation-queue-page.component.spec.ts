@@ -9,14 +9,14 @@ import {
   type ModerationReasonResponse,
   type ProductResponse,
   provideCatalogInventoryApi,
-  type StatusChangeResponse
+  type StatusChangeResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   AdminSession,
   BATCH_RUNNING_WARNING,
   NavBadgeService,
   type SessionGrants,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 
 import { routes } from './lib.routes';
@@ -49,13 +49,18 @@ const P1: ProductResponse = {
         currency: 'BRL',
         salePrice: { amount: 49.9, currency: 'BRL' },
         effectivePrice: { amount: 49.9, currency: 'BRL' },
-        onPromotion: false
+        onPromotion: false,
       },
-      stock: { available: 12, onHand: 12 }
+      stock: { available: 12, onHand: 12 },
     },
-    { id: 's2', sellerSku: 'CAM-M', variantAttributes: { tamanho: 'M', cor: 'Azul' }, stock: { available: 0, onHand: 0 } }
+    {
+      id: 's2',
+      sellerSku: 'CAM-M',
+      variantAttributes: { tamanho: 'M', cor: 'Azul' },
+      stock: { available: 0, onHand: 0 },
+    },
   ],
-  actions: ['APPROVE', 'REJECT', 'BLOCK']
+  actions: ['APPROVE', 'REJECT', 'BLOCK'],
 };
 
 const P2: ProductResponse = {
@@ -70,8 +75,11 @@ const P2: ProductResponse = {
   skus: [],
   actions: ['REJECT', 'BLOCK'],
   blockedActions: [
-    { action: 'APPROVE', reason: { code: 'seller-not-eligible', message: 'A loja ainda não foi aprovada no KYB/KYC.' } }
-  ]
+    {
+      action: 'APPROVE',
+      reason: { code: 'seller-not-eligible', message: 'A loja ainda não foi aprovada no KYB/KYC.' },
+    },
+  ],
 };
 
 const CATEGORY: CategoryResponse = {
@@ -81,30 +89,36 @@ const CATEGORY: CategoryResponse = {
   effectiveAttributes: [
     { code: 'material', label: 'Material', type: 'OPTION' },
     { code: 'tamanho', label: 'Tamanho', type: 'OPTION', variant: true },
-    { code: 'cor', label: 'Cor', type: 'OPTION', variant: true }
-  ]
+    { code: 'cor', label: 'Cor', type: 'OPTION', variant: true },
+  ],
 };
 
 const HISTORY: StatusChangeResponse[] = [
   { transition: 'CREATE', at: '2026-11-08T12:00:00Z', actorSide: 'STORE', byCaller: false },
-  { transition: 'SUBMIT', at: '2026-11-08T13:10:00Z', actorSide: 'STORE', byCaller: false }
+  { transition: 'SUBMIT', at: '2026-11-08T13:10:00Z', actorSide: 'STORE', byCaller: false },
 ];
 
 const REASONS: ModerationReasonResponse[] = [
-  { code: 'categoria-incorreta', label: 'Categoria incorreta', decisions: ['REJECT'], position: 10, active: true }
+  {
+    code: 'categoria-incorreta',
+    label: 'Categoria incorreta',
+    decisions: ['REJECT'],
+    position: 10,
+    active: true,
+  },
 ];
 
 class TestSession extends AdminSession {
   readonly grants = signal<SessionGrants>({
     capabilities: ['MODERATE_PRODUCTS', 'READ_SELLER_ELIGIBILITY'],
-    permissions: { readTenantCatalog: true }
+    permissions: { readTenantCatalog: true },
   });
   readonly storeId = signal<string | undefined>(undefined);
   readonly tenantId = signal<string | undefined>('tenant-1');
 }
 
 @Component({ imports: [RouterOutlet], template: '<router-outlet />' })
-class Shell { }
+class Shell {}
 
 describe('fila de moderação', () => {
   let fixture: ComponentFixture<Shell>;
@@ -114,10 +128,14 @@ describe('fila de moderação', () => {
   let session: TestSession;
 
   const element = () => fixture.nativeElement as HTMLElement;
-  const buttons = (root: ParentNode = element()) => Array.from(root.querySelectorAll('button')) as HTMLButtonElement[];
+  const buttons = (root: ParentNode = element()) =>
+    Array.from(root.querySelectorAll('button')) as HTMLButtonElement[];
   const button = (text: string, root: ParentNode = element()) =>
-    buttons(root).find(item => item.textContent?.replace(/\s+/g, ' ').trim() === text) as HTMLButtonElement;
-  const queueItems = () => Array.from(element().querySelectorAll('[cListGroupItem][role=listitem]')) as HTMLElement[];
+    buttons(root).find(
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim() === text,
+    ) as HTMLButtonElement;
+  const queueItems = () =>
+    Array.from(element().querySelectorAll('[cListGroupItem][role=listitem]')) as HTMLElement[];
   const detail = () => element().querySelector('app-moderation-item-page') as HTMLElement;
   const lastToast = () => toast.toasts().at(-1)?.message;
 
@@ -126,7 +144,7 @@ describe('fila de moderação', () => {
    * porque uma chamada pendente só termina com o `flush` do teste.
    */
   async function settle(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve));
+    await new Promise((resolve) => setTimeout(resolve));
     TestBed.tick();
   }
 
@@ -147,7 +165,7 @@ describe('fila de moderação', () => {
       storeId: STORE,
       status: 'APPROVED',
       canPublish: true,
-      visibleInStorefront: true
+      visibleInStorefront: true,
     });
     await settle();
   }
@@ -168,8 +186,8 @@ describe('fila de moderação', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        { provide: AdminSession, useClass: TestSession }
-      ]
+        { provide: AdminSession, useClass: TestSession },
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     router = TestBed.inject(Router);
@@ -184,7 +202,10 @@ describe('fila de moderação', () => {
     it('mostra a fila na ordem do servidor, com a loja e o tempo na fila, e alimenta o badge do menu', async () => {
       await openQueue();
 
-      expect(queueItems().map(item => item.querySelector('a')?.textContent?.trim())).toEqual(['Camiseta Basic', 'Tênis Run']);
+      expect(queueItems().map((item) => item.querySelector('a')?.textContent?.trim())).toEqual([
+        'Camiseta Basic',
+        'Tênis Run',
+      ]);
       expect(queueItems()[0].textContent).toContain('Loja 3f2a91c0…');
       expect(TestBed.inject(NavBadgeService).counts()[MODERATION_QUEUE_BADGE]).toBe(7);
       expect(element().textContent).toContain('Escolha um produto da fila para ver o detalhe.');
@@ -215,7 +236,10 @@ describe('fila de moderação', () => {
       http.expectOne(STATS).flush({ count: 0 });
       http
         .expectOne(QUEUE)
-        .flush({ title: 'Erro interno', status: 500, detail: 'Tente de novo em instantes.' }, { status: 500, statusText: 'Error' });
+        .flush(
+          { title: 'Erro interno', status: 500, detail: 'Tente de novo em instantes.' },
+          { status: 500, statusText: 'Error' },
+        );
       await settle();
 
       expect(element().textContent).toContain('Não foi possível carregar a fila.');
@@ -244,7 +268,10 @@ describe('fila de moderação', () => {
       await settle();
 
       const request = http.expectOne(BATCH);
-      expect(request.request.body).toEqual({ action: 'APPROVE', items: [{ id: 'p1', version: 5 }] });
+      expect(request.request.body).toEqual({
+        action: 'APPROVE',
+        items: [{ id: 'p1', version: 5 }],
+      });
       request.flush({
         results: [
           {
@@ -254,15 +281,17 @@ describe('fila de moderação', () => {
               type: 'https://marketplace.dev/problems/product-not-publishable',
               title: 'Produto com pendências',
               status: 422,
-              reasonDetails: [{ code: 'missing-offer', message: 'O SKU CAM-M não tem oferta.' }]
-            }
-          }
-        ]
+              reasonDetails: [{ code: 'missing-offer', message: 'O SKU CAM-M não tem oferta.' }],
+            },
+          },
+        ],
       });
       await reloadQueue([P1, P2]);
 
       expect(lastToast()).toBe('1 com falha, 1 ignorado');
-      expect(element().querySelector('app-batch-result-alert')?.textContent).toContain('Camiseta Basic: O SKU CAM-M não tem oferta.');
+      expect(element().querySelector('app-batch-result-alert')?.textContent).toContain(
+        'Camiseta Basic: O SKU CAM-M não tem oferta.',
+      );
       expect(element().textContent).not.toContain('missing-offer');
       expect(element().textContent).toContain('2 selecionados');
     });
@@ -291,16 +320,16 @@ describe('fila de moderação', () => {
         action: 'REJECT',
         items: [
           { id: 'p1', version: 5 },
-          { id: 'p2', version: 2 }
+          { id: 'p2', version: 2 },
         ],
         reasonCodes: ['categoria-incorreta'],
-        note: null
+        note: null,
       });
       request.flush({
         results: [
           { id: 'p1', outcome: 'SUCCEEDED', status: 'DRAFT', version: 6 },
-          { id: 'p2', outcome: 'SUCCEEDED', status: 'DRAFT', version: 3 }
-        ]
+          { id: 'p2', outcome: 'SUCCEEDED', status: 'DRAFT', version: 3 },
+        ],
       });
       await reloadQueue([]);
 
@@ -322,8 +351,10 @@ describe('fila de moderação', () => {
       const request = http.expectOne(BATCH);
 
       fixture.destroy();
-      request.flush({ results: [{ id: 'p1', outcome: 'SUCCEEDED', status: 'ACTIVE', version: 6 }] });
-      await new Promise(resolve => setTimeout(resolve));
+      request.flush({
+        results: [{ id: 'p1', outcome: 'SUCCEEDED', status: 'ACTIVE', version: 6 }],
+      });
+      await new Promise((resolve) => setTimeout(resolve));
 
       expect(lastToast()).toBeUndefined();
       http.expectNone(QUEUE);
@@ -336,7 +367,9 @@ describe('fila de moderação', () => {
       await settle();
       button('Bloquear (2)').click();
       await settle();
-      http.expectOne(`${API}/moderation/reasons?decision=BLOCK`).flush(REASONS.map(reason => ({ ...reason, decisions: ['BLOCK'] })));
+      http
+        .expectOne(`${API}/moderation/reasons?decision=BLOCK`)
+        .flush(REASONS.map((reason) => ({ ...reason, decisions: ['BLOCK'] })));
       await settle();
       const modal = element().querySelector('app-moderation-decision-modal') as HTMLElement;
       (modal.querySelector('input[type=checkbox]') as HTMLInputElement).click();
@@ -349,9 +382,11 @@ describe('fila de moderação', () => {
           type: 'https://marketplace.dev/problems/invalid-moderation-reason',
           title: 'Motivo inválido',
           status: 422,
-          reasonDetails: [{ code: 'reason-inactive', message: 'O motivo Categoria incorreta foi desativado.' }]
+          reasonDetails: [
+            { code: 'reason-inactive', message: 'O motivo Categoria incorreta foi desativado.' },
+          ],
         },
-        { status: 422, statusText: 'Unprocessable Entity' }
+        { status: 422, statusText: 'Unprocessable Entity' },
       );
       await settle();
       http.expectOne(`${API}/moderation/reasons?decision=BLOCK`).flush([]);
@@ -420,12 +455,14 @@ describe('fila de moderação', () => {
 
       button('Aprovar', detail()).click();
       await settle();
-      http
-        .expectOne(`${API}/moderation/products/p1/approve`)
-        .flush(
-          { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão desatualizada', status: 412 },
-          { status: 412, statusText: 'Precondition Failed' }
-        );
+      http.expectOne(`${API}/moderation/products/p1/approve`).flush(
+        {
+          type: 'https://marketplace.dev/problems/version-mismatch',
+          title: 'Versão desatualizada',
+          status: 412,
+        },
+        { status: 412, statusText: 'Precondition Failed' },
+      );
       await settle();
 
       expect(detail().textContent).toContain('Outra pessoa alterou este registro');
@@ -436,7 +473,9 @@ describe('fila de moderação', () => {
       button('Aprovar', detail()).click();
       await settle();
       http.expectNone(`${API}/moderation/products/p1/approve`);
-      http.expectOne(`${API}/products/p1`).flush({ ...P1, version: 7 }, { headers: { ETag: '"7"' } });
+      http
+        .expectOne(`${API}/products/p1`)
+        .flush({ ...P1, version: 7 }, { headers: { ETag: '"7"' } });
       await settle();
 
       expect(detail().textContent).not.toContain('Outra pessoa alterou este registro');
@@ -466,9 +505,9 @@ describe('fila de moderação', () => {
           type: 'https://marketplace.dev/problems/product-not-publishable',
           title: 'Produto com pendências',
           status: 422,
-          reasonDetails: [{ code: 'missing-offer', message: 'O SKU CAM-M não tem oferta.' }]
+          reasonDetails: [{ code: 'missing-offer', message: 'O SKU CAM-M não tem oferta.' }],
         },
-        { status: 422, statusText: 'Unprocessable Entity' }
+        { status: 422, statusText: 'Unprocessable Entity' },
       );
       await settle();
 
@@ -488,7 +527,9 @@ describe('fila de moderação', () => {
       await flushDetail();
       button('Aprovar', detail()).click();
       await settle();
-      http.expectOne(`${API}/moderation/products/p1/approve`).flush({ ...P1, status: 'ACTIVE', version: 6 });
+      http
+        .expectOne(`${API}/moderation/products/p1/approve`)
+        .flush({ ...P1, status: 'ACTIVE', version: 6 });
       await reloadQueue([P2]);
       await settle();
       await flushDetail(P2, '"2"');
@@ -507,7 +548,9 @@ describe('fila de moderação', () => {
       http.expectOne(`${API}/moderation/reasons?decision=REJECT`).flush(REASONS);
       await settle();
       const modal = detail().querySelector('app-moderation-decision-modal') as HTMLElement;
-      expect(modal.querySelector('[cModalTitle]')?.textContent?.trim()).toBe('Rejeitar "Camiseta Basic"');
+      expect(modal.querySelector('[cModalTitle]')?.textContent?.trim()).toBe(
+        'Rejeitar "Camiseta Basic"',
+      );
       (modal.querySelector('input[type=checkbox]') as HTMLInputElement).click();
       const note = modal.querySelector('textarea') as HTMLTextAreaElement;
       note.value = 'A gola não bate com a foto.';
@@ -518,15 +561,23 @@ describe('fila de moderação', () => {
 
       const refused = http.expectOne(`${API}/moderation/products/p1/reject`);
       expect(refused.request.headers.get('If-Match')).toBe('"5"');
-      expect(refused.request.body).toEqual({ reasonCodes: ['categoria-incorreta'], note: 'A gola não bate com a foto.' });
+      expect(refused.request.body).toEqual({
+        reasonCodes: ['categoria-incorreta'],
+        note: 'A gola não bate com a foto.',
+      });
       refused.flush(
         {
           type: 'https://marketplace.dev/problems/invalid-moderation-reason',
           title: 'Motivo inválido',
           status: 422,
-          reasonDetails: [{ code: 'reason-not-applicable', message: 'O motivo Categoria incorreta não vale para rejeitar.' }]
+          reasonDetails: [
+            {
+              code: 'reason-not-applicable',
+              message: 'O motivo Categoria incorreta não vale para rejeitar.',
+            },
+          ],
         },
-        { status: 422, statusText: 'Unprocessable Entity' }
+        { status: 422, statusText: 'Unprocessable Entity' },
       );
       await settle();
       http.expectOne(`${API}/moderation/reasons?decision=REJECT`).flush([]);
@@ -538,7 +589,10 @@ describe('fila de moderação', () => {
       button('Rejeitar', modal.querySelector('c-modal-footer') as ParentNode).click();
       await settle();
       const accepted = http.expectOne(`${API}/moderation/products/p1/reject`);
-      expect(accepted.request.body).toEqual({ reasonCodes: [], note: 'A gola não bate com a foto.' });
+      expect(accepted.request.body).toEqual({
+        reasonCodes: [],
+        note: 'A gola não bate com a foto.',
+      });
       accepted.flush({ ...P1, status: 'DRAFT', version: 6 });
       await reloadQueue([P2]);
       await settle();

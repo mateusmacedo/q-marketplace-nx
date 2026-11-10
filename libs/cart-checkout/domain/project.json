@@ -1,9 +1,5 @@
 {
   "name": "cart-checkout-domain",
   "projectType": "library",
-  "tags": [
-    "scope:cart-checkout",
-    "layer:domain",
-    "lang:java"
-  ]
+  "tags": ["scope:cart-checkout", "layer:domain", "lang:java"]
 }

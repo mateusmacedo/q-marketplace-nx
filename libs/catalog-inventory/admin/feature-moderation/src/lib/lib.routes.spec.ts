@@ -15,7 +15,10 @@ class TestSession extends AdminSession {
 }
 
 function screens(list: Routes): Route[] {
-  return list.flatMap(route => [...(route.loadComponent ? [route] : []), ...screens(route.children ?? [])]);
+  return list.flatMap((route) => [
+    ...(route.loadComponent ? [route] : []),
+    ...screens(route.children ?? []),
+  ]);
 }
 
 describe('rotas da feature', () => {
@@ -26,9 +29,9 @@ describe('rotas da feature', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        { provide: AdminSession, useClass: TestSession }
-      ]
-    })
+        { provide: AdminSession, useClass: TestSession },
+      ],
+    }),
   );
 
   for (const [name, list] of Object.entries({ routes, reasonRoutes })) {
@@ -37,7 +40,9 @@ describe('rotas da feature', () => {
         const component = (await route.loadComponent?.()) as Type<unknown>;
         const fixture = TestBed.createComponent(component);
         TestBed.tick();
-        expect(fixture.nativeElement.querySelector('h1')?.textContent?.trim()).toBe(route.data?.['title']);
+        expect(fixture.nativeElement.querySelector('h1')?.textContent?.trim()).toBe(
+          route.data?.['title'],
+        );
       }
     });
   }

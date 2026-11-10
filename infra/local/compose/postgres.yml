@@ -22,19 +22,19 @@ services:
     # núcleo cabe no orçamento do host (tools/infra-budget.sh), e o kernel recupera o cache de páginas antes do teto.
     deploy:
       resources:
-        limits: {cpus: "1.25", memory: 1G}
-        reservations: {memory: 256M}
+        limits: { cpus: "1.25", memory: 1G }
+        reservations: { memory: 256M }
 
   # Idempotente, como o kafka-init: um contexto por item de command; cada um precisa das duas senhas abaixo.
   postgres-init:
     image: *postgres-image
     deploy:
       resources:
-        limits: {cpus: "0.05", memory: 64M}
-        reservations: {memory: 16M}
+        limits: { cpus: "0.05", memory: 64M }
+        reservations: { memory: 16M }
     profiles: [infra, catalog, all]
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: { condition: service_healthy }
     restart: "no"
     environment:
       PGHOST: postgres

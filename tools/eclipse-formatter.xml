@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Formatação do Java (ADR 033), lida pelo Spotless e pelo VS Code; o que não está aqui segue o padrão do Eclipse. -->
+<profiles version="23">
+    <profile kind="CodeFormatterProfile" name="marketplace" version="23">
+        <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+        <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="2"/>
+        <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="2"/>
+        <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="120"/>
+        <!-- Quebra os argumentos da anotação só quando passam da largura, como nas demais listas. -->
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_annotation" value="16"/>
+        <setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="120"/>
+        <!-- WHY: o comentário é quebrado à mão em 120 colunas; reformatar ou juntar linhas estraga o texto. -->
+        <setting id="org.eclipse.jdt.core.formatter.comment.format_javadoc_comments" value="false"/>
+        <setting id="org.eclipse.jdt.core.formatter.comment.format_block_comments" value="false"/>
+        <setting id="org.eclipse.jdt.core.formatter.comment.format_line_comments" value="false"/>
+        <setting id="org.eclipse.jdt.core.formatter.join_lines_in_comments" value="false"/>
+        <!-- WHY: preserva as quebras escolhidas no código, em vez de juntar tudo até a largura máxima. -->
+        <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
+    </profile>
+</profiles>

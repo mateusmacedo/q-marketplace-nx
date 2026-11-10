@@ -1,7 +1,7 @@
 import type {
   ProductTransition,
   ReasonLabelResponse,
-  StatusChangeResponse
+  StatusChangeResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 
 /** Rótulo de cada transição do histórico; a transição que o painel não conhece usa o rótulo genérico. */
@@ -15,7 +15,7 @@ const TRANSITION_LABELS: Readonly<Record<ProductTransition, string>> = {
   PAUSE: 'Pausado',
   RESUME: 'Reativado',
   ARCHIVE: 'Arquivado',
-  REVIEW_REQUIRED: 'Voltou para a moderação'
+  REVIEW_REQUIRED: 'Voltou para a moderação',
 };
 
 /** Decisões de moderação que o histórico mostra em destaque, com os motivos marcados e o complemento. */
@@ -38,7 +38,7 @@ export interface ModerationDecision {
  * único `reason`, só derivado, nunca é interpretado.
  */
 export function moderationDecision(
-  change: Pick<StatusChangeResponse, 'transition' | 'reasonLabels' | 'note'> | null | undefined
+  change: Pick<StatusChangeResponse, 'transition' | 'reasonLabels' | 'note'> | null | undefined,
 ): ModerationDecision | null {
   if (!change?.transition || !DECISIONS.includes(change.transition)) {
     return null;
@@ -52,23 +52,25 @@ export function moderationDecision(
  */
 export function decisionOf(
   reasonLabels: readonly ReasonLabelResponse[] | null | undefined,
-  note: string | null | undefined
+  note: string | null | undefined,
 ): ModerationDecision {
   return {
-    labels: (reasonLabels ?? []).map(reason => reason.label?.trim() ?? '').filter(Boolean),
-    note: note?.trim() ? note : null
+    labels: (reasonLabels ?? []).map((reason) => reason.label?.trim() ?? '').filter(Boolean),
+    note: note?.trim() ? note : null,
   };
 }
 
 /** Última entrada do histórico com a transição, como o bloqueio que deixou o produto bloqueado. */
 export function lastTransition(
   history: readonly StatusChangeResponse[] | null | undefined,
-  transition: ProductTransition
+  transition: ProductTransition,
 ): StatusChangeResponse | undefined {
-  return [...(history ?? [])].reverse().find(change => change.transition === transition);
+  return [...(history ?? [])].reverse().find((change) => change.transition === transition);
 }
 
 /** Entradas do histórico da mais recente para a mais antiga; a API devolve em ordem cronológica. */
-export function newestFirst(history: readonly StatusChangeResponse[] | null | undefined): StatusChangeResponse[] {
+export function newestFirst(
+  history: readonly StatusChangeResponse[] | null | undefined,
+): StatusChangeResponse[] {
   return [...(history ?? [])].reverse();
 }

@@ -4,17 +4,11 @@
   "projectType": "application",
   "prefix": "app",
   "sourceRoot": "apps/admin-web/src",
-  "tags": [
-    "layer:web-app",
-    "framework:angular",
-    "lang:ts"
-  ],
+  "tags": ["layer:web-app", "framework:angular", "lang:ts"],
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/admin-web",
@@ -39,9 +33,7 @@
             "output": "/assets/icons/"
           }
         ],
-        "styles": [
-          "apps/admin-web/src/scss/styles.scss"
-        ],
+        "styles": ["apps/admin-web/src/scss/styles.scss"],
         "scripts": []
       },
       "configurations": {
@@ -91,9 +83,7 @@
       "executor": "@angular/build:unit-test",
       "options": {
         "tsConfig": "apps/admin-web/tsconfig.spec.json",
-        "browsers": [
-          "ChromiumHeadless"
-        ],
+        "browsers": ["ChromiumHeadless"],
         "watch": false
       }
     },
@@ -101,9 +91,7 @@
       "executor": "@angular/build:unit-test",
       "options": {
         "tsConfig": "apps/admin-web/tsconfig.spec.json",
-        "browsers": [
-          "ChromiumHeadless"
-        ],
+        "browsers": ["ChromiumHeadless"],
         "watch": false
       }
     },
@@ -112,9 +100,7 @@
       "readyWhen": {
         "signal": true
       },
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "executor": "@nx/web:file-server",
       "options": {
         "buildTarget": "admin-web:build",
@@ -125,9 +111,7 @@
     },
     "container": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "options": {
         "command": "docker build -f infra/docker/Dockerfile.admin-web -t marketplace-nx/admin-web:local ."
       }

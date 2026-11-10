@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import {
@@ -8,7 +15,7 @@ import {
   TabPanelComponent,
   TabsComponent,
   TabsContentComponent,
-  TabsListComponent
+  TabsListComponent,
 } from '@coreui/angular';
 import { ErrorStateComponent, LoadingStateComponent } from '@marketplace/shared-admin-ui';
 import { map } from 'rxjs';
@@ -43,7 +50,7 @@ import { PRODUCT_TABS } from '../product/product-tabs';
     TabPanelComponent,
     TabsComponent,
     TabsContentComponent,
-    TabsListComponent
+    TabsListComponent,
   ],
   template: `
     @if (store.product()) {
@@ -87,7 +94,7 @@ import { PRODUCT_TABS } from '../product/product-tabs';
         </c-card-body>
       </c-card>
     }
-  `
+  `,
 })
 export class PlatformProductPageComponent {
   readonly store = inject(ProductStore);
@@ -95,7 +102,9 @@ export class PlatformProductPageComponent {
 
   readonly tabs = PRODUCT_TABS;
   readonly activeTab = signal<string | number>('conteudo');
-  readonly #id = toSignal(this.#route.paramMap.pipe(map(params => params.get('id'))), { initialValue: null });
+  readonly #id = toSignal(this.#route.paramMap.pipe(map((params) => params.get('id'))), {
+    initialValue: null,
+  });
 
   constructor() {
     effect(() => {

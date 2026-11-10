@@ -28,7 +28,8 @@ export const GENERIC_REASON_MESSAGE = 'Não foi possível concluir a operação.
  * vêm do servidor.
  */
 const OVERRIDES: Readonly<Record<string, Override>> = {
-  'network-error': () => 'Não foi possível falar com o servidor. Confira a conexão e tente de novo.'
+  'network-error': () =>
+    'Não foi possível falar com o servidor. Confira a conexão e tente de novo.',
 };
 
 /** Separa o motivo compacto de `reasons` ("missing-variant-attribute:CAM-P:cor") em código e parâmetros. */
@@ -41,7 +42,10 @@ export function parseReason(reason: string): ReasonDetail {
  * Texto do motivo, nesta ordem: a sobrescrita do front, a mensagem do servidor, o `detail` e o `title` do problema e,
  * sem nenhum deles, uma mensagem genérica. O código cru nunca aparece.
  */
-export function translateReason(reason: ReasonDetail | string, fallback: ReasonFallback = {}): string {
+export function translateReason(
+  reason: ReasonDetail | string,
+  fallback: ReasonFallback = {},
+): string {
   const detail = typeof reason === 'string' ? parseReason(reason) : reason;
   return (
     override(detail) ??
@@ -55,7 +59,9 @@ export function translateReason(reason: ReasonDetail | string, fallback: ReasonF
 
 function override(detail: ReasonDetail): string | undefined {
   const code = detail.code ?? '';
-  return Object.prototype.hasOwnProperty.call(OVERRIDES, code) ? OVERRIDES[code](detail.params ?? []) : undefined;
+  return Object.prototype.hasOwnProperty.call(OVERRIDES, code)
+    ? OVERRIDES[code](detail.params ?? [])
+    : undefined;
 }
 
 function httpMessage(code: string | undefined): string | undefined {

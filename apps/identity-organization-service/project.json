@@ -1,11 +1,7 @@
 {
   "name": "identity-organization-service",
   "projectType": "application",
-  "tags": [
-    "scope:identity-organization",
-    "layer:service",
-    "lang:java"
-  ],
+  "tags": ["scope:identity-organization", "layer:service", "lang:java"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
@@ -21,9 +17,7 @@
     },
     "container": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "native"
-      ],
+      "dependsOn": ["native"],
       "options": {
         "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=identity-organization-service -t marketplace/identity-organization:local ."
       }

@@ -39,16 +39,17 @@ export class ListSelection<T> {
   /** Caixa do cabeçalho marcada: a página tem itens e todos estão selecionados. */
   readonly pageChecked = computed(() => {
     const page = this.#page();
-    return page.length > 0 && page.every(item => this.#selected().has(this.#id(item)));
+    return page.length > 0 && page.every((item) => this.#selected().has(this.#id(item)));
   });
   /** Caixa do cabeçalho parcial: só parte da página está selecionada. */
   readonly pageIndeterminate = computed(
-    () => !this.pageChecked() && this.#page().some(item => this.#selected().has(this.#id(item)))
+    () => !this.pageChecked() && this.#page().some((item) => this.#selected().has(this.#id(item))),
   );
 
   constructor(options: ListSelectionOptions<T>) {
     this.#id = options.id;
-    this.#accepts = options.accepts ?? ((item, action) => allowsAction(item as ServerActions, action));
+    this.#accepts =
+      options.accepts ?? ((item, action) => allowsAction(item as ServerActions, action));
   }
 
   /**
@@ -63,9 +64,11 @@ export class ListSelection<T> {
     }
     this.#scope = key;
     this.#page.set(items);
-    const fresh = new Map(items.map(item => [this.#id(item), item]));
-    if ([...this.#selected().keys()].some(id => fresh.has(id))) {
-      this.#selected.update(selected => new Map([...selected].map(([id, item]) => [id, fresh.get(id) ?? item])));
+    const fresh = new Map(items.map((item) => [this.#id(item), item]));
+    if ([...this.#selected().keys()].some((id) => fresh.has(id))) {
+      this.#selected.update(
+        (selected) => new Map([...selected].map(([id, item]) => [id, fresh.get(id) ?? item])),
+      );
     }
   }
 
@@ -75,7 +78,7 @@ export class ListSelection<T> {
 
   toggle(item: T, selected = !this.isSelected(item)): void {
     const id = this.#id(item);
-    this.#selected.update(current => {
+    this.#selected.update((current) => {
       const next = new Map(current);
       if (selected) {
         next.set(id, item);
@@ -88,7 +91,7 @@ export class ListSelection<T> {
 
   /** Marca ou desmarca a página inteira, como a caixa do cabeçalho ou "Selecionar todas deste nível". */
   togglePage(selected = !this.pageChecked()): void {
-    this.#selected.update(current => {
+    this.#selected.update((current) => {
       const next = new Map(current);
       for (const item of this.#page()) {
         if (selected) {
@@ -107,7 +110,7 @@ export class ListSelection<T> {
 
   /** Selecionados que aceitam a ação, os que vão no lote; os outros entram no resultado como ignorados. */
   accepting(action: string): T[] {
-    return this.items().filter(item => this.#accepts(item, action));
+    return this.items().filter((item) => this.#accepts(item, action));
   }
 
   /** Quantos selecionados aceitam a ação, para o botão da barra ("Pausar (2)"). */
@@ -117,12 +120,15 @@ export class ListSelection<T> {
 
   /** Botões da barra de lote com a contagem de cada ação, na ordem das apresentações. */
   batchActions(presentations: readonly BatchActionPresentation[]): BatchAction[] {
-    return presentations.map(presentation => ({ ...presentation, count: this.countFor(presentation.id) }));
+    return presentations.map((presentation) => ({
+      ...presentation,
+      count: this.countFor(presentation.id),
+    }));
   }
 
   /** Tira da seleção os itens gravados; as falhas e os sem resposta continuam para uma nova tentativa. */
   completeBatch(run: CompletedBatch<T>): void {
-    this.remove(run.succeeded.map(success => this.#id(success.item)));
+    this.remove(run.succeeded.map((success) => this.#id(success.item)));
   }
 
   /**
@@ -131,16 +137,20 @@ export class ListSelection<T> {
    */
   remove(ids: readonly string[]): void {
     const gone = new Set(ids);
-    if ([...this.#selected().keys()].some(id => gone.has(id))) {
-      this.#selected.update(current => new Map([...current].filter(([id]) => !gone.has(id))));
+    if ([...this.#selected().keys()].some((id) => gone.has(id))) {
+      this.#selected.update((current) => new Map([...current].filter(([id]) => !gone.has(id))));
     }
   }
 }
 
 function scopeKey(scope: Readonly<Record<string, unknown>>): string {
   const entries = Object.entries(scope)
-    .filter(([name, value]) => name !== 'cursor' && value !== undefined && value !== null && value !== '')
-    .map(([name, value]) => [name, Array.isArray(value) ? value.map(String) : String(value)] as const)
+    .filter(
+      ([name, value]) => name !== 'cursor' && value !== undefined && value !== null && value !== '',
+    )
+    .map(
+      ([name, value]) => [name, Array.isArray(value) ? value.map(String) : String(value)] as const,
+    )
     .sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(entries);
 }

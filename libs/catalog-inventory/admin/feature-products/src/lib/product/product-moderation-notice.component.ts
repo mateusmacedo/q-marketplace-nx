@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { AlertComponent, AlertHeadingDirective, ButtonDirective } from '@coreui/angular';
-import { productHistoryResource, type ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  productHistoryResource,
+  type ProductResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { DateTimePipe } from '@marketplace/shared-admin-ui';
 import { type Problem, problemMessages, toProblem } from '@marketplace/shared-web-util';
 
@@ -52,7 +55,7 @@ interface Notice {
         <button (click)="retry()" cButton color="danger" size="sm" type="button" variant="outline">Tentar de novo</button>
       </c-alert>
     }
-  `
+  `,
 })
 export class ProductModerationNoticeComponent {
   readonly product = input<ProductResponse | null | undefined>();
@@ -70,24 +73,26 @@ export class ProductModerationNoticeComponent {
       return null;
     }
     if (this.#blocked()) {
-      const block = this.#history.hasValue() ? lastTransition(this.#history.value(), 'BLOCK') : undefined;
+      const block = this.#history.hasValue()
+        ? lastTransition(this.#history.value(), 'BLOCK')
+        : undefined;
       return block
         ? {
-          color: 'danger',
-          heading: 'Bloqueado pela moderação',
-          at: block.at,
-          decision: decisionOf(block.reasonLabels, block.note)
-        }
+            color: 'danger',
+            heading: 'Bloqueado pela moderação',
+            at: block.at,
+            decision: decisionOf(block.reasonLabels, block.note),
+          }
         : null;
     }
     const rejection = product.lastRejection;
     return rejection
       ? {
-        color: 'warning',
-        heading: 'Rejeitado na moderação',
-        at: rejection.at,
-        decision: decisionOf(rejection.reasonLabels, rejection.note)
-      }
+          color: 'warning',
+          heading: 'Rejeitado na moderação',
+          at: rejection.at,
+          decision: decisionOf(rejection.reasonLabels, rejection.note),
+        }
       : null;
   });
 

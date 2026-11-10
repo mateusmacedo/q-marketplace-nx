@@ -4,9 +4,13 @@ import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import {
   getModerationQueueStats,
   moderationQueue,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
-import { ListSelection, NavBadgeService, type NavBadgeRefreshOptions } from '@marketplace/shared-admin-ui';
+import {
+  ListSelection,
+  NavBadgeService,
+  type NavBadgeRefreshOptions,
+} from '@marketplace/shared-admin-ui';
 import { apiData, type Problem, toPageSize, toProblem } from '@marketplace/shared-web-util';
 import { filter, map } from 'rxjs';
 
@@ -37,14 +41,14 @@ export class ModerationQueueStore {
   /** A primeira página já respondeu, com dados ou erro. */
   readonly loaded = signal(false);
   readonly problem = signal<Problem | null>(null);
-  readonly selection = new ListSelection<ProductResponse>({ id: product => product.id ?? '' });
+  readonly selection = new ListSelection<ProductResponse>({ id: (product) => product.id ?? '' });
   /** Produto aberto no detalhe (`/moderacao/fila/:id`). */
   readonly openId = toSignal(
     this.#router.events.pipe(
-      filter(event => event instanceof NavigationEnd),
-      map(() => this.#childId())
+      filter((event) => event instanceof NavigationEnd),
+      map(() => this.#childId()),
     ),
-    { initialValue: this.#childId() }
+    { initialValue: this.#childId() },
   );
 
   #request = 0;
@@ -71,7 +75,7 @@ export class ModerationQueueStore {
     return this.#badges.refresh(
       MODERATION_QUEUE_BADGE,
       async () => (await apiData(getModerationQueueStats())).count,
-      options
+      options,
     );
   }
 
@@ -84,16 +88,19 @@ export class ModerationQueueStore {
     this.selection.remove(decided);
     const openId = this.openId();
     const before = this.items();
-    const position = openId ? before.findIndex(product => product.id === openId) : -1;
-    const following = position < 0 ? [] : before.slice(position + 1).map(product => product.id);
+    const position = openId ? before.findIndex((product) => product.id === openId) : -1;
+    const following = position < 0 ? [] : before.slice(position + 1).map((product) => product.id);
     await this.reload();
     void this.refreshBadge({ force: true });
     if (this.#destroyed || !openId || !decided.includes(openId)) {
       return;
     }
-    const remaining = this.items().filter(product => product.id && !decided.includes(product.id));
-    const next = remaining.find(product => following.includes(product.id)) ?? remaining[0];
-    await this.#router.navigate(next?.id ? [next.id] : ['.'], { relativeTo: this.#route, queryParamsHandling: 'preserve' });
+    const remaining = this.items().filter((product) => product.id && !decided.includes(product.id));
+    const next = remaining.find((product) => following.includes(product.id)) ?? remaining[0];
+    await this.#router.navigate(next?.id ? [next.id] : ['.'], {
+      relativeTo: this.#route,
+      queryParamsHandling: 'preserve',
+    });
   }
 
   /** Abre outra página ou outro tamanho de página, sem fechar o detalhe aberto. */
@@ -105,7 +112,9 @@ export class ModerationQueueStore {
     const request = ++this.#request;
     this.loading.set(true);
     try {
-      const page = await apiData(moderationQueue({ query: { limit: query.limit, cursor: query.cursor } }));
+      const page = await apiData(
+        moderationQueue({ query: { limit: query.limit, cursor: query.cursor } }),
+      );
       if (request !== this.#request) {
         return;
       }

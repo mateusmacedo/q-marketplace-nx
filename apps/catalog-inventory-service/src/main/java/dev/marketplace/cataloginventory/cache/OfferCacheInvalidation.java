@@ -14,43 +14,42 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Toda gravação de oferta (preço, promoção agendada ou cancelada, importação)
- * invalida a vitrine do produto dela antes
+ * Toda gravação de oferta (preço, promoção agendada ou cancelada, importação) invalida a vitrine do produto dela antes
  * de devolver o resultado, também na falha (ADR 024).
  */
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class OfferCacheInvalidation implements OfferRepository {
-    @Inject
-    @Delegate
-    OfferRepository delegate;
-    @Inject
-    CatalogCache cache;
+  @Inject
+  @Delegate
+  OfferRepository delegate;
+  @Inject
+  CatalogCache cache;
 
-    @Override
-    public Uni<Void> insert(Offer offer) {
-        return CacheInvalidation.after(cache, delegate.insert(offer),
-                () -> cache.productChanged(offer.tenantId(), offer.productId(), offer.storeId()));
-    }
+  @Override
+  public Uni<Void> insert(Offer offer) {
+    return CacheInvalidation.after(cache, delegate.insert(offer),
+        () -> cache.productChanged(offer.tenantId(), offer.productId(), offer.storeId()));
+  }
 
-    @Override
-    public Uni<Void> update(Offer offer, long expectedVersion) {
-        return CacheInvalidation.after(cache, delegate.update(offer, expectedVersion),
-                () -> cache.productChanged(offer.tenantId(), offer.productId(), offer.storeId()));
-    }
+  @Override
+  public Uni<Void> update(Offer offer, long expectedVersion) {
+    return CacheInvalidation.after(cache, delegate.update(offer, expectedVersion),
+        () -> cache.productChanged(offer.tenantId(), offer.productId(), offer.storeId()));
+  }
 
-    @Override
-    public Uni<Optional<Offer>> ofSku(UUID tenantId, UUID skuId) {
-        return delegate.ofSku(tenantId, skuId);
-    }
+  @Override
+  public Uni<Optional<Offer>> ofSku(UUID tenantId, UUID skuId) {
+    return delegate.ofSku(tenantId, skuId);
+  }
 
-    @Override
-    public Uni<List<Offer>> ofProduct(UUID tenantId, UUID productId) {
-        return delegate.ofProduct(tenantId, productId);
-    }
+  @Override
+  public Uni<List<Offer>> ofProduct(UUID tenantId, UUID productId) {
+    return delegate.ofProduct(tenantId, productId);
+  }
 
-    @Override
-    public Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds) {
-        return delegate.ofSkus(tenantId, skuIds);
-    }
+  @Override
+  public Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds) {
+    return delegate.ofSkus(tenantId, skuIds);
+  }
 }

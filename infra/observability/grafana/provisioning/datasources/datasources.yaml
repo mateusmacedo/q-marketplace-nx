@@ -25,7 +25,7 @@ datasources:
         - name: TraceID
           matcherType: label
           matcherRegex: trace_id
-          url: '$${__value.raw}'
+          url: "$${__value.raw}"
           datasourceUid: tempo
         # Do log a todos os traces da mesma correlação, que atravessa requisição, outbox e consumidor (ADR 021).
         - name: Correlação
@@ -43,8 +43,8 @@ datasources:
     jsonData:
       tracesToLogsV2:
         datasourceUid: loki
-        spanStartTimeShift: '-5m'
-        spanEndTimeShift: '5m'
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
         filterByTraceID: true
         tags:
           - key: service.name

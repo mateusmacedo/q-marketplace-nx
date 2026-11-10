@@ -1,11 +1,7 @@
 {
   "name": "catalog-inventory-service",
   "projectType": "application",
-  "tags": [
-    "scope:catalog-inventory",
-    "layer:service",
-    "lang:java"
-  ],
+  "tags": ["scope:catalog-inventory", "layer:service", "lang:java"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
@@ -21,9 +17,7 @@
     },
     "container": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "native"
-      ],
+      "dependsOn": ["native"],
       "options": {
         "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=catalog-inventory-service -t marketplace-nx/catalog-inventory:local ."
       }

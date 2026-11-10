@@ -16,7 +16,7 @@ export const TEMPLATE_COLUMNS = [
   'currency',
   'list_price',
   'sale_price',
-  'on_hand'
+  'on_hand',
 ] as const;
 
 export const TEMPLATE_FILE_NAME = 'modelo-importacao-produtos.csv';

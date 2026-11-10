@@ -1,5 +1,15 @@
-import { cilInbox, cilLockUnlocked, cilMediaPause, cilMediaPlay, cilPencil, cilSend } from '@coreui/icons';
-import type { ProductBatchAction, ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  cilInbox,
+  cilLockUnlocked,
+  cilMediaPause,
+  cilMediaPlay,
+  cilPencil,
+  cilSend,
+} from '@coreui/icons';
+import type {
+  ProductBatchAction,
+  ProductResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import type { ActionPresentation, BatchActionPresentation } from '@marketplace/shared-admin-ui';
 import { actionState, type BatchVerb } from '@marketplace/shared-web-util';
 
@@ -63,7 +73,7 @@ export const PRODUCT_ACTIONS: readonly ProductActionPresentation[] = [
     color: 'primary',
     icon: cilPencil,
     // WHY: a tela do produto já é a edição, então o Editar só aparece na lista.
-    places: ['list']
+    places: ['list'],
   },
   {
     code: 'SUBMIT',
@@ -74,7 +84,7 @@ export const PRODUCT_ACTIONS: readonly ProductActionPresentation[] = [
     successMessage: 'Produto enviado para moderação.',
     color: 'primary',
     icon: cilSend,
-    places: EVERYWHERE
+    places: EVERYWHERE,
   },
   {
     code: 'PAUSE',
@@ -84,7 +94,7 @@ export const PRODUCT_ACTIONS: readonly ProductActionPresentation[] = [
     successMessage: 'Produto pausado. Ele sai da vitrine até você reativar.',
     color: 'primary',
     icon: cilMediaPause,
-    places: EVERYWHERE
+    places: EVERYWHERE,
   },
   {
     code: 'RESUME',
@@ -94,7 +104,7 @@ export const PRODUCT_ACTIONS: readonly ProductActionPresentation[] = [
     successMessage: 'Produto reativado.',
     color: 'primary',
     icon: cilMediaPlay,
-    places: EVERYWHERE
+    places: EVERYWHERE,
   },
   {
     code: 'ARCHIVE',
@@ -107,11 +117,13 @@ export const PRODUCT_ACTIONS: readonly ProductActionPresentation[] = [
     places: EVERYWHERE,
     confirmation: {
       title: 'Arquivar produto',
-      message: 'O produto sai da vitrine na hora e fica só para consulta. Arquivar não pode ser desfeito.',
-      batchMessage: 'Os produtos saem da vitrine na hora e ficam só para consulta. Arquivar não pode ser desfeito.',
+      message:
+        'O produto sai da vitrine na hora e fica só para consulta. Arquivar não pode ser desfeito.',
+      batchMessage:
+        'Os produtos saem da vitrine na hora e ficam só para consulta. Arquivar não pode ser desfeito.',
       confirmLabel: 'Arquivar',
-      color: 'danger'
-    }
+      color: 'danger',
+    },
   },
   {
     code: 'UNBLOCK',
@@ -121,8 +133,8 @@ export const PRODUCT_ACTIONS: readonly ProductActionPresentation[] = [
     successMessage: 'Produto desbloqueado. Ele volta para a fila de moderação.',
     color: 'primary',
     icon: cilLockUnlocked,
-    places: ['detail', 'platform']
-  }
+    places: ['detail', 'platform'],
+  },
 ];
 
 /** Ações da barra de lote de Produtos da loja, as que o endpoint de lote aceita. */
@@ -130,7 +142,7 @@ export const BATCH_PRODUCT_ACTIONS: readonly (ProductMenuAction & ProductBatchAc
   'SUBMIT',
   'PAUSE',
   'RESUME',
-  'ARCHIVE'
+  'ARCHIVE',
 ];
 
 /** Ações que também viram botão na tela do produto; vale a primeira que o servidor oferece. */
@@ -141,7 +153,7 @@ export const SAVE_RETURNS_TO_MODERATION: Omit<ProductActionConfirmation, 'batchM
   title: 'Salvar e devolver à moderação',
   message: 'Salvar devolve o produto à moderação, e ele sai da vitrine até ser aprovado.',
   confirmLabel: 'Salvar',
-  color: 'warning'
+  color: 'warning',
 };
 
 /** O que o servidor respondeu sobre as ações do produto para o chamador. */
@@ -162,13 +174,16 @@ export interface ProductMenuItem {
 }
 
 /** Situação da ação no produto (`actionState`); ação ausente das duas listas não vale e não aparece. */
-export function productActionState(product: ProductActionsSource, code: string): ProductActionState {
+export function productActionState(
+  product: ProductActionsSource,
+  code: string,
+): ProductActionState {
   return actionState(product, code);
 }
 
 /** Apresentação do código que o servidor devolve; `undefined` para o código que o painel não conhece. */
 export function productActionPresentation(code: string): ProductActionPresentation | undefined {
-  return PRODUCT_ACTIONS.find(action => action.code === code);
+  return PRODUCT_ACTIONS.find((action) => action.code === code);
 }
 
 /**
@@ -176,26 +191,35 @@ export function productActionPresentation(code: string): ProductActionPresentati
  * vermelho.
  */
 export function productActionPresentations(place: ProductActionPlace): ActionPresentation[] {
-  return PRODUCT_ACTIONS.filter(action => action.places.includes(place)).map(action => ({
+  return PRODUCT_ACTIONS.filter((action) => action.places.includes(place)).map((action) => ({
     id: action.code,
     label: action.label,
     icon: action.icon,
-    danger: action.color === 'danger'
+    danger: action.color === 'danger',
   }));
 }
 
 /** Botões da barra de lote de Produtos da loja, na ordem da barra; a contagem vem da seleção (`ListSelection`). */
-export const PRODUCT_BATCH_PRESENTATIONS: readonly BatchActionPresentation[] = BATCH_PRODUCT_ACTIONS.map(code => {
-  const action = productAction(code);
-  return { id: code, label: action.batchLabel ?? action.label, runningLabel: action.runningLabel, color: action.color };
-});
+export const PRODUCT_BATCH_PRESENTATIONS: readonly BatchActionPresentation[] =
+  BATCH_PRODUCT_ACTIONS.map((code) => {
+    const action = productAction(code);
+    return {
+      id: code,
+      label: action.batchLabel ?? action.label,
+      runningLabel: action.runningLabel,
+      color: action.color,
+    };
+  });
 
 /**
  * Itens do menu "..." do produto, na ordem da tabela: as ações liberadas e as barradas, estas desabilitadas com o
  * motivo do servidor. Código que o painel não conhece fica de fora.
  */
-export function productMenu(product: ProductActionsSource, place: ProductActionPlace): ProductMenuItem[] {
-  return PRODUCT_ACTIONS.filter(action => action.places.includes(place)).flatMap(action => {
+export function productMenu(
+  product: ProductActionsSource,
+  place: ProductActionPlace,
+): ProductMenuItem[] {
+  return PRODUCT_ACTIONS.filter((action) => action.places.includes(place)).flatMap((action) => {
     const item = menuItem(product, action);
     return item ? [item] : [];
   });
@@ -215,11 +239,11 @@ export function primaryProductAction(product: ProductActionsSource): ProductMenu
 /** Quantos dos selecionados o servidor libera para cada ação da barra de lote, na ordem da barra. */
 export function batchActionCounts(
   products: readonly ProductActionsSource[],
-  actions: readonly ProductMenuAction[] = BATCH_PRODUCT_ACTIONS
+  actions: readonly ProductMenuAction[] = BATCH_PRODUCT_ACTIONS,
 ): { readonly action: ProductActionPresentation; readonly count: number }[] {
-  return actions.map(code => ({
+  return actions.map((code) => ({
     action: productAction(code),
-    count: products.filter(product => product.actions?.includes(code)).length
+    count: products.filter((product) => product.actions?.includes(code)).length,
   }));
 }
 
@@ -241,7 +265,7 @@ export interface ProductEditRules {
 
 /** Regras da tela do produto, tiradas de `actions`, `blockedActions` e `saveReturnsToModeration`. */
 export function productEditRules(
-  product: ProductActionsSource & Pick<ProductResponse, 'saveReturnsToModeration'>
+  product: ProductActionsSource & Pick<ProductResponse, 'saveReturnsToModeration'>,
 ): ProductEditRules {
   const submit = productActionState(product, 'SUBMIT');
   return {
@@ -252,15 +276,18 @@ export function productEditRules(
     editOffer: productActionState(product, 'EDIT_OFFER'),
     editStock: productActionState(product, 'EDIT_STOCK'),
     saveReturnsToModeration: product.saveReturnsToModeration === true,
-    showChecklist: submit.allowed || submit.blockedReason !== undefined
+    showChecklist: submit.allowed || submit.blockedReason !== undefined,
   };
 }
 
 function productAction(code: ProductMenuAction): ProductActionPresentation {
-  return PRODUCT_ACTIONS.find(action => action.code === code) as ProductActionPresentation;
+  return PRODUCT_ACTIONS.find((action) => action.code === code) as ProductActionPresentation;
 }
 
-function menuItem(product: ProductActionsSource, action: ProductActionPresentation): ProductMenuItem | null {
+function menuItem(
+  product: ProductActionsSource,
+  action: ProductActionPresentation,
+): ProductMenuItem | null {
   const state = productActionState(product, action.code);
   if (state.allowed) {
     return { action };

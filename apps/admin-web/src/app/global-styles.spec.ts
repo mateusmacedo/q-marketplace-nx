@@ -10,7 +10,9 @@ describe('estilos globais do painel', () => {
 
     try {
       expect(getComputedStyle(wrapper).position).toBe('relative');
-      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+        document.documentElement.clientWidth,
+      );
     } finally {
       wrapper.remove();
     }

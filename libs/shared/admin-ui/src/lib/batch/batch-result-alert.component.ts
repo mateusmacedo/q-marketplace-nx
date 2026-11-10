@@ -29,7 +29,7 @@ export interface BatchFailure {
         </ul>
       </c-alert>
     }
-  `
+  `,
 })
 export class BatchResultAlertComponent {
   readonly failures = input<readonly BatchFailure[]>([]);

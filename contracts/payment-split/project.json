@@ -1,8 +1,5 @@
 {
   "name": "payment-split-contracts",
   "projectType": "library",
-  "tags": [
-    "scope:payment-split",
-    "layer:contract"
-  ]
+  "tags": ["scope:payment-split", "layer:contract"]
 }

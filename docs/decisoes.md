@@ -62,11 +62,11 @@ Status: adotada.
 
 `tools/check-boundaries.mjs` roda em `npm run check` (local e CI), precedido da própria suíte `tools/check-boundaries.test.mjs`. Analisa apenas `src/main/java`, sobre o código sem comentários e literais, considerando imports (normais, estáticos e curinga) e nomes totalmente qualificados no corpo e em anotações. Relata todas as violações de uma vez, com `arquivo:linha`.
 
-| Camada | Pode referenciar | Dependências Gradle de produção | `implicitDependencies` |
-|---|---|---|---|
-| domain | `java.*` (exceto `java.sql`) e `dev.marketplace.<contexto>.domain` | nenhuma | nenhuma |
-| application | o mesmo, mais `dev.marketplace.<contexto>.application` e `io.smallrye.mutiny` (exceto `io.smallrye.mutiny.vertx`) | domínio do contexto, BOM Quarkus e `io.smallrye.reactive:mutiny` | nenhuma |
-| service | qualquer biblioteca, exceto pacotes de outro contexto | aplicação e domínio do contexto, mais projetos `<contexto>-contracts` | só projetos `<contexto>-contracts` |
+| Camada      | Pode referenciar                                                                                                  | Dependências Gradle de produção                                       | `implicitDependencies`             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------- |
+| domain      | `java.*` (exceto `java.sql`) e `dev.marketplace.<contexto>.domain`                                                | nenhuma                                                               | nenhuma                            |
+| application | o mesmo, mais `dev.marketplace.<contexto>.application` e `io.smallrye.mutiny` (exceto `io.smallrye.mutiny.vertx`) | domínio do contexto, BOM Quarkus e `io.smallrye.reactive:mutiny`      | nenhuma                            |
+| service     | qualquer biblioteca, exceto pacotes de outro contexto                                                             | aplicação e domínio do contexto, mais projetos `<contexto>-contracts` | só projetos `<contexto>-contracts` |
 
 Cada arquivo deve declarar o pacote da sua camada (`.domain`, `.application`; o serviço usa `dev.marketplace.<contexto>` sem esses sufixos). Código gerado de contratos usa `dev.marketplace.contracts.<contexto>` e pode ser consumido por qualquer serviço, o que viabiliza a integração por contrato prevista na ADR 003. Formatos que o verificador não entende, como acessores tipados do Gradle (`projects.x`) ou fontes Kotlin/Groovy/Scala, geram erro explícito em vez de passar em silêncio. Dependências de teste (`test*`) e código em `src/test` não são restringidos. O grafo do Nx entre módulos vem do Gradle (ADR 025), por isso `implicitDependencies` só aceita os contratos, que o Gradle não enxerga. Limites: análise textual, sem bytecode nem reflexão; o classpath do Gradle continua sendo a barreira de compilação. Reversão: afrouxar a lista de permissão em `tools/check-boundaries.mjs`.
 
@@ -120,11 +120,11 @@ Status: adotada por decisão do usuário.
 
 O catálogo separa três responsabilidades que mudam em ritmos e por motivos diferentes, cada uma com agregado, versão e rotas próprios:
 
-| Agregado | Responsabilidade | Versão (ETag) | Rotas |
-|---|---|---|---|
-| Produto (`Product`) | Conteúdo, SKUs e ciclo de publicação | `version` do produto | `/products`, `/products/{id}/skus`, `/moderation/products` |
-| Oferta (`Offer`) | Preço "de/por" e promoções de um SKU | `version` da oferta, mais `priceVersion` para o snapshot do checkout | `/offers/{skuId}` e `/offers/{skuId}/promotions` |
-| Estoque (`StockLevel`, `Reservation`) | Saldo do SKU e reservas | `version` do saldo | `/inventory/skus/{skuId}` e `/inventory/reservations` |
+| Agregado                              | Responsabilidade                     | Versão (ETag)                                                        | Rotas                                                      |
+| ------------------------------------- | ------------------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Produto (`Product`)                   | Conteúdo, SKUs e ciclo de publicação | `version` do produto                                                 | `/products`, `/products/{id}/skus`, `/moderation/products` |
+| Oferta (`Offer`)                      | Preço "de/por" e promoções de um SKU | `version` da oferta, mais `priceVersion` para o snapshot do checkout | `/offers/{skuId}` e `/offers/{skuId}/promotions`           |
+| Estoque (`StockLevel`, `Reservation`) | Saldo do SKU e reservas              | `version` do saldo                                                   | `/inventory/skus/{skuId}` e `/inventory/reservations`      |
 
 A leitura pública fica em `/storefront/{tenantId}/products/{productId}`, a elegibilidade da loja em `/stores/{storeId}/eligibility` e a taxonomia em `/categories`. As tags OpenAPI seguem os mesmos grupos: Products, Moderation, Offers, Inventory, Storefront, Stores e Categories.
 
@@ -454,3 +454,18 @@ O repositório não tinha análise estática além do ESLint e do compilador, ne
 - **Fora do repositório:** importar o repositório na organização do SonarQube Cloud, escolher a análise pelo GitHub Actions e gravar o token no secret `SONAR_TOKEN`. A análise automática precisa ficar desligada, senão o scan do workflow falha.
 
 Ganha-se: achados de qualidade e de segurança em Java, TypeScript, HTML e CSS, com o quality gate e a cobertura do código novo no PR, e os badges no README. Custos: um serviço externo e um secret; o PR repete os testes afetados da Verificação num runner do GitHub, alguns minutos quando mexe no catálogo, sem custo enquanto o repositório for público; os badges da `main` se atualizam uma vez por semana; os badges e o quality gate dependem da configuração feita fora do repositório. Alternativas descartadas, por decisão do usuário: a análise automática do SonarQube Cloud, sem workflow, que analisa o Java sem bytecode e não recebe cobertura; a análise pelo CI sem cobertura; a análise completa a cada push, pesada demais; só a análise semanal, sem o quality gate no PR. Descartada também juntar a cobertura das partes executadas pelos agentes do Nx Cloud, pelo motivo acima. Reversão: apagar `sonar.yml` e `sonar-project.properties`, o bloco de `-Pcoverage` do `build.gradle` e os badges do README; nada no código depende da análise.
+
+## ADR 033 — Formatação pelo Prettier e pelo Spotless, nas convenções do Nx e do Angular
+
+Status: adotada por decisão do usuário.
+
+O repositório não tinha formatador versionado, e cada editor formatava do seu jeito: a formatação feita no editor e levada pelo PR #5 quebrou os comentários do Java em 80 colunas e juntou anotações longas numa linha só. Passam a existir dois formatadores, com a configuração no repositório e a checagem no CI.
+
+- **TypeScript, JavaScript, JSON, YAML, HTML, SCSS e markdown:** Prettier, com o `.prettierrc` que o Angular gera (`printWidth` 100, aspas simples e o parser `angular` no HTML). No YAML, ficam as aspas duplas, o padrão do Prettier para o formato, porque `tools/chart-check.sh` lê o `kubeVersion` do `Chart.yaml` com elas. Duas opções fogem do padrão do Angular, porque a formatação mudava o texto na tela: `embeddedLanguageFormatting: off` deixa os templates inline dos componentes como foram escritos, já que o Prettier quebra em linhas o corpo dos blocos `@if` e o Angular transforma a quebra em espaço visível (`(-1 )`, `Título:  não deve`, pegos pelos testes); e `htmlWhitespaceSensitivity: strict` impede que a formatação dos arquivos `.html` acrescente ou tire espaço com efeito na tela. O `.prettierrc` é lido como JSON, porque o Prettier o formatava como YAML. O `.prettierignore` parte do que o Nx gera (`/dist`, `/coverage`, `/.nx/cache`, `/.nx/workspace-data` e o lockfile) e tira o código gerado (o cliente do `admin/data-access` e o `openapi.json`, que o teste regrava), os templates Go do Helm e as pastas que o git ignora por `.gitignore` aninhado ou exclusão local, que o `nx format` não lê.
+- **Java:** Spotless no Gradle, com o perfil Eclipse de `tools/eclipse-formatter.xml`, o mesmo que o VS Code usa ao salvar (`java.format.settings.url`): 2 espaços, 120 colunas, comentários intocados e as quebras de linha do autor preservadas, com os argumentos de anotação quebrados só além da largura. O Java foi reformatado a partir do texto anterior ao PR #5, para recuperar os comentários originais.
+- **Indentação:** 2 espaços, do `.editorconfig` do Angular, também no Java. Gradle, shell, SQL e PlantUML, sem formatador, ficam em 4.
+- **ESLint:** o `eslint-config-prettier` entra por último na config raiz e desliga as regras de estilo que o Prettier decide; as configs dos projetos espalham a raiz depois das do Angular.
+- **Nx:** `npm run format` roda o `nx format:write --all` e o `spotlessApply` de todos os módulos, e `npm run format:check`, as checagens. O `spotlessApply` fica fora do cache (`targetDefaults`), porque grava arquivos. Na Verificação, o passo Formatação roda o `nx format:check` nos arquivos afetados e o `nx affected -t spotlessCheck`.
+- **Editor:** `.vscode/extensions.json` recomenda o Prettier, como o Nx faz, e o Java da Red Hat. `.vscode/settings.json` usa o Prettier por padrão e o perfil Eclipse no Java, e deixa `src/generated` somente leitura, para o formatar ao salvar não tocar no código gerado.
+
+Ganha-se: o mesmo formato no editor, na linha de comando e no CI, e diffs que mostram só a mudança. Custos: uma reformatação grande, uma vez, que conflita com as branches abertas (resolvida com `npm run format` depois do rebase); o Prettier nem sempre converge numa passada só em cadeias de chamadas, e o `format:write` pode precisar de uma segunda; uma dependência (`prettier`) e um plugin do Gradle (`com.diffplug.spotless`). Alternativas descartadas, por decisão do usuário: só a configuração do editor, sem checagem; desfazer a formatação do Java e desligar o formatar ao salvar; 4 espaços de indentação. Reversão: tirar o plugin, os arquivos de configuração e o passo do CI; o código formatado continua válido.

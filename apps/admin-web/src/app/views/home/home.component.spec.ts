@@ -36,8 +36,8 @@ describe('HomeComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        { provide: AdminSession, useValue: session }
-      ]
+        { provide: AdminSession, useValue: session },
+      ],
     });
   });
 
@@ -48,7 +48,7 @@ describe('HomeComponent', () => {
 
     expect(fixture.nativeElement.querySelector('h1.visually-hidden')?.textContent).toBe('Início');
     expect(fixture.nativeElement.querySelector('app-empty-state')?.textContent).toContain(
-      'Sua conta ainda não tem acesso ao catálogo.'
+      'Sua conta ainda não tem acesso ao catálogo.',
     );
   });
 
@@ -59,15 +59,18 @@ describe('HomeComponent', () => {
       storeProducts: undefined,
       tenantProducts: '/plataforma/produtos',
       moderationQueue: '/moderacao/fila',
-      categories: undefined
+      categories: undefined,
     });
 
-    session.grants.set({ capabilities: ['MANAGE_OWN_PRODUCTS', 'MANAGE_TAXONOMY'], permissions: {} });
+    session.grants.set({
+      capabilities: ['MANAGE_OWN_PRODUCTS', 'MANAGE_TAXONOMY'],
+      permissions: {},
+    });
     expect(fixture.componentInstance.links()).toEqual({
       storeProducts: '/loja/produtos',
       tenantProducts: undefined,
       moderationQueue: undefined,
-      categories: '/plataforma/categorias'
+      categories: '/plataforma/categorias',
     });
   });
 });

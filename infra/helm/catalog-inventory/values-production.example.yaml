@@ -56,4 +56,3 @@ worker:
 
 topologySpread:
   topologyKey: topology.kubernetes.io/zone
-
