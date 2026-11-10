@@ -4,8 +4,8 @@ CREATE TABLE product_import (
     id          uuid         PRIMARY KEY,
     tenant_id   uuid         NOT NULL,
     store_id    uuid         NOT NULL,
-    actor       varchar(255) NOT NULL,
-    status      varchar(20)  NOT NULL,
+    actor       text         NOT NULL CHECK (char_length(actor) <= 255),
+    status      text         NOT NULL,
     content     text         NOT NULL,
     total_lines integer      NOT NULL,
     created_at  timestamptz  NOT NULL,
@@ -16,10 +16,13 @@ CREATE TABLE product_import (
     updated_lines   integer NOT NULL DEFAULT 0,
     unchanged_lines integer NOT NULL DEFAULT 0,
     failed_lines    integer NOT NULL DEFAULT 0,
-    CONSTRAINT product_import_status CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED')),
-    CONSTRAINT product_import_total_lines CHECK (total_lines > 0),
-    CONSTRAINT product_import_started CHECK ((status = 'PENDING') = (started_at IS NULL)),
-    CONSTRAINT product_import_finished CHECK ((status = 'COMPLETED') = (finished_at IS NOT NULL))
+    CONSTRAINT product_import_status CHECK (CASE status
+        WHEN 'PENDING' THEN started_at IS NULL AND finished_at IS NULL
+        WHEN 'PROCESSING' THEN started_at IS NOT NULL AND finished_at IS NULL
+        WHEN 'COMPLETED' THEN started_at IS NOT NULL AND finished_at IS NOT NULL
+        ELSE false
+    END),
+    CONSTRAINT product_import_total_lines CHECK (total_lines > 0)
 );
 CREATE INDEX product_import_pending_idx ON product_import (created_at, id) WHERE status IN ('PENDING', 'PROCESSING');
 -- Lista de lotes da loja, do mais recente ao mais antigo.
@@ -28,18 +31,20 @@ CREATE INDEX product_import_store_idx ON product_import (tenant_id, store_id, cr
 CREATE TABLE product_import_line (
     import_id   uuid          NOT NULL REFERENCES product_import (id) ON DELETE CASCADE,
     line_number integer       NOT NULL,
-    seller_sku  varchar(100),
-    outcome     varchar(20)   NOT NULL,
-    code        varchar(100),
-    message     varchar(1000),
+    seller_sku  text          CHECK (char_length(seller_sku) <= 100),
+    outcome     text          NOT NULL,
+    code        text          CHECK (char_length(code) <= 100),
+    message     text          CHECK (char_length(message) <= 1000),
     -- Motivos da recusa de regra de negócio, [{code, params, message}], no formato do corpo de erro da API.
     reasons     jsonb,
     product_id  uuid,
     PRIMARY KEY (import_id, line_number),
     CONSTRAINT product_import_line_number CHECK (line_number > 0),
-    CONSTRAINT product_import_line_outcome CHECK (outcome IN ('CREATED', 'UPDATED', 'UNCHANGED', 'FAILED')),
     -- Só a linha recusada tem código, mensagem e motivos; a bem-sucedida sempre aponta o produto.
-    CONSTRAINT product_import_line_failure CHECK (
-        (outcome = 'FAILED' AND code IS NOT NULL AND message IS NOT NULL)
-        OR (outcome <> 'FAILED' AND code IS NULL AND message IS NULL AND reasons IS NULL AND product_id IS NOT NULL))
+    CONSTRAINT product_import_line_outcome CHECK (CASE
+        WHEN outcome = 'FAILED' THEN code IS NOT NULL AND message IS NOT NULL
+        WHEN outcome IN ('CREATED', 'UPDATED', 'UNCHANGED')
+            THEN code IS NULL AND message IS NULL AND reasons IS NULL AND product_id IS NOT NULL
+        ELSE false
+    END)
 );

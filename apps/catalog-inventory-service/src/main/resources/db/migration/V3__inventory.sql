@@ -30,7 +30,7 @@ CREATE TABLE
         store_id uuid NOT NULL,
         previous_on_hand integer NOT NULL,
         new_on_hand integer NOT NULL,
-        actor varchar(255) NOT NULL,
+        actor text NOT NULL CHECK (char_length(actor) <= 255),
         occurred_at timestamptz NOT NULL
     );
 
@@ -38,19 +38,22 @@ CREATE TABLE
     inventory_reservation (
         id uuid PRIMARY KEY,
         tenant_id uuid NOT NULL,
-        idempotency_key varchar(255) NOT NULL,
-        request_hash char(64) NOT NULL,
-        order_ref varchar(100),
-        status varchar(20) NOT NULL,
+        idempotency_key text NOT NULL CHECK (char_length(idempotency_key) <= 255),
+        request_hash text NOT NULL CHECK (char_length(request_hash) = 64),
+        order_ref text CHECK (char_length(order_ref) <= 100),
+        status text NOT NULL,
         created_at timestamptz NOT NULL,
         expires_at timestamptz NOT NULL,
         closed_at timestamptz,
         CONSTRAINT reservation_idempotency_uk UNIQUE (tenant_id, idempotency_key),
         CONSTRAINT reservation_status CHECK (
-            status IN ('ACTIVE', 'COMMITTED', 'RELEASED', 'EXPIRED')
+            CASE
+                WHEN status = 'ACTIVE' THEN closed_at IS NULL
+                WHEN status IN ('COMMITTED', 'RELEASED', 'EXPIRED') THEN closed_at IS NOT NULL
+                ELSE false
+            END
         ),
-        CONSTRAINT reservation_window CHECK (expires_at > created_at),
-        CONSTRAINT reservation_closed CHECK ((status = 'ACTIVE') = (closed_at IS NULL))
+        CONSTRAINT reservation_window CHECK (expires_at > created_at)
     );
 
 -- Índice parcial: o varredor só procura reservas ativas vencidas.
@@ -66,10 +69,11 @@ CREATE TABLE
         product_id uuid NOT NULL,
         store_id uuid NOT NULL,
         quantity integer NOT NULL,
-        currency char(3) NOT NULL,
+        currency text NOT NULL,
         unit_price numeric(19, 2) NOT NULL,
         price_version bigint NOT NULL,
         PRIMARY KEY (reservation_id, sku_id),
         CONSTRAINT reservation_item_quantity CHECK (quantity > 0),
-        CONSTRAINT reservation_item_price CHECK (unit_price >= 0)
+        CONSTRAINT reservation_item_price CHECK (unit_price >= 0),
+        CONSTRAINT reservation_item_currency_format CHECK (currency ~ '^[A-Z]{3}$')
     );

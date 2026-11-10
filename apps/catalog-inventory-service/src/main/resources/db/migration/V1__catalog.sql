@@ -9,8 +9,8 @@ CREATE TABLE category (
     tenant_id  uuid         NOT NULL,
     parent_id  uuid,
     ancestry   uuid[]       NOT NULL,
-    code       varchar(60)  COLLATE "C" NOT NULL,
-    name       varchar(120) NOT NULL,
+    code       text         COLLATE "C" NOT NULL CHECK (char_length(code) <= 60),
+    name       text         NOT NULL CHECK (char_length(name) <= 120),
     attributes jsonb        NOT NULL,
     active     boolean      NOT NULL,
     version    bigint       NOT NULL,
@@ -34,14 +34,14 @@ CREATE TABLE product (
     tenant_id   uuid          NOT NULL,
     store_id    uuid          NOT NULL,
     category_id uuid          NOT NULL,
-    currency    char(3)       NOT NULL,
-    title       varchar(200)  NOT NULL,
+    currency    text          NOT NULL,
+    title       text          NOT NULL CHECK (char_length(title) <= 200),
     -- WHY: título em minúsculas, sem acentos e com espaços simples (ProductText), para a busca q e a ordem por título
     -- sem diferenciar maiúsculas e acentos; o COLLATE "C" dá a mesma ordem de cursor em qualquer ambiente.
     title_key   text          COLLATE "C" NOT NULL,
-    description varchar(5000) NOT NULL,
+    description text          NOT NULL CHECK (char_length(description) <= 5000),
     attributes  jsonb         NOT NULL,
-    status      varchar(30)   NOT NULL,
+    status      text          NOT NULL,
     version     bigint        NOT NULL,
     created_at  timestamptz   NOT NULL,
     updated_at  timestamptz   NOT NULL,
@@ -49,9 +49,12 @@ CREATE TABLE product (
     moderation_queued_at timestamptz,
     CONSTRAINT product_category_fk FOREIGN KEY (tenant_id, category_id) REFERENCES category (tenant_id, id),
     CONSTRAINT product_currency_format CHECK (currency ~ '^[A-Z]{3}$'),
-    CONSTRAINT product_status CHECK (status IN ('DRAFT', 'PENDING_MODERATION', 'ACTIVE', 'PAUSED_BY_SELLER', 'BLOCKED',
-                                                'ARCHIVED')),
-    CONSTRAINT product_moderation_queued CHECK ((status = 'PENDING_MODERATION') = (moderation_queued_at IS NOT NULL)),
+    -- INVARIANT: só o produto na fila de moderação tem moderation_queued_at; as leituras da fila filtram por ela.
+    CONSTRAINT product_status CHECK (CASE
+        WHEN status = 'PENDING_MODERATION' THEN moderation_queued_at IS NOT NULL
+        WHEN status IN ('DRAFT', 'ACTIVE', 'PAUSED_BY_SELLER', 'BLOCKED', 'ARCHIVED') THEN moderation_queued_at IS NULL
+        ELSE false
+    END),
     CONSTRAINT product_attributes_object CHECK (jsonb_typeof(attributes) = 'object')
 );
 -- WHY: a listagem pagina por (coluna da ordem, id) no tenant ou na loja; o estado entra antes da coluna só na ordem
@@ -68,7 +71,7 @@ CREATE INDEX product_title_trgm_idx ON product USING gin (title_key gin_trgm_ops
 CREATE INDEX product_category_idx ON product (tenant_id, category_id);
 -- Fila de moderação, em ordem de chegada; parcial, porque só a fila lê a coluna.
 CREATE INDEX product_moderation_queue_idx ON product (tenant_id, moderation_queued_at, id)
-    WHERE status = 'PENDING_MODERATION';
+    WHERE moderation_queued_at IS NOT NULL;
 
 CREATE TABLE sku (
     id                 uuid        PRIMARY KEY,
@@ -76,7 +79,7 @@ CREATE TABLE sku (
     tenant_id          uuid        NOT NULL,
     store_id           uuid        NOT NULL,
     position           integer     NOT NULL,
-    seller_sku         varchar(64) NOT NULL,
+    seller_sku         text        NOT NULL,
     variant_attributes jsonb       NOT NULL,
     physical           boolean     NOT NULL,
     height_cm          numeric(6, 2),
@@ -99,16 +102,16 @@ CREATE TABLE product_status_change (
     tenant_id   uuid         NOT NULL,
     -- WHY: cópia da loja do produto, que não muda, para as séries da loja lerem só o índice dela.
     store_id    uuid         NOT NULL,
-    transition  varchar(30)  NOT NULL,
-    from_status varchar(30)  NOT NULL,
-    to_status   varchar(30)  NOT NULL,
-    actor       varchar(255) NOT NULL,
+    transition  text         NOT NULL CHECK (char_length(transition) <= 30),
+    from_status text         NOT NULL CHECK (char_length(from_status) <= 30),
+    to_status   text         NOT NULL CHECK (char_length(to_status) <= 30),
+    actor       text         NOT NULL CHECK (char_length(actor) <= 255),
     -- Na rejeição e no bloqueio: os códigos dos motivos prontos, a cópia dos rótulos da época ([{code, label}]), para
     -- renomear ou desativar um motivo não mudar o passado, e o complemento; o texto único é derivado na leitura. Vazios
     -- e nulo nas demais transições.
     reason_codes  text[]      NOT NULL,
     reason_labels jsonb       NOT NULL,
-    note          varchar(500),
+    note          text        CHECK (char_length(note) <= 500),
     occurred_at timestamptz  NOT NULL,
     CONSTRAINT product_status_change_labels CHECK (jsonb_typeof(reason_labels) = 'array'
         AND jsonb_array_length(reason_labels) = cardinality(reason_codes))
@@ -120,15 +123,15 @@ CREATE INDEX product_status_change_store_idx ON product_status_change (tenant_id
     INCLUDE (transition, from_status, to_status);
 CREATE INDEX product_status_change_moderation_idx ON product_status_change (tenant_id, occurred_at)
     INCLUDE (transition, from_status, to_status)
-    WHERE to_status = 'PENDING_MODERATION' OR from_status = 'PENDING_MODERATION' OR transition = 'BLOCK';
+    WHERE 'PENDING_MODERATION' IN (to_status, from_status) OR transition = 'BLOCK';
 
 -- Motivos prontos de rejeição e bloqueio, um catálogo por tenant, mantido pelo catalog-admin. Sem tabela de tenant não
 -- há semente: o tenant novo começa sem motivos e decide só com o complemento. Não há exclusão, porque o código fica no
 -- histórico e nos eventos; desativar tira o motivo das decisões novas.
 CREATE TABLE moderation_reason (
     tenant_id         uuid         NOT NULL,
-    code              varchar(60)  COLLATE "C" NOT NULL,
-    label             varchar(120) NOT NULL,
+    code              text         COLLATE "C" NOT NULL CHECK (char_length(code) <= 60),
+    label             text         NOT NULL CHECK (char_length(label) <= 120),
     applies_to_reject boolean      NOT NULL,
     applies_to_block  boolean      NOT NULL,
     position          integer      NOT NULL,
@@ -146,7 +149,7 @@ CREATE TABLE moderation_reason (
 CREATE TABLE seller_eligibility (
     tenant_id  uuid        NOT NULL,
     store_id   uuid        NOT NULL,
-    status     varchar(20) NOT NULL,
+    status     text        NOT NULL,
     decided_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     PRIMARY KEY (tenant_id, store_id),

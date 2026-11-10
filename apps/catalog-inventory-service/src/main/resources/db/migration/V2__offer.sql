@@ -4,7 +4,7 @@ CREATE TABLE offer (
     product_id    uuid           NOT NULL REFERENCES product (id),
     tenant_id     uuid           NOT NULL,
     store_id      uuid           NOT NULL,
-    currency      char(3)        NOT NULL,
+    currency      text           NOT NULL,
     list_price    numeric(19, 2),
     sale_price    numeric(19, 2) NOT NULL,
     price_version bigint         NOT NULL,
