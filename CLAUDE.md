@@ -41,12 +41,13 @@ comentários de código e documentação em PT-BR.
 Ao finalizar qualquer código, rode só o que a mudança afeta, um comando pesado por vez:
 
 1. `npm run check:memory` antes de testes, e2e ou build nativo
-2. Front: `npx nx run-many -t lint test build -p <projetos alterados>` (o build do Angular faz a checagem de tipos)
-3. Java: `./gradlew --no-daemon :<módulo>:test` (por exemplo `:catalog-inventory-service:test`)
-4. Fronteiras entre módulos: `npm run check`
-5. Mudou a API: `./gradlew --no-daemon :catalog-inventory-service:test --tests '*OpenApiContractTest' -Dcontract.update=true`,
+2. Formatação: `npx nx format:write` (arquivos alterados) e, se mexeu em Java, `npx nx affected -t spotlessApply`
+3. Front: `npx nx run-many -t lint test build -p <projetos alterados>` (o build do Angular faz a checagem de tipos)
+4. Java: `./gradlew --no-daemon :<módulo>:test` (por exemplo `:catalog-inventory-service:test`)
+5. Fronteiras entre módulos: `npm run check`
+6. Mudou a API: `./gradlew --no-daemon :catalog-inventory-service:test --tests '*OpenApiContractTest' -Dcontract.update=true`,
    depois `npx nx run catalog-inventory-admin-data-access:codegen`
-6. Fluxos do painel com a stack local no ar: `npx nx e2e admin-web-e2e`
+7. Fluxos do painel com a stack local no ar: `npx nx e2e admin-web-e2e`
 
 Se qualquer comando falhar, corrija e repita até todos passarem. Para tudo o que a branch afeta:
 `npx nx affected -t lint test build`.
@@ -162,6 +163,22 @@ Principais diretórios:
 - Fronteiras do Nx por tags `scope:`, `layer:`, `framework:` e `lang:`, conferidas pelo ESLint e por `npm run check`
 - Concorrência: escrita com `If-Match`; a versão vem da `version` do corpo (`apiDataWithVersion`)
 
+### Formatação
+
+Conferida no CI só no que a mudança toca (ADR 033); `npm run format` aplica em tudo, e `npm run format:check` só confere.
+
+- Indentação de 2 espaços em tudo o que tem formatador (`.editorconfig` do Angular); Gradle, shell, SQL e PlantUML, sem
+  formatador, ficam em 4
+- TS, JS, JSON, YAML, HTML, SCSS e markdown: Prettier com o `.prettierrc` do Angular (100 colunas, aspas simples); no
+  YAML, aspas duplas, que o `tools/chart-check.sh` espera no `Chart.yaml`
+- Java: Spotless com o perfil Eclipse de `tools/eclipse-formatter.xml`, o mesmo do VS Code (120 colunas); ele não mexe
+  em comentários nem junta linhas quebradas, então **SEMPRE** quebrar comentários à mão em 120 colunas
+- **NUNCA** formatar à mão templates inline de componentes: o Prettier os deixa como estão
+  (`embeddedLanguageFormatting: off`), porque quebrar o corpo de um `@if` vira espaço visível na tela
+- **NUNCA** formatar código gerado (`src/generated`, `contracts/*/openapi.json`): regerar com o `codegen` ou com o
+  `OpenApiContractTest`; o `.prettierignore` já os deixa de fora
+- ESLint não decide estilo: o `eslint-config-prettier` desliga essas regras
+
 ### Testes
 
 - Java: JUnit em `src/test/java`, com `*Test.java`; testes HTTP com `@QuarkusTest` e Dev Services (PostgreSQL e Kafka
@@ -175,7 +192,8 @@ Principais diretórios:
 - Linter: ESLint 9 (`npx nx lint <projeto>`)
 - Type check: build do Angular e compilação do Gradle
 - Fronteiras: `npm run check`; imagens: `npm run check:images`; observabilidade: `npm run check:observability`
-- CI: `.github/workflows/ci.yml`; não há hooks de git nem formatter configurados (há `.editorconfig`)
+- Formatação: Prettier e Spotless (`npm run format:check`); no CI, `nx format:check` e `nx affected -t spotlessCheck`
+- CI: `.github/workflows/ci.yml`; não há hooks de git
 
 ## Workflows
 
