@@ -35,7 +35,7 @@ public final class ProductImportService {
   public static final String GROUP_REJECTED = ImportedProductCreation.GROUP_REJECTED;
   private static final String CURSOR_SEPARATOR = "|";
 
-  private sealed interface Unit permits NewProduct, ExistingSku, Rejected {
+  private sealed interface Unit {
   }
 
   private record NewProduct(String productRef, List<ImportRow> rows) implements Unit {
@@ -179,9 +179,9 @@ public final class ProductImportService {
 
   private Uni<List<ImportResult>> run(Actor seller, Unit unit) {
     return switch (unit) {
-      case Rejected rejected -> Uni.createFrom().item(List.of(rejected.result()));
-      case ExistingSku existing -> skuUpdate.apply(seller, existing.row(), existing.skuId()).map(List::of);
-      case NewProduct group -> productCreation.create(seller, group.productRef(), group.rows());
+      case Rejected(var result) -> Uni.createFrom().item(List.of(result));
+      case ExistingSku(var row, var skuId) -> skuUpdate.apply(seller, row, skuId).map(List::of);
+      case NewProduct(var productRef, var rows) -> productCreation.create(seller, productRef, rows);
     };
   }
 

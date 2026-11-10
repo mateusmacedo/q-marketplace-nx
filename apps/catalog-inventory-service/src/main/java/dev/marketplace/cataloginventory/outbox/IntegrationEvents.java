@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.marketplace.cataloginventory.config.CatalogConfig;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.inventory.InventoryEvent;
+import dev.marketplace.cataloginventory.domain.inventory.InventoryEvent.InventoryDepleted;
+import dev.marketplace.cataloginventory.domain.inventory.InventoryEvent.InventoryReserved;
+import dev.marketplace.cataloginventory.domain.inventory.InventoryEvent.InventoryUpdated;
 import dev.marketplace.cataloginventory.domain.offer.OfferEvent;
+import dev.marketplace.cataloginventory.domain.offer.OfferEvent.PriceChanged;
 import dev.marketplace.cataloginventory.domain.product.ProductEvent;
 import dev.marketplace.cataloginventory.domain.product.ReasonLabel;
 import dev.marketplace.cataloginventory.domain.product.SellerStatus;
@@ -56,13 +60,12 @@ public class IntegrationEvents {
    */
   public List<OutboxMessage> fromOffer(UUID tenantId, List<OfferEvent> events, EventOrigin origin) {
     return events.stream().map(event -> switch (event) {
-      case OfferEvent.PriceChanged e -> message(config.offerTopic(), tenantId, "PriceChanged",
-          new Aggregate("offer", e.skuId()), e.occurredAt(), origin,
-          new PriceChangedV1(e.skuId(), e.productId(), e.storeId(), e.price().currency(),
-              amount(e.price().listPrice()), amount(e.price().salePrice()), e.priceVersion(),
-              e.promotions().stream()
-                  .map(p -> new PromotionV1(p.id(), amount(p.salePrice()), p.startsAt(), p.endsAt()))
-                  .toList()));
+      case PriceChanged(var skuId, var productId, var storeId, var price, var promotions, var priceVersion, var at) ->
+        message(config.offerTopic(), tenantId, "PriceChanged", new Aggregate("offer", skuId), at, origin,
+            new PriceChangedV1(skuId, productId, storeId, price.currency(), amount(price.listPrice()),
+                amount(price.salePrice()), priceVersion, promotions.stream()
+                    .map(p -> new PromotionV1(p.id(), amount(p.salePrice()), p.startsAt(), p.endsAt()))
+                    .toList()));
     }).toList();
   }
 
@@ -73,16 +76,16 @@ public class IntegrationEvents {
    */
   public List<OutboxMessage> fromInventory(UUID tenantId, List<InventoryEvent> events, EventOrigin origin) {
     return events.stream().map(event -> switch (event) {
-      case InventoryEvent.InventoryUpdated e -> inventory(tenantId, "InventoryUpdated",
-          new Aggregate("sku", e.stock().skuId()), e.occurredAt(), origin,
-          new InventoryUpdatedV1(stock(e.stock()), e.cause().name(), e.reservationId()));
-      case InventoryEvent.InventoryReserved e -> inventory(tenantId, "InventoryReserved",
-          new Aggregate("reservation", e.reservationId()), e.occurredAt(), origin,
-          new InventoryReservedV1(e.reservationId(), e.orderRef(), e.expiresAt(),
-              e.items().stream().map(i -> new ReservedItemV1(i.quantity(), stock(i.stock()))).toList()));
-      case InventoryEvent.InventoryDepleted e ->
-        inventory(tenantId, "InventoryDepleted", new Aggregate("sku", e.stock().skuId()),
-            e.occurredAt(), origin, new InventoryDepletedV1(stock(e.stock())));
+      case InventoryUpdated(var sku, var cause, var reservationId, var occurredAt) ->
+        inventory(tenantId, "InventoryUpdated", new Aggregate("sku", sku.skuId()), occurredAt, origin,
+            new InventoryUpdatedV1(stock(sku), cause.name(), reservationId));
+      case InventoryReserved(var reservationId, var orderRef, var items, var expiresAt, var occurredAt) ->
+        inventory(tenantId, "InventoryReserved", new Aggregate("reservation", reservationId), occurredAt, origin,
+            new InventoryReservedV1(reservationId, orderRef, expiresAt,
+                items.stream().map(i -> new ReservedItemV1(i.quantity(), stock(i.stock()))).toList()));
+      case InventoryDepleted(var sku, var occurredAt) ->
+        inventory(tenantId, "InventoryDepleted", new Aggregate("sku", sku.skuId()), occurredAt, origin,
+            new InventoryDepletedV1(stock(sku)));
     }).toList();
   }
 
