@@ -38,12 +38,11 @@ export function attributeRows(
     const index = (attributes ?? []).findIndex((attribute) => attribute.code === code);
     return index < 0 ? Number.MAX_SAFE_INTEGER : index;
   };
-  return filled
-    .toSorted(([a], [b]) => position(a) - position(b))
-    .map(([code, value]) => {
-      const attribute = known.get(code);
-      return { code, label: attribute?.label || code, value: displayValue(value, attribute) };
-    });
+  filled.sort(([a], [b]) => position(a) - position(b));
+  return filled.map(([code, value]) => {
+    const attribute = known.get(code);
+    return { code, label: attribute?.label || code, value: displayValue(value, attribute) };
+  });
 }
 
 /** Valores da variação do SKU na ordem dos atributos da categoria ("P / Azul"). */

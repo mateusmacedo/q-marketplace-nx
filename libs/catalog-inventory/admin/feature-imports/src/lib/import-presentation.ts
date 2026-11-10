@@ -73,8 +73,10 @@ export function lineTexts(line: ImportLineResponse): LineTexts {
 /** Id do lote no `Location` da resposta 202 (`.../products/imports/{id}`): o último trecho do caminho. */
 export function locationId(location: string | null | undefined): string | undefined {
   const path = location?.split(/[?#]/)[0] ?? '';
-  const segment = path.split('/').findLast(Boolean);
-  return segment ? decodeURIComponent(segment) : undefined;
+  const segments = path.split('/');
+  let last = segments.length - 1;
+  while (last >= 0 && segments[last] === '') last--;
+  return last >= 0 ? decodeURIComponent(segments[last]) : undefined;
 }
 
 /**
