@@ -4,6 +4,9 @@ plugins {
     id 'dev.nx.gradle.project-graph' version '0.1.26'
 }
 allprojects { apply plugin: 'dev.nx.gradle.project-graph' }
+// Cobertura só com -Pcoverage, usada pela análise do SonarQube (ADR 032); sem ela, os testes locais e os do CI rodam sem
+// o agente do JaCoCo.
+def coverage = providers.gradleProperty('coverage').present
 subprojects {
     apply plugin: 'java-library'
     group = 'dev.marketplace'
@@ -23,6 +26,31 @@ subprojects {
         useJUnitPlatform()
         if (project.name.endsWith('-service')) {
             systemProperty 'java.util.logging.manager', 'org.jboss.logmanager.LogManager'
+        }
+    }
+    if (coverage) {
+        apply plugin: 'jacoco'
+        tasks.named('test') {
+            finalizedBy 'jacocoTestReport'
+            // WHY: sem o filtro, o agente instrumenta também o Quarkus e as dependências, e o teste do serviço esgota o
+            // heap durante o build da aplicação de teste.
+            jacoco { includes = ['dev.marketplace.*'] }
+        }
+        tasks.named('jacocoTestReport') { reports { xml.required = true } }
+        if (project.name.endsWith('-service')) {
+            // WHY: o @QuarkusTest carrega as classes no QuarkusClassLoader, que o agente do JaCoCo não mede; o
+            // quarkus-jacoco mede essas e grava no mesmo arquivo de dados (guia "tests-with-coverage" do Quarkus). O
+            // relatório fica com o jacocoTestReport, porque o do quarkus-jacoco expira esperando o arquivo de dados.
+            dependencies { testImplementation 'io.quarkus:quarkus-jacoco' }
+            tasks.named('test') {
+                // WHY: os 512 MB padrão da JVM de teste não comportam o build da aplicação de teste com o quarkus-jacoco.
+                maxHeapSize = '1g'
+                systemProperty 'quarkus.jacoco.report', 'false'
+                jacoco {
+                    excludeClassLoaders = ['*QuarkusClassLoader']
+                    destinationFile = layout.buildDirectory.file('jacoco-quarkus.exec').get().asFile
+                }
+            }
         }
     }
 }
