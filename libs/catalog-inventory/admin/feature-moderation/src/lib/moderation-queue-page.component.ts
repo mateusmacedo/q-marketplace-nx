@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  type OnInit,
+  signal,
+} from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import {
   CardBodyComponent,
@@ -212,7 +219,7 @@ const BATCH_SIZE = fieldRules(ModerationBatchRequestSchema, 'items').maxItems ??
     />
   `,
 })
-export class ModerationQueuePageComponent implements LeaveGuarded {
+export class ModerationQueuePageComponent implements LeaveGuarded, OnInit {
   readonly store = inject(ModerationQueueStore);
   readonly #toast = inject(ToastService);
   readonly #abort = abortOnDestroy();
@@ -248,6 +255,10 @@ export class ModerationQueuePageComponent implements LeaveGuarded {
 
   constructor() {
     warnBeforeUnload(this.leaveWarning);
+  }
+
+  ngOnInit(): void {
+    void this.store.refreshBadge();
   }
 
   startBatch(action: string): void {

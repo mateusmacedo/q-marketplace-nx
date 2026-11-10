@@ -27,7 +27,6 @@ import {
   type CategorySummary,
   createProduct,
   CreateProductRequestSchema,
-  listCategoryTree,
   type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
@@ -43,6 +42,8 @@ import {
   ToastService,
 } from '@marketplace/shared-admin-ui';
 import { apiData, fieldRules, type Problem, toProblem } from '@marketplace/shared-web-util';
+
+import { loadUsableCategoryNodes } from '../product/product-categories';
 
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   categoryId: 'Categoria',
@@ -234,16 +235,7 @@ export class NewProductModalComponent {
     this.categoriesProblem.set(null);
     control.disable();
     try {
-      const nodes: CategorySummary[] = [];
-      let cursor: string | undefined;
-      do {
-        const page = await apiData(
-          listCategoryTree({ query: { usable: true, ...(cursor ? { cursor } : {}) } }),
-        );
-        nodes.push(...(page.items ?? []));
-        cursor = page.nextCursor ?? undefined;
-      } while (cursor);
-      this.categories.set(nodes);
+      this.categories.set(await loadUsableCategoryNodes());
     } catch (error) {
       this.categoriesProblem.set(toProblem(error));
     } finally {

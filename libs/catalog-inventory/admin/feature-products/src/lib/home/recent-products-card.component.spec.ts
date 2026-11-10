@@ -189,6 +189,6 @@ describe('produtos atualizados por último', () => {
   it('não chama a lista sem uma das listas de produtos na sessão', () => {
     render({ moderationQueue: '/moderacao/fila' });
 
-    http.expectNone(() => true);
+    expect(http.match(() => true)).toHaveLength(0);
   });
 });

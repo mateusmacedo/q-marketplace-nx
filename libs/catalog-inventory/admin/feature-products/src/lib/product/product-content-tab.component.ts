@@ -357,7 +357,7 @@ export class ProductContentTabComponent implements LeaveGuarded {
   });
   readonly #currentCategory = computed(() => {
     const category = this.category.hasValue() ? this.category.value() : undefined;
-    return category && category.id === this.categoryId() ? category : undefined;
+    return category?.id === this.categoryId() ? category : undefined;
   });
   readonly categoryProblem = computed(() => {
     const error = this.category.error();
@@ -613,7 +613,7 @@ export class ProductContentTabComponent implements LeaveGuarded {
 
   #reset(product: ProductResponse): void {
     this.#baseline.set(product);
-    this.#attributeSource.set({ ...(product.attributes ?? {}) });
+    this.#attributeSource.set({ ...product.attributes });
     this.#builtFor = null;
     this.swap.set(null);
     this.problem.set(null);

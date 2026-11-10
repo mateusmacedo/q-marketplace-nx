@@ -168,7 +168,7 @@ describe('blocos e estados', () => {
     const fixture = TestBed.createComponent(LoadingStateComponent);
     fixture.componentRef.setInput('rows', 3);
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelectorAll('.placeholder').length).toBe(3);
+    expect(fixture.nativeElement.querySelectorAll('.placeholder')).toHaveLength(3);
     expect(fixture.nativeElement.querySelector('[role="status"]')?.getAttribute('aria-busy')).toBe(
       'true',
     );

@@ -33,6 +33,13 @@ export function availablePercent(
   return total > 0 ? Math.min(100, Math.round((Math.max(0, available ?? 0) * 100) / total)) : 0;
 }
 
+function stockColor(percent: number): RecentProductRow['stockColor'] {
+  if (percent > 50) {
+    return 'success';
+  }
+  return percent > 0 ? 'warning' : 'danger';
+}
+
 /** Monta a linha do produto com o nome da categoria, quando ele já chegou. */
 export function recentProductRow(product: ProductResponse, category?: string): RecentProductRow {
   const skus = product.skus ?? [];
@@ -50,7 +57,7 @@ export function recentProductRow(product: ProductResponse, category?: string): R
     available,
     onHand,
     availablePercent: percent,
-    stockColor: percent > 50 ? 'success' : percent > 0 ? 'warning' : 'danger',
+    stockColor: stockColor(percent),
     lowestPrice: lowestPrice(product),
     updatedAt: product.updatedAt,
   };

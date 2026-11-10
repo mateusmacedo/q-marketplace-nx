@@ -60,7 +60,6 @@ export class ModerationQueueStore {
       const query: QueueQuery = { limit: this.limit(), cursor: this.cursor() };
       untracked(() => void this.#load(query));
     });
-    void this.refreshBadge();
   }
 
   reload(): Promise<void> {

@@ -40,11 +40,11 @@ const LOOKS: Readonly<Record<ProductStatus, ProductStatusLook>> = {
 };
 
 /** Rótulo do status ("Em moderação"); status desconhecido volta como veio. */
-export function productStatusLabel(status: ProductStatus | string): string {
+export function productStatusLabel(status: string): string {
   return LOOKS[status as ProductStatus]?.label ?? status;
 }
 
 /** Cor do badge sólido do status, e a cor do texto quando o fundo é claro. */
-export function productStatusLook(status: ProductStatus | string): ProductStatusLook {
+export function productStatusLook(status: string): ProductStatusLook {
   return LOOKS[status as ProductStatus] ?? { label: status, color: 'secondary' };
 }

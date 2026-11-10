@@ -54,8 +54,9 @@ export function chartPalette(root: Element): ChartPalette {
  */
 export function documentTheme(): Signal<string | null> {
   const root = inject(DOCUMENT).documentElement;
-  const theme = signal(root.getAttribute('data-coreui-theme'));
-  const observer = new MutationObserver(() => theme.set(root.getAttribute('data-coreui-theme')));
+  const readTheme = () => root.dataset['coreuiTheme'] ?? null;
+  const theme = signal(readTheme());
+  const observer = new MutationObserver(() => theme.set(readTheme()));
   observer.observe(root, { attributes: true, attributeFilter: ['data-coreui-theme'] });
   inject(DestroyRef).onDestroy(() => observer.disconnect());
   return theme.asReadonly();

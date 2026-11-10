@@ -172,12 +172,14 @@ function toMillis(instant: Instant | null | undefined): number | undefined {
   if (instant === null || instant === undefined || instant === '') {
     return undefined;
   }
-  const millis =
-    instant instanceof Date
-      ? instant.getTime()
-      : typeof instant === 'number'
-        ? instant
-        : Date.parse(instant);
+  let millis: number;
+  if (instant instanceof Date) {
+    millis = instant.getTime();
+  } else if (typeof instant === 'number') {
+    millis = instant;
+  } else {
+    millis = Date.parse(instant);
+  }
   return Number.isFinite(millis) ? millis : undefined;
 }
 

@@ -204,6 +204,7 @@ describe('ImportBatchPageComponent', () => {
     harness.fixture.destroy();
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
     await settle();
+    expect(http.match(() => true)).toHaveLength(0);
     http.verify();
   });
 });

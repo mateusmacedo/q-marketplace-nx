@@ -132,10 +132,9 @@ export class ProductHistoryTabComponent {
 
   /** Cor do item: a rejeição e o bloqueio em destaque. */
   highlight(entry: StatusChangeResponse): string | undefined {
-    return entry.transition === 'BLOCK'
-      ? 'danger'
-      : entry.transition === 'REJECT'
-        ? 'warning'
-        : undefined;
+    if (entry.transition === 'BLOCK') {
+      return 'danger';
+    }
+    return entry.transition === 'REJECT' ? 'warning' : undefined;
   }
 }

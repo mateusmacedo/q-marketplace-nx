@@ -103,7 +103,7 @@ describe('ModerationDecisionModalComponent', () => {
   afterEach(() => http.verify());
 
   it('não lê os motivos com o modal fechado', () => {
-    http.expectNone(() => true);
+    expect(http.match(() => true)).toHaveLength(0);
   });
 
   it('abre com os motivos da decisão, o contador do complemento pelo contrato e o efeito', async () => {
@@ -184,7 +184,7 @@ describe('ModerationDecisionModalComponent', () => {
 
     expect(element().textContent).toContain('O motivo Categoria incorreta foi desativado.');
     expect(element().textContent).not.toContain('reason-inactive');
-    expect(checkboxes().length).toBe(1);
+    expect(checkboxes()).toHaveLength(1);
     expect(note().value).toBe('Complemento digitado.');
 
     host().problem.set(null);

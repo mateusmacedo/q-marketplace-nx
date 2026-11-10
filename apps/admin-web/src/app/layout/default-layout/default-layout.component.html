@@ -6,16 +6,24 @@
   visible
 >
   <c-sidebar-header class="border-bottom">
-    <c-sidebar-brand [routerLink]="[]">
+    <c-sidebar-brand [routerLink]="[]" aria-label="Marketplace" role="img">
       <svg
         [class]="{icon: false}"
+        aria-hidden="true"
         cIcon
         class="sidebar-brand-full"
         height="32"
         name="logo"
         title="Marketplace"
       ></svg>
-      <svg cIcon class="sidebar-brand-narrow" height="32" name="signet" title="Marketplace"></svg>
+      <svg
+        aria-hidden="true"
+        cIcon
+        class="sidebar-brand-narrow"
+        height="32"
+        name="signet"
+        title="Marketplace"
+      ></svg>
     </c-sidebar-brand>
   </c-sidebar-header>
 

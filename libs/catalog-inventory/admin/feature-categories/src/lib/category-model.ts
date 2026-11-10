@@ -142,12 +142,15 @@ export async function loadAllPages(
   page: (cursor: string | undefined) => Promise<CategoryPage>,
 ): Promise<CategorySummary[]> {
   const items: CategorySummary[] = [];
-  let cursor: string | undefined;
-  do {
+  // WHY: o cursor da próxima página só chega com a resposta da anterior; por isso as leituras são encadeadas.
+  const readFrom = async (cursor: string | undefined): Promise<void> => {
     const current = await page(cursor);
     items.push(...(current.items ?? []));
-    cursor = current.nextCursor ?? undefined;
-  } while (cursor);
+    if (current.nextCursor) {
+      await readFrom(current.nextCursor);
+    }
+  };
+  await readFrom(undefined);
   return items;
 }
 

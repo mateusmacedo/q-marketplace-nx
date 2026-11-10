@@ -249,7 +249,7 @@ describe('fila de moderação', () => {
       http.expectOne(QUEUE).flush({ items: [P1], nextCursor: null });
       await settle();
 
-      expect(queueItems().length).toBe(1);
+      expect(queueItems()).toHaveLength(1);
     });
 
     it('aprova em lote depois da confirmação e mostra a recusa de cada produto com a mensagem do servidor', async () => {
