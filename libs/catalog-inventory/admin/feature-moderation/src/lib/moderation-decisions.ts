@@ -32,7 +32,8 @@ export const DECISIONS: readonly DecisionPresentation[] = [
     done: { one: 'aprovado', many: 'aprovados' },
     successMessage: 'Produto aprovado.',
     effect: 'O produto é publicado.',
-    batchEffect: 'Os produtos são publicados sem que você abra cada um. As recusas aparecem no resultado, com o motivo.'
+    batchEffect:
+      'Os produtos são publicados sem que você abra cada um. As recusas aparecem no resultado, com o motivo.',
   },
   {
     code: 'REJECT',
@@ -42,7 +43,7 @@ export const DECISIONS: readonly DecisionPresentation[] = [
     done: { one: 'rejeitado', many: 'rejeitados' },
     successMessage: 'Produto rejeitado. Ele voltou ao rascunho do lojista.',
     effect: 'O produto volta ao rascunho do lojista.',
-    batchEffect: 'Os produtos voltam ao rascunho dos lojistas.'
+    batchEffect: 'Os produtos voltam ao rascunho dos lojistas.',
   },
   {
     code: 'BLOCK',
@@ -52,10 +53,10 @@ export const DECISIONS: readonly DecisionPresentation[] = [
     done: { one: 'bloqueado', many: 'bloqueados' },
     successMessage: 'Produto bloqueado. Ele saiu da vitrine.',
     effect: 'O produto sai da vitrine na hora.',
-    batchEffect: 'Os produtos saem da vitrine na hora.'
-  }
+    batchEffect: 'Os produtos saem da vitrine na hora.',
+  },
 ];
 
 export function decisionPresentation(code: ModerationDecision): DecisionPresentation {
-  return DECISIONS.find(decision => decision.code === code) ?? DECISIONS[0];
+  return DECISIONS.find((decision) => decision.code === code) ?? DECISIONS[0];
 }

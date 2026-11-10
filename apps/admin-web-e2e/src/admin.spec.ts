@@ -10,7 +10,7 @@ import {
   createModerationReason,
   deactivateModerationReason,
   type ModerationReason,
-  uniqueSuffix
+  uniqueSuffix,
 } from './support/catalog-data';
 import { E2E_ENV } from './support/env';
 import { expect, test } from './support/fixtures';
@@ -36,7 +36,7 @@ test.afterEach(async () => {
 
 test.describe('categorias', () => {
   test('cria a categoria raiz pelo formulário lateral, com um atributo obrigatório e um de variação com opções', async ({
-    page
+    page,
   }) => {
     const suffix = uniqueSuffix();
     const name = `Categoria E2E ${suffix}`;
@@ -87,11 +87,20 @@ test.describe('categorias', () => {
     expect(saved).toMatchObject({ code, name, parentId: null, active: true });
     expect(saved.attributes).toMatchObject([
       { code: 'marca', label: 'Marca', type: 'TEXT', required: true, variant: false },
-      { code: 'tamanho', label: 'Tamanho', type: 'OPTION', required: true, variant: true, options: ['P', 'M', 'G'] }
+      {
+        code: 'tamanho',
+        label: 'Tamanho',
+        type: 'OPTION',
+        required: true,
+        variant: true,
+        options: ['P', 'M', 'G'],
+      },
     ]);
   });
 
-  test('cria a subcategoria pelo detalhe da pai, e ela herda os atributos da pai', async ({ page }) => {
+  test('cria a subcategoria pelo detalhe da pai, e ela herda os atributos da pai', async ({
+    page,
+  }) => {
     const parent = await createCategory();
     categoriesToDelete.push(parent.id);
     const suffix = uniqueSuffix();
@@ -108,14 +117,18 @@ test.describe('categorias', () => {
     await form.getByRole('button', { name: 'Criar categoria' }).click();
 
     await expect(page.getByText('Categoria criada.')).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`/plataforma/categorias/[0-9a-f-]{36}\\?parentId=${parent.id}$`));
+    await expect(page).toHaveURL(
+      new RegExp(`/plataforma/categorias/[0-9a-f-]{36}\\?parentId=${parent.id}$`),
+    );
     const id = idFromUrl(page, 'categorias');
     categoriesToDelete.push(id);
 
     await expect(categoryHeading(page, name)).toHaveText(`${name} Ativa`);
     await expect(page.getByText(`${parent.name} › ${name} | ${code} | nível 2`)).toBeVisible();
     // NOTE: os formulários laterais fechados continuam no DOM com o mesmo texto vazio; vale o do card do detalhe.
-    await expect(page.getByText('Nenhum atributo próprio.').filter({ visible: true })).toHaveCount(1);
+    await expect(page.getByText('Nenhum atributo próprio.').filter({ visible: true })).toHaveCount(
+      1,
+    );
     await expect(attributesTable(page, 'herdados')).toMatchAriaSnapshot(`
       - table:
         - rowgroup:
@@ -125,7 +138,12 @@ test.describe('categorias', () => {
           - row "Marca marca Texto Obrigatório ${parent.name}"
           - row "Tamanho tamanho Opção P, M, G Obrigatório Variante do SKU ${parent.name}"
     `);
-    expect(await admin.get<Category>(`/categories/${id}`)).toMatchObject({ code, name, parentId: parent.id, attributes: [] });
+    expect(await admin.get<Category>(`/categories/${id}`)).toMatchObject({
+      code,
+      name,
+      parentId: parent.id,
+      attributes: [],
+    });
   });
 
   test('edita o nome, desativa com confirmação e reativa a categoria', async ({ page }) => {
@@ -156,17 +174,25 @@ test.describe('categorias', () => {
     await expect(confirm).toBeHidden();
     await expect(page.getByText(`"${renamed}" desativada.`)).toBeVisible();
     await expect(categoryHeading(page, renamed)).toHaveText(`${renamed} Inativa`);
-    expect(await admin.get<Category>(`/categories/${category.id}`)).toMatchObject({ active: false, usable: false });
+    expect(await admin.get<Category>(`/categories/${category.id}`)).toMatchObject({
+      active: false,
+      usable: false,
+    });
 
     await page.getByRole('button', { name: `Ações de ${renamed}` }).click();
     await page.getByRole('button', { name: 'Ativar', exact: true }).click();
 
     await expect(page.getByText(`"${renamed}" ativada.`)).toBeVisible();
     await expect(categoryHeading(page, renamed)).toHaveText(`${renamed} Ativa`);
-    expect(await admin.get<Category>(`/categories/${category.id}`)).toMatchObject({ active: true, usable: true });
+    expect(await admin.get<Category>(`/categories/${category.id}`)).toMatchObject({
+      active: true,
+      usable: true,
+    });
   });
 
-  test('exclui em lote um ramo vazio inteiro, a categoria pai e a filha numa vez só', async ({ page }) => {
+  test('exclui em lote um ramo vazio inteiro, a categoria pai e a filha numa vez só', async ({
+    page,
+  }) => {
     // WHY: o ramo fica dentro de uma categoria só deste teste, para o nível aberto não ser a raiz compartilhada.
     const container = await createCategory({ attributes: [] });
     const parent = await createCategory({ parentId: container.id, attributes: [] });
@@ -194,12 +220,18 @@ test.describe('categorias', () => {
     await expect(page.getByText('Nenhuma subcategoria neste nível.')).toBeVisible();
   });
 
-  test('recusa excluir a categoria com produto e mostra o texto do servidor, sem o código do motivo', async ({ page }) => {
+  test('recusa excluir a categoria com produto e mostra o texto do servidor, sem o código do motivo', async ({
+    page,
+  }) => {
     // NOTE: a categoria fica no banco: com produto, nem arquivado, ela não pode mais ser excluída.
     const category = await createCategory();
     await createDraftProduct({ category });
-    const refusal = await apiFailure(admin.delete(`/categories/${category.id}`, { ifMatch: category.version }));
-    const hasProducts = refusal.problem?.reasonDetails?.find(reason => reason.code === 'category-has-products');
+    const refusal = await apiFailure(
+      admin.delete(`/categories/${category.id}`, { ifMatch: category.version }),
+    );
+    const hasProducts = refusal.problem?.reasonDetails?.find(
+      (reason) => reason.code === 'category-has-products',
+    );
     expect(refusal.status).toBe(409);
     expect(hasProducts?.message).toMatch(/\S/);
     expect(hasProducts?.message).not.toContain('category-has-products');
@@ -215,12 +247,17 @@ test.describe('categorias', () => {
     await expect(alert).toContainText(hasProducts?.message ?? '');
     await expect(confirm).not.toContainText('category-has-products');
     await expect(confirm.getByRole('button', { name: 'Desativar a categoria' })).toBeVisible();
-    expect(await admin.get<Category>(`/categories/${category.id}`)).toMatchObject({ id: category.id, active: true });
+    expect(await admin.get<Category>(`/categories/${category.id}`)).toMatchObject({
+      id: category.id,
+      active: true,
+    });
   });
 });
 
 test.describe('motivos de moderação', () => {
-  test('cria o motivo de rejeição, edita o rótulo, desativa com confirmação e reativa em Mostrar inativos', async ({ page }) => {
+  test('cria o motivo de rejeição, edita o rótulo, desativa com confirmação e reativa em Mostrar inativos', async ({
+    page,
+  }) => {
     const suffix = uniqueSuffix();
     const code = `teste-${suffix}`;
     const label = `Motivo E2E ${suffix}`;
@@ -253,14 +290,20 @@ test.describe('motivos de moderação', () => {
     await expect(page.getByText('Motivo atualizado.')).toBeVisible();
     await expect(edit).toBeHidden();
     await expect(reasonRow(page, code)).toContainText(relabeled);
-    expect(await getReason(code)).toMatchObject({ label: relabeled, decisions: ['REJECT'], active: true });
+    expect(await getReason(code)).toMatchObject({
+      label: relabeled,
+      decisions: ['REJECT'],
+      active: true,
+    });
 
     await page.getByRole('button', { name: `Ações de ${relabeled}` }).click();
     await page.getByRole('button', { name: 'Desativar', exact: true }).click();
     const confirm = page.getByRole('dialog', { name: `Desativar "${relabeled}"?` });
     await confirm.getByRole('button', { name: 'Desativar', exact: true }).click();
 
-    await expect(page.getByText('Motivo desativado. Ele não aparece mais para o moderador.')).toBeVisible();
+    await expect(
+      page.getByText('Motivo desativado. Ele não aparece mais para o moderador.'),
+    ).toBeVisible();
     await expect(confirm).toBeHidden();
     await expect(reasonRow(page, code)).toBeHidden();
     expect(await getReason(code)).toMatchObject({ active: false });
@@ -270,16 +313,24 @@ test.describe('motivos de moderação', () => {
     await page.getByRole('button', { name: `Ações de ${relabeled}` }).click();
     await page.getByRole('button', { name: 'Reativar', exact: true }).click();
 
-    await expect(page.getByText('Motivo reativado. Ele volta a aparecer para o moderador.')).toBeVisible();
+    await expect(
+      page.getByText('Motivo reativado. Ele volta a aparecer para o moderador.'),
+    ).toBeVisible();
     await expect(reasonRow(page, code)).toContainText('Ativo');
     await expect(reasonRow(page, code)).not.toContainText('Inativo');
     expect(await getReason(code)).toMatchObject({ label: relabeled, active: true });
   });
 
-  test('recusa criar o motivo com código repetido e mostra a mensagem do servidor', async ({ page }) => {
+  test('recusa criar o motivo com código repetido e mostra a mensagem do servidor', async ({
+    page,
+  }) => {
     const existing = await createModerationReason({ decisions: ['REJECT'] });
     reasonsToDeactivate.push(existing.code);
-    const attempt = { code: existing.code, label: `Motivo E2E repetido ${uniqueSuffix()}`, decisions: ['BLOCK'] };
+    const attempt = {
+      code: existing.code,
+      label: `Motivo E2E repetido ${uniqueSuffix()}`,
+      decisions: ['BLOCK'],
+    };
     const refusal = await apiFailure(admin.post('/moderation/reasons', attempt));
     expect(refusal.status).toBe(409);
     expect(refusal.problem?.detail).toMatch(/\S/);
@@ -297,7 +348,11 @@ test.describe('motivos de moderação', () => {
     await expect(alert).toContainText(refusal.problem?.detail ?? '');
     await expect(form).not.toContainText('duplicate-moderation-reason-code');
     await expect(page.getByLabel('Mostrar inativos')).toBeChecked();
-    expect(await getReason(existing.code)).toMatchObject({ label: existing.label, decisions: ['REJECT'], version: existing.version });
+    expect(await getReason(existing.code)).toMatchObject({
+      label: existing.label,
+      decisions: ['REJECT'],
+      version: existing.version,
+    });
   });
 });
 
@@ -310,7 +365,9 @@ test.describe('produtos de todas as lojas', () => {
 
     await page.getByLabel('Buscar por título ou SKU').fill(title);
     await page.getByRole('button', { name: 'Buscar', exact: true }).click();
-    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: title, exact: true }) });
+    const row = page
+      .getByRole('row')
+      .filter({ has: page.getByRole('link', { name: title, exact: true }) });
     await expect(row).toBeVisible();
     await expect(row).toContainText(E2E_ENV.sellerStoreId);
     await expect(row).toContainText('Rascunho');
@@ -334,7 +391,9 @@ test.describe('produtos de todas as lojas', () => {
 
     await row.getByRole('link', { name: title, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/plataforma/produtos/${product.id}$`));
-    await expect(page.getByRole('status').filter({ hasText: 'Conteúdo só leitura.' })).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Conteúdo só leitura.' }),
+    ).toBeVisible();
     await expect(page.getByLabel('Título', { exact: true })).toHaveValue(title);
     await expect(page.getByLabel('Título', { exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Salvar' })).toHaveCount(0);
@@ -351,7 +410,7 @@ function attributeFields(form: Locator, index: number) {
     code: form.getByLabel('Código', { exact: true }).nth(index + 1),
     type: form.getByLabel('Tipo', { exact: true }).nth(index),
     required: form.getByLabel('Obrigatório', { exact: true }).nth(index),
-    variant: form.getByLabel('Variante do SKU', { exact: true }).nth(index)
+    variant: form.getByLabel('Variante do SKU', { exact: true }).nth(index),
   };
 }
 

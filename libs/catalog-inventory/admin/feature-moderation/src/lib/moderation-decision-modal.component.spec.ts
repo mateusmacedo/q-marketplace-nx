@@ -2,15 +2,33 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideCatalogInventoryApi, type ModerationReasonResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  provideCatalogInventoryApi,
+  type ModerationReasonResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import type { Problem } from '@marketplace/shared-web-util';
 
-import { type DecisionReason, ModerationDecisionModalComponent } from './moderation-decision-modal.component';
+import {
+  type DecisionReason,
+  ModerationDecisionModalComponent,
+} from './moderation-decision-modal.component';
 import type { ReasonDecision } from './moderation-reasons';
 
 const REJECT_REASONS: ModerationReasonResponse[] = [
-  { code: 'categoria-incorreta', label: 'Categoria incorreta', decisions: ['REJECT'], position: 10, active: true },
-  { code: 'descricao-enganosa', label: 'Descrição enganosa', decisions: ['REJECT', 'BLOCK'], position: 20, active: true }
+  {
+    code: 'categoria-incorreta',
+    label: 'Categoria incorreta',
+    decisions: ['REJECT'],
+    position: 10,
+    active: true,
+  },
+  {
+    code: 'descricao-enganosa',
+    label: 'Descrição enganosa',
+    decisions: ['REJECT', 'BLOCK'],
+    position: 20,
+    active: true,
+  },
 ];
 
 @Component({
@@ -26,7 +44,7 @@ const REJECT_REASONS: ModerationReasonResponse[] = [
       [problem]="problem()"
       [subject]="subject()"
     />
-  `
+  `,
 })
 class ModalHost {
   readonly decision = signal<ReasonDecision | null>(null);
@@ -47,12 +65,18 @@ describe('ModerationDecisionModalComponent', () => {
   const element = () => fixture.nativeElement as HTMLElement;
   const footerButton = (text: string) =>
     (Array.from(element().querySelectorAll('c-modal-footer button')) as HTMLButtonElement[]).find(
-      button => button.textContent?.trim() === text
+      (button) => button.textContent?.trim() === text,
     ) as HTMLButtonElement;
-  const checkboxes = () => Array.from(element().querySelectorAll('c-modal-body input[type=checkbox]')) as HTMLInputElement[];
+  const checkboxes = () =>
+    Array.from(
+      element().querySelectorAll('c-modal-body input[type=checkbox]'),
+    ) as HTMLInputElement[];
   const note = () => element().querySelector('textarea') as HTMLTextAreaElement;
 
-  async function open(decision: ReasonDecision, reasons: ModerationReasonResponse[]): Promise<void> {
+  async function open(
+    decision: ReasonDecision,
+    reasons: ModerationReasonResponse[],
+  ): Promise<void> {
     host().decision.set(decision);
     TestBed.tick();
     http.expectOne(`/api/catalog-inventory/moderation/reasons?decision=${decision}`).flush(reasons);
@@ -69,7 +93,7 @@ describe('ModerationDecisionModalComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ModalHost],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(ModalHost);
@@ -85,11 +109,14 @@ describe('ModerationDecisionModalComponent', () => {
   it('abre com os motivos da decisão, o contador do complemento pelo contrato e o efeito', async () => {
     await open('REJECT', REJECT_REASONS);
 
-    expect(element().querySelector('[cModalTitle]')?.textContent?.trim()).toBe('Rejeitar "Camiseta Basic"');
-    expect(Array.from(element().querySelectorAll('c-modal-body label[cFormCheckLabel]')).map(label => label.textContent?.trim())).toEqual([
-      'Categoria incorreta',
-      'Descrição enganosa'
-    ]);
+    expect(element().querySelector('[cModalTitle]')?.textContent?.trim()).toBe(
+      'Rejeitar "Camiseta Basic"',
+    );
+    expect(
+      Array.from(element().querySelectorAll('c-modal-body label[cFormCheckLabel]')).map((label) =>
+        label.textContent?.trim(),
+      ),
+    ).toEqual(['Categoria incorreta', 'Descrição enganosa']);
     expect(element().textContent).toContain('0 de 500');
     expect(note().getAttribute('maxlength')).toBe('500');
     expect(element().textContent).toContain('O produto volta ao rascunho do lojista.');
@@ -145,10 +172,14 @@ describe('ModerationDecisionModalComponent', () => {
       status: 422,
       title: 'Motivo inválido',
       reasons: ['reason-inactive:categoria-incorreta'],
-      reasonDetails: [{ code: 'reason-inactive', message: 'O motivo Categoria incorreta foi desativado.' }]
+      reasonDetails: [
+        { code: 'reason-inactive', message: 'O motivo Categoria incorreta foi desativado.' },
+      ],
     });
     TestBed.tick();
-    http.expectOne('/api/catalog-inventory/moderation/reasons?decision=REJECT').flush(REJECT_REASONS.slice(1));
+    http
+      .expectOne('/api/catalog-inventory/moderation/reasons?decision=REJECT')
+      .flush(REJECT_REASONS.slice(1));
     await fixture.whenStable();
 
     expect(element().textContent).toContain('O motivo Categoria incorreta foi desativado.');
@@ -164,11 +195,15 @@ describe('ModerationDecisionModalComponent', () => {
 
   it('no conflito de edição, mostra o aviso e pede a versão atual', async () => {
     await open('BLOCK', REJECT_REASONS);
-    host().problem.set({ type: 'https://marketplace.dev/problems/version-mismatch', status: 412, title: 'Versão desatualizada' });
+    host().problem.set({
+      type: 'https://marketplace.dev/problems/version-mismatch',
+      status: 412,
+      title: 'Versão desatualizada',
+    });
     await fixture.whenStable();
 
-    const reload = (Array.from(element().querySelectorAll('button')) as HTMLButtonElement[]).find(button =>
-      button.textContent?.includes('Carregar versão atual')
+    const reload = (Array.from(element().querySelectorAll('button')) as HTMLButtonElement[]).find(
+      (button) => button.textContent?.includes('Carregar versão atual'),
     ) as HTMLButtonElement;
     reload.click();
 
@@ -180,7 +215,9 @@ describe('ModerationDecisionModalComponent', () => {
     host().subject.set('3 produtos');
     await open('BLOCK', REJECT_REASONS);
 
-    expect(element().querySelector('[cModalTitle]')?.textContent?.trim()).toBe('Bloquear 3 produtos');
+    expect(element().querySelector('[cModalTitle]')?.textContent?.trim()).toBe(
+      'Bloquear 3 produtos',
+    );
     expect(element().textContent).toContain('Os produtos saem da vitrine na hora.');
   });
 

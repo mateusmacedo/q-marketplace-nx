@@ -6,7 +6,7 @@ import {
   CardHeaderComponent,
   ListGroupDirective,
   ListGroupItemDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import { cilCheckCircle, cilXCircle } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -29,7 +29,7 @@ import { type ChecklistItem, checklistItems, type PublishingIssue } from './publ
     IconDirective,
     ListGroupDirective,
     ListGroupItemDirective,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <c-card class="mb-4">
@@ -56,7 +56,7 @@ import { type ChecklistItem, checklistItems, type PublishingIssue } from './publ
       }
       <c-card-footer class="small text-body-secondary">{{ footer() }}</c-card-footer>
     </c-card>
-  `
+  `,
 })
 export class SubmissionChecklistComponent {
   /** Pendências calculadas pelo servidor, na ordem da política de publicação. */

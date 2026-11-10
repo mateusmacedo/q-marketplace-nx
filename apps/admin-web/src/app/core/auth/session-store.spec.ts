@@ -14,7 +14,7 @@ const SELLER = {
   tenantId: '11111111-1111-4111-8111-111111111111',
   storeId: '22222222-2222-4222-8222-222222222222',
   capabilities: ['MANAGE_OWN_PRODUCTS'],
-  can: { readTenantCatalog: false }
+  can: { readTenantCatalog: false },
 };
 
 class FakeAuth {
@@ -43,8 +43,8 @@ describe('SessionStore', () => {
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
         provideAdminSession(),
-        { provide: AuthSession, useValue: auth }
-      ]
+        { provide: AuthSession, useValue: auth },
+      ],
     });
   };
   const request = () => vi.waitFor(() => http.expectOne(ME));
@@ -63,7 +63,10 @@ describe('SessionStore', () => {
 
     const session = TestBed.inject(SessionStore);
     expect(session.status()).toBe('ready');
-    expect(session.grants()).toEqual({ capabilities: ['MANAGE_OWN_PRODUCTS'], permissions: { readTenantCatalog: false } });
+    expect(session.grants()).toEqual({
+      capabilities: ['MANAGE_OWN_PRODUCTS'],
+      permissions: { readTenantCatalog: false },
+    });
     expect(session.hasCapability('MANAGE_OWN_PRODUCTS')).toBe(true);
     expect(session.can('readTenantCatalog')).toBe(false);
     expect(session.storeId()).toBe(SELLER.storeId);
@@ -83,24 +86,37 @@ describe('SessionStore', () => {
     configure();
     const done = started();
     (await request()).flush(
-      { type: 'https://marketplace.dev/problems/service-unavailable', title: 'Indisponível', detail: 'Banco fora do ar' },
-      { status: 503, statusText: 'Service Unavailable' }
+      {
+        type: 'https://marketplace.dev/problems/service-unavailable',
+        title: 'Indisponível',
+        detail: 'Banco fora do ar',
+      },
+      { status: 503, statusText: 'Service Unavailable' },
     );
     await done;
 
     const session = TestBed.inject(SessionStore);
     expect(session.status()).toBe('error');
-    expect(session.problem()).toEqual(expect.objectContaining({ status: 503, detail: 'Banco fora do ar' }));
+    expect(session.problem()).toEqual(
+      expect.objectContaining({ status: 503, detail: 'Banco fora do ar' }),
+    );
     expect(session.grants().capabilities).toEqual([]);
 
     const retry = session.load();
     expect(session.status()).toBe('loading');
-    (await request()).flush({ ...SELLER, storeId: null, capabilities: ['MANAGE_TAXONOMY'], can: { readTenantCatalog: true } });
+    (await request()).flush({
+      ...SELLER,
+      storeId: null,
+      capabilities: ['MANAGE_TAXONOMY'],
+      can: { readTenantCatalog: true },
+    });
     await retry;
 
     expect(session.status()).toBe('ready');
     expect(session.problem()).toBeUndefined();
-    expect(session.allows({ capability: 'MANAGE_TAXONOMY', permission: 'readTenantCatalog' })).toBe(true);
+    expect(session.allows({ capability: 'MANAGE_TAXONOMY', permission: 'readTenantCatalog' })).toBe(
+      true,
+    );
     expect(session.storeId()).toBeUndefined();
   });
 
@@ -146,8 +162,12 @@ describe('SessionStore', () => {
     configure();
     const done = started();
     (await request()).flush(
-      { type: 'https://marketplace.dev/problems/tenant-not-authorized', title: 'Sem tenant', status: 403 },
-      { status: 403, statusText: 'Forbidden' }
+      {
+        type: 'https://marketplace.dev/problems/tenant-not-authorized',
+        title: 'Sem tenant',
+        status: 403,
+      },
+      { status: 403, statusText: 'Forbidden' },
     );
     await done;
 

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, effect, input, model, output, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  input,
+  model,
+  output,
+  untracked,
+} from '@angular/core';
 import {
   ButtonCloseDirective,
   ButtonDirective,
@@ -7,7 +15,7 @@ import {
   ModalFooterComponent,
   ModalHeaderComponent,
   ModalTitleDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 
 let nextId = 0;
@@ -28,7 +36,7 @@ let nextId = 0;
     ModalFooterComponent,
     ModalHeaderComponent,
     ModalTitleDirective,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <c-modal [(visible)]="visible" [attr.aria-labelledby]="titleId" [id]="modalId">
@@ -55,7 +63,7 @@ let nextId = 0;
         </button>
       </c-modal-footer>
     </c-modal>
-  `
+  `,
 })
 export class ConfirmModalComponent {
   readonly visible = model(false);

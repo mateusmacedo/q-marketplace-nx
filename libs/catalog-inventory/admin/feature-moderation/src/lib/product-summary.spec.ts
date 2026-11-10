@@ -7,25 +7,29 @@ import {
   sellerStatusLook,
   shortId,
   skusInStock,
-  variantText
+  variantText,
 } from './product-summary';
 
 const ATTRIBUTES: EffectiveAttributeDto[] = [
   { code: 'material', label: 'Material', type: 'OPTION' },
   { code: 'importado', label: 'Importado', type: 'BOOLEAN' },
   { code: 'tamanho', label: 'Tamanho', type: 'OPTION', variant: true },
-  { code: 'cor', label: 'Cor', type: 'OPTION', variant: true }
+  { code: 'cor', label: 'Cor', type: 'OPTION', variant: true },
 ];
 
 describe('resumo do produto na fila', () => {
   it('mostra os atributos na ordem da categoria, com o rótulo e o booleano em texto', () => {
-    expect(attributeRows({ importado: 'true', material: 'Algodão', antigo: 'x', vazio: '' }, ATTRIBUTES)).toEqual([
+    expect(
+      attributeRows({ importado: 'true', material: 'Algodão', antigo: 'x', vazio: '' }, ATTRIBUTES),
+    ).toEqual([
       { code: 'material', label: 'Material', value: 'Algodão' },
       { code: 'importado', label: 'Importado', value: 'Sim' },
-      { code: 'antigo', label: 'antigo', value: 'x' }
+      { code: 'antigo', label: 'antigo', value: 'x' },
     ]);
     expect(attributeRows(undefined, ATTRIBUTES)).toEqual([]);
-    expect(attributeRows({ material: 'Linho' }, undefined)).toEqual([{ code: 'material', label: 'material', value: 'Linho' }]);
+    expect(attributeRows({ material: 'Linho' }, undefined)).toEqual([
+      { code: 'material', label: 'material', value: 'Linho' },
+    ]);
   });
 
   it('junta os valores da variação na ordem da categoria', () => {
@@ -34,7 +38,9 @@ describe('resumo do produto na fila', () => {
   });
 
   it('monta o caminho da categoria com os ancestrais que o servidor devolve', () => {
-    expect(categoryPath({ name: 'Camisas', ancestors: [{ id: 'a', name: 'Vestuário' }] })).toBe('Vestuário › Camisas');
+    expect(categoryPath({ name: 'Camisas', ancestors: [{ id: 'a', name: 'Vestuário' }] })).toBe(
+      'Vestuário › Camisas',
+    );
     expect(categoryPath({ name: 'Vestuário', ancestors: [] })).toBe('Vestuário');
     expect(categoryPath(undefined)).toBe('');
   });
@@ -56,18 +62,22 @@ describe('resumo do produto na fila', () => {
         reason: 'Categoria incorreta. A gola não bate.',
         reasonCodes: ['categoria-incorreta'],
         reasonLabels: [{ code: 'categoria-incorreta', label: 'Categoria incorreta' }],
-        note: 'A gola não bate.'
+        note: 'A gola não bate.',
       },
-      { transition: 'SUBMIT', at: '2026-11-08T13:10:00Z', note: '  ' }
+      { transition: 'SUBMIT', at: '2026-11-08T13:10:00Z', note: '  ' },
     ]);
 
-    expect(entries.map(entry => entry.label)).toEqual(['Enviado para moderação', 'Rejeitado', 'Criado']);
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Enviado para moderação',
+      'Rejeitado',
+      'Criado',
+    ]);
     expect(entries[1]).toEqual({
       label: 'Rejeitado',
       at: '2026-11-08T12:00:00Z',
       actor: 'Você',
       reasons: ['Categoria incorreta'],
-      note: 'A gola não bate.'
+      note: 'A gola não bate.',
     });
     expect(entries[0].note).toBeUndefined();
     expect(entries[0].actor).toBeUndefined();

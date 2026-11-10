@@ -7,15 +7,15 @@ import dev.marketplace.cataloginventory.domain.product.ProductTransition;
  * transição que ela registra. Só rejeitar e bloquear levam motivo.
  */
 public enum ModerationDecision {
-    APPROVE(ProductTransition.APPROVE), REJECT(ProductTransition.REJECT), BLOCK(ProductTransition.BLOCK);
+  APPROVE(ProductTransition.APPROVE), REJECT(ProductTransition.REJECT), BLOCK(ProductTransition.BLOCK);
 
-    private final ProductTransition transition;
+  private final ProductTransition transition;
 
-    ModerationDecision(ProductTransition transition) {
-        this.transition = transition;
-    }
+  ModerationDecision(ProductTransition transition) {
+    this.transition = transition;
+  }
 
-    public ProductTransition transition() {
-        return transition;
-    }
+  public ProductTransition transition() {
+    return transition;
+  }
 }

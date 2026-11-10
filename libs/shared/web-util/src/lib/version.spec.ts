@@ -8,36 +8,60 @@ function headers(values: Record<string, string>) {
 
 describe('versão do registro (ETag)', () => {
   it('devolve os dados e o ETag da resposta do cliente gerado', async () => {
-    const result = { data: { id: 'p1', title: 'Camiseta' }, request: {}, response: { headers: headers({ ETag: '"7"' }) } };
+    const result = {
+      data: { id: 'p1', title: 'Camiseta' },
+      request: {},
+      response: { headers: headers({ ETag: '"7"' }) },
+    };
     await expect(apiDataWithVersion(Promise.resolve(result))).resolves.toEqual({
       data: { id: 'p1', title: 'Camiseta' },
-      version: '"7"'
+      version: '"7"',
     });
   });
 
   it('prefere a version do corpo ao ETag, que um proxy com gzip enfraquece', async () => {
-    const result = { data: { id: 'p1', version: 2 }, response: { headers: headers({ ETag: 'W/"2"' }) } };
-    await expect(apiDataWithVersion(Promise.resolve(result))).resolves.toEqual({ data: { id: 'p1', version: 2 }, version: '"2"' });
+    const result = {
+      data: { id: 'p1', version: 2 },
+      response: { headers: headers({ ETag: 'W/"2"' }) },
+    };
+    await expect(apiDataWithVersion(Promise.resolve(result))).resolves.toEqual({
+      data: { id: 'p1', version: 2 },
+      version: '"2"',
+    });
   });
 
   it('sem version no corpo, usa o ETag forte e ignora o fraco', async () => {
     const strong = { data: { id: 's1' }, response: { headers: headers({ ETag: '"5"' }) } };
     const weak = { data: { id: 's1' }, response: { headers: headers({ ETag: 'W/"5"' }) } };
-    await expect(apiDataWithVersion(Promise.resolve(strong))).resolves.toEqual({ data: { id: 's1' }, version: '"5"' });
-    await expect(apiDataWithVersion(Promise.resolve(weak))).resolves.toEqual({ data: { id: 's1' }, version: undefined });
+    await expect(apiDataWithVersion(Promise.resolve(strong))).resolves.toEqual({
+      data: { id: 's1' },
+      version: '"5"',
+    });
+    await expect(apiDataWithVersion(Promise.resolve(weak))).resolves.toEqual({
+      data: { id: 's1' },
+      version: undefined,
+    });
   });
 
   it('deixa a versão ausente quando a resposta não traz o ETag', async () => {
     const result = { data: { id: 'p1' }, response: { headers: headers({}) } };
-    await expect(apiDataWithVersion(Promise.resolve(result))).resolves.toEqual({ data: { id: 'p1' }, version: undefined });
+    await expect(apiDataWithVersion(Promise.resolve(result))).resolves.toEqual({
+      data: { id: 'p1' },
+      version: undefined,
+    });
   });
 
   it('lança o problema normalizado na falha, como apiData', async () => {
-    const response = { status: 412, error: { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão' } };
-    await expect(apiDataWithVersion(Promise.resolve({ error: response.error, response }))).rejects.toEqual({
+    const response = {
+      status: 412,
+      error: { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão' },
+    };
+    await expect(
+      apiDataWithVersion(Promise.resolve({ error: response.error, response })),
+    ).rejects.toEqual({
       type: 'https://marketplace.dev/problems/version-mismatch',
       title: 'Versão',
-      status: 412
+      status: 412,
     });
   });
 

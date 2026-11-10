@@ -25,7 +25,10 @@ export interface RecentProductRow {
  * Disponível sobre o físico, de 0 a 100. Vai como `value` do `c-progress` com o máximo padrão: no CoreUI 5.7.42 a barra
  * interna do `c-progress` não recebe o `max`.
  */
-export function availablePercent(available: number | null | undefined, onHand: number | null | undefined): number {
+export function availablePercent(
+  available: number | null | undefined,
+  onHand: number | null | undefined,
+): number {
   const total = Math.max(0, onHand ?? 0);
   return total > 0 ? Math.min(100, Math.round((Math.max(0, available ?? 0) * 100) / total)) : 0;
 }
@@ -49,13 +52,16 @@ export function recentProductRow(product: ProductResponse, category?: string): R
     availablePercent: percent,
     stockColor: percent > 50 ? 'success' : percent > 0 ? 'warning' : 'danger',
     lowestPrice: lowestPrice(product),
-    updatedAt: product.updatedAt
+    updatedAt: product.updatedAt,
   };
 }
 
 function lowestPrice(product: ProductResponse): MoneyDto | undefined {
   return (product.skus ?? [])
-    .map(sku => sku.offer?.effectivePrice)
+    .map((sku) => sku.offer?.effectivePrice)
     .filter((price): price is MoneyDto => price !== undefined && price !== null)
-    .reduce<MoneyDto | undefined>((lowest, price) => (!lowest || price.amount < lowest.amount ? price : lowest), undefined);
+    .reduce<MoneyDto | undefined>(
+      (lowest, price) => (!lowest || price.amount < lowest.amount ? price : lowest),
+      undefined,
+    );
 }

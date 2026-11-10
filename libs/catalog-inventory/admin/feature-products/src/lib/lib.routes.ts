@@ -13,37 +13,45 @@ export const routes: Routes = [
       {
         path: '',
         loadComponent: () =>
-          import('./product-list/product-list-page.component').then(m => m.ProductListPageComponent),
-        canDeactivate: [leaveGuard]
+          import('./product-list/product-list-page.component').then(
+            (m) => m.ProductListPageComponent,
+          ),
+        canDeactivate: [leaveGuard],
       },
       {
         path: ':id',
-        loadComponent: () => import('./product/product-page.component').then(m => m.ProductPageComponent),
+        loadComponent: () =>
+          import('./product/product-page.component').then((m) => m.ProductPageComponent),
         data: { title: 'Produto' },
         children: [
           { path: '', redirectTo: 'conteudo', pathMatch: 'full' },
           {
             path: 'conteudo',
             loadComponent: () =>
-              import('./product/product-content-tab.component').then(m => m.ProductContentTabComponent),
+              import('./product/product-content-tab.component').then(
+                (m) => m.ProductContentTabComponent,
+              ),
             canDeactivate: [leaveGuard],
-            data: { title: 'Conteúdo' }
+            data: { title: 'Conteúdo' },
           },
           {
             path: 'skus',
-            loadComponent: () => import('./product/product-skus-tab.component').then(m => m.ProductSkusTabComponent),
-            data: { title: 'SKUs, preço e estoque' }
+            loadComponent: () =>
+              import('./product/product-skus-tab.component').then((m) => m.ProductSkusTabComponent),
+            data: { title: 'SKUs, preço e estoque' },
           },
           {
             path: 'historico',
             loadComponent: () =>
-              import('./product/product-history-tab.component').then(m => m.ProductHistoryTabComponent),
-            data: { title: 'Histórico' }
-          }
-        ]
-      }
-    ]
-  }
+              import('./product/product-history-tab.component').then(
+                (m) => m.ProductHistoryTabComponent,
+              ),
+            data: { title: 'Histórico' },
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 /** Produtos de todas as lojas, só leitura, montadas em `/plataforma/produtos` para admin e moderador. */
@@ -55,14 +63,18 @@ export const platformRoutes: Routes = [
       {
         path: '',
         loadComponent: () =>
-          import('./platform/platform-product-list-page.component').then(m => m.PlatformProductListPageComponent)
+          import('./platform/platform-product-list-page.component').then(
+            (m) => m.PlatformProductListPageComponent,
+          ),
       },
       {
         path: ':id',
         loadComponent: () =>
-          import('./platform/platform-product-page.component').then(m => m.PlatformProductPageComponent),
-        data: { title: 'Produto' }
-      }
-    ]
-  }
+          import('./platform/platform-product-page.component').then(
+            (m) => m.PlatformProductPageComponent,
+          ),
+        data: { title: 'Produto' },
+      },
+    ],
+  },
 ];

@@ -3,8 +3,8 @@ services:
     image: grafana/grafana:13.2.1@sha256:f772d434e8fab0049deb2b1b30abd43342bcfca1537614aa8d36080232cf4283
     deploy:
       resources:
-        limits: {cpus: "0.30", memory: 1280M}
-        reservations: {memory: 256M}
+        limits: { cpus: "0.30", memory: 1280M }
+        reservations: { memory: 256M }
     profiles: [observability, all]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
@@ -23,7 +23,7 @@ services:
       - ../../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
-      prometheus: {condition: service_healthy}
+      prometheus: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health | grep -q ok"]
       interval: 10s

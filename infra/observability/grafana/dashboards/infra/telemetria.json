@@ -2,10 +2,7 @@
   "uid": "marketplace-infra-telemetry",
   "title": "Marketplace · Pipeline de telemetria",
   "description": "A própria observabilidade: o dado não apareceu porque a app não mandou ou porque o pipeline perdeu? Collector, Loki, Tempo, Prometheus e Grafana. Os nomes do Collector 0.160 não têm sufixo _total.",
-  "tags": [
-    "marketplace",
-    "infra"
-  ],
+  "tags": ["marketplace", "infra"],
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
@@ -19,9 +16,7 @@
     {
       "title": "Painéis do marketplace",
       "type": "dashboards",
-      "tags": [
-        "marketplace"
-      ],
+      "tags": ["marketplace"],
       "asDropdown": true,
       "keepTime": true,
       "includeVars": true

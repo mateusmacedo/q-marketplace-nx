@@ -8,5 +8,5 @@ import java.util.UUID;
  * reserva.
  */
 public record ReservationItem(UUID skuId, UUID productId, UUID storeId, int quantity, Money unitPrice,
-        long priceVersion) {
+    long priceVersion) {
 }

@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import {
   ButtonCloseDirective,
   ButtonDirective,
@@ -13,10 +22,14 @@ import {
   ModalFooterComponent,
   ModalHeaderComponent,
   ModalTitleDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import { DecisionRequestSchema } from '@marketplace/catalog-inventory-admin-data-access';
-import { EditConflictAlertComponent, LoadingStateComponent, ProblemAlertComponent } from '@marketplace/shared-admin-ui';
+import {
+  EditConflictAlertComponent,
+  LoadingStateComponent,
+  ProblemAlertComponent,
+} from '@marketplace/shared-admin-ui';
 import {
   checkFieldRules,
   fieldErrors,
@@ -24,11 +37,15 @@ import {
   isEditConflict,
   type Problem,
   problemCode,
-  ruleMessage
+  ruleMessage,
 } from '@marketplace/shared-web-util';
 
 import { decisionPresentation } from './moderation-decisions';
-import { moderationReasonsResource, type ReasonDecision, reasonOptions } from './moderation-reasons';
+import {
+  moderationReasonsResource,
+  type ReasonDecision,
+  reasonOptions,
+} from './moderation-reasons';
 
 /** Motivo da rejeição ou do bloqueio, no formato do corpo de `POST .../reject`, `.../block` e do lote. */
 export interface DecisionReason {
@@ -66,7 +83,7 @@ let nextId = 0;
     ModalHeaderComponent,
     ModalTitleDirective,
     ProblemAlertComponent,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <c-modal
@@ -168,7 +185,7 @@ let nextId = 0;
         </button>
       </c-modal-footer>
     </c-modal>
-  `
+  `,
 })
 export class ModerationDecisionModalComponent {
   /** Decisão do modal aberto; `null` fecha. */
@@ -207,7 +224,9 @@ export class ModerationDecisionModalComponent {
     const label = this.presentation().label;
     return this.batch() ? `${label} ${this.subject()}` : `${label} "${this.subject()}"`;
   });
-  readonly effect = computed(() => (this.batch() ? this.presentation().batchEffect : this.presentation().effect));
+  readonly effect = computed(() =>
+    this.batch() ? this.presentation().batchEffect : this.presentation().effect,
+  );
   readonly options = computed(() => {
     const decision = this.decision();
     return decision && this.reasons.hasValue() ? reasonOptions(this.reasons.value(), decision) : [];
@@ -215,8 +234,8 @@ export class ModerationDecisionModalComponent {
   /** Motivos marcados que continuam na lista; um motivo que saiu dela depois de recarregar não vai no pedido. */
   readonly chosen = computed(() =>
     this.options()
-      .map(reason => reason.code ?? '')
-      .filter(code => this.selected().has(code))
+      .map((reason) => reason.code ?? '')
+      .filter((code) => this.selected().has(code)),
   );
   readonly noteRequired = computed(() => this.chosen().length === 0);
   readonly conflict = computed(() => isEditConflict(this.problem()));
@@ -225,11 +244,16 @@ export class ModerationDecisionModalComponent {
     if (server) {
       return server;
     }
-    const violation = checkFieldRules({ ...NOTE_RULES, required: this.noteRequired() }, this.note());
+    const violation = checkFieldRules(
+      { ...NOTE_RULES, required: this.noteRequired() },
+      this.note(),
+    );
     if (!violation || !this.touched()) {
       return null;
     }
-    return violation.kind === 'required' ? 'Escreva o complemento ou marque um motivo.' : ruleMessage(violation);
+    return violation.kind === 'required'
+      ? 'Escreva o complemento ou marque um motivo.'
+      : ruleMessage(violation);
   });
   readonly reasonCodesError = computed(() => fieldErrors(this.problem())['reasonCodes'] ?? null);
 
@@ -253,7 +277,7 @@ export class ModerationDecisionModalComponent {
 
   toggle(code: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
-    this.selected.update(current => {
+    this.selected.update((current) => {
       const next = new Set(current);
       if (checked) {
         next.add(code);
@@ -270,10 +294,17 @@ export class ModerationDecisionModalComponent {
 
   submit(): void {
     this.touched.set(true);
-    if (this.busy() || this.reloading() || checkFieldRules({ ...NOTE_RULES, required: this.noteRequired() }, this.note())) {
+    if (
+      this.busy() ||
+      this.reloading() ||
+      checkFieldRules({ ...NOTE_RULES, required: this.noteRequired() }, this.note())
+    ) {
       return;
     }
-    this.confirm.emit({ reasonCodes: this.chosen(), note: this.note().trim() ? this.note() : null });
+    this.confirm.emit({
+      reasonCodes: this.chosen(),
+      note: this.note().trim() ? this.note() : null,
+    });
   }
 
   close(): void {

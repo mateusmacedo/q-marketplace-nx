@@ -1,10 +1,27 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { CardBodyComponent, CardComponent } from '@coreui/angular';
 import { AdminSession, EmptyStateComponent } from '@marketplace/shared-admin-ui';
 
-import { CatalogActivityCardComponent, type PeriodFailure } from './catalog-activity-card.component';
+import {
+  CatalogActivityCardComponent,
+  type PeriodFailure,
+} from './catalog-activity-card.component';
 import type { ActivityGranularity } from './home-activity';
-import { categoryIndicators, type HomeIndicator, moderationIndicators, storeIndicators } from './home-indicators';
+import {
+  categoryIndicators,
+  type HomeIndicator,
+  moderationIndicators,
+  storeIndicators,
+} from './home-indicators';
 import { type HomeLinks, productsLink } from './home-links';
 import { homeStats, homeStatsSet } from './home-stats';
 import { HomeWidgetsComponent } from './home-widgets.component';
@@ -25,7 +42,7 @@ import { RecentProductsCardComponent } from './recent-products-card.component';
     CatalogActivityCardComponent,
     EmptyStateComponent,
     HomeWidgetsComponent,
-    RecentProductsCardComponent
+    RecentProductsCardComponent,
   ],
   template: `
     @if (statsSet(); as set) {
@@ -58,7 +75,7 @@ import { RecentProductsCardComponent } from './recent-products-card.component';
         </c-card-body>
       </c-card>
     }
-  `
+  `,
 })
 export class HomeDashboardComponent {
   readonly #session = inject(AdminSession);

@@ -1,13 +1,19 @@
-import type { ActivityPointResponse, ActivityResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import type {
+  ActivityPointResponse,
+  ActivityResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 
 /** Tamanho dos baldes da série de atividade: Dia, Mês ou Ano. */
 export type ActivityGranularity = NonNullable<ActivityResponse['granularity']>;
 
 /** Opções do grupo Dia, Mês e Ano do card "Catálogo", na ordem do template. */
-export const ACTIVITY_GRANULARITIES: readonly { readonly value: ActivityGranularity; readonly label: string }[] = [
+export const ACTIVITY_GRANULARITIES: readonly {
+  readonly value: ActivityGranularity;
+  readonly label: string;
+}[] = [
   { value: 'day', label: 'Dia' },
   { value: 'month', label: 'Mês' },
-  { value: 'year', label: 'Ano' }
+  { value: 'year', label: 'Ano' },
 ];
 
 const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -41,7 +47,9 @@ export function bucketLabel(period: string | undefined, granularity: ActivityGra
  * Período da série no subtítulo do card: "12/10/2026 a 08/11/2026" no dia, "Janeiro a dezembro de 2026" no mês (ou
  * "Novembro de 2025 a outubro de 2026", quando passa de um ano) e "2022 a 2026" no ano.
  */
-export function activityPeriod(activity: Pick<ActivityResponse, 'granularity' | 'from' | 'to'>): string {
+export function activityPeriod(
+  activity: Pick<ActivityResponse, 'granularity' | 'from' | 'to'>,
+): string {
   const from = parseLocalDate(activity.from);
   const to = parseLocalDate(activity.to);
   if (!from || !to) {
@@ -66,25 +74,28 @@ export function activityCsv(activity: Pick<ActivityResponse, 'points'>): string 
     point.submitted ?? 0,
     point.approved ?? 0,
     point.rejected ?? 0,
-    point.blocked ?? 0
+    point.blocked ?? 0,
   ]);
-  return [CSV_HEADER, ...rows].map(row => row.join(',')).join('\r\n') + '\r\n';
+  return [CSV_HEADER, ...rows].map((row) => row.join(',')).join('\r\n') + '\r\n';
 }
 
 /** Nome do arquivo baixado: "catalogo-mes-2026-01-01-a-2026-12-31.csv". */
-export function activityCsvName(activity: Pick<ActivityResponse, 'granularity' | 'from' | 'to'>): string {
-  const label = ACTIVITY_GRANULARITIES.find(option => option.value === activity.granularity)?.label ?? 'periodo';
-  const slug = label
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase();
+export function activityCsvName(
+  activity: Pick<ActivityResponse, 'granularity' | 'from' | 'to'>,
+): string {
+  const label =
+    ACTIVITY_GRANULARITIES.find((option) => option.value === activity.granularity)?.label ??
+    'periodo';
+  const slug = label.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
   return `catalogo-${slug}-${activity.from ?? ''}-a-${activity.to ?? ''}.csv`;
 }
 
 function monthRange(from: LocalDate, to: LocalDate): string {
   if (from.year === to.year) {
     const first = capitalize(monthName(from));
-    return from.month === to.month ? `${first} de ${from.year}` : `${first} a ${monthName(to)} de ${to.year}`;
+    return from.month === to.month
+      ? `${first} de ${from.year}`
+      : `${first} a ${monthName(to)} de ${to.year}`;
   }
   return `${capitalize(monthName(from))} de ${from.year} a ${monthName(to)} de ${to.year}`;
 }
@@ -103,7 +114,9 @@ function monthName(date: LocalDate): string {
 
 function parseLocalDate(text: string | undefined): LocalDate | undefined {
   const match = LOCAL_DATE.exec(text ?? '');
-  return match ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) } : undefined;
+  return match
+    ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+    : undefined;
 }
 
 function capitalize(text: string): string {

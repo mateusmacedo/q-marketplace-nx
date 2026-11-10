@@ -24,7 +24,7 @@ import { LeaveConfirmation } from './leave-guard';
     >
       <p class="mb-0">{{ message() }}</p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class LeaveConfirmHostComponent {
   readonly #confirmation = inject(LeaveConfirmation);

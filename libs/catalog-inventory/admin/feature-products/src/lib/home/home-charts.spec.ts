@@ -5,7 +5,7 @@ import { activityChart, chartPalette, widgetChart, withAlpha } from './home-char
 const MONTHS = [
   { month: '2026-09-01', value: 10 },
   { month: '2026-10-01', value: null },
-  { month: '2026-11-01', value: 20 }
+  { month: '2026-11-01', value: 20 },
 ];
 
 describe('gráficos da página inicial', () => {
@@ -22,8 +22,10 @@ describe('gráficos da página inicial', () => {
   });
 
   it('usa as opções do template em cada posição: linha reta, área e barras', () => {
-    expect(widgetChart(MONTHS, 'straight', 'Em rascunho', undefined).options.elements?.line).toMatchObject({
-      tension: 0
+    expect(
+      widgetChart(MONTHS, 'straight', 'Em rascunho', undefined).options.elements?.line,
+    ).toMatchObject({
+      tension: 0,
     });
 
     const area = widgetChart(MONTHS, 'area', 'Sem estoque', undefined);
@@ -43,10 +45,10 @@ describe('gráficos da página inicial', () => {
         granularity: 'day',
         points: [
           { period: '2026-11-07', submitted: 2, approved: 1 },
-          { period: '2026-11-08', submitted: 3, approved: 2 }
-        ]
+          { period: '2026-11-08', submitted: 3, approved: 2 },
+        ],
       },
-      { info: '#3399ff', success: '#1b9e3e', danger: '#e55353' }
+      { info: '#3399ff', success: '#1b9e3e', danger: '#e55353' },
     );
     const [approved, submitted, average] = chart.data.datasets as ChartDataset<'line'>[];
 
@@ -55,14 +57,18 @@ describe('gráficos da página inicial', () => {
       'Aprovados',
       [1, 2],
       true,
-      'rgba(51, 153, 255, 0.1)'
+      'rgba(51, 153, 255, 0.1)',
     ]);
     expect([submitted.label, submitted.data, submitted.borderColor]).toEqual([
       'Enviados à moderação',
       [2, 3],
-      '#1b9e3e'
+      '#1b9e3e',
     ]);
-    expect([average.label, average.data, average.borderDash]).toEqual(['Média de aprovados', [1.5, 1.5], [8, 5]]);
+    expect([average.label, average.data, average.borderDash]).toEqual([
+      'Média de aprovados',
+      [1.5, 1.5],
+      [8, 5],
+    ]);
   });
 
   it('lê as cores do tema nas variáveis do CoreUI e deixa vazia a que não existe', () => {

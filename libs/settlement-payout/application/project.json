@@ -1,9 +1,5 @@
 {
   "name": "settlement-payout-application",
   "projectType": "library",
-  "tags": [
-    "scope:settlement-payout",
-    "layer:application",
-    "lang:java"
-  ]
+  "tags": ["scope:settlement-payout", "layer:application", "lang:java"]
 }

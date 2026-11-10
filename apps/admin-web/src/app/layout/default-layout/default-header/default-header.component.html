@@ -45,7 +45,11 @@
   <c-container [fluid]="true" class="px-4">
     <c-breadcrumb class="m-0">
       @for (crumb of crumbs(); track crumb.url; let last = $last) {
-        <c-breadcrumb-item [active]="last" [url]="last ? undefined : crumb.url">{{ crumb.label }}</c-breadcrumb-item>
+        <c-breadcrumb-item
+          [active]="last"
+          [url]="last ? undefined : crumb.url"
+          >{{ crumb.label }}</c-breadcrumb-item
+        >
       }
     </c-breadcrumb>
   </c-container>
@@ -97,7 +101,10 @@
     </button>
     <ul cDropdownMenu class="pt-0 w-auto">
       <li>
-        <h6 cDropdownHeader class="bg-body-secondary text-body-secondary fw-semibold py-2 rounded-top">
+        <h6
+          cDropdownHeader
+          class="bg-body-secondary text-body-secondary fw-semibold py-2 rounded-top"
+        >
           {{ username || 'Conta' }}
         </h6>
       </li>

@@ -1,5 +1,5 @@
-@use "@coreui/coreui/scss/mixins/transition" as *;
-@use "@coreui/coreui/scss/mixins/color-mode" as *;
+@use '@coreui/coreui/scss/mixins/transition' as *;
+@use '@coreui/coreui/scss/mixins/color-mode' as *;
 
 body {
   background-color: var(--cui-tertiary-bg);
@@ -9,7 +9,7 @@ body {
   width: 100%;
   padding-inline: var(--cui-sidebar-occupy-start, 0) var(--cui-sidebar-occupy-end, 0);
   will-change: auto;
-  @include transition(padding .15s);
+  @include transition(padding 0.15s);
 }
 
 .header > .container-fluid,

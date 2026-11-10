@@ -37,7 +37,7 @@ export function batchSummary(counts: BatchCounts, verb: BatchVerb): string {
       ? verb.feminine
         ? plural(counts.ignored, 'ignorada', 'ignoradas')
         : plural(counts.ignored, 'ignorado', 'ignorados')
-      : ''
+      : '',
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : plural(0, verb.one, verb.many);
 }
@@ -107,7 +107,9 @@ export interface BatchRun<T, R> {
  * Envia os itens em grupos de até `size`, um grupo por vez, e separa o desfecho de cada item. Uma chamada que falha
  * inteira para o lote: os itens dela e dos grupos seguintes ficam em `unanswered`, com o problema em `error`.
  */
-export async function runBatch<T, R extends BatchItemResult>(options: BatchRunOptions<T, R>): Promise<BatchRun<T, R>> {
+export async function runBatch<T, R extends BatchItemResult>(
+  options: BatchRunOptions<T, R>,
+): Promise<BatchRun<T, R>> {
   const succeeded: BatchRunSuccess<T, R>[] = [];
   const failed: BatchRunFailure<T>[] = [];
   const unanswered: T[] = [];
@@ -115,7 +117,12 @@ export async function runBatch<T, R extends BatchItemResult>(options: BatchRunOp
   for (let index = 0; index < groups.length; index++) {
     const group = groups[index];
     if (options.signal?.aborted) {
-      return { succeeded, failed, unanswered: [...unanswered, ...groups.slice(index).flat()], interrupted: true };
+      return {
+        succeeded,
+        failed,
+        unanswered: [...unanswered, ...groups.slice(index).flat()],
+        interrupted: true,
+      };
     }
     let results: readonly R[];
     try {
@@ -126,10 +133,12 @@ export async function runBatch<T, R extends BatchItemResult>(options: BatchRunOp
         failed,
         unanswered: [...unanswered, ...groups.slice(index).flat()],
         error: toProblem(error),
-        interrupted: true
+        interrupted: true,
       };
     }
-    const byId = new Map(results.filter(result => result.id).map(result => [result.id, result]));
+    const byId = new Map(
+      results.filter((result) => result.id).map((result) => [result.id, result]),
+    );
     group.forEach((item, position) => {
       const result = byId.get(options.id(item)) ?? (byId.size ? undefined : results[position]);
       if (!result) {
@@ -146,7 +155,11 @@ export async function runBatch<T, R extends BatchItemResult>(options: BatchRunOp
 
 /** Contagem do lote para o resumo (`batchSummary`); os itens sem resposta contam como falha. */
 export function batchRunCounts(run: BatchRun<unknown, unknown>, ignored = 0): BatchCounts {
-  return { succeeded: run.succeeded.length, failed: run.failed.length + run.unanswered.length, ignored };
+  return {
+    succeeded: run.succeeded.length,
+    failed: run.failed.length + run.unanswered.length,
+    ignored,
+  };
 }
 
 const SUCCEEDED = 'SUCCEEDED';

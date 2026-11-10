@@ -3,8 +3,8 @@ services:
     image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     deploy:
       resources:
-        limits: {cpus: "0.35", memory: 1G}
-        reservations: {memory: 256M}
+        limits: { cpus: "0.35", memory: 1G }
+        reservations: { memory: 256M }
     profiles: [observability, all]
     # OTLP para as séries que o Collector deriva dos spans; remote write para o k6; exemplars para ir da métrica ao
     # trace.

@@ -1,4 +1,7 @@
-import type { AttributeType, EffectiveAttributeDto } from '@marketplace/catalog-inventory-admin-data-access';
+import type {
+  AttributeType,
+  EffectiveAttributeDto,
+} from '@marketplace/catalog-inventory-admin-data-access';
 
 /** Valor de um atributo no formulário: texto, número, ligado ou desligado, ou vazio. */
 export type AttributeValue = string | number | boolean | null;
@@ -20,21 +23,24 @@ export interface AttributeField {
  */
 export function attributeFields(
   attributes: readonly EffectiveAttributeDto[] | null | undefined,
-  variant: boolean
+  variant: boolean,
 ): AttributeField[] {
   return (attributes ?? [])
-    .filter(attribute => !!attribute.code && (attribute.variant === true) === variant)
-    .map(attribute => ({
+    .filter((attribute) => !!attribute.code && (attribute.variant === true) === variant)
+    .map((attribute) => ({
       code: attribute.code as string,
       label: attribute.label || (attribute.code as string),
       type: attribute.type ?? 'TEXT',
       required: attribute.required === true,
-      options: attribute.options ?? []
+      options: attribute.options ?? [],
     }));
 }
 
 /** Valor gravado (sempre texto na API) convertido para o controle do campo. */
-export function toControlValue(field: AttributeField, raw: string | null | undefined): AttributeValue {
+export function toControlValue(
+  field: AttributeField,
+  raw: string | null | undefined,
+): AttributeValue {
   if (raw === null || raw === undefined || raw === '') {
     return field.type === 'TEXT' || field.type === 'OPTION' ? '' : null;
   }
@@ -52,7 +58,10 @@ export function toControlValue(field: AttributeField, raw: string | null | undef
 }
 
 /** Valor do controle no texto que a API recebe; vazio fica de fora do mapa. */
-export function fromControlValue(field: AttributeField, value: AttributeValue | undefined): string | undefined {
+export function fromControlValue(
+  field: AttributeField,
+  value: AttributeValue | undefined,
+): string | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
@@ -68,7 +77,7 @@ export function fromControlValue(field: AttributeField, value: AttributeValue | 
 /** Mapa de atributos para a API a partir dos controles, só com os campos preenchidos. */
 export function attributeMap(
   fields: readonly AttributeField[],
-  values: Readonly<Record<string, AttributeValue | undefined>> | null | undefined
+  values: Readonly<Record<string, AttributeValue | undefined>> | null | undefined,
 ): Record<string, string> {
   const map: Record<string, string> = {};
   for (const field of fields) {
@@ -83,7 +92,7 @@ export function attributeMap(
 /** Os atributos gravados que os campos conhecem, sem os vazios, para comparar com o formulário. */
 export function knownAttributes(
   fields: readonly AttributeField[],
-  attributes: Readonly<Record<string, string>> | null | undefined
+  attributes: Readonly<Record<string, string>> | null | undefined,
 ): Record<string, string> {
   const map: Record<string, string> = {};
   for (const field of fields) {
@@ -98,7 +107,7 @@ export function knownAttributes(
 /** Indica se os dois mapas têm os mesmos atributos com os mesmos valores. */
 export function sameAttributes(
   left: Readonly<Record<string, string>> | null | undefined,
-  right: Readonly<Record<string, string>> | null | undefined
+  right: Readonly<Record<string, string>> | null | undefined,
 ): boolean {
   const a = Object.entries(left ?? {}).filter(([, value]) => value !== '');
   const b = Object.entries(right ?? {}).filter(([, value]) => value !== '');
@@ -106,7 +115,10 @@ export function sameAttributes(
 }
 
 /** Valor do atributo para leitura: o ligado e o desligado viram "Sim" e "Não". */
-export function displayAttributeValue(field: AttributeField | undefined, raw: string | null | undefined): string {
+export function displayAttributeValue(
+  field: AttributeField | undefined,
+  raw: string | null | undefined,
+): string {
   if (raw === null || raw === undefined) {
     return '';
   }
@@ -122,7 +134,7 @@ export function displayAttributeValue(field: AttributeField | undefined, raw: st
  */
 export function variationLabel(
   fields: readonly AttributeField[],
-  variantAttributes: Readonly<Record<string, string>> | null | undefined
+  variantAttributes: Readonly<Record<string, string>> | null | undefined,
 ): string {
   const values = { ...(variantAttributes ?? {}) };
   const parts: string[] = [];

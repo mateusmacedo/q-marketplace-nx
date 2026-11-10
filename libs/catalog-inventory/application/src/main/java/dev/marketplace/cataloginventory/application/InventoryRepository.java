@@ -10,26 +10,26 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface InventoryRepository {
-    /**
-     * Saldos atuais dos SKUs indicados; SKU sem saldo no tenant fica fora do
-     * mapa, e coleção vazia resulta em mapa vazio.
-     */
-    Uni<Map<UUID, StockLevel>> levels(UUID tenantId, Collection<UUID> skuIds);
+  /**
+   * Saldos atuais dos SKUs indicados; SKU sem saldo no tenant fica fora do
+   * mapa, e coleção vazia resulta em mapa vazio.
+   */
+  Uni<Map<UUID, StockLevel>> levels(UUID tenantId, Collection<UUID> skuIds);
 
-    /**
-     * Define o estoque físico do SKU da loja, com auditoria. Falha com
-     * {@link NotFoundException}, com
-     * {@link VersionMismatchException} quando {@code expectedVersion} não confere,
-     * ou com recusa
-     * {@code stock-below-reserved} quando o novo valor é menor que o reservado.
-     */
-    Uni<StockLevel> adjust(UUID tenantId, UUID storeId, UUID productId, UUID skuId, int onHand,
-            Optional<Long> expectedVersion,
-            String actor, Instant at);
+  /**
+   * Define o estoque físico do SKU da loja, com auditoria. Falha com
+   * {@link NotFoundException}, com
+   * {@link VersionMismatchException} quando {@code expectedVersion} não confere,
+   * ou com recusa
+   * {@code stock-below-reserved} quando o novo valor é menor que o reservado.
+   */
+  Uni<StockLevel> adjust(UUID tenantId, UUID storeId, UUID productId, UUID skuId, int onHand,
+      Optional<Long> expectedVersion,
+      String actor, Instant at);
 
-    /**
-     * Leitura autoritativa dos SKUs para a decisão de reserva; SKUs inexistentes no
-     * tenant ficam de fora.
-     */
-    Uni<Map<UUID, SkuCandidate>> candidates(UUID tenantId, Collection<UUID> skuIds);
+  /**
+   * Leitura autoritativa dos SKUs para a decisão de reserva; SKUs inexistentes no
+   * tenant ficam de fora.
+   */
+  Uni<Map<UUID, SkuCandidate>> candidates(UUID tenantId, Collection<UUID> skuIds);
 }

@@ -1,11 +1,23 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideCatalogInventoryApi, type ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
-import { AdminSession, BATCH_RUNNING_WARNING, NO_GRANTS, ToastService } from '@marketplace/shared-admin-ui';
+import {
+  provideCatalogInventoryApi,
+  type ProductResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  AdminSession,
+  BATCH_RUNNING_WARNING,
+  NO_GRANTS,
+  ToastService,
+} from '@marketplace/shared-admin-ui';
 
 import { ProductListPageComponent } from './product-list-page.component';
 
@@ -14,7 +26,11 @@ const STORE = '22222222-2222-4222-8222-222222222222';
 
 const NOT_PUBLISHABLE = {
   action: 'SUBMIT',
-  reason: { code: 'product-not-publishable', params: [], message: 'O produto ainda tem pendências para ser publicado.' }
+  reason: {
+    code: 'product-not-publishable',
+    params: [],
+    message: 'O produto ainda tem pendências para ser publicado.',
+  },
 };
 
 const CAMISETA: ProductResponse = {
@@ -25,7 +41,7 @@ const CAMISETA: ProductResponse = {
   skus: [{}, {}, {}],
   createdAt: '2026-11-02T13:12:00Z',
   updatedAt: '2026-11-08T17:02:00Z',
-  actions: ['EDIT', 'PAUSE', 'ARCHIVE', 'CHANGE_CATEGORY']
+  actions: ['EDIT', 'PAUSE', 'ARCHIVE', 'CHANGE_CATEGORY'],
 };
 const TENIS: ProductResponse = {
   id: 'p-2',
@@ -39,8 +55,8 @@ const TENIS: ProductResponse = {
   lastRejection: {
     reasonCodes: ['wrong-category'],
     reasonLabels: [{ code: 'wrong-category', label: 'Categoria incorreta' }],
-    note: 'Use Calçados'
-  }
+    note: 'Use Calçados',
+  },
 };
 const CANECA: ProductResponse = {
   id: 'p-3',
@@ -49,7 +65,12 @@ const CANECA: ProductResponse = {
   version: 2,
   skus: [{}],
   actions: ['EDIT', 'ARCHIVE'],
-  blockedActions: [{ action: 'RESUME', reason: { code: 'seller-not-eligible', message: 'A loja ainda não foi aprovada.' } }]
+  blockedActions: [
+    {
+      action: 'RESUME',
+      reason: { code: 'seller-not-eligible', message: 'A loja ainda não foi aprovada.' },
+    },
+  ],
 };
 
 class FakeSession extends AdminSession {
@@ -59,7 +80,7 @@ class FakeSession extends AdminSession {
 }
 
 @Component({ template: '<h1>Conteúdo</h1>' })
-class ContentStub { }
+class ContentStub {}
 
 class InertIntersectionObserver {
   observe(): void {
@@ -86,13 +107,16 @@ describe('ProductListPageComponent', () => {
   const paramsOf = (request: TestRequest) =>
     Object.fromEntries(new URL(request.request.urlWithParams, 'http://localhost').searchParams);
   const listRequest = () =>
-    http.expectOne(request => request.method === 'GET' && request.url.startsWith(`${API}/products?`));
+    http.expectOne(
+      (request) => request.method === 'GET' && request.url.startsWith(`${API}/products?`),
+    );
   const eligibilityRequest = () => http.expectOne(`${API}/stores/${STORE}/eligibility`);
   const rows = () => Array.from(element().querySelectorAll('tbody tr')) as HTMLTableRowElement[];
-  const row = (title: string) => rows().find(item => item.textContent?.includes(title)) as HTMLTableRowElement;
+  const row = (title: string) =>
+    rows().find((item) => item.textContent?.includes(title)) as HTMLTableRowElement;
   const buttonByText = (root: ParentNode, label: string) =>
     (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      button => button.textContent?.replace(/\s+/g, ' ').trim() === label
+      (button) => button.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const menuItem = (title: string, label: string) => buttonByText(row(title), label);
   const render = () => TestBed.tick();
@@ -106,7 +130,11 @@ describe('ProductListPageComponent', () => {
       return listRequest();
     });
 
-  async function open(url = '/loja/produtos', items: ProductResponse[] = [CAMISETA, TENIS, CANECA], canPublish = true) {
+  async function open(
+    url = '/loja/produtos',
+    items: ProductResponse[] = [CAMISETA, TENIS, CANECA],
+    canPublish = true,
+  ) {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
@@ -114,17 +142,21 @@ describe('ProductListPageComponent', () => {
         provideCatalogInventoryApi(),
         provideRouter([
           { path: 'loja/produtos', component: ProductListPageComponent },
-          { path: 'loja/produtos/:id/conteudo', component: ContentStub }
+          { path: 'loja/produtos/:id/conteudo', component: ContentStub },
         ]),
-        { provide: AdminSession, useClass: FakeSession }
-      ]
+        { provide: AdminSession, useClass: FakeSession },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
     page = await harness.navigateByUrl(url, ProductListPageComponent);
     render();
     const list = listRequest();
-    eligibilityRequest().flush({ storeId: STORE, status: canPublish ? 'APPROVED' : 'PENDING', canPublish });
+    eligibilityRequest().flush({
+      storeId: STORE,
+      status: canPublish ? 'APPROVED' : 'PENDING',
+      canPublish,
+    });
     list.flush({ items, nextCursor: 'c-2' });
     await settle();
     return list;
@@ -132,7 +164,10 @@ describe('ProductListPageComponent', () => {
 
   beforeAll(() => {
     if (!('IntersectionObserver' in globalThis)) {
-      Object.defineProperty(globalThis, 'IntersectionObserver', { configurable: true, value: InertIntersectionObserver });
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        configurable: true,
+        value: InertIntersectionObserver,
+      });
     }
   });
 
@@ -141,7 +176,12 @@ describe('ProductListPageComponent', () => {
   it('lista os produtos da URL com status, título como link, SKUs e o menu do que o servidor libera', async () => {
     const list = await open('/loja/produtos?status=ACTIVE&q=camiseta&limit=50');
 
-    expect(paramsOf(list)).toEqual({ status: 'ACTIVE', q: 'camiseta', sort: '-updatedAt', limit: '50' });
+    expect(paramsOf(list)).toEqual({
+      status: 'ACTIVE',
+      q: 'camiseta',
+      sort: '-updatedAt',
+      limit: '50',
+    });
     expect(element().querySelector('h1')?.textContent?.trim()).toBe('Produtos');
     expect(rows()).toHaveLength(3);
     const link = row('Camiseta Basic').querySelector('a') as HTMLAnchorElement;
@@ -149,9 +189,11 @@ describe('ProductListPageComponent', () => {
     expect(row('Camiseta Basic').textContent).toContain('Ativo');
     expect(row('Camiseta Basic').querySelector('strong')?.textContent?.trim()).toBe('3');
     expect(row('Camiseta Basic').querySelectorAll('.d-xl-table-cell')).toHaveLength(1);
-    expect(Array.from(row('Camiseta Basic').querySelectorAll('[cDropdownItem]')).map(item => item.textContent?.trim())).toEqual(
-      ['Editar', 'Pausar', 'Arquivar']
-    );
+    expect(
+      Array.from(row('Camiseta Basic').querySelectorAll('[cDropdownItem]')).map((item) =>
+        item.textContent?.trim(),
+      ),
+    ).toEqual(['Editar', 'Pausar', 'Arquivar']);
     const resume = menuItem('Caneca 300ml', 'Reativar : A loja ainda não foi aprovada.');
     expect(resume.disabled).toBe(true);
     const active = element().querySelector('[aria-current="page"]');
@@ -162,8 +204,8 @@ describe('ProductListPageComponent', () => {
   it('mostra o Rejeitado com os rótulos e o complemento da última rejeição, sem o código do motivo', async () => {
     await open();
 
-    const badge = Array.from(row('Tênis Run').querySelectorAll('c-badge')).find(item =>
-      item.textContent?.includes('Rejeitado')
+    const badge = Array.from(row('Tênis Run').querySelectorAll('c-badge')).find((item) =>
+      item.textContent?.includes('Rejeitado'),
     );
     expect(badge?.textContent).toContain('Motivo: Categoria incorreta. Complemento: Use Calçados');
     expect(row('Tênis Run').textContent).not.toContain('wrong-category');
@@ -174,7 +216,7 @@ describe('ProductListPageComponent', () => {
     await open('/loja/produtos', [CAMISETA], false);
 
     expect(text()).toContain(
-      'Sua loja ainda não foi aprovada. Você pode cadastrar produtos, mas eles só são aprovados depois do KYB/KYC.'
+      'Sua loja ainda não foi aprovada. Você pode cadastrar produtos, mas eles só são aprovados depois do KYB/KYC.',
     );
   });
 
@@ -198,8 +240,8 @@ describe('ProductListPageComponent', () => {
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
         provideRouter([{ path: 'loja/produtos', component: ProductListPageComponent }]),
-        { provide: AdminSession, useClass: FakeSession }
-      ]
+        { provide: AdminSession, useClass: FakeSession },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
@@ -207,8 +249,12 @@ describe('ProductListPageComponent', () => {
     render();
     eligibilityRequest().flush({ canPublish: true });
     listRequest().flush(
-      { type: 'https://marketplace.dev/problems/service-unavailable', title: 'Indisponível', detail: 'Banco fora do ar' },
-      { status: 503, statusText: 'Service Unavailable' }
+      {
+        type: 'https://marketplace.dev/problems/service-unavailable',
+        title: 'Indisponível',
+        detail: 'Banco fora do ar',
+      },
+      { status: 503, statusText: 'Service Unavailable' },
     );
     await settle();
 
@@ -228,8 +274,8 @@ describe('ProductListPageComponent', () => {
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
         provideRouter([{ path: 'loja/produtos', component: ProductListPageComponent }]),
-        { provide: AdminSession, useClass: FakeSession }
-      ]
+        { provide: AdminSession, useClass: FakeSession },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
@@ -241,22 +287,24 @@ describe('ProductListPageComponent', () => {
         type: 'https://marketplace.dev/problems/validation-failed',
         title: 'Um ou mais campos são inválidos',
         status: 400,
-        errors: [{ field: 'q', message: 'A busca pode ter no máximo 100 caracteres.' }]
+        errors: [{ field: 'q', message: 'A busca pode ter no máximo 100 caracteres.' }],
       },
-      { status: 400, statusText: 'Bad Request' }
+      { status: 400, statusText: 'Bad Request' },
     );
     await settle();
 
     const search = element().querySelector('input[name="q"]') as HTMLInputElement;
     expect(search.getAttribute('maxlength')).toBe('100');
-    expect(search.closest('form')?.textContent).toContain('A busca pode ter no máximo 100 caracteres.');
+    expect(search.closest('form')?.textContent).toContain(
+      'A busca pode ter no máximo 100 caracteres.',
+    );
     expect(text()).not.toContain('Não foi possível carregar os produtos.');
     expect(text()).toContain('Corrija a busca para ver os produtos.');
 
     (search.closest('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     render();
     expect(search.closest('form')?.textContent).toContain('A busca aceita até 100 caracteres.');
-    http.expectNone(request => request.url.startsWith(`${API}/products?`));
+    http.expectNone((request) => request.url.startsWith(`${API}/products?`));
 
     buttonByText(element(), 'Limpar busca').click();
     const list = await nextList();
@@ -286,9 +334,11 @@ describe('ProductListPageComponent', () => {
     expect(pause.request.headers.get('If-Match')).toBe('"3"');
     pause.flush({ ...CAMISETA, status: 'PAUSED_BY_SELLER', version: 4 });
     (await nextList()).flush({ items: [CAMISETA] });
-    expect(TestBed.inject(ToastService).toasts().map(toast => toast.message)).toEqual([
-      'Produto pausado. Ele sai da vitrine até você reativar.'
-    ]);
+    expect(
+      TestBed.inject(ToastService)
+        .toasts()
+        .map((toast) => toast.message),
+    ).toEqual(['Produto pausado. Ele sai da vitrine até você reativar.']);
   });
 
   it('abre o produto na aba Conteúdo pelo Editar', async () => {
@@ -306,7 +356,7 @@ describe('ProductListPageComponent', () => {
     menuItem('Camiseta Basic', 'Pausar').click();
     (await vi.waitFor(() => http.expectOne(`${API}/products/p-1/pause`))).flush(
       { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão desatualizada' },
-      { status: 412, statusText: 'Precondition Failed' }
+      { status: 412, statusText: 'Precondition Failed' },
     );
 
     await vi.waitFor(() => {
@@ -328,9 +378,9 @@ describe('ProductListPageComponent', () => {
         type: 'https://marketplace.dev/problems/domain-rule-violation',
         title: 'Regra de negócio violada',
         reasons: ['product-not-publishable'],
-        reasonDetails: [NOT_PUBLISHABLE.reason]
+        reasonDetails: [NOT_PUBLISHABLE.reason],
       },
-      { status: 422, statusText: 'Unprocessable Entity' }
+      { status: 422, statusText: 'Unprocessable Entity' },
     );
 
     await vi.waitFor(() => {
@@ -379,8 +429,8 @@ describe('ProductListPageComponent', () => {
       action: 'PAUSE',
       items: [
         { id: 'p-1', version: 3 },
-        { id: 'p-4', version: 5 }
-      ]
+        { id: 'p-4', version: 5 },
+      ],
     });
     batch.flush({
       results: [
@@ -391,18 +441,20 @@ describe('ProductListPageComponent', () => {
           problem: {
             type: 'https://marketplace.dev/problems/version-mismatch',
             title: 'Versão desatualizada',
-            detail: 'O produto mudou depois da leitura.'
-          }
-        }
-      ]
+            detail: 'O produto mudou depois da leitura.',
+          },
+        },
+      ],
     });
 
     const reload = await nextList();
     expect(page.leaveWarning()).toBeNull();
-    expect(TestBed.inject(ToastService).toasts().map(toast => [toast.kind, toast.message])).toEqual([
-      ['warning', '1 pausado, 1 com falha, 1 ignorado']
-    ]);
-    expect(page.selection.items().map(product => product.id)).toEqual(['p-2', 'p-4']);
+    expect(
+      TestBed.inject(ToastService)
+        .toasts()
+        .map((toast) => [toast.kind, toast.message]),
+    ).toEqual([['warning', '1 pausado, 1 com falha, 1 ignorado']]);
+    expect(page.selection.items().map((product) => product.id)).toEqual(['p-2', 'p-4']);
     reload.flush({ items: [CAMISETA, TENIS, other] });
     await settle();
     expect(text()).toContain('Alguns produtos não foram processados');
@@ -425,9 +477,11 @@ describe('ProductListPageComponent', () => {
     expect(batch.request.body).toEqual({ action: 'ARCHIVE', items: [{ id: 'p-3', version: 2 }] });
     batch.flush({ results: [{ id: 'p-3', outcome: 'SUCCEEDED', status: 'ARCHIVED', version: 3 }] });
     (await nextList()).flush({ items: [] });
-    expect(TestBed.inject(ToastService).toasts().map(toast => [toast.kind, toast.message])).toEqual([
-      ['success', '1 arquivado']
-    ]);
+    expect(
+      TestBed.inject(ToastService)
+        .toasts()
+        .map((toast) => [toast.kind, toast.message]),
+    ).toEqual([['success', '1 arquivado']]);
   });
 
   it('limpa a seleção quando muda o filtro', async () => {

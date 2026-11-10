@@ -17,7 +17,7 @@ import { ConfirmModalComponent } from './confirm-modal.component';
     >
       <p>"Camiseta Basic" sai da vitrine na hora.</p>
     </app-confirm-modal>
-  `
+  `,
 })
 class ModalHost {
   readonly visible = signal(true);
@@ -30,9 +30,11 @@ describe('ConfirmModalComponent', () => {
   let fixture: ComponentFixture<ModalHost>;
 
   const button = (text: string) =>
-    (Array.from(fixture.nativeElement.querySelectorAll('c-modal-footer button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.trim() === text
-    ) as HTMLButtonElement;
+    (
+      Array.from(
+        fixture.nativeElement.querySelectorAll('c-modal-footer button'),
+      ) as HTMLButtonElement[]
+    ).find((item) => item.textContent?.trim() === text) as HTMLButtonElement;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({ imports: [ModalHost] }).compileComponents();
@@ -68,7 +70,7 @@ describe('ConfirmModalComponent', () => {
 
     button('Cancelar').click();
     await fixture.whenStable();
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(document.activeElement).toBe(opener);
     opener.remove();

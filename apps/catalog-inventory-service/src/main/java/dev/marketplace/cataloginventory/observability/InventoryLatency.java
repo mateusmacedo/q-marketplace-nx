@@ -16,35 +16,35 @@ import java.time.Duration;
  */
 @ApplicationScoped
 public class InventoryLatency {
-    static final String NAME = "catalog.inventory.update.latency";
-    static final Duration SLO_THRESHOLD = Duration.ofMillis(500);
-    private final MeterRegistry registry;
+  static final String NAME = "catalog.inventory.update.latency";
+  static final Duration SLO_THRESHOLD = Duration.ofMillis(500);
+  private final MeterRegistry registry;
 
-    InventoryLatency(MeterRegistry registry) {
-        this.registry = registry;
-    }
+  InventoryLatency(MeterRegistry registry) {
+    this.registry = registry;
+  }
 
-    /**
-     * Cronometra cada assinatura de {@code work} até o item ({@code success}) ou
-     * a falha ({@code failure}); cancelamento não gera amostra. Só envolve o
-     * {@code Uni}, sem bloquear a thread.
-     */
-    public <T> Uni<T> timed(String operation, Uni<T> work) {
-        return Uni.createFrom().deferred(() -> {
-            Timer.Sample sample = Timer.start(registry);
-            return work.onItemOrFailure().invoke((item, failure) -> sample.stop(
-                    timer(operation, failure == null ? "success" : "failure")));
-        });
-    }
+  /**
+   * Cronometra cada assinatura de {@code work} até o item ({@code success}) ou
+   * a falha ({@code failure}); cancelamento não gera amostra. Só envolve o
+   * {@code Uni}, sem bloquear a thread.
+   */
+  public <T> Uni<T> timed(String operation, Uni<T> work) {
+    return Uni.createFrom().deferred(() -> {
+      Timer.Sample sample = Timer.start(registry);
+      return work.onItemOrFailure().invoke((item, failure) -> sample.stop(
+          timer(operation, failure == null ? "success" : "failure")));
+    });
+  }
 
-    private Timer timer(String operation, String outcome) {
-        return Timer.builder(NAME)
-                .description("Duração das escritas de inventário e oferta")
-                .tags("operation", operation, "outcome", outcome)
-                .publishPercentileHistogram()
-                .minimumExpectedValue(Duration.ofMillis(1))
-                .maximumExpectedValue(Duration.ofSeconds(10))
-                .serviceLevelObjectives(SLO_THRESHOLD)
-                .register(registry);
-    }
+  private Timer timer(String operation, String outcome) {
+    return Timer.builder(NAME)
+        .description("Duração das escritas de inventário e oferta")
+        .tags("operation", operation, "outcome", outcome)
+        .publishPercentileHistogram()
+        .minimumExpectedValue(Duration.ofMillis(1))
+        .maximumExpectedValue(Duration.ofSeconds(10))
+        .serviceLevelObjectives(SLO_THRESHOLD)
+        .register(registry);
+  }
 }

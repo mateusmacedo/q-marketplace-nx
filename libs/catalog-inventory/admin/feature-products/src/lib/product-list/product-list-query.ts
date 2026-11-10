@@ -1,5 +1,8 @@
 import type { ParamMap } from '@angular/router';
-import type { ListProductsData, RejectionResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import type {
+  ListProductsData,
+  RejectionResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { PRODUCT_STATUSES, type ProductStatus } from '@marketplace/catalog-inventory-admin-ui';
 import { fieldErrors, type PageSize, type Problem, toPageSize } from '@marketplace/shared-web-util';
 
@@ -15,7 +18,7 @@ const SORTS = {
   createdAt: true,
   '-createdAt': true,
   updatedAt: true,
-  '-updatedAt': true
+  '-updatedAt': true,
 } as const satisfies Record<ProductSort, true>;
 
 // WHY: cópia pendente (ADR 031); saída: maxLength do parâmetro q no schema gerado.
@@ -57,13 +60,13 @@ const TAB_LABELS: Readonly<Record<ProductStatus, string>> = {
   OUT_OF_STOCK: 'Sem estoque',
   PAUSED_BY_SELLER: 'Pausados',
   BLOCKED: 'Bloqueados',
-  ARCHIVED: 'Arquivados'
+  ARCHIVED: 'Arquivados',
 };
 
 /** Abas da lista, na ordem dos status, com Todos primeiro. */
 export const STATUS_TABS: readonly StatusTab[] = [
   { status: null, label: 'Todos' },
-  ...PRODUCT_STATUSES.map(status => ({ status, label: TAB_LABELS[status] }))
+  ...PRODUCT_STATUSES.map((status) => ({ status, label: TAB_LABELS[status] })),
 ];
 
 const EMPTY_BY_STATUS: Readonly<Record<ProductStatus, string>> = {
@@ -73,7 +76,7 @@ const EMPTY_BY_STATUS: Readonly<Record<ProductStatus, string>> = {
   OUT_OF_STOCK: 'sem estoque',
   PAUSED_BY_SELLER: 'pausado',
   BLOCKED: 'bloqueado',
-  ARCHIVED: 'arquivado'
+  ARCHIVED: 'arquivado',
 };
 
 /**
@@ -86,10 +89,13 @@ export function readProductListQuery(params: ParamMap): ProductListQuery {
   return {
     status: PRODUCT_STATUSES.includes(status as ProductStatus) ? (status as ProductStatus) : null,
     q: params.get('q')?.trim() ?? '',
-    sort: sort !== null && Object.prototype.hasOwnProperty.call(SORTS, sort) ? (sort as ProductSort) : DEFAULT_PRODUCT_SORT,
+    sort:
+      sort !== null && Object.prototype.hasOwnProperty.call(SORTS, sort)
+        ? (sort as ProductSort)
+        : DEFAULT_PRODUCT_SORT,
     limit: toPageSize(params.get('limit')),
     cursor: params.get('cursor') || null,
-    storeId: params.get('storeId')?.trim() || null
+    storeId: params.get('storeId')?.trim() || null,
   };
 }
 
@@ -101,13 +107,19 @@ export function productListRequest(query: ProductListQuery): ListProductsQuery {
     ...(query.status ? { status: query.status } : {}),
     ...(query.q ? { q: query.q } : {}),
     ...(query.cursor ? { cursor: query.cursor } : {}),
-    ...(query.storeId ? { storeId: query.storeId } : {})
+    ...(query.storeId ? { storeId: query.storeId } : {}),
   };
 }
 
 /** Recorte que a seleção em lote acompanha: mudar qualquer um destes limpa a seleção; o cursor não conta. */
 export function selectionScope(query: ProductListQuery): Readonly<Record<string, unknown>> {
-  return { status: query.status, q: query.q, sort: query.sort, limit: query.limit, storeId: query.storeId };
+  return {
+    status: query.status,
+    q: query.q,
+    sort: query.sort,
+    limit: query.limit,
+    storeId: query.storeId,
+  };
 }
 
 /** Texto do estado vazio para o recorte ("Nenhum produto em rascunho."). */
@@ -130,11 +142,13 @@ export function rejectionSummary(rejection: RejectionResponse | null | undefined
   if (!rejection) {
     return null;
   }
-  const labels = (rejection.reasonLabels ?? []).map(reason => reason.label?.trim() ?? '').filter(Boolean);
+  const labels = (rejection.reasonLabels ?? [])
+    .map((reason) => reason.label?.trim() ?? '')
+    .filter(Boolean);
   const note = rejection.note?.trim();
   const parts = [
     labels.length ? `${labels.length === 1 ? 'Motivo' : 'Motivos'}: ${labels.join(', ')}` : '',
-    note ? `Complemento: ${note}` : ''
+    note ? `Complemento: ${note}` : '',
   ].filter(Boolean);
   return parts.length ? parts.join('. ') : 'Rejeitado na moderação, sem motivo informado.';
 }

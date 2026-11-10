@@ -19,7 +19,7 @@ export const PRODUCT_STATUSES: readonly ProductStatus[] = [
   'OUT_OF_STOCK',
   'PAUSED_BY_SELLER',
   'BLOCKED',
-  'ARCHIVED'
+  'ARCHIVED',
 ];
 
 /** Rótulo e cores do badge de um status. */
@@ -36,7 +36,7 @@ const LOOKS: Readonly<Record<ProductStatus, ProductStatusLook>> = {
   OUT_OF_STOCK: { label: 'Sem estoque', color: 'danger' },
   PAUSED_BY_SELLER: { label: 'Pausado', color: 'warning' },
   BLOCKED: { label: 'Bloqueado', color: 'dark' },
-  ARCHIVED: { label: 'Arquivado', color: 'light', textColor: 'dark' }
+  ARCHIVED: { label: 'Arquivado', color: 'light', textColor: 'dark' },
 };
 
 /** Rótulo do status ("Em moderação"); status desconhecido volta como veio. */

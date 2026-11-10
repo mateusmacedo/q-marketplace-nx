@@ -11,16 +11,16 @@ import org.eclipse.microprofile.openapi.models.responses.APIResponse;
  */
 @OpenApiFilter(stages = OpenApiFilter.RunStage.BUILD)
 public class OpenApiDescriptions implements OASFilter {
-    private static final Map<String, String> PT_BR = Map.of(
-            "Bad Request", "Requisição inválida",
-            "Not Authorized", "Token ausente, expirado ou inválido",
-            "Not Allowed", "Papel sem permissão para a operação");
+  private static final Map<String, String> PT_BR = Map.of(
+      "Bad Request", "Requisição inválida",
+      "Not Authorized", "Token ausente, expirado ou inválido",
+      "Not Allowed", "Papel sem permissão para a operação");
 
-    @Override
-    public APIResponse filterAPIResponse(APIResponse response) {
-        String translated = PT_BR.get(response.getDescription());
-        if (translated != null)
-            response.setDescription(translated);
-        return response;
-    }
+  @Override
+  public APIResponse filterAPIResponse(APIResponse response) {
+    String translated = PT_BR.get(response.getDescription());
+    if (translated != null)
+      response.setDescription(translated);
+    return response;
+  }
 }

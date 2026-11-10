@@ -1,5 +1,8 @@
 import { DestroyRef, DOCUMENT, inject, type Signal, signal } from '@angular/core';
-import type { ActivityResponse, MonthValueResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import type {
+  ActivityResponse,
+  MonthValueResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import type { ChartData, ChartOptions } from 'chart.js';
 
 import { bucketLabel } from './home-activity';
@@ -41,7 +44,7 @@ export function chartPalette(root: Element): ChartPalette {
     danger: read('--cui-danger'),
     success: read('--cui-success'),
     border: read('--cui-border-color-translucent'),
-    text: read('--cui-body-color')
+    text: read('--cui-body-color'),
   };
 }
 
@@ -66,9 +69,9 @@ export function widgetChart(
   months: readonly MonthValueResponse[],
   kind: WidgetChartKind,
   label: string,
-  pointColor: string | undefined
+  pointColor: string | undefined,
 ): ChartConfig {
-  const values = months.map(month => month.value ?? null);
+  const values = months.map((month) => month.value ?? null);
   const filled = kind === 'area' || kind === 'bar';
   const dataset = {
     label,
@@ -78,12 +81,12 @@ export function widgetChart(
     pointBackgroundColor: pointColor,
     pointHoverBorderColor: pointColor,
     ...(kind === 'area' ? { fill: true } : {}),
-    ...(kind === 'bar' ? { barPercentage: 0.7 } : {})
+    ...(kind === 'bar' ? { barPercentage: 0.7 } : {}),
   };
   return {
     type: kind === 'bar' ? 'bar' : 'line',
-    data: { labels: months.map(month => bucketLabel(month.month, 'month')), datasets: [dataset] },
-    options: widgetOptions(kind, values)
+    data: { labels: months.map((month) => bucketLabel(month.month, 'month')), datasets: [dataset] },
+    options: widgetOptions(kind, values),
   };
 }
 
@@ -94,12 +97,14 @@ export function widgetChart(
 export function activityChart(activity: ActivityResponse, palette: ChartPalette): ChartConfig {
   const points = activity.points ?? [];
   const granularity = activity.granularity ?? 'month';
-  const approved = points.map(point => point.approved ?? 0);
-  const average = points.length ? Math.round((approved.reduce((sum, value) => sum + value, 0) * 10) / points.length) / 10 : 0;
+  const approved = points.map((point) => point.approved ?? 0);
+  const average = points.length
+    ? Math.round((approved.reduce((sum, value) => sum + value, 0) * 10) / points.length) / 10
+    : 0;
   return {
     type: 'line',
     data: {
-      labels: points.map(point => bucketLabel(point.period, granularity)),
+      labels: points.map((point) => bucketLabel(point.period, granularity)),
       datasets: [
         {
           label: 'Aprovados',
@@ -108,14 +113,14 @@ export function activityChart(activity: ActivityResponse, palette: ChartPalette)
           borderColor: palette.info,
           pointHoverBackgroundColor: palette.info,
           borderWidth: 2,
-          fill: true
+          fill: true,
         },
         {
           label: 'Enviados à moderação',
-          data: points.map(point => point.submitted ?? 0),
+          data: points.map((point) => point.submitted ?? 0),
           backgroundColor: 'transparent',
           borderColor: palette.success,
-          pointHoverBackgroundColor: '#fff'
+          pointHoverBackgroundColor: '#fff',
         },
         {
           label: 'Média de aprovados',
@@ -124,27 +129,30 @@ export function activityChart(activity: ActivityResponse, palette: ChartPalette)
           borderColor: palette.danger,
           pointHoverBackgroundColor: palette.danger,
           borderWidth: 1,
-          borderDash: [8, 5]
-        }
-      ]
+          borderDash: [8, 5],
+        },
+      ],
     },
     options: {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: palette.border, drawOnChartArea: false }, ticks: { color: palette.text } },
+        x: {
+          grid: { color: palette.border, drawOnChartArea: false },
+          ticks: { color: palette.text },
+        },
         y: {
           beginAtZero: true,
           border: { color: palette.border },
           grid: { color: palette.border },
-          ticks: { color: palette.text, maxTicksLimit: 5, precision: 0 }
-        }
+          ticks: { color: palette.text, maxTicksLimit: 5, precision: 0 },
+        },
       },
       elements: {
         line: { tension: 0.4 },
-        point: { radius: 0, hitRadius: 10, hoverRadius: 4, hoverBorderWidth: 3 }
-      }
-    }
+        point: { radius: 0, hitRadius: 10, hoverRadius: 4, hoverBorderWidth: 3 },
+      },
+    },
   };
 }
 
@@ -154,8 +162,10 @@ export function withAlpha(color: string | undefined, alpha: number): string | un
   if (!hex) {
     return color;
   }
-  const full = hex.length === 3 ? [...hex].map(digit => digit + digit).join('') : hex;
-  const [red, green, blue] = [0, 2, 4].map(start => Number.parseInt(full.slice(start, start + 2), 16));
+  const full = hex.length === 3 ? [...hex].map((digit) => digit + digit).join('') : hex;
+  const [red, green, blue] = [0, 2, 4].map((start) =>
+    Number.parseInt(full.slice(start, start + 2), 16),
+  );
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
@@ -166,7 +176,10 @@ function widgetOptions(kind: WidgetChartKind, values: readonly (number | null)[]
       plugins: { legend: hidden },
       maintainAspectRatio: false,
       scales: { x: hidden, y: hidden },
-      elements: { line: { borderWidth: 2, tension: 0.4 }, point: { radius: 0, hitRadius: 10, hoverRadius: 4 } }
+      elements: {
+        line: { borderWidth: 2, tension: 0.4 },
+        point: { radius: 0, hitRadius: 10, hoverRadius: 4 },
+      },
     };
   }
   if (kind === 'bar') {
@@ -175,8 +188,8 @@ function widgetOptions(kind: WidgetChartKind, values: readonly (number | null)[]
       maintainAspectRatio: false,
       scales: {
         x: { border: hidden, grid: { display: false, drawTicks: false }, ticks: hidden },
-        y: { display: false, grid: hidden, ticks: hidden }
-      }
+        y: { display: false, grid: hidden, ticks: hidden },
+      },
     };
   }
   return {
@@ -184,12 +197,12 @@ function widgetOptions(kind: WidgetChartKind, values: readonly (number | null)[]
     maintainAspectRatio: false,
     scales: {
       x: { border: hidden, grid: hidden, ticks: hidden },
-      y: { display: false, grid: hidden, ticks: hidden, ...lineRange(values) }
+      y: { display: false, grid: hidden, ticks: hidden, ...lineRange(values) },
     },
     elements: {
       line: { borderWidth: 1, tension: kind === 'straight' ? 0 : 0.4 },
-      point: { radius: 4, hitRadius: 10, hoverRadius: 4 }
-    }
+      point: { radius: 4, hitRadius: 10, hoverRadius: 4 },
+    },
   };
 }
 

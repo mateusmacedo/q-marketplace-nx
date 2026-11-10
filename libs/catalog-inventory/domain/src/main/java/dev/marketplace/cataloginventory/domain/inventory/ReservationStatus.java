@@ -5,5 +5,5 @@ package dev.marketplace.cataloginventory.domain.inventory;
  * retém estoque.
  */
 public enum ReservationStatus {
-    ACTIVE, COMMITTED, RELEASED, EXPIRED
+  ACTIVE, COMMITTED, RELEASED, EXPIRED
 }

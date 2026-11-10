@@ -10,10 +10,7 @@
     "importHelpers": true,
     "target": "es2015",
     "module": "esnext",
-    "lib": [
-      "es2020",
-      "dom"
-    ],
+    "lib": ["es2020", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "strict": false,
@@ -21,12 +18,8 @@
       "@marketplace/catalog-inventory-admin-data-access": [
         "./libs/catalog-inventory/admin/data-access/src/index.ts"
       ],
-      "@marketplace/shared-admin-ui": [
-        "./libs/shared/admin-ui/src/index.ts"
-      ],
-      "@marketplace/catalog-inventory-admin-ui": [
-        "./libs/catalog-inventory/admin/ui/src/index.ts"
-      ],
+      "@marketplace/shared-admin-ui": ["./libs/shared/admin-ui/src/index.ts"],
+      "@marketplace/catalog-inventory-admin-ui": ["./libs/catalog-inventory/admin/ui/src/index.ts"],
       "@marketplace/catalog-inventory-admin-feature-products": [
         "./libs/catalog-inventory/admin/feature-products/src/index.ts"
       ],
@@ -42,13 +35,8 @@
       "@marketplace/catalog-inventory-admin-feature-categories": [
         "./libs/catalog-inventory/admin/feature-categories/src/index.ts"
       ],
-      "@marketplace/shared-web-util": [
-        "./libs/shared/web-util/src/index.ts"
-      ]
+      "@marketplace/shared-web-util": ["./libs/shared/web-util/src/index.ts"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "tmp"
-  ]
+  "exclude": ["node_modules", "tmp"]
 }

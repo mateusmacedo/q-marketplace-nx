@@ -1,6 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  ActivatedRoute,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
 import {
   CardBodyComponent,
   CardComponent,
@@ -8,9 +21,12 @@ import {
   NavComponent,
   NavItemComponent,
   NavLinkDirective,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
-import { type ChecklistItem, SubmissionChecklistComponent } from '@marketplace/catalog-inventory-admin-ui';
+import {
+  type ChecklistItem,
+  SubmissionChecklistComponent,
+} from '@marketplace/catalog-inventory-admin-ui';
 import { ErrorStateComponent, LoadingStateComponent } from '@marketplace/shared-admin-ui';
 import { map } from 'rxjs';
 
@@ -42,7 +58,7 @@ import { PRODUCT_TABS } from './product-tabs';
     RouterLinkActive,
     RouterOutlet,
     RowComponent,
-    SubmissionChecklistComponent
+    SubmissionChecklistComponent,
   ],
   template: `
     @if (store.product()) {
@@ -101,7 +117,7 @@ import { PRODUCT_TABS } from './product-tabs';
         </c-card-body>
       </c-card>
     }
-  `
+  `,
 })
 export class ProductPageComponent {
   readonly store = inject(ProductStore);
@@ -109,13 +125,15 @@ export class ProductPageComponent {
   readonly #router = inject(Router);
 
   readonly tabs = PRODUCT_TABS;
-  readonly #id = toSignal(this.#route.paramMap.pipe(map(params => params.get('id'))), { initialValue: null });
+  readonly #id = toSignal(this.#route.paramMap.pipe(map((params) => params.get('id'))), {
+    initialValue: null,
+  });
   readonly showChecklist = computed(() => this.store.rules().showChecklist);
 
   /** Pendências do produto salvo ou, com mudanças não salvas no conteúdo, as do rascunho conferido no servidor. */
   readonly draftCheck = productDraftCheck(
     () => this.store.product(),
-    () => this.store.draft()
+    () => this.store.draft(),
   );
   readonly checklistIssues = computed(() => this.store.refusal() ?? this.draftCheck.issues());
 

@@ -7,13 +7,5 @@ import dev.marketplace.cataloginventory.domain.ReasonCode;
  * importação. Código novo nasce aqui e ganha texto no catálogo de mensagens.
  */
 public enum ImportFileReasons implements ReasonCode {
-    EMPTY_FILE,
-    INVALID_ENCODING,
-    MALFORMED_CSV,
-    NO_ROWS,
-    TOO_MANY_ROWS,
-    DUPLICATE_COLUMN,
-    UNKNOWN_COLUMN,
-    MISSING_COLUMN,
-    COLUMN_ORDER
+  EMPTY_FILE, INVALID_ENCODING, MALFORMED_CSV, NO_ROWS, TOO_MANY_ROWS, DUPLICATE_COLUMN, UNKNOWN_COLUMN, MISSING_COLUMN, COLUMN_ORDER
 }

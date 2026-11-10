@@ -6,7 +6,7 @@ import {
   allowsAccess,
   ErrorStateComponent,
   LoadingStateComponent,
-  type SessionGrants
+  type SessionGrants,
 } from '@marketplace/shared-admin-ui';
 
 import { navItems } from '../../layout/default-layout/_nav';
@@ -19,7 +19,13 @@ import { navItems } from '../../layout/default-layout/_nav';
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardBodyComponent, CardComponent, ErrorStateComponent, LoadingStateComponent, NgComponentOutlet],
+  imports: [
+    CardBodyComponent,
+    CardComponent,
+    ErrorStateComponent,
+    LoadingStateComponent,
+    NgComponentOutlet,
+  ],
   template: `
     <h1 class="visually-hidden">Início</h1>
     @if (dashboard.value(); as component) {
@@ -37,13 +43,16 @@ import { navItems } from '../../layout/default-layout/_nav';
         </c-card-body>
       </c-card>
     }
-  `
+  `,
 })
 export class HomeComponent {
   readonly #session = inject(AdminSession);
 
   readonly dashboard = resource({
-    loader: () => import('@marketplace/catalog-inventory-admin-feature-products').then(m => m.HomeDashboardComponent)
+    loader: () =>
+      import('@marketplace/catalog-inventory-admin-feature-products').then(
+        (m) => m.HomeDashboardComponent,
+      ),
   });
 
   /** Rotas do menu que a sessão abre, para os atalhos não levarem a uma tela barrada. */
@@ -53,12 +62,12 @@ export class HomeComponent {
       storeProducts: allowedUrl(grants, '/loja/produtos'),
       tenantProducts: allowedUrl(grants, '/plataforma/produtos'),
       moderationQueue: allowedUrl(grants, '/moderacao/fila'),
-      categories: allowedUrl(grants, '/plataforma/categorias')
+      categories: allowedUrl(grants, '/plataforma/categorias'),
     };
   });
 }
 
 function allowedUrl(grants: SessionGrants, url: string): string | undefined {
-  const item = navItems.find(entry => entry.url === url);
+  const item = navItems.find((entry) => entry.url === url);
   return item && allowsAccess(grants, item) ? url : undefined;
 }

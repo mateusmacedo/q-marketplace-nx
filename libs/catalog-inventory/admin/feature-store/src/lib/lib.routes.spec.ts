@@ -15,7 +15,10 @@ class FakeSession extends AdminSession {
 }
 
 function screens(list: Routes): Route[] {
-  return list.flatMap(route => [...(route.loadComponent ? [route] : []), ...screens(route.children ?? [])]);
+  return list.flatMap((route) => [
+    ...(route.loadComponent ? [route] : []),
+    ...screens(route.children ?? []),
+  ]);
 }
 
 describe('rotas da feature', () => {
@@ -26,9 +29,9 @@ describe('rotas da feature', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        { provide: AdminSession, useClass: FakeSession }
-      ]
-    })
+        { provide: AdminSession, useClass: FakeSession },
+      ],
+    }),
   );
 
   for (const [name, list] of Object.entries({ routes })) {
@@ -37,7 +40,9 @@ describe('rotas da feature', () => {
         const component = (await route.loadComponent?.()) as Type<unknown>;
         const fixture = TestBed.createComponent(component);
         await fixture.whenStable();
-        expect(fixture.nativeElement.querySelector('h1')?.textContent?.trim()).toBe(route.data?.['title']);
+        expect(fixture.nativeElement.querySelector('h1')?.textContent?.trim()).toBe(
+          route.data?.['title'],
+        );
       }
     });
   }

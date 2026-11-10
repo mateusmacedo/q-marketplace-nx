@@ -1,11 +1,18 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { provideCatalogInventoryApi, type ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  provideCatalogInventoryApi,
+  type ProductResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 
 import { ProductPageComponent } from './product-page.component';
@@ -22,7 +29,7 @@ const ACTIVE: ProductResponse = {
   skus: [{ id: 's1', sellerSku: 'CAM-P' }],
   updatedAt: '2026-11-08T17:02:00Z',
   actions: ['EDIT', 'PAUSE', 'ARCHIVE', 'ADD_SKU', 'EDIT_OFFER', 'EDIT_STOCK'],
-  saveReturnsToModeration: true
+  saveReturnsToModeration: true,
 };
 
 const DRAFT: ProductResponse = {
@@ -35,20 +42,28 @@ const DRAFT: ProductResponse = {
   blockedActions: [
     {
       action: 'SUBMIT',
-      reason: { code: 'product-not-publishable', message: 'O produto ainda tem pendências para ser publicado.' }
-    }
+      reason: {
+        code: 'product-not-publishable',
+        message: 'O produto ainda tem pendências para ser publicado.',
+      },
+    },
   ],
   publishingIssues: [
     { code: 'no-sku', params: [], message: 'Adicione ao menos um SKU.', field: 'skus' },
-    { code: 'missing-attribute', params: ['material'], message: 'Preencha Material.', field: 'attributes.material' }
-  ]
+    {
+      code: 'missing-attribute',
+      params: ['material'],
+      message: 'Preencha Material.',
+      field: 'attributes.material',
+    },
+  ],
 };
 
 @Component({ template: '<p>Aba de conteúdo</p>' })
-class ContentStub { }
+class ContentStub {}
 
 @Component({ template: '<p>Aba de SKUs</p>' })
-class SkusStub { }
+class SkusStub {}
 
 class InertIntersectionObserver {
   observe(): void {
@@ -72,20 +87,25 @@ describe('ProductPageComponent', () => {
 
   const element = () => harness.routeNativeElement as HTMLElement;
   const store = () =>
-    harness.fixture.debugElement.query(By.directive(ProductPageComponent)).injector.get(ProductStore);
+    harness.fixture.debugElement
+      .query(By.directive(ProductPageComponent))
+      .injector.get(ProductStore);
   const text = () => element().textContent?.replace(/\s+/g, ' ') ?? '';
   const render = () => TestBed.tick();
   const button = (root: ParentNode, label: string) =>
     (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.replace(/\s+/g, ' ').trim() === label
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const menuLabels = () =>
-    Array.from(element().querySelectorAll('app-product-header [cDropdownItem]')).map(item =>
-      item.textContent?.replace(/\s+/g, ' ').trim()
+    Array.from(element().querySelectorAll('app-product-header [cDropdownItem]')).map((item) =>
+      item.textContent?.replace(/\s+/g, ' ').trim(),
     );
   const productRequest = () => vi.waitFor(() => http.expectOne(`${API}/products/p1`));
-  const flushProduct = (request: TestRequest, product: ProductResponse, etag = `"${product.version}"`) =>
-    request.flush(product, { headers: { ETag: etag } });
+  const flushProduct = (
+    request: TestRequest,
+    product: ProductResponse,
+    etag = `"${product.version}"`,
+  ) => request.flush(product, { headers: { ETag: etag } });
 
   async function open(product: ProductResponse, url = '/loja/produtos/p1') {
     TestBed.configureTestingModule({
@@ -100,11 +120,11 @@ describe('ProductPageComponent', () => {
             children: [
               { path: '', redirectTo: 'conteudo', pathMatch: 'full' },
               { path: 'conteudo', component: ContentStub },
-              { path: 'skus', component: SkusStub }
-            ]
-          }
-        ])
-      ]
+              { path: 'skus', component: SkusStub },
+            ],
+          },
+        ]),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     toast = TestBed.inject(ToastService);
@@ -119,7 +139,10 @@ describe('ProductPageComponent', () => {
 
   beforeAll(() => {
     if (!('IntersectionObserver' in globalThis)) {
-      Object.defineProperty(globalThis, 'IntersectionObserver', { configurable: true, value: InertIntersectionObserver });
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        configurable: true,
+        value: InertIntersectionObserver,
+      });
     }
   });
 
@@ -134,10 +157,10 @@ describe('ProductPageComponent', () => {
     expect(menuLabels()).toEqual(['Pausar', 'Arquivar']);
     expect(text()).toContain('1 SKU | Atualizado em 08/11/2026 14:02');
     const tabs = Array.from(element().querySelectorAll('c-nav a')) as HTMLAnchorElement[];
-    expect(tabs.map(tab => [tab.textContent?.trim(), tab.getAttribute('href')])).toEqual([
+    expect(tabs.map((tab) => [tab.textContent?.trim(), tab.getAttribute('href')])).toEqual([
       ['Conteúdo', '/loja/produtos/p1/conteudo'],
       ['SKUs, preço e estoque', '/loja/produtos/p1/skus'],
-      ['Histórico', '/loja/produtos/p1/historico']
+      ['Histórico', '/loja/produtos/p1/historico'],
     ]);
     expect(tabs[0].classList).toContain('active');
     expect(element().querySelector('app-submission-checklist')).toBeNull();
@@ -151,11 +174,18 @@ describe('ProductPageComponent', () => {
     const request = await vi.waitFor(() => http.expectOne(`${API}/products/p1/pause`));
     expect(request.request.method).toBe('POST');
     expect(request.request.headers.get('If-Match')).toBe('"3"');
-    flushProduct(request, { ...ACTIVE, status: 'PAUSED_BY_SELLER', version: 4, actions: ['EDIT', 'RESUME', 'ARCHIVE'] });
+    flushProduct(request, {
+      ...ACTIVE,
+      status: 'PAUSED_BY_SELLER',
+      version: 4,
+      actions: ['EDIT', 'RESUME', 'ARCHIVE'],
+    });
 
     await vi.waitFor(() => {
       render();
-      expect(element().querySelector('app-product-status-badge')?.textContent?.trim()).toBe('Pausado');
+      expect(element().querySelector('app-product-status-badge')?.textContent?.trim()).toBe(
+        'Pausado',
+      );
     });
     expect(success).toHaveBeenCalledWith('Produto pausado. Ele sai da vitrine até você reativar.');
     expect(button(element(), 'Reativar')).toBeTruthy();
@@ -165,7 +195,10 @@ describe('ProductPageComponent', () => {
   it('arquiva pelo menu só depois da confirmação com o nome do produto', async () => {
     await open(ACTIVE);
 
-    button(element().querySelector('app-product-header [cDropdownMenu]') as HTMLElement, 'Arquivar').click();
+    button(
+      element().querySelector('app-product-header [cDropdownMenu]') as HTMLElement,
+      'Arquivar',
+    ).click();
     render();
     const modal = element().querySelector('app-confirm-modal') as HTMLElement;
     expect(modal.textContent).toContain('Camiseta Basic');
@@ -173,14 +206,16 @@ describe('ProductPageComponent', () => {
     http.expectNone(`${API}/products/p1`);
 
     button(modal.querySelector('c-modal-footer') as HTMLElement, 'Arquivar').click();
-    const request = await vi.waitFor(() => http.expectOne(req => req.method === 'DELETE'));
+    const request = await vi.waitFor(() => http.expectOne((req) => req.method === 'DELETE'));
     expect(request.request.url).toBe(`${API}/products/p1`);
     expect(request.request.headers.get('If-Match')).toBe('"3"');
     flushProduct(request, { ...ACTIVE, status: 'ARCHIVED', version: 4, actions: [] });
 
     await vi.waitFor(() => {
       render();
-      expect(element().querySelector('app-product-status-badge')?.textContent?.trim()).toBe('Arquivado');
+      expect(element().querySelector('app-product-status-badge')?.textContent?.trim()).toBe(
+        'Arquivado',
+      );
     });
   });
 
@@ -189,8 +224,12 @@ describe('ProductPageComponent', () => {
 
     button(element(), 'Pausar').click();
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1/pause`))).flush(
-      { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão divergente', status: 412 },
-      { status: 412, statusText: 'Precondition Failed' }
+      {
+        type: 'https://marketplace.dev/problems/version-mismatch',
+        title: 'Versão divergente',
+        status: 412,
+      },
+      { status: 412, statusText: 'Precondition Failed' },
     );
     await vi.waitFor(() => {
       render();
@@ -212,7 +251,10 @@ describe('ProductPageComponent', () => {
     const checklist = element().querySelector('app-submission-checklist') as HTMLElement;
     expect(checklist.textContent).toContain('Adicione ao menos um SKU.');
     expect(checklist.textContent).toContain('Preencha Material.');
-    const submit = button(element(), 'Enviar para moderação : O produto ainda tem pendências para ser publicado.');
+    const submit = button(
+      element(),
+      'Enviar para moderação : O produto ainda tem pendências para ser publicado.',
+    );
     expect(submit.disabled).toBe(true);
 
     button(checklist, 'Adicione ao menos um SKU.').click();
@@ -224,7 +266,12 @@ describe('ProductPageComponent', () => {
   });
 
   it('mostra no alerta e no checklist os motivos da recusa do envio (422)', async () => {
-    await open({ ...DRAFT, actions: ['EDIT', 'SUBMIT', 'ARCHIVE'], blockedActions: [], publishingIssues: [] });
+    await open({
+      ...DRAFT,
+      actions: ['EDIT', 'SUBMIT', 'ARCHIVE'],
+      blockedActions: [],
+      publishingIssues: [],
+    });
 
     button(element(), 'Enviar para moderação').click();
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1/submit`))).flush(
@@ -233,14 +280,18 @@ describe('ProductPageComponent', () => {
         title: 'Produto não publicável',
         status: 422,
         reasons: ['missing-offer:CAM-P'],
-        reasonDetails: [{ code: 'missing-offer', params: ['CAM-P'], message: 'Defina o preço do SKU CAM-P.' }]
+        reasonDetails: [
+          { code: 'missing-offer', params: ['CAM-P'], message: 'Defina o preço do SKU CAM-P.' },
+        ],
       },
-      { status: 422, statusText: 'Unprocessable Content' }
+      { status: 422, statusText: 'Unprocessable Content' },
     );
 
     await vi.waitFor(() => {
       render();
-      expect(element().querySelector('app-problem-alert')?.textContent).toContain('Não foi possível enviar para moderação');
+      expect(element().querySelector('app-problem-alert')?.textContent).toContain(
+        'Não foi possível enviar para moderação',
+      );
     });
     const checklist = element().querySelector('app-submission-checklist') as HTMLElement;
     expect(checklist.textContent).toContain('Defina o preço do SKU CAM-P.');
@@ -254,15 +305,22 @@ describe('ProductPageComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideCatalogInventoryApi(),
-        provideRouter([{ path: 'loja/produtos/:id', component: ProductPageComponent, children: [] }])
-      ]
+        provideRouter([
+          { path: 'loja/produtos/:id', component: ProductPageComponent, children: [] },
+        ]),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/loja/produtos/p1');
     (await productRequest()).flush(
-      { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', detail: 'Produto não encontrado.', status: 404 },
-      { status: 404, statusText: 'Not Found' }
+      {
+        type: 'https://marketplace.dev/problems/not-found',
+        title: 'Não encontrado',
+        detail: 'Produto não encontrado.',
+        status: 404,
+      },
+      { status: 404, statusText: 'Not Found' },
     );
     await vi.waitFor(() => {
       render();
@@ -274,7 +332,9 @@ describe('ProductPageComponent', () => {
     flushProduct(await productRequest(), ACTIVE);
     await vi.waitFor(() => {
       render();
-      expect(element().querySelector('app-product-header h1')?.textContent).toContain('Camiseta Basic');
+      expect(element().querySelector('app-product-header h1')?.textContent).toContain(
+        'Camiseta Basic',
+      );
     });
   });
 });

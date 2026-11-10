@@ -1,10 +1,7 @@
 {
   "name": "load",
   "projectType": "application",
-  "tags": [
-    "scope:catalog-inventory",
-    "type:load"
-  ],
+  "tags": ["scope:catalog-inventory", "type:load"],
   "targets": {
     "check": {
       "executor": "nx:run-commands",

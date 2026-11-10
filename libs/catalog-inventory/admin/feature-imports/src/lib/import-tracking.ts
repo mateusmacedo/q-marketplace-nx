@@ -1,6 +1,23 @@
-import { computed, DestroyRef, DOCUMENT, effect, inject, type Signal, signal, untracked } from '@angular/core';
-import { getProductImport, type ImportResponse } from '@marketplace/catalog-inventory-admin-data-access';
-import { apiData, type Problem, type ResponseHeaders, toProblem } from '@marketplace/shared-web-util';
+import {
+  computed,
+  DestroyRef,
+  DOCUMENT,
+  effect,
+  inject,
+  type Signal,
+  signal,
+  untracked,
+} from '@angular/core';
+import {
+  getProductImport,
+  type ImportResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  apiData,
+  type Problem,
+  type ResponseHeaders,
+  toProblem,
+} from '@marketplace/shared-web-util';
 
 import { isImportRunning } from './import-presentation';
 
@@ -144,7 +161,7 @@ export function trackImport(id: () => string | null | undefined): ImportTracking
     problem: problem.asReadonly(),
     loading: loading.asReadonly(),
     running: computed(() => isImportRunning(report()?.status)),
-    retry: () => start(untracked(id))
+    retry: () => start(untracked(id)),
   };
 }
 

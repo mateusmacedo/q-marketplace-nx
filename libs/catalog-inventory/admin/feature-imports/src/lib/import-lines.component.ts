@@ -5,7 +5,7 @@ import {
   ButtonDirective,
   ButtonGroupComponent,
   FormCheckLabelDirective,
-  TableDirective
+  TableDirective,
 } from '@coreui/angular';
 import type { ImportLineResponse } from '@marketplace/catalog-inventory-admin-data-access';
 import { CursorPaginationComponent, EmptyStateComponent } from '@marketplace/shared-admin-ui';
@@ -33,7 +33,7 @@ let nextId = 0;
     EmptyStateComponent,
     FormCheckLabelDirective,
     RouterLink,
-    TableDirective
+    TableDirective,
   ],
   styles: '.numeric { font-variant-numeric: tabular-nums; }',
   template: `
@@ -116,7 +116,7 @@ let nextId = 0;
         [nextCursor]="nextCursor()"
       />
     }
-  `
+  `,
 })
 export class ImportLinesComponent {
   /** Linhas já processadas, em ordem de linha, como `GET /products/imports/{id}` devolve. */
@@ -128,11 +128,17 @@ export class ImportLinesComponent {
   readonly pageSize = signal(DEFAULT_LINES_PER_PAGE);
   readonly #offset = signal(0);
 
-  readonly filtered = computed(() => (this.onlyFailures() ? this.lines().filter(isFailedLine) : this.lines()));
+  readonly filtered = computed(() =>
+    this.onlyFailures() ? this.lines().filter(isFailedLine) : this.lines(),
+  );
   readonly rows = computed(() =>
     this.filtered()
       .slice(this.#offset(), this.#offset() + this.pageSize())
-      .map(line => ({ line, outcome: outcomePresentation(line.outcome), texts: lineTexts(line) }))
+      .map((line) => ({
+        line,
+        outcome: outcomePresentation(line.outcome),
+        texts: lineTexts(line),
+      })),
   );
   readonly cursor = computed(() => (this.#offset() ? String(this.#offset()) : undefined));
   readonly nextCursor = computed(() => {
@@ -141,7 +147,7 @@ export class ImportLinesComponent {
   });
   readonly paged = computed(() => this.filtered().length > PAGE_SIZES[0] || this.#offset() > 0);
   readonly emptyMessage = computed(() =>
-    this.onlyFailures() ? 'Nenhuma linha com falha.' : 'Nenhuma linha processada ainda.'
+    this.onlyFailures() ? 'Nenhuma linha com falha.' : 'Nenhuma linha processada ainda.',
   );
 
   showOnlyFailures(only: boolean): void {

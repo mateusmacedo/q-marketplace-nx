@@ -6,12 +6,12 @@ Este arquivo é o ponto de entrada. O detalhe de cada módulo fica na pasta `doc
 
 ## Módulos
 
-| Módulo | Projeto Nx | Papel | Documentação |
-|---|---|---|---|
-| Domínio | `catalog-inventory-domain` | Agregados, invariantes, máquinas de estado e eventos de domínio, sem framework | [libs/catalog-inventory/domain/docs](../libs/catalog-inventory/domain/docs/README.md) |
+| Módulo    | Projeto Nx                      | Papel                                                                                                                          | Documentação                                                                                    |
+| --------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Domínio   | `catalog-inventory-domain`      | Agregados, invariantes, máquinas de estado e eventos de domínio, sem framework                                                 | [libs/catalog-inventory/domain/docs](../libs/catalog-inventory/domain/docs/README.md)           |
 | Aplicação | `catalog-inventory-application` | Casos de uso, portas de persistência e regras de acesso, sem framework (só o Mutiny para os tipos reativos, ADR 009 e ADR 010) | [libs/catalog-inventory/application/docs](../libs/catalog-inventory/application/docs/README.md) |
-| Serviço | `catalog-inventory-service` | Aplicação Quarkus: API HTTP, PostgreSQL, Kafka, Redis, agendadores, segurança e observabilidade | [apps/catalog-inventory-service/docs](../apps/catalog-inventory-service/docs/README.md) |
-| Contratos | `catalog-inventory-contracts` | OpenAPI gerado e JSON Schema dos eventos publicados | [contracts/catalog-inventory](../contracts/catalog-inventory/README.md) |
+| Serviço   | `catalog-inventory-service`     | Aplicação Quarkus: API HTTP, PostgreSQL, Kafka, Redis, agendadores, segurança e observabilidade                                | [apps/catalog-inventory-service/docs](../apps/catalog-inventory-service/docs/README.md)         |
+| Contratos | `catalog-inventory-contracts`   | OpenAPI gerado e JSON Schema dos eventos publicados                                                                            | [contracts/catalog-inventory](../contracts/catalog-inventory/README.md)                         |
 
 A dependência entre os módulos segue a ADR 002: o serviço depende da aplicação, que depende do domínio. O verificador de limites da ADR 010 impede o caminho inverso.
 
@@ -92,21 +92,21 @@ Os diagramas de contêiner, componente, implantação e sequência ficam na [doc
 
 As decisões do contexto estão em [decisoes.md](decisoes.md):
 
-| ADR | Assunto |
-|---|---|
+| ADR           | Assunto                                                                    |
+| ------------- | -------------------------------------------------------------------------- |
 | 002, 003, 010 | Três módulos por contexto, sem domínio compartilhado, limites fiscalizados |
-| 006, 009 | PostgreSQL com Reactive SQL Client e Flyway, modelo reativo |
-| 007 | Tenant e papéis derivados do JWT |
-| 008 | Erros RFC 9457, paginação por cursor e OpenAPI gerado |
-| 011, 014 | Categoria, produto, SKU e oferta como agregados separados |
-| 012 | Inventário e reservas atômicas com prazo no banco |
-| 013 | Outbox no Kafka e inbox do KYB/KYC |
-| 016 | Importação CSV em segundo plano |
-| 017, 021 | Métricas de negócio e instrumentação de ponta a ponta |
-| 018, 020 | Helm chart e papéis api e worker |
-| 024 | Cache Redis da vitrine e da taxonomia |
-| 030 | Motivos de moderação como dado de cada tenant |
-| 031 | Regras e catálogos no servidor, apresentação no painel |
+| 006, 009      | PostgreSQL com Reactive SQL Client e Flyway, modelo reativo                |
+| 007           | Tenant e papéis derivados do JWT                                           |
+| 008           | Erros RFC 9457, paginação por cursor e OpenAPI gerado                      |
+| 011, 014      | Categoria, produto, SKU e oferta como agregados separados                  |
+| 012           | Inventário e reservas atômicas com prazo no banco                          |
+| 013           | Outbox no Kafka e inbox do KYB/KYC                                         |
+| 016           | Importação CSV em segundo plano                                            |
+| 017, 021      | Métricas de negócio e instrumentação de ponta a ponta                      |
+| 018, 020      | Helm chart e papéis api e worker                                           |
+| 024           | Cache Redis da vitrine e da taxonomia                                      |
+| 030           | Motivos de moderação como dado de cada tenant                              |
+| 031           | Regras e catálogos no servidor, apresentação no painel                     |
 
 ## Diagramas
 

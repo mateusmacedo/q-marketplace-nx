@@ -20,5 +20,5 @@ export const logo = [
          <rect width="8" height="38" x="186.835" y="1" rx="1"/>
       </g>
     </g>
-  </g>`
+  </g>`,
 ];

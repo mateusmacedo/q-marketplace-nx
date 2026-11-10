@@ -1,4 +1,7 @@
-import type { CategoryResponse, CategorySummary } from '@marketplace/catalog-inventory-admin-data-access';
+import type {
+  CategoryResponse,
+  CategorySummary,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { batchSummary } from '@marketplace/shared-web-util';
 
 import {
@@ -16,7 +19,7 @@ import {
   ownAttributeRows,
   parentPath,
   resourceProblem,
-  toCategoryNode
+  toCategoryNode,
 } from './category-model';
 
 const SHIRTS: CategoryResponse = {
@@ -33,15 +36,15 @@ const SHIRTS: CategoryResponse = {
   attributes: [{ code: 'gola', label: 'Gola', type: 'OPTION', options: ['V', 'Redonda'] }],
   effectiveAttributes: [
     { code: 'material', label: 'Material', type: 'TEXT', required: true, categoryId: 'c-vest' },
-    { code: 'gola', label: 'Gola', type: 'OPTION', options: ['V', 'Redonda'], categoryId: 'c-cam' }
-  ]
+    { code: 'gola', label: 'Gola', type: 'OPTION', options: ['V', 'Redonda'], categoryId: 'c-cam' },
+  ],
 };
 
 describe('apoio da tela de categorias', () => {
   it('monta o caminho com os ancestrais que o servidor devolve', () => {
     expect(categoryTrail(SHIRTS)).toEqual([
       { id: 'c-vest', name: 'Vestuário' },
-      { id: 'c-cam', name: 'Camisas' }
+      { id: 'c-cam', name: 'Camisas' },
     ]);
     expect(categoryPath(SHIRTS)).toBe('Vestuário › Camisas');
     expect(parentPath(SHIRTS)).toBe('Vestuário');
@@ -50,10 +53,25 @@ describe('apoio da tela de categorias', () => {
 
   it('separa os atributos herdados, com a categoria de origem, dos próprios', () => {
     expect(ownAttributeRows(SHIRTS)).toEqual([
-      { code: 'gola', label: 'Gola', type: 'OPTION', required: false, variant: false, options: ['V', 'Redonda'] }
+      {
+        code: 'gola',
+        label: 'Gola',
+        type: 'OPTION',
+        required: false,
+        variant: false,
+        options: ['V', 'Redonda'],
+      },
     ]);
     expect(inheritedAttributeRows(SHIRTS)).toEqual([
-      { code: 'material', label: 'Material', type: 'TEXT', required: true, variant: false, options: [], origin: 'Vestuário' }
+      {
+        code: 'material',
+        label: 'Material',
+        type: 'TEXT',
+        required: true,
+        variant: false,
+        options: [],
+        origin: 'Vestuário',
+      },
     ]);
   });
 
@@ -81,11 +99,11 @@ describe('apoio da tela de categorias', () => {
 
   it('resume o lote no feminino, como a categoria', () => {
     expect(batchSummary({ succeeded: 1, failed: 0, ignored: 1 }, CATEGORY_BATCH_VERBS.DELETE)).toBe(
-      '1 excluída, 1 ignorada'
+      '1 excluída, 1 ignorada',
     );
-    expect(batchSummary({ succeeded: 2, failed: 0, ignored: 3 }, CATEGORY_BATCH_VERBS.DEACTIVATE)).toBe(
-      '2 desativadas, 3 ignoradas'
-    );
+    expect(
+      batchSummary({ succeeded: 2, failed: 0, ignored: 3 }, CATEGORY_BATCH_VERBS.DEACTIVATE),
+    ).toBe('2 desativadas, 3 ignoradas');
   });
 
   it('lê o tamanho do grupo do lote no contrato', () => {
@@ -96,25 +114,34 @@ describe('apoio da tela de categorias', () => {
     const pages: Record<string, { items: CategorySummary[]; nextCursor?: string }> = {
       first: { items: [{ id: 'a' }], nextCursor: 'k1' },
       k1: { items: [{ id: 'b' }], nextCursor: 'k2' },
-      k2: { items: [{ id: 'c' }] }
+      k2: { items: [{ id: 'c' }] },
     };
     const asked: (string | undefined)[] = [];
-    const items = await loadAllPages(async cursor => {
+    const items = await loadAllPages(async (cursor) => {
       asked.push(cursor);
       return pages[cursor ?? 'first'];
     });
-    expect(items.map(item => item.id)).toEqual(['a', 'b', 'c']);
+    expect(items.map((item) => item.id)).toEqual(['a', 'b', 'c']);
     expect(asked).toEqual([undefined, 'k1', 'k2']);
   });
 
   it('passa a categoria da lista ao seletor de admin/ui com os campos calculados', () => {
-    expect(toCategoryNode({ id: 'c-cam', name: 'Camisas', ancestors: [{ id: 'c-vest', name: 'Vestuário' }], level: 2, usable: false, childCount: 1 })).toEqual({
+    expect(
+      toCategoryNode({
+        id: 'c-cam',
+        name: 'Camisas',
+        ancestors: [{ id: 'c-vest', name: 'Vestuário' }],
+        level: 2,
+        usable: false,
+        childCount: 1,
+      }),
+    ).toEqual({
       id: 'c-cam',
       name: 'Camisas',
       ancestors: [{ id: 'c-vest', name: 'Vestuário' }],
       level: 2,
       usable: false,
-      childCount: 1
+      childCount: 1,
     });
   });
 
@@ -126,8 +153,14 @@ describe('apoio da tela de categorias', () => {
   });
 
   it('recupera o problema que o resource embrulhou', () => {
-    const problem = { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', status: 404 };
-    expect(resourceProblem(Object.assign(new Error('embrulho'), { cause: problem }))).toEqual(problem);
+    const problem = {
+      type: 'https://marketplace.dev/problems/not-found',
+      title: 'Não encontrado',
+      status: 404,
+    };
+    expect(resourceProblem(Object.assign(new Error('embrulho'), { cause: problem }))).toEqual(
+      problem,
+    );
     expect(resourceProblem(undefined)).toBeNull();
     expect(resourceProblem(new Error('falha'))?.status).toBe(0);
   });

@@ -14,7 +14,7 @@ import {
   cilSitemap,
   cilSun,
   cilTags,
-  cilUser
+  cilUser,
 } from '@coreui/icons';
 import { logo } from './logo';
 import { signet } from './signet';
@@ -37,5 +37,5 @@ export const iconSubset = {
   cilTags,
   cilUser,
   logo,
-  signet
+  signet,
 };

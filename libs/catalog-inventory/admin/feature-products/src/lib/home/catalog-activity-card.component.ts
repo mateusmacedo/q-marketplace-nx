@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, DOCUMENT, inject, input, model } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DOCUMENT,
+  inject,
+  input,
+  model,
+} from '@angular/core';
 import {
   AlertComponent,
   ButtonDirective,
@@ -9,12 +17,15 @@ import {
   ColComponent,
   GutterDirective,
   ProgressComponent,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import { ChartjsComponent } from '@coreui/angular-chartjs';
 import { cilCloudDownload } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
-import type { ActivityResponse, StatusCountsResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import type {
+  ActivityResponse,
+  StatusCountsResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { LoadingStateComponent } from '@marketplace/shared-admin-ui';
 import { formatInteger, type Problem, problemMessages } from '@marketplace/shared-web-util';
 
@@ -23,7 +34,7 @@ import {
   type ActivityGranularity,
   activityCsv,
   activityCsvName,
-  activityPeriod
+  activityPeriod,
 } from './home-activity';
 import { activityChart, chartPalette, documentTheme } from './home-charts';
 import { type StatusShare, statusShares } from './home-indicators';
@@ -56,7 +67,7 @@ export interface PeriodFailure {
     IconDirective,
     LoadingStateComponent,
     ProgressComponent,
-    RowComponent
+    RowComponent,
   ],
   template: `
     <c-card class="my-4">
@@ -148,7 +159,7 @@ export interface PeriodFailure {
         </c-card-footer>
       }
     </c-card>
-  `
+  `,
 })
 export class CatalogActivityCardComponent {
   readonly #document = inject(DOCUMENT);
@@ -169,7 +180,9 @@ export class CatalogActivityCardComponent {
 
   readonly failureText = computed(() => {
     const failure = this.failure();
-    const label = ACTIVITY_GRANULARITIES.find(option => option.value === failure?.granularity)?.label;
+    const label = ACTIVITY_GRANULARITIES.find(
+      (option) => option.value === failure?.granularity,
+    )?.label;
     return label
       ? `Não foi possível carregar o gráfico no período ${label}. O gráfico continua no período anterior.`
       : '';
@@ -187,7 +200,9 @@ export class CatalogActivityCardComponent {
   readonly chart = computed(() => {
     const activity = this.activity();
     this.#theme();
-    return activity ? activityChart(activity, chartPalette(this.#document.documentElement)) : undefined;
+    return activity
+      ? activityChart(activity, chartPalette(this.#document.documentElement))
+      : undefined;
   });
 
   readonly shares = computed(() => {
@@ -205,7 +220,9 @@ export class CatalogActivityCardComponent {
     if (!activity) {
       return;
     }
-    const url = URL.createObjectURL(new Blob(['﻿', activityCsv(activity)], { type: 'text/csv;charset=utf-8' }));
+    const url = URL.createObjectURL(
+      new Blob(['﻿', activityCsv(activity)], { type: 'text/csv;charset=utf-8' }),
+    );
     const anchor = this.#document.createElement('a');
     anchor.href = url;
     anchor.download = activityCsvName(activity);

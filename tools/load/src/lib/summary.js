@@ -20,9 +20,12 @@ export function summaryProbes(params) {
     probes[`dropped_iterations{scenario:${s}}`] = ['count>=0'];
     probes[`unexpected_responses{scenario:${s}}`] = ['rate>=0'];
   }
-  for (const id of Object.keys(INVARIANTS)) probes[`inventory_invariants{invariant:${id}}`] = ['rate>=0'];
-  for (const op of SERVICE_OPERATIONS) probes[`service_update_p99_seconds{operation:${op}}`] = ['value>=0'];
-  for (const outcome of Object.keys(OUTCOMES)) probes[`outcomes{outcome:${outcome}}`] = ['count>=0'];
+  for (const id of Object.keys(INVARIANTS))
+    probes[`inventory_invariants{invariant:${id}}`] = ['rate>=0'];
+  for (const op of SERVICE_OPERATIONS)
+    probes[`service_update_p99_seconds{operation:${op}}`] = ['value>=0'];
+  for (const outcome of Object.keys(OUTCOMES))
+    probes[`outcomes{outcome:${outcome}}`] = ['count>=0'];
   return probes;
 }
 
@@ -39,7 +42,9 @@ function thresholdRows(data) {
       if (!isProbe(metric, condition)) rows.push({ metric, condition, ok: result.ok });
     }
   }
-  return rows.sort((a, b) => a.metric.localeCompare(b.metric) || a.condition.localeCompare(b.condition));
+  return rows.sort(
+    (a, b) => a.metric.localeCompare(b.metric) || a.condition.localeCompare(b.condition),
+  );
 }
 
 // Inverte a área da rampa linear de 0 ao pico: iterações agendadas até o fim dão o instante e a taxa-alvo nele.
@@ -70,7 +75,10 @@ export function buildReport(data, { params, plan }) {
     };
     if (params.profile === 'breakpoint' && !planned.burst) {
       const ramp = plan.totalSeconds;
-      scenarios[name].targetPerSecondAtEnd = round(rateAtEnd(planned.peakPerSecond, ramp, iterations + dropped), 1);
+      scenarios[name].targetPerSecondAtEnd = round(
+        rateAtEnd(planned.peakPerSecond, ramp, iterations + dropped),
+        1,
+      );
     }
   }
   const byId = {};
@@ -112,7 +120,10 @@ export function buildReport(data, { params, plan }) {
       p95Ms: round(value(data, 'http_req_duration{kind:api}', 'p(95)'), 1),
       p99Ms: round(value(data, 'http_req_duration{kind:api}', 'p(99)'), 1),
     },
-    iterations: { total: value(data, 'iterations', 'count') || 0, dropped: value(data, 'dropped_iterations', 'count') || 0 },
+    iterations: {
+      total: value(data, 'iterations', 'count') || 0,
+      dropped: value(data, 'dropped_iterations', 'count') || 0,
+    },
     mass: {
       products: mass.products.length,
       skus: mass.skus,
@@ -137,11 +148,11 @@ export function buildReport(data, { params, plan }) {
     },
     lastUnit: params.scenarios.includes('last_unit')
       ? {
-        stock: params.lastUnitStock,
-        attempts: params.lastUnitAttempts,
-        accepted: value(data, 'last_unit_accepted', 'count') || 0,
-        refused: value(data, 'last_unit_refused', 'count') || 0,
-      }
+          stock: params.lastUnitStock,
+          attempts: params.lastUnitAttempts,
+          accepted: value(data, 'last_unit_accepted', 'count') || 0,
+          refused: value(data, 'last_unit_refused', 'count') || 0,
+        }
       : null,
     spreadRefused: value(data, 'spread_refused', 'count') || 0,
     outbox: {
@@ -151,7 +162,10 @@ export function buildReport(data, { params, plan }) {
       drained: value(data, 'outbox_drained', 'rate') === 1,
       drainSeconds: round(value(data, 'outbox_drain_seconds', 'value'), 1),
     },
-    service: { p99Ms: serviceP99Ms, refusedInsufficientStock: value(data, 'service_refused_insufficient_stock', 'value') },
+    service: {
+      p99Ms: serviceP99Ms,
+      refusedInsufficientStock: value(data, 'service_refused_insufficient_stock', 'value'),
+    },
     params: { PROFILE: params.profile, TESTID: params.testid, ...params.effective },
   };
 }
@@ -182,7 +196,8 @@ export function renderMarkdown(report) {
     '| Métrica | Condição | Resultado |',
     '| --- | --- | --- |',
   ];
-  for (const row of report.thresholds) lines.push(`| \`${row.metric}\` | \`${row.condition}\` | ${row.ok ? 'ok' : 'falhou'} |`);
+  for (const row of report.thresholds)
+    lines.push(`| \`${row.metric}\` | \`${row.condition}\` | ${row.ok ? 'ok' : 'falhou'} |`);
 
   const breakpoint = report.profile === 'breakpoint';
   lines.push(
@@ -197,7 +212,9 @@ export function renderMarkdown(report) {
       `| \`${name}\` | ${s.plannedPeakPerSecond} | ${s.iterations} | ${s.dropped} | ${s.requests} | ${s.unexpected} | ${ms(s.p95Ms)} | ${ms(s.p99Ms)} | ${ms(s.maxMs)} |${breakpoint ? ` ${s.targetPerSecondAtEnd} |` : ''}`,
     );
   }
-  lines.push(`| todos | | | | ${report.requests.api} | | ${ms(report.requests.p95Ms)} | ${ms(report.requests.p99Ms)} | |${breakpoint ? ' |' : ''}`);
+  lines.push(
+    `| todos | | | | ${report.requests.api} | | ${ms(report.requests.p95Ms)} | ${ms(report.requests.p99Ms)} | |${breakpoint ? ' |' : ''}`,
+  );
 
   lines.push('', '## Desfechos de negócio', '');
   const outcomeRows = Object.values(report.outcomes);
@@ -205,9 +222,16 @@ export function renderMarkdown(report) {
   for (const o of outcomeRows) lines.push(`- ${o.description}: ${o.count}`);
 
   const inv = report.invariants;
-  lines.push('', '## Invariantes', '', `${inv.passed} de ${inv.checked} conferências passaram.`, '');
+  lines.push(
+    '',
+    '## Invariantes',
+    '',
+    `${inv.passed} de ${inv.checked} conferências passaram.`,
+    '',
+  );
   lines.push('| Invariante | Passaram | Falharam |', '| --- | --- | --- |');
-  for (const entry of Object.values(inv.byId)) lines.push(`| ${entry.description} | ${entry.passed} | ${entry.failed} |`);
+  for (const entry of Object.values(inv.byId))
+    lines.push(`| ${entry.description} | ${entry.passed} | ${entry.failed} |`);
 
   const hot = report.hot;
   const last = report.lastUnit;
@@ -233,12 +257,19 @@ export function renderMarkdown(report) {
     `- Fila zerada depois da carga: ${outbox.drained ? `sim, em ${orDash(outbox.drainSeconds)} s` : 'não, dentro de OUTBOX_DRAIN_S'}`,
   );
 
-  lines.push('', '## Latência no serviço', '', 'p99 de `catalog.inventory.update.latency` no período, pela diferença dos buckets:', '');
+  lines.push(
+    '',
+    '## Latência no serviço',
+    '',
+    'p99 de `catalog.inventory.update.latency` no período, pela diferença dos buckets:',
+    '',
+  );
   const ops = Object.entries(report.service.p99Ms);
   if (ops.length === 0) lines.push('- sem amostras');
   for (const [op, p99] of ops) lines.push(`- \`${op}\`: ${ms(p99)} ms`);
 
   lines.push('', '## Parâmetros', '', '| Variável | Valor |', '| --- | --- |');
-  for (const [name, val] of Object.entries(report.params)) lines.push(`| \`${name}\` | ${val === '' ? '(padrão do perfil)' : `\`${val}\``} |`);
+  for (const [name, val] of Object.entries(report.params))
+    lines.push(`| \`${name}\` | ${val === '' ? '(padrão do perfil)' : `\`${val}\``} |`);
   return `${lines.join('\n')}\n`;
 }

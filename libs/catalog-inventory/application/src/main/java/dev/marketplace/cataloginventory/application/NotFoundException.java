@@ -5,7 +5,7 @@ package dev.marketplace.cataloginventory.application;
  * igual para não revelar existência.
  */
 public class NotFoundException extends RuntimeException {
-    public NotFoundException(String resource) {
-        super(resource + " não encontrado");
-    }
+  public NotFoundException(String resource) {
+    super(resource + " não encontrado");
+  }
 }

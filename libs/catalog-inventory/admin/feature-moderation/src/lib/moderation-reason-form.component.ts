@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, model, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  model,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import {
   FormCheckComponent,
@@ -6,7 +16,7 @@ import {
   FormCheckLabelDirective,
   FormControlDirective,
   FormLabelDirective,
-  FormTextDirective
+  FormTextDirective,
 } from '@coreui/angular';
 import {
   createModerationReason,
@@ -14,7 +24,7 @@ import {
   getModerationReason,
   type ModerationDecision,
   reviseModerationReason,
-  ReviseModerationReasonRequestSchema
+  ReviseModerationReasonRequestSchema,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   applyServerErrors,
@@ -23,7 +33,7 @@ import {
   FormOffcanvasComponent,
   LoadingStateComponent,
   SCHEMA_ERROR,
-  schemaValidator
+  schemaValidator,
 } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -32,7 +42,7 @@ import {
   type Problem,
   problemCode,
   type RuleViolation,
-  toProblem
+  toProblem,
 } from '@marketplace/shared-web-util';
 
 import { DECISIONS } from './moderation-decisions';
@@ -46,12 +56,12 @@ const CREATE_RULES = {
   code: fieldRules(CreateModerationReasonRequestSchema, 'code'),
   label: fieldRules(CreateModerationReasonRequestSchema, 'label'),
   decisions: fieldRules(CreateModerationReasonRequestSchema, 'decisions'),
-  position: fieldRules(CreateModerationReasonRequestSchema, 'position')
+  position: fieldRules(CreateModerationReasonRequestSchema, 'position'),
 };
 const REVISE_RULES = {
   label: fieldRules(ReviseModerationReasonRequestSchema, 'label'),
   decisions: fieldRules(ReviseModerationReasonRequestSchema, 'decisions'),
-  position: fieldRules(ReviseModerationReasonRequestSchema, 'position')
+  position: fieldRules(ReviseModerationReasonRequestSchema, 'position'),
 };
 const CODE_HINT = CreateModerationReasonRequestSchema.properties.code.description;
 const DUPLICATE_CODE = 'duplicate-moderation-reason-code';
@@ -59,7 +69,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   code: 'Código',
   label: 'Rótulo',
   decisions: 'Decisões',
-  position: 'Posição'
+  position: 'Posição',
 };
 
 /**
@@ -80,7 +90,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
     FormOffcanvasComponent,
     FormTextDirective,
     LoadingStateComponent,
-    ReactiveFormsModule
+    ReactiveFormsModule,
   ],
   template: `
     <app-form-offcanvas
@@ -188,7 +198,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
         </div>
       }
     </app-form-offcanvas>
-  `
+  `,
 })
 export class ModerationReasonFormComponent {
   readonly visible = model(false);
@@ -203,17 +213,19 @@ export class ModerationReasonFormComponent {
 
   readonly codeHint = CODE_HINT;
   readonly fieldLabels = FIELD_LABELS;
-  readonly decisionOptions = DECISIONS.filter(decision => decision.code !== 'APPROVE');
+  readonly decisionOptions = DECISIONS.filter((decision) => decision.code !== 'APPROVE');
 
   readonly form = new FormGroup({
     code: new FormControl('', { nonNullable: true }),
     label: new FormControl('', { nonNullable: true }),
     decisions: new FormControl<ModerationDecision[]>([], { nonNullable: true }),
-    position: new FormControl<number | null>(null)
+    position: new FormControl<number | null>(null),
   });
 
   readonly editing = computed(() => !!this.code());
-  readonly rules = computed(() => (this.editing() ? { ...REVISE_RULES, code: undefined } : CREATE_RULES));
+  readonly rules = computed(() =>
+    this.editing() ? { ...REVISE_RULES, code: undefined } : CREATE_RULES,
+  );
   readonly loading = signal(false);
   /** O formulário tem os dados para editar: na criação, logo ao abrir; na edição, depois de ler o motivo. */
   readonly ready = signal(false);
@@ -241,7 +253,7 @@ export class ModerationReasonFormComponent {
   toggleDecision(code: ModerationDecision, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     const control = this.form.controls.decisions;
-    const others = control.value.filter(decision => decision !== code);
+    const others = control.value.filter((decision) => decision !== code);
     control.setValue(checked ? [...others, code] : others);
     control.markAsTouched();
   }
@@ -254,7 +266,10 @@ export class ModerationReasonFormComponent {
   message(name: ReasonField): string | null {
     const control = this.form.controls[name];
     const violation = control.errors?.[SCHEMA_ERROR] as RuleViolation | undefined;
-    if (name === 'decisions' && (violation?.kind === 'required' || violation?.kind === 'minItems')) {
+    if (
+      name === 'decisions' &&
+      (violation?.kind === 'required' || violation?.kind === 'minItems')
+    ) {
       return 'Marque pelo menos uma decisão.';
     }
     return controlMessage(control);
@@ -278,7 +293,7 @@ export class ModerationReasonFormComponent {
         code: data.code ?? code,
         label: data.label ?? '',
         decisions: [...(data.decisions ?? [])],
-        position: data.position ?? null
+        position: data.position ?? null,
       });
       this.problem.set(null);
       this.showFieldErrors.set(false);
@@ -309,12 +324,14 @@ export class ModerationReasonFormComponent {
           reviseModerationReason({
             path: { code: editing },
             headers: this.#version ? { 'If-Match': this.#version } : undefined,
-            body: { label, decisions, position: Number(position) }
-          })
+            body: { label, decisions, position: Number(position) },
+          }),
         );
       } else {
         await apiData(
-          createModerationReason({ body: { code, label, decisions, ...(position === null ? {} : { position }) } })
+          createModerationReason({
+            body: { code, label, decisions, ...(position === null ? {} : { position }) },
+          }),
         );
       }
       this.saved.emit(editing ? 'updated' : 'created');

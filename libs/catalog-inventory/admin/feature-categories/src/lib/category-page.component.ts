@@ -8,7 +8,7 @@ import {
   resource,
   signal,
   untracked,
-  viewChild
+  viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -19,14 +19,14 @@ import {
   CardComponent,
   CardHeaderComponent,
   ColComponent,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import { cilBan, cilCheckCircle, cilMove, cilPlus, cilTrash } from '@coreui/icons';
 import {
   type CategoryResponse,
   deleteCategory,
   getCategory,
-  reviseCategory
+  reviseCategory,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   type ActionMenuChoice,
@@ -40,7 +40,7 @@ import {
   LoadingStateComponent,
   ProblemAlertComponent,
   ToastService,
-  warnBeforeUnload
+  warnBeforeUnload,
 } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -49,7 +49,7 @@ import {
   type Problem,
   problemReasons,
   toProblem,
-  type Versioned
+  type Versioned,
 } from '@marketplace/shared-web-util';
 import { map } from 'rxjs';
 
@@ -62,7 +62,7 @@ import {
   inheritedAttributeRows,
   ownAttributeRows,
   parentPath,
-  resourceProblem
+  resourceProblem,
 } from './category-model';
 import { CategoryMoveModalComponent } from './category-move-modal.component';
 
@@ -92,7 +92,7 @@ const HAS_PRODUCTS = 'category-has-products';
     ErrorStateComponent,
     LoadingStateComponent,
     ProblemAlertComponent,
-    RowComponent
+    RowComponent,
   ],
   template: `
     @if (current(); as category) {
@@ -207,7 +207,7 @@ const HAS_PRODUCTS = 'category-has-products';
         atributos próprios. Não há como desfazer.
       </p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class CategoryPageComponent implements LeaveGuarded {
   readonly #route = inject(ActivatedRoute);
@@ -218,15 +218,19 @@ export class CategoryPageComponent implements LeaveGuarded {
   readonly form = viewChild.required(CategoryFormComponent);
   readonly mover = viewChild.required(CategoryMoveModalComponent);
 
-  readonly id = toSignal(this.#route.paramMap.pipe(map(params => params.get('id') ?? '')), { requireSync: true });
+  readonly id = toSignal(this.#route.paramMap.pipe(map((params) => params.get('id') ?? '')), {
+    requireSync: true,
+  });
 
   /** Categoria com a versão do `ETag`, para o `If-Match` das gravações. */
   readonly category = resource({
     params: () => ({ id: this.id() }),
-    loader: ({ params }) => apiDataWithVersion(getCategory({ path: { id: params.id } }))
+    loader: ({ params }) => apiDataWithVersion(getCategory({ path: { id: params.id } })),
   });
 
-  readonly versioned = computed(() => (this.category.hasValue() ? this.category.value() : undefined));
+  readonly versioned = computed(() =>
+    this.category.hasValue() ? this.category.value() : undefined,
+  );
   readonly current = computed(() => this.versioned()?.data);
   readonly loadProblem = computed(() => resourceProblem(this.category.error()));
   readonly path = computed(() => {
@@ -256,7 +260,9 @@ export class CategoryPageComponent implements LeaveGuarded {
       category.active
         ? { id: 'DEACTIVATE', label: 'Desativar', icon: cilBan }
         : { id: 'ACTIVATE', label: 'Ativar', icon: cilCheckCircle },
-      ...(this.deletable() ? [{ id: 'DELETE', label: 'Excluir', icon: cilTrash, danger: true }] : [])
+      ...(this.deletable()
+        ? [{ id: 'DELETE', label: 'Excluir', icon: cilTrash, danger: true }]
+        : []),
     ];
   });
 
@@ -269,7 +275,9 @@ export class CategoryPageComponent implements LeaveGuarded {
   /** Recusa de Desativar ou Excluir, mostrada no modal da confirmação. */
   readonly modalProblem = signal<Problem | null>(null);
   readonly returnFocus = signal<HTMLElement | null>(null);
-  readonly hasProducts = computed(() => problemReasons(this.modalProblem()).some(reason => reason.code === HAS_PRODUCTS));
+  readonly hasProducts = computed(() =>
+    problemReasons(this.modalProblem()).some((reason) => reason.code === HAS_PRODUCTS),
+  );
 
   readonly leaveWarning = computed(() => leaveWarning({ unsaved: this.form().dirty() }));
 
@@ -318,8 +326,11 @@ export class CategoryPageComponent implements LeaveGuarded {
         break;
       case 'NEW_CHILD':
         this.form().open(
-          { mode: 'create', parent: { id: category.id ?? '', name: category.name ?? '', path: this.path() } },
-          choice.toggle
+          {
+            mode: 'create',
+            parent: { id: category.id ?? '', name: category.name ?? '', path: this.path() },
+          },
+          choice.toggle,
         );
         break;
       case 'ACTIVATE':
@@ -353,8 +364,8 @@ export class CategoryPageComponent implements LeaveGuarded {
         reviseCategory({
           path: { id },
           body: { name: category.name ?? '', attributes: category.attributes ?? [], active },
-          ...(versioned.version ? { headers: { 'If-Match': versioned.version } } : {})
-        })
+          ...(versioned.version ? { headers: { 'If-Match': versioned.version } } : {}),
+        }),
       );
       if (this.id() === id) {
         this.category.set(saved);
@@ -388,8 +399,8 @@ export class CategoryPageComponent implements LeaveGuarded {
       await apiData(
         deleteCategory({
           path: { id },
-          ...(versioned.version ? { headers: { 'If-Match': versioned.version } } : {})
-        })
+          ...(versioned.version ? { headers: { 'If-Match': versioned.version } } : {}),
+        }),
       );
       this.#events.left(id);
       this.#events.listChanged();
@@ -400,7 +411,7 @@ export class CategoryPageComponent implements LeaveGuarded {
       this.#toast.success(`"${category.name}" excluída.`);
       await this.#router.navigate(category.parentId ? ['..', category.parentId] : ['..'], {
         relativeTo: this.#route,
-        queryParamsHandling: 'preserve'
+        queryParamsHandling: 'preserve',
       });
     } catch (error) {
       if (this.id() === id) {
@@ -434,7 +445,9 @@ export class CategoryPageComponent implements LeaveGuarded {
       }
     } catch (error) {
       if (this.id() === id) {
-        (this.deactivating() || this.deleting() ? this.modalProblem : this.actionProblem).set(toProblem(error));
+        (this.deactivating() || this.deleting() ? this.modalProblem : this.actionProblem).set(
+          toProblem(error),
+        );
       }
     } finally {
       this.reloading.set(false);

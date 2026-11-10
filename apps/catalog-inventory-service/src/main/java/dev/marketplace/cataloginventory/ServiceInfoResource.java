@@ -9,13 +9,13 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 @Path("/internal/info")
 @PermitAll
 public class ServiceInfoResource {
-    /**
-     * Responde 200 com o nome do contexto; rota interna, aberta a qualquer chamador
-     * e fora do contrato público.
-     */
-    @GET
-    @Operation(hidden = true)
-    public Map<String, String> info() {
-        return Map.of("context", "catalog-inventory");
-    }
+  /**
+   * Responde 200 com o nome do contexto; rota interna, aberta a qualquer chamador
+   * e fora do contrato público.
+   */
+  @GET
+  @Operation(hidden = true)
+  public Map<String, String> info() {
+    return Map.of("context", "catalog-inventory");
+  }
 }

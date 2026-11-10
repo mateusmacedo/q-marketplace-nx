@@ -5,9 +5,15 @@ import {
   input,
   linkedSignal,
   output,
-  ViewEncapsulation
+  ViewEncapsulation,
 } from '@angular/core';
-import { FormLabelDirective, FormSelectDirective, PageItemDirective, PageLinkDirective, PaginationComponent } from '@coreui/angular';
+import {
+  FormLabelDirective,
+  FormSelectDirective,
+  PageItemDirective,
+  PageLinkDirective,
+  PaginationComponent,
+} from '@coreui/angular';
 import {
   back,
   canGoBack,
@@ -17,7 +23,7 @@ import {
   forward,
   PAGE_SIZES,
   startTrail,
-  toPageSize
+  toPageSize,
 } from '@marketplace/shared-web-util';
 
 let nextId = 0;
@@ -34,7 +40,13 @@ let nextId = 0;
   // encapsulado.
   encapsulation: ViewEncapsulation.None,
   styles: 'app-cursor-pagination .pagination { margin-bottom: 0; }',
-  imports: [FormLabelDirective, FormSelectDirective, PageItemDirective, PageLinkDirective, PaginationComponent],
+  imports: [
+    FormLabelDirective,
+    FormSelectDirective,
+    PageItemDirective,
+    PageLinkDirective,
+    PaginationComponent,
+  ],
   template: `
     <div class="d-flex flex-wrap gap-3 align-items-center mt-3">
       <c-pagination aria-label="Páginas">
@@ -66,7 +78,7 @@ let nextId = 0;
         </select>
       </div>
     </div>
-  `
+  `,
 })
 export class CursorPaginationComponent {
   /** Cursor da página aberta, lido da URL; vazio é a primeira página. */
@@ -88,7 +100,8 @@ export class CursorPaginationComponent {
 
   readonly #trail = linkedSignal<string | null | undefined, CursorTrail>({
     source: this.cursor,
-    computation: (cursor, previous) => (previous ? followCursor(previous.value, cursor) : startTrail(cursor))
+    computation: (cursor, previous) =>
+      previous ? followCursor(previous.value, cursor) : startTrail(cursor),
   });
 
   readonly hasPrevious = computed(() => canGoBack(this.#trail()));

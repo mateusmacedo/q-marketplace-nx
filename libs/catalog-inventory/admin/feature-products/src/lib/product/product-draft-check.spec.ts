@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   type ProductCheckRequest,
   type ProductResponse,
-  provideCatalogInventoryApi
+  provideCatalogInventoryApi,
 } from '@marketplace/catalog-inventory-admin-data-access';
 
 import { type ProductDraftCheck, productDraftCheck } from './product-draft-check';
@@ -13,11 +13,20 @@ import { type ProductDraftCheck, productDraftCheck } from './product-draft-check
 const CHECK = '/api/catalog-inventory/products/p1/check';
 const DELAY = 20;
 const SAVED = [{ code: 'no-sku', params: [], message: 'Adicione ao menos um SKU.', field: 'skus' }];
-const DRAFT_ISSUES = [{ code: 'missing-offer', params: ['CAM-P'], message: 'Defina o preço do SKU CAM-P.', field: 'skus[CAM-P].offer' }];
+const DRAFT_ISSUES = [
+  {
+    code: 'missing-offer',
+    params: ['CAM-P'],
+    message: 'Defina o preço do SKU CAM-P.',
+    field: 'skus[CAM-P].offer',
+  },
+];
 const CHANGE = {
-  removedAttributes: [{ code: 'gola', label: 'Gola', value: 'V', reason: 'A categoria nova não tem Gola.' }],
+  removedAttributes: [
+    { code: 'gola', label: 'Gola', value: 'V', reason: 'A categoria nova não tem Gola.' },
+  ],
   newRequired: [{ code: 'tecido', label: 'Tecido', variant: false }],
-  blockingSkus: []
+  blockingSkus: [],
 };
 
 describe('conferência do rascunho no servidor', () => {
@@ -27,7 +36,7 @@ describe('conferência do rascunho no servidor', () => {
   let check: ProductDraftCheck;
 
   const settle = async () => {
-    await new Promise(resolve => setTimeout(resolve, DELAY * 2));
+    await new Promise((resolve) => setTimeout(resolve, DELAY * 2));
     TestBed.tick();
   };
   const answer = async (body: object) => {
@@ -42,12 +51,14 @@ describe('conferência do rascunho no servidor', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     product = signal({ id: 'p1', publishingIssues: SAVED });
     draft = signal<ProductCheckRequest | undefined>(undefined);
-    check = runInInjectionContext(TestBed.inject(Injector), () => productDraftCheck(product, draft, DELAY));
+    check = runInInjectionContext(TestBed.inject(Injector), () =>
+      productDraftCheck(product, draft, DELAY),
+    );
     TestBed.tick();
   });
 
@@ -71,7 +82,7 @@ describe('conferência do rascunho no servidor', () => {
     await settle();
     expect(await answer({ publishingIssues: DRAFT_ISSUES, categoryChange: null })).toEqual({
       categoryId: 'c1',
-      attributes: { cor: 'azul' }
+      attributes: { cor: 'azul' },
     });
     expect(check.issues()).toEqual(DRAFT_ISSUES);
     expect(check.categoryChange()).toBeNull();
@@ -92,7 +103,7 @@ describe('conferência do rascunho no servidor', () => {
 
     expect(await answer({ publishingIssues: DRAFT_ISSUES, categoryChange: null })).toEqual({
       categoryId: 'c1',
-      attributes: { cor: 'azul' }
+      attributes: { cor: 'azul' },
     });
     expect(check.issues()).toEqual(DRAFT_ISSUES);
   });
@@ -113,7 +124,7 @@ describe('conferência do rascunho no servidor', () => {
         TestBed.tick();
         expect(check.issues()).toEqual(SAVED);
       },
-      { interval: 1 }
+      { interval: 1 },
     );
     expect(check.loading()).toBe(true);
     expect(check.categoryChange()).toEqual(CHANGE);
@@ -145,12 +156,18 @@ describe('conferência do rascunho no servidor', () => {
     await settle();
     const failed = await vi.waitFor(() => http.expectOne(CHECK));
     failed.flush(
-      { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', detail: 'Categoria não encontrada' },
-      { status: 404, statusText: 'Not Found' }
+      {
+        type: 'https://marketplace.dev/problems/not-found',
+        title: 'Não encontrado',
+        detail: 'Categoria não encontrada',
+      },
+      { status: 404, statusText: 'Not Found' },
     );
     await vi.waitFor(() => {
       TestBed.tick();
-      expect(check.problem()).toEqual(expect.objectContaining({ status: 404, detail: 'Categoria não encontrada' }));
+      expect(check.problem()).toEqual(
+        expect.objectContaining({ status: 404, detail: 'Categoria não encontrada' }),
+      );
     });
 
     check.reload();

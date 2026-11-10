@@ -10,28 +10,28 @@ import java.util.Objects;
  * colchetes, então o caminho não é ambíguo.
  */
 public record PublishingIssue(Reason reason, String field) {
-    public PublishingIssue {
-        Objects.requireNonNull(reason, "reason");
-        Objects.requireNonNull(field, "field");
-    }
+  public PublishingIssue {
+    Objects.requireNonNull(reason, "reason");
+    Objects.requireNonNull(field, "field");
+  }
 
-    static PublishingIssue at(String field, Reason reason) {
-        return new PublishingIssue(reason, field);
-    }
+  static PublishingIssue at(String field, Reason reason) {
+    return new PublishingIssue(reason, field);
+  }
 
-    static String attribute(String code) {
-        return "attributes." + code;
-    }
+  static String attribute(String code) {
+    return "attributes." + code;
+  }
 
-    static String sku(String sellerSku) {
-        return "skus[" + sellerSku + "]";
-    }
+  static String sku(String sellerSku) {
+    return "skus[" + sellerSku + "]";
+  }
 
-    static String variant(String sellerSku) {
-        return sku(sellerSku) + ".variantAttributes";
-    }
+  static String variant(String sellerSku) {
+    return sku(sellerSku) + ".variantAttributes";
+  }
 
-    static String variant(String sellerSku, String code) {
-        return variant(sellerSku) + "." + code;
-    }
+  static String variant(String sellerSku, String code) {
+    return variant(sellerSku) + "." + code;
+  }
 }

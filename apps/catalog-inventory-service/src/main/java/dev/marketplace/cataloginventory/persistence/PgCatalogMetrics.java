@@ -15,33 +15,29 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 @Traced
 public class PgCatalogMetrics implements SkuCountsSource {
-    // WHY: loja sem linha em seller_eligibility ainda está PENDING, como na leitura
-    // da elegibilidade.
-    private static final String SKU_COUNTS = """
-            SELECT count(*) AS active,
-                   count(*) FILTER (WHERE coalesce(e.status, 'PENDING') = 'APPROVED'
-                                    AND i.on_hand - i.reserved > 0) AS sellable
-            FROM sku s
-            JOIN product p ON p.id = s.product_id
-            LEFT JOIN seller_eligibility e ON e.tenant_id = p.tenant_id AND e.store_id = p.store_id
-            LEFT JOIN inventory_level i ON i.sku_id = s.id
-            WHERE p.status = 'ACTIVE'""";
+  // WHY: loja sem linha em seller_eligibility ainda está PENDING, como na leitura da elegibilidade.
+  private static final String SKU_COUNTS = """
+      SELECT count(*) AS active,
+             count(*) FILTER (WHERE coalesce(e.status, 'PENDING') = 'APPROVED'
+                              AND i.on_hand - i.reserved > 0) AS sellable
+      FROM sku s
+      JOIN product p ON p.id = s.product_id
+      LEFT JOIN seller_eligibility e ON e.tenant_id = p.tenant_id AND e.store_id = p.store_id
+      LEFT JOIN inventory_level i ON i.sku_id = s.id
+      WHERE p.status = 'ACTIVE'""";
 
-    private final Pool pool;
+  private final Pool pool;
 
-    PgCatalogMetrics(Pool pool) {
-        this.pool = pool;
-    }
+  PgCatalogMetrics(Pool pool) {
+    this.pool = pool;
+  }
 
-    /**
-     * Conta os SKUs ativos e os vendáveis de todos os tenants numa única consulta
-     * agregada.
-     */
-    @Override
-    public Uni<SkuCounts> skuCounts() {
-        return pool.query(SKU_COUNTS).execute().map(rows -> {
-            Row r = rows.iterator().next();
-            return new SkuCounts(r.getLong("active"), r.getLong("sellable"));
-        });
-    }
+  /** Conta os SKUs ativos e os vendáveis de todos os tenants numa única consulta agregada. */
+  @Override
+  public Uni<SkuCounts> skuCounts() {
+    return pool.query(SKU_COUNTS).execute().map(rows -> {
+      Row r = rows.iterator().next();
+      return new SkuCounts(r.getLong("active"), r.getLong("sellable"));
+    });
+  }
 }

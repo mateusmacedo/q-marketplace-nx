@@ -1,9 +1,5 @@
 {
   "name": "cart-checkout-application",
   "projectType": "library",
-  "tags": [
-    "scope:cart-checkout",
-    "layer:application",
-    "lang:java"
-  ]
+  "tags": ["scope:cart-checkout", "layer:application", "lang:java"]
 }

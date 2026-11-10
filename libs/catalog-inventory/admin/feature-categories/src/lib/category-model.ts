@@ -8,9 +8,12 @@ import {
   type CategoryResponse,
   type CategorySummary,
   type EffectiveAttributeDto,
-  listCategories
+  listCategories,
 } from '@marketplace/catalog-inventory-admin-data-access';
-import { CATEGORY_PATH_SEPARATOR, type CategoryNode } from '@marketplace/catalog-inventory-admin-ui';
+import {
+  CATEGORY_PATH_SEPARATOR,
+  type CategoryNode,
+} from '@marketplace/catalog-inventory-admin-ui';
 import type { BatchActionPresentation } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -19,7 +22,7 @@ import {
   fieldRules,
   isProblem,
   type Problem,
-  toProblem
+  toProblem,
 } from '@marketplace/shared-web-util';
 
 /** Tipos de atributo na ordem do contrato (`AttributeType`). */
@@ -31,7 +34,7 @@ export const ATTRIBUTE_TYPE_LABELS: Readonly<Record<AttributeType, string>> = {
   INTEGER: 'Inteiro',
   DECIMAL: 'Decimal',
   BOOLEAN: 'Sim ou não',
-  OPTION: 'Opção'
+  OPTION: 'Opção',
 };
 
 export function attributeTypeLabel(type: string | undefined): string {
@@ -48,21 +51,30 @@ export interface CategoryStep {
 }
 
 /** Caminho da raiz até a própria categoria, montado com os `ancestors` que o servidor devolve. */
-export function categoryTrail(category: Pick<CategoryResponse, 'id' | 'name' | 'ancestors'>): CategoryStep[] {
-  return [...(category.ancestors ?? []), category].map(step => ({ id: step.id ?? '', name: step.name ?? '' }));
+export function categoryTrail(
+  category: Pick<CategoryResponse, 'id' | 'name' | 'ancestors'>,
+): CategoryStep[] {
+  return [...(category.ancestors ?? []), category].map((step) => ({
+    id: step.id ?? '',
+    name: step.name ?? '',
+  }));
 }
 
 /** Caminho exibido ("Vestuário › Camisas"). */
-export function categoryPath(category: Pick<CategoryResponse, 'id' | 'name' | 'ancestors'>): string {
+export function categoryPath(
+  category: Pick<CategoryResponse, 'id' | 'name' | 'ancestors'>,
+): string {
   return categoryTrail(category)
-    .map(step => step.name)
+    .map((step) => step.name)
     .join(CATEGORY_PATH_SEPARATOR);
 }
 
 /** Caminho até o pai ("Vestuário › Camisas"), ou `null` na raiz. */
 export function parentPath(category: Pick<CategoryResponse, 'ancestors'>): string | null {
   const ancestors = category.ancestors ?? [];
-  return ancestors.length ? ancestors.map(ancestor => ancestor.name ?? '').join(CATEGORY_PATH_SEPARATOR) : null;
+  return ancestors.length
+    ? ancestors.map((ancestor) => ancestor.name ?? '').join(CATEGORY_PATH_SEPARATOR)
+    : null;
 }
 
 /** Linha da tabela de atributos do detalhe. */
@@ -79,7 +91,7 @@ export interface AttributeRow {
 
 /** Atributos próprios da categoria, como o servidor os guarda. */
 export function ownAttributeRows(category: CategoryResponse): AttributeRow[] {
-  return (category.attributes ?? []).map(attribute => attributeRow(attribute));
+  return (category.attributes ?? []).map((attribute) => attributeRow(attribute));
 }
 
 /**
@@ -87,10 +99,12 @@ export function ownAttributeRows(category: CategoryResponse): AttributeRow[] {
  * categoria de origem lido dos `ancestors`.
  */
 export function inheritedAttributeRows(category: CategoryResponse): AttributeRow[] {
-  const names = new Map((category.ancestors ?? []).map((ancestor: CategoryAncestor) => [ancestor.id, ancestor.name]));
+  const names = new Map(
+    (category.ancestors ?? []).map((ancestor: CategoryAncestor) => [ancestor.id, ancestor.name]),
+  );
   return (category.effectiveAttributes ?? [])
-    .filter(attribute => attribute.categoryId !== category.id)
-    .map(attribute => attributeRow(attribute, names.get(attribute.categoryId) ?? ''));
+    .filter((attribute) => attribute.categoryId !== category.id)
+    .map((attribute) => attributeRow(attribute, names.get(attribute.categoryId) ?? ''));
 }
 
 function attributeRow(attribute: EffectiveAttributeDto, origin?: string): AttributeRow {
@@ -101,7 +115,7 @@ function attributeRow(attribute: EffectiveAttributeDto, origin?: string): Attrib
     required: attribute.required === true,
     variant: attribute.variant === true,
     options: attribute.options ?? [],
-    ...(origin === undefined ? {} : { origin })
+    ...(origin === undefined ? {} : { origin }),
   };
 }
 
@@ -110,10 +124,13 @@ export function toCategoryNode(category: CategorySummary): CategoryNode {
   return {
     id: category.id ?? '',
     name: category.name ?? '',
-    ancestors: (category.ancestors ?? []).map(ancestor => ({ id: ancestor.id ?? '', name: ancestor.name ?? '' })),
+    ancestors: (category.ancestors ?? []).map((ancestor) => ({
+      id: ancestor.id ?? '',
+      name: ancestor.name ?? '',
+    })),
     level: category.level,
     usable: category.usable,
-    childCount: category.childCount
+    childCount: category.childCount,
   };
 }
 
@@ -121,7 +138,9 @@ export function toCategoryNode(category: CategorySummary): CategoryNode {
  * Lê todas as páginas de uma listagem por cursor, seguindo o `nextCursor` até a última. O tamanho da página fica com o
  * padrão do servidor.
  */
-export async function loadAllPages(page: (cursor: string | undefined) => Promise<CategoryPage>): Promise<CategorySummary[]> {
+export async function loadAllPages(
+  page: (cursor: string | undefined) => Promise<CategoryPage>,
+): Promise<CategorySummary[]> {
   const items: CategorySummary[] = [];
   let cursor: string | undefined;
   do {
@@ -134,8 +153,12 @@ export async function loadAllPages(page: (cursor: string | undefined) => Promise
 
 /** Categorias de um nível (`GET /categories?parentId=`), todas as páginas; sem pai, as raízes. */
 export function loadLevel(parentId: string | null): Promise<CategorySummary[]> {
-  return loadAllPages(cursor =>
-    apiData(listCategories({ query: { ...(parentId ? { parentId } : {}), ...(cursor ? { cursor } : {}) } }))
+  return loadAllPages((cursor) =>
+    apiData(
+      listCategories({
+        query: { ...(parentId ? { parentId } : {}), ...(cursor ? { cursor } : {}) },
+      }),
+    ),
   );
 }
 
@@ -171,14 +194,14 @@ export function acceptsCategoryAction(category: CategorySummary, action: string)
 export const CATEGORY_BATCH_ACTIONS: readonly BatchActionPresentation[] = [
   { id: 'ACTIVATE', label: 'Ativar', runningLabel: 'Ativando', color: 'success' },
   { id: 'DEACTIVATE', label: 'Desativar', runningLabel: 'Desativando', color: 'secondary' },
-  { id: 'DELETE', label: 'Excluir', runningLabel: 'Excluindo', color: 'danger' }
+  { id: 'DELETE', label: 'Excluir', runningLabel: 'Excluindo', color: 'danger' },
 ];
 
 /** Particípio de cada ação do lote, para o resumo do toast. */
 export const CATEGORY_BATCH_VERBS: Readonly<Record<CategoryBatchAction, BatchVerb>> = {
   ACTIVATE: { one: 'ativada', many: 'ativadas', feminine: true },
   DEACTIVATE: { one: 'desativada', many: 'desativadas', feminine: true },
-  DELETE: { one: 'excluída', many: 'excluídas', feminine: true }
+  DELETE: { one: 'excluída', many: 'excluídas', feminine: true },
 };
 
 /**
@@ -215,7 +238,7 @@ const FIELD_NAMES: Readonly<Record<string, string>> = {
   type: 'tipo',
   required: 'obrigatório',
   variant: 'variante do SKU',
-  options: 'opções'
+  options: 'opções',
 };
 
 /**

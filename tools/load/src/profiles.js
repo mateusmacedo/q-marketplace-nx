@@ -21,7 +21,16 @@ export const EXEC = {
   last_unit: 'lastUnit',
 };
 // WHY: sem a tag url, cada id de reserva no caminho da liberação viraria uma série nova no Prometheus.
-export const SYSTEM_TAGS = ['status', 'method', 'name', 'group', 'check', 'error_code', 'scenario', 'expected_response'];
+export const SYSTEM_TAGS = [
+  'status',
+  'method',
+  'name',
+  'group',
+  'check',
+  'error_code',
+  'scenario',
+  'expected_response',
+];
 
 const PREALLOCATION_S = 0.5;
 // WHY: duração de iteração tolerada antes de faltar VU para manter a taxa, pelo número de requisições de cada cenário;
@@ -51,8 +60,12 @@ const LAST_UNIT_MAX_VUS = 10;
 const DEGRADED_P99_MS = 2000;
 const DURATION_UNITS_S = { s: 1, m: 60, h: 3600 };
 
-const level = (value, overrides = {}) => Object.fromEntries(RATED_SCENARIOS.map((s) => [s, overrides[s] ?? value]));
-const stage = (duration, value) => ({ duration, level: typeof value === 'number' ? level(value) : value });
+const level = (value, overrides = {}) =>
+  Object.fromEntries(RATED_SCENARIOS.map((s) => [s, overrides[s] ?? value]));
+const stage = (duration, value) => ({
+  duration,
+  level: typeof value === 'number' ? level(value) : value,
+});
 // WHY: a carga alta anterior subia só o SKU disputado, a 1.000/s; o estresse mantém isso e dobra os demais.
 const STRESS_LEVEL = level(2, { hot_sku: 10 });
 
@@ -61,16 +74,31 @@ export function shapeFor(profile, duration) {
     case 'smoke':
       return { start: level(0.2), stages: [stage(duration ?? '30s', 0.2)] };
     case 'average':
-      return { start: level(0), stages: [stage('30s', 1), stage(duration ?? '5m', 1), stage('30s', 0)] };
+      return {
+        start: level(0),
+        stages: [stage('30s', 1), stage(duration ?? '5m', 1), stage('30s', 0)],
+      };
     case 'stress':
-      return { start: level(0), stages: [stage('1m', STRESS_LEVEL), stage(duration ?? '2m', STRESS_LEVEL), stage('30s', 0)] };
+      return {
+        start: level(0),
+        stages: [stage('1m', STRESS_LEVEL), stage(duration ?? '2m', STRESS_LEVEL), stage('30s', 0)],
+      };
     case 'spike':
       return {
         start: level(1),
-        stages: [stage('30s', 1), stage('10s', 8), stage(duration ?? '1m', 8), stage('10s', 1), stage('1m', 1)],
+        stages: [
+          stage('30s', 1),
+          stage('10s', 8),
+          stage(duration ?? '1m', 8),
+          stage('10s', 1),
+          stage('1m', 1),
+        ],
       };
     case 'soak':
-      return { start: level(0), stages: [stage('1m', 1), stage(duration ?? '30m', 1), stage('30s', 0)] };
+      return {
+        start: level(0),
+        stages: [stage('1m', 1), stage(duration ?? '30m', 1), stage('30s', 0)],
+      };
     case 'breakpoint':
       return { start: level(0), stages: [stage(duration ?? '10m', 20)] };
     default:
@@ -86,7 +114,11 @@ export function durationSeconds(text) {
 export function formatSeconds(total) {
   const parts = [];
   let rest = Math.round(total);
-  for (const [unit, size] of [['h', 3600], ['m', 60], ['s', 1]]) {
+  for (const [unit, size] of [
+    ['h', 3600],
+    ['m', 60],
+    ['s', 1],
+  ]) {
     if (rest >= size) {
       parts.push(`${Math.floor(rest / size)}${unit}`);
       rest %= size;
@@ -96,11 +128,18 @@ export function formatSeconds(total) {
 }
 
 // WHY: na disputa contínua, cada iteração do SKU disputado reserva e libera, duas requisições como a espalhada.
-const iterationCeiling = (params, name) => (name === 'hot_sku' && params.hotMode === 'contend' ? 2.5 : ITERATION_CEILING_S[name]);
+const iterationCeiling = (params, name) =>
+  name === 'hot_sku' && params.hotMode === 'contend' ? 2.5 : ITERATION_CEILING_S[name];
 
 function vuAllocation(params, name, peakPerSecond) {
-  const maxVUs = Math.min(params.maxVus, Math.max(1, Math.ceil(peakPerSecond * iterationCeiling(params, name))));
-  return { preAllocatedVUs: Math.min(maxVUs, Math.max(1, Math.ceil(peakPerSecond * PREALLOCATION_S))), maxVUs };
+  const maxVUs = Math.min(
+    params.maxVus,
+    Math.max(1, Math.ceil(peakPerSecond * iterationCeiling(params, name))),
+  );
+  return {
+    preAllocatedVUs: Math.min(maxVUs, Math.max(1, Math.ceil(peakPerSecond * PREALLOCATION_S))),
+    maxVUs,
+  };
 }
 
 export function planFor(params) {
@@ -110,7 +149,13 @@ export function planFor(params) {
   for (const name of params.scenarios.filter((s) => EXEC[s])) {
     if (name === 'last_unit') {
       const vus = Math.min(params.lastUnitAttempts, LAST_UNIT_MAX_VUS);
-      scenarios[name] = { burst: true, peakPerSecond: null, iterations: params.lastUnitAttempts, preAllocatedVUs: vus, maxVUs: vus };
+      scenarios[name] = {
+        burst: true,
+        peakPerSecond: null,
+        iterations: params.lastUnitAttempts,
+        preAllocatedVUs: vus,
+        maxVUs: vus,
+      };
       continue;
     }
     const perMinute = (lvl) => {
@@ -126,7 +171,13 @@ export function planFor(params) {
       previous = s.target;
     }
     const peakPerSecond = Math.max(startRate, ...stages.map((s) => s.target)) / 60;
-    scenarios[name] = { startRate, stages, peakPerSecond, iterations: Math.round(iterations), ...vuAllocation(params, name, peakPerSecond) };
+    scenarios[name] = {
+      startRate,
+      stages,
+      peakPerSecond,
+      iterations: Math.round(iterations),
+      ...vuAllocation(params, name, peakPerSecond),
+    };
   }
   return { shape, totalSeconds, scenarios };
 }
@@ -136,7 +187,8 @@ const k6Scenarios = (params) => params.scenarios.filter((s) => EXEC[s]);
 
 function correctness(params) {
   const thresholds = { inventory_invariants: ['rate==1'] };
-  if (params.scenarios.includes('hot_sku') && params.hotMode === 'exhaust') thresholds.hot_sku_accepted = [`count<=${params.hotStock}`];
+  if (params.scenarios.includes('hot_sku') && params.hotMode === 'exhaust')
+    thresholds.hot_sku_accepted = [`count<=${params.hotStock}`];
   if (params.scenarios.includes('last_unit')) {
     thresholds.last_unit_accepted = [`count==${params.lastUnitStock}`];
     thresholds.last_unit_refused = [`count==${params.lastUnitAttempts - params.lastUnitStock}`];
@@ -152,13 +204,17 @@ const outbox = (params) => ({
 const responses = (params, maxRate) => {
   const condition = maxRate === 0 ? 'rate==0' : `rate<${maxRate}`;
   const thresholds = { server_errors: [condition], unexpected_responses: [condition] };
-  for (const s of k6Scenarios(params)) thresholds[`unexpected_responses{scenario:${s}}`] = [condition];
+  for (const s of k6Scenarios(params))
+    thresholds[`unexpected_responses{scenario:${s}}`] = [condition];
   return thresholds;
 };
 
 function latency(params) {
   return Object.fromEntries(
-    k6Scenarios(params).map((s) => [`http_req_duration{scenario:${s},kind:api}`, [`p(99)<${params.p99Ms[s]}`]]),
+    k6Scenarios(params).map((s) => [
+      `http_req_duration{scenario:${s},kind:api}`,
+      [`p(99)<${params.p99Ms[s]}`],
+    ]),
   );
 }
 
@@ -171,7 +227,12 @@ const steady = (params) => ({
 });
 
 const THRESHOLDS = {
-  smoke: (params) => ({ ...responses(params, 0), ...correctness(params), ...outbox(params), dropped_iterations: ['count==0'] }),
+  smoke: (params) => ({
+    ...responses(params, 0),
+    ...correctness(params),
+    ...outbox(params),
+    dropped_iterations: ['count==0'],
+  }),
   average: steady,
   soak: steady,
   stress: (params) => ({
@@ -193,13 +254,17 @@ const THRESHOLDS = {
 function merge(...maps) {
   const merged = {};
   for (const map of maps) {
-    for (const [metric, conditions] of Object.entries(map)) merged[metric] = (merged[metric] || []).concat(conditions);
+    for (const [metric, conditions] of Object.entries(map))
+      merged[metric] = (merged[metric] || []).concat(conditions);
   }
   return merged;
 }
 
 function assertBudget(params, plan) {
-  const preallocated = Object.values(plan.scenarios).reduce((total, s) => total + s.preAllocatedVUs, 0);
+  const preallocated = Object.values(plan.scenarios).reduce(
+    (total, s) => total + s.preAllocatedVUs,
+    0,
+  );
   if (preallocated > MAX_PREALLOCATED_VUS) {
     throw new Error(
       `profiles: o perfil ${params.profile} pré-aloca ${preallocated} VUs, acima do teto de ${MAX_PREALLOCATED_VUS}; reduza as taxas ou MAX_VUS`,
@@ -248,7 +313,13 @@ export function buildOptions(params) {
   for (const [name, s] of Object.entries(plan.scenarios)) {
     if (s.burst) {
       // WHY: a rajada do último item corre no começo, com até LAST_UNIT_MAX_VUS tentativas simultâneas pela mesma unidade.
-      scenarios[name] = { executor: 'shared-iterations', exec: EXEC[name], vus: s.maxVUs, iterations: s.iterations, maxDuration: '30s' };
+      scenarios[name] = {
+        executor: 'shared-iterations',
+        exec: EXEC[name],
+        vus: s.maxVUs,
+        iterations: s.iterations,
+        maxDuration: '30s',
+      };
       continue;
     }
     scenarios[name] = {
@@ -284,13 +355,17 @@ export function describePlan(params) {
   ];
   for (const [name, s] of Object.entries(plan.scenarios)) {
     if (s.burst) {
-      lines.push(`  ${name}: rajada de ${s.iterations} tentativas com ${s.maxVUs} VUs no começo, estoque ${params.lastUnitStock}, sem liberar`);
+      lines.push(
+        `  ${name}: rajada de ${s.iterations} tentativas com ${s.maxVUs} VUs no começo, estoque ${params.lastUnitStock}, sem liberar`,
+      );
       continue;
     }
     if (name === 'hot_sku') {
-      lines.push(params.hotMode === 'contend'
-        ? `  hot_sku: disputa contínua (reserva e libera), estoque ${params.hotStock}, no máximo ${s.maxVUs} unidades reservadas ao mesmo tempo (uma por VU)`
-        : `  hot_sku: modo exhaust (reserva sem liberar até esgotar), estoque ${params.hotStock}`);
+      lines.push(
+        params.hotMode === 'contend'
+          ? `  hot_sku: disputa contínua (reserva e libera), estoque ${params.hotStock}, no máximo ${s.maxVUs} unidades reservadas ao mesmo tempo (uma por VU)`
+          : `  hot_sku: modo exhaust (reserva sem liberar até esgotar), estoque ${params.hotStock}`,
+      );
     }
     lines.push(
       `  ${name}: pico de ${s.peakPerSecond.toFixed(2)} iterações/s, cerca de ${s.iterations} iterações, ${s.preAllocatedVUs} a ${s.maxVUs} VUs`,
@@ -298,15 +373,21 @@ export function describePlan(params) {
   }
   const rounds = kybRounds(params, plan);
   if (rounds > 0) {
-    lines.push(`  kyb_verdicts: ${rounds} rodadas a cada ${params.kybIntervalS} s, ${params.kybStores} lojas sintéticas, ${rounds * params.kybStores} vereditos`);
+    lines.push(
+      `  kyb_verdicts: ${rounds} rodadas a cada ${params.kybIntervalS} s, ${params.kybStores} lojas sintéticas, ${rounds * params.kybStores} vereditos`,
+    );
   }
-  const preallocated = Object.values(plan.scenarios).reduce((total, s) => total + s.preAllocatedVUs, 0);
+  const preallocated = Object.values(plan.scenarios).reduce(
+    (total, s) => total + s.preAllocatedVUs,
+    0,
+  );
   lines.push(`  VUs pré-alocados: ${preallocated} (teto ${MAX_PREALLOCATED_VUS})`);
   const limits = [];
   for (const [metric, conditions] of Object.entries(options.thresholds)) {
     for (const c of conditions) {
       const condition = typeof c === 'string' ? c : `${c.threshold} (aborta)`;
-      if (!isProbe(metric, typeof c === 'string' ? c : c.threshold)) limits.push(`${metric} ${condition}`);
+      if (!isProbe(metric, typeof c === 'string' ? c : c.threshold))
+        limits.push(`${metric} ${condition}`);
     }
   }
   lines.push(`  limites: ${limits.join('; ')}`);

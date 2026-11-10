@@ -1,11 +1,7 @@
 {
   "name": "settlement-payout-service",
   "projectType": "application",
-  "tags": [
-    "scope:settlement-payout",
-    "layer:service",
-    "lang:java"
-  ],
+  "tags": ["scope:settlement-payout", "layer:service", "lang:java"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
@@ -21,9 +17,7 @@
     },
     "container": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "native"
-      ],
+      "dependsOn": ["native"],
       "options": {
         "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=settlement-payout-service -t marketplace/settlement-payout:local ."
       }

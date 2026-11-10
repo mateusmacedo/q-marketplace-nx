@@ -5,7 +5,7 @@ package dev.marketplace.cataloginventory.application;
  * terceiros (RFC 6585, 428).
  */
 public class PreconditionRequiredException extends RuntimeException {
-    public PreconditionRequiredException() {
-        super("Envie o cabeçalho If-Match com o ETag da última leitura");
-    }
+  public PreconditionRequiredException() {
+    super("Envie o cabeçalho If-Match com o ETag da última leitura");
+  }
 }

@@ -29,8 +29,8 @@ export async function ensureSellerStoreApproved(timeoutMs = 60_000): Promise<voi
   }
   throw new Error(
     `A loja ${E2E_ENV.sellerStoreId} continua ${current.status} ${timeoutMs / 1000} s depois do SellerApproved em ` +
-    `${SELLER_TOPIC}. Confira se o catalog-worker está no ar e consumindo o tópico (Redpanda Console em ` +
-    `http://localhost:8090, grupo de consumo do catálogo).`
+      `${SELLER_TOPIC}. Confira se o catalog-worker está no ar e consumindo o tópico (Redpanda Console em ` +
+      `http://localhost:8090, grupo de consumo do catálogo).`,
   );
 }
 
@@ -43,7 +43,7 @@ export function publishSellerApproved(storeId: string): void {
     source: 'kyb-kyc',
     tenantId: E2E_ENV.tenantId,
     occurredAt: new Date().toISOString(),
-    data: { storeId }
+    data: { storeId },
   };
   const args = [
     'compose',
@@ -62,13 +62,17 @@ export function publishSellerApproved(storeId: string): void {
     '--reader-property',
     'parse.key=true',
     '--reader-property',
-    'key.separator=|'
+    'key.separator=|',
   ];
-  const result = spawnSync('docker', args, { input: `${storeId}|${JSON.stringify(event)}\n`, encoding: 'utf8', timeout: 60_000 });
+  const result = spawnSync('docker', args, {
+    input: `${storeId}|${JSON.stringify(event)}\n`,
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
   if (result.error || result.status !== 0) {
     throw new Error(
       `Não foi possível publicar o SellerApproved da loja ${storeId} em ${SELLER_TOPIC} ` +
-      `(docker ${args.slice(0, 8).join(' ')} ...): ${result.error?.message ?? result.stderr}`
+        `(docker ${args.slice(0, 8).join(' ')} ...): ${result.error?.message ?? result.stderr}`,
     );
   }
 }

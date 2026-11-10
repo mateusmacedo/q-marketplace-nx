@@ -25,8 +25,10 @@ export function actionState(source: ServerActions | null | undefined, code: stri
   if (source?.actions?.includes(code)) {
     return { allowed: true };
   }
-  const blocked = source?.blockedActions?.find(item => item.action === code);
-  return blocked ? { allowed: false, blockedReason: translateReason(blocked.reason ?? {}) } : { allowed: false };
+  const blocked = source?.blockedActions?.find((item) => item.action === code);
+  return blocked
+    ? { allowed: false, blockedReason: translateReason(blocked.reason ?? {}) }
+    : { allowed: false };
 }
 
 /** Indica se o servidor libera a ação para o registro agora. */

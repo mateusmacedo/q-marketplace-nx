@@ -8,7 +8,7 @@ import { type ProductStatus, type ProductStatusLook, productStatusLook } from '.
   selector: 'app-product-status-badge',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [BadgeComponent],
-  template: `<c-badge [color]="look().color" [textColor]="look().textColor ?? ''">{{ look().label }}</c-badge>`
+  template: `<c-badge [color]="look().color" [textColor]="look().textColor ?? ''">{{ look().label }}</c-badge>`,
 })
 export class ProductStatusBadgeComponent {
   readonly status = input.required<ProductStatus | string>();

@@ -4,8 +4,9 @@ import jakarta.ws.rs.Path;
 import java.util.Map;
 @Path("/internal/info")
 public class ServiceInfoResource {
-    /** Responde 200 com o nome do contexto do serviço; rota interna de identificação. */
-    @GET public Map<String, String> info() {
-        return Map.of("context", "fulfillment-logistics");
-    }
+  /** Responde 200 com o nome do contexto do serviço; rota interna de identificação. */
+  @GET
+  public Map<String, String> info() {
+    return Map.of("context", "fulfillment-logistics");
+  }
 }

@@ -9,19 +9,19 @@ import java.util.List;
  * cabeçalho ou quantidade de linhas); {@code reasons} traz os motivos estáveis.
  */
 public class InvalidImportFileException extends RuntimeException implements Refusal {
-    private final List<Reason> reasons;
+  private final List<Reason> reasons;
 
-    public InvalidImportFileException(String message, List<Reason> reasons) {
-        super(message);
-        this.reasons = List.copyOf(reasons);
-    }
+  public InvalidImportFileException(String message, List<Reason> reasons) {
+    super(message);
+    this.reasons = List.copyOf(reasons);
+  }
 
-    /** Motivos na forma compacta ({@code missing-column:title}). */
-    public List<String> reasons() {
-        return reasons.stream().map(Reason::key).toList();
-    }
+  /** Motivos na forma compacta ({@code missing-column:title}). */
+  public List<String> reasons() {
+    return reasons.stream().map(Reason::key).toList();
+  }
 
-    public List<Reason> details() {
-        return reasons;
-    }
+  public List<Reason> details() {
+    return reasons;
+  }
 }

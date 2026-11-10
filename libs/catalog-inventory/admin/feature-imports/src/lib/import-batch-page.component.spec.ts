@@ -3,7 +3,10 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { type ImportResponse, provideCatalogInventoryApi } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  type ImportResponse,
+  provideCatalogInventoryApi,
+} from '@marketplace/catalog-inventory-admin-data-access';
 
 import { ImportBatchPageComponent } from './import-batch-page.component';
 import { POLL_INTERVAL_MS } from './import-tracking';
@@ -18,9 +21,11 @@ describe('ImportBatchPageComponent', () => {
 
   const text = () => (harness.routeNativeElement?.textContent ?? '').replace(/\s+/g, ' ');
   const button = (label: string) =>
-    (Array.from(harness.routeNativeElement?.querySelectorAll('button') ?? []) as HTMLButtonElement[]).find(
-      item => item.textContent?.trim() === label
-    ) as HTMLButtonElement;
+    (
+      Array.from(
+        harness.routeNativeElement?.querySelectorAll('button') ?? [],
+      ) as HTMLButtonElement[]
+    ).find((item) => item.textContent?.trim() === label) as HTMLButtonElement;
 
   async function open(): Promise<void> {
     harness = await RouterTestingHarness.create();
@@ -32,7 +37,7 @@ describe('ImportBatchPageComponent', () => {
   async function answer(
     body: object | null,
     init?: Parameters<ReturnType<HttpTestingController['expectOne']>['flush']>[1],
-    url = B1_PROGRESS
+    url = B1_PROGRESS,
   ) {
     http.expectOne(url).flush(body, init);
     await settle();
@@ -57,8 +62,8 @@ describe('ImportBatchPageComponent', () => {
         provideRouter([{ path: 'loja/importacoes/:id', component: ImportBatchPageComponent }]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideCatalogInventoryApi()
-      ]
+        provideCatalogInventoryApi(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -75,26 +80,36 @@ describe('ImportBatchPageComponent', () => {
         total: 1200,
         lines: [
           { lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' },
-          { lineNumber: 3, sellerSku: 'CAM-PP', outcome: 'FAILED', code: 'invalid-row', message: 'weight_g inválido' }
-        ]
-      })
+          {
+            lineNumber: 3,
+            sellerSku: 'CAM-PP',
+            outcome: 'FAILED',
+            code: 'invalid-row',
+            message: 'weight_g inválido',
+          },
+        ],
+      }),
     );
 
-    expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe('Resultado da importação');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
+      'Resultado da importação',
+    );
     expect(text()).toContain('Lote de 08/11/2026 14:20');
     expect(text()).toContain('Processando');
     expect(text()).toContain('300 de 1200 linhas');
     const progress = harness.routeNativeElement?.querySelector('c-progress');
     expect(progress?.getAttribute('aria-valuenow')).toBe('25');
     expect(progress?.getAttribute('aria-valuemax')).toBe('100');
-    const blocks = Array.from(harness.routeNativeElement?.querySelectorAll('app-number-block') ?? []).map(block =>
-      Array.from(block.querySelectorAll('.small, .fs-5')).map(part => part.textContent?.trim())
+    const blocks = Array.from(
+      harness.routeNativeElement?.querySelectorAll('app-number-block') ?? [],
+    ).map((block) =>
+      Array.from(block.querySelectorAll('.small, .fs-5')).map((part) => part.textContent?.trim()),
     );
     expect(blocks).toEqual([
       ['Criadas', '1'],
       ['Atualizadas', '0'],
       ['Sem mudança', '0'],
-      ['Falhas', '1']
+      ['Falhas', '1'],
     ]);
     expect(harness.routeNativeElement?.querySelector('app-import-lines')).toBeNull();
     expect(harness.routeNativeElement?.querySelector('h2 a')).toBeNull();
@@ -107,9 +122,15 @@ describe('ImportBatchPageComponent', () => {
         total: 2,
         lines: [
           { lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' },
-          { lineNumber: 3, sellerSku: 'CAM-PP', outcome: 'FAILED', code: 'invalid-row', message: 'weight_g inválido' }
-        ]
-      })
+          {
+            lineNumber: 3,
+            sellerSku: 'CAM-PP',
+            outcome: 'FAILED',
+            code: 'invalid-row',
+            message: 'weight_g inválido',
+          },
+        ],
+      }),
     );
 
     expect(text()).toContain('Concluída');
@@ -138,8 +159,13 @@ describe('ImportBatchPageComponent', () => {
   it('mostra o erro do servidor com Tentar de novo quando o lote não abre', async () => {
     await open();
     await answer(
-      { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', status: 404, detail: 'Importação não encontrada' },
-      { status: 404, statusText: 'Not Found' }
+      {
+        type: 'https://marketplace.dev/problems/not-found',
+        title: 'Não encontrado',
+        status: 404,
+        detail: 'Importação não encontrada',
+      },
+      { status: 404, statusText: 'Not Found' },
     );
 
     expect(text()).toContain('Não foi possível carregar a importação.');

@@ -11,7 +11,7 @@ if (!('inert' in HTMLElement.prototype)) {
     },
     set(this: HTMLElement, value: boolean) {
       this.toggleAttribute('inert', !!value);
-    }
+    },
   });
 }
 
@@ -31,7 +31,10 @@ if (!('IntersectionObserver' in globalThis)) {
       return [];
     }
   }
-  Object.defineProperty(globalThis, 'IntersectionObserver', { configurable: true, value: InertIntersectionObserver });
+  Object.defineProperty(globalThis, 'IntersectionObserver', {
+    configurable: true,
+    value: InertIntersectionObserver,
+  });
 }
 
 setupTestBed();

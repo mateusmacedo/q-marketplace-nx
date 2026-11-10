@@ -9,7 +9,7 @@ import {
   model,
   output,
   untracked,
-  ViewEncapsulation
+  ViewEncapsulation,
 } from '@angular/core';
 import {
   ButtonCloseDirective,
@@ -18,7 +18,7 @@ import {
   OffcanvasComponent,
   OffcanvasHeaderComponent,
   OffcanvasTitleDirective,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import { isEditConflict, type Problem } from '@marketplace/shared-web-util';
 
@@ -48,7 +48,7 @@ let nextId = 0;
     OffcanvasHeaderComponent,
     OffcanvasTitleDirective,
     ProblemAlertComponent,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <c-offcanvas
@@ -94,7 +94,7 @@ let nextId = 0;
         </form>
       </c-offcanvas-body>
     </c-offcanvas>
-  `
+  `,
 })
 export class FormOffcanvasComponent {
   readonly visible = model(false);
@@ -143,7 +143,8 @@ export class FormOffcanvasComponent {
       const visible = this.visible();
       if (visible && !this.#wasVisible) {
         const active = this.#document.activeElement;
-        this.#opener = active instanceof HTMLElement && active !== this.#document.body ? active : null;
+        this.#opener =
+          active instanceof HTMLElement && active !== this.#document.body ? active : null;
       }
       if (!visible && this.#wasVisible) {
         const target = untracked(this.returnFocus) ?? this.#opener;

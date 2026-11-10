@@ -14,7 +14,7 @@ import { SortHeaderComponent } from './sort-header.component';
         </tr>
       </thead>
     </table>
-  `
+  `,
 })
 class TableHost {
   readonly sort = signal('-updatedAt');
@@ -36,7 +36,10 @@ describe('SortHeaderComponent', () => {
   });
 
   it('marca o aria-sort só na coluna ativa', () => {
-    expect(headers().map(header => header.getAttribute('aria-sort'))).toEqual(['none', 'descending']);
+    expect(headers().map((header) => header.getAttribute('aria-sort'))).toEqual([
+      'none',
+      'descending',
+    ]);
   });
 
   it('inverte a coluna ativa', async () => {
@@ -48,7 +51,10 @@ describe('SortHeaderComponent', () => {
   it('começa outra coluna pela ordem padrão dela', async () => {
     await click(0);
     expect(fixture.componentInstance.sort()).toBe('title');
-    expect(headers().map(header => header.getAttribute('aria-sort'))).toEqual(['ascending', 'none']);
+    expect(headers().map((header) => header.getAttribute('aria-sort'))).toEqual([
+      'ascending',
+      'none',
+    ]);
   });
 
   it('mantém o texto da coluna no botão', () => {

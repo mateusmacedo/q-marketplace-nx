@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, model, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  model,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -8,12 +18,12 @@ import {
   FormControlDirective,
   FormLabelDirective,
   FormSelectDirective,
-  FormTextDirective
+  FormTextDirective,
 } from '@coreui/angular';
 import {
   addSku,
   DimensionsDtoSchema,
-  SkuRequestSchema
+  SkuRequestSchema,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   applyServerErrors,
@@ -21,12 +31,17 @@ import {
   controlMessage,
   FormOffcanvasComponent,
   schemaValidator,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import { apiData, fieldRules, type Problem, toProblem } from '@marketplace/shared-web-util';
 
 import { SAVE_RETURNS_TO_MODERATION } from '../product-actions';
-import { type AttributeField, attributeMap, type AttributeValue, toControlValue } from './product-attributes';
+import {
+  type AttributeField,
+  attributeMap,
+  type AttributeValue,
+  toControlValue,
+} from './product-attributes';
 import { ifMatch, ProductStore } from './product-store';
 
 type DimensionKey = 'heightCm' | 'widthCm' | 'lengthCm' | 'weightGrams';
@@ -35,7 +50,7 @@ const DIMENSIONS: readonly { key: DimensionKey; label: string; step: string }[] 
   { key: 'heightCm', label: 'Altura (cm)', step: 'any' },
   { key: 'widthCm', label: 'Largura (cm)', step: 'any' },
   { key: 'lengthCm', label: 'Comprimento (cm)', step: 'any' },
-  { key: 'weightGrams', label: 'Peso (g)', step: '1' }
+  { key: 'weightGrams', label: 'Peso (g)', step: '1' },
 ];
 
 const FIELD_LABELS: Readonly<Record<string, string>> = {
@@ -44,7 +59,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   'dimensions.heightCm': 'Altura',
   'dimensions.widthCm': 'Largura',
   'dimensions.lengthCm': 'Comprimento',
-  'dimensions.weightGrams': 'Peso'
+  'dimensions.weightGrams': 'Peso',
 };
 
 let nextId = 0;
@@ -67,7 +82,7 @@ let nextId = 0;
     FormOffcanvasComponent,
     FormSelectDirective,
     FormTextDirective,
-    ReactiveFormsModule
+    ReactiveFormsModule,
   ],
   template: `
     <app-form-offcanvas
@@ -196,7 +211,7 @@ let nextId = 0;
       <p class="fw-semibold mb-2">{{ form.controls.sellerSku.value }}</p>
       <p class="mb-0">{{ returnsToModeration.message }}</p>
     </app-confirm-modal>
-  `
+  `,
 })
 export class AddSkuOffcanvasComponent {
   readonly visible = model(false);
@@ -217,18 +232,24 @@ export class AddSkuOffcanvasComponent {
   readonly form = new FormGroup({
     sellerSku: new FormControl('', {
       nonNullable: true,
-      validators: [schemaValidator(fieldRules(SkuRequestSchema, 'sellerSku'))]
+      validators: [schemaValidator(fieldRules(SkuRequestSchema, 'sellerSku'))],
     }),
     variantAttributes: new FormGroup<Record<string, FormControl<AttributeValue>>>({}),
     physical: new FormControl(false, { nonNullable: true }),
     dimensions: new FormGroup({
-      heightCm: new FormControl<number | null>(null, [schemaValidator(fieldRules(DimensionsDtoSchema, 'heightCm'))]),
-      widthCm: new FormControl<number | null>(null, [schemaValidator(fieldRules(DimensionsDtoSchema, 'widthCm'))]),
-      lengthCm: new FormControl<number | null>(null, [schemaValidator(fieldRules(DimensionsDtoSchema, 'lengthCm'))]),
+      heightCm: new FormControl<number | null>(null, [
+        schemaValidator(fieldRules(DimensionsDtoSchema, 'heightCm')),
+      ]),
+      widthCm: new FormControl<number | null>(null, [
+        schemaValidator(fieldRules(DimensionsDtoSchema, 'widthCm')),
+      ]),
+      lengthCm: new FormControl<number | null>(null, [
+        schemaValidator(fieldRules(DimensionsDtoSchema, 'lengthCm')),
+      ]),
       weightGrams: new FormControl<number | null>(null, [
-        schemaValidator(fieldRules(DimensionsDtoSchema, 'weightGrams'))
-      ])
-    })
+        schemaValidator(fieldRules(DimensionsDtoSchema, 'weightGrams')),
+      ]),
+    }),
   });
   readonly physical = signal(false);
 
@@ -241,7 +262,7 @@ export class AddSkuOffcanvasComponent {
 
   constructor() {
     this.form.controls.dimensions.disable();
-    this.form.controls.physical.valueChanges.pipe(takeUntilDestroyed()).subscribe(physical => {
+    this.form.controls.physical.valueChanges.pipe(takeUntilDestroyed()).subscribe((physical) => {
       this.physical.set(physical);
       if (physical) {
         this.form.controls.dimensions.enable();
@@ -322,27 +343,32 @@ export class AddSkuOffcanvasComponent {
             physical: value.physical,
             dimensions:
               dimensions &&
-                dimensions.heightCm !== null &&
-                dimensions.widthCm !== null &&
-                dimensions.lengthCm !== null &&
-                dimensions.weightGrams !== null
+              dimensions.heightCm !== null &&
+              dimensions.widthCm !== null &&
+              dimensions.lengthCm !== null &&
+              dimensions.weightGrams !== null
                 ? {
-                  heightCm: dimensions.heightCm,
-                  widthCm: dimensions.widthCm,
-                  lengthCm: dimensions.lengthCm,
-                  weightGrams: dimensions.weightGrams
-                }
-                : null
-          }
-        })
+                    heightCm: dimensions.heightCm,
+                    widthCm: dimensions.widthCm,
+                    lengthCm: dimensions.lengthCm,
+                    weightGrams: dimensions.weightGrams,
+                  }
+                : null,
+          },
+        }),
       );
       await this.store.reload();
-      this.#toast.success(returnsToModeration ? 'SKU adicionado. O produto voltou para a moderação.' : 'SKU adicionado.');
+      this.#toast.success(
+        returnsToModeration
+          ? 'SKU adicionado. O produto voltou para a moderação.'
+          : 'SKU adicionado.',
+      );
       this.visible.set(false);
       this.added.emit();
     } catch (error) {
       const problem = toProblem(error);
-      const unmatched = problem.status === 400 ? applyServerErrors(this.form, problem) : (problem.errors ?? []);
+      const unmatched =
+        problem.status === 400 ? applyServerErrors(this.form, problem) : (problem.errors ?? []);
       this.problem.set({ ...problem, errors: unmatched });
     } finally {
       this.saving.set(false);

@@ -1,4 +1,9 @@
-import { ComponentFixture, DeferBlockBehavior, DeferBlockState, TestBed } from '@angular/core/testing';
+import {
+  ComponentFixture,
+  DeferBlockBehavior,
+  DeferBlockState,
+  TestBed,
+} from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import type { HomeIndicator } from './home-indicators';
@@ -6,7 +11,7 @@ import { HomeWidgetsComponent } from './home-widgets.component';
 
 const MONTHS = [
   { month: '2026-10-01', value: 4 },
-  { month: '2026-11-01', value: 5 }
+  { month: '2026-11-01', value: 5 },
 ];
 
 const INDICATORS: HomeIndicator[] = [
@@ -16,20 +21,39 @@ const INDICATORS: HomeIndicator[] = [
     color: 'primary',
     value: 1400,
     months: MONTHS,
-    links: [{ label: 'Ver os ativos', url: '/loja/produtos', query: { status: 'ACTIVE' } }]
+    links: [{ label: 'Ver os ativos', url: '/loja/produtos', query: { status: 'ACTIVE' } }],
   },
-  { key: 'draft', title: 'Em rascunho', color: 'info', value: 5, change: -1, months: MONTHS, links: [] },
+  {
+    key: 'draft',
+    title: 'Em rascunho',
+    color: 'info',
+    value: 5,
+    change: -1,
+    months: MONTHS,
+    links: [],
+  },
   { key: 'outOfStock', title: 'Sem estoque', color: 'warning', value: 1, change: 2, links: [] },
-  { key: 'blocked', title: 'Bloqueados', color: 'danger', value: 1, change: 0, months: MONTHS, links: [] }
+  {
+    key: 'blocked',
+    title: 'Bloqueados',
+    color: 'danger',
+    value: 1,
+    change: 0,
+    months: MONTHS,
+    links: [],
+  },
 ];
 
 describe('indicadores da página inicial na tela', () => {
   let fixture: ComponentFixture<HomeWidgetsComponent>;
 
   const text = (element: Element) => element.textContent?.replace(/\s+/g, ' ').trim();
-  const widgets = (): HTMLElement[] => Array.from(fixture.nativeElement.querySelectorAll('c-widget-stat-a'));
+  const widgets = (): HTMLElement[] =>
+    Array.from(fixture.nativeElement.querySelectorAll('c-widget-stat-a'));
 
-  const render = async (inputs: Partial<{ indicators: HomeIndicator[]; loading: boolean; problem: object }>) => {
+  const render = async (
+    inputs: Partial<{ indicators: HomeIndicator[]; loading: boolean; problem: object }>,
+  ) => {
     fixture = TestBed.createComponent(HomeWidgetsComponent);
     fixture.componentRef.setInput('indicators', inputs.indicators ?? []);
     fixture.componentRef.setInput('loading', inputs.loading ?? false);
@@ -41,7 +65,7 @@ describe('indicadores da página inicial na tela', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     TestBed.configureTestingModule({
       providers: [provideRouter([])],
-      deferBlockBehavior: DeferBlockBehavior.Manual
+      deferBlockBehavior: DeferBlockBehavior.Manual,
     });
   });
 
@@ -50,12 +74,9 @@ describe('indicadores da página inicial na tela', () => {
   it('mostra os 4 cards com a cor da posição, o valor e a variação só quando ela vem', async () => {
     await render({ indicators: INDICATORS });
 
-    expect(widgets().map(widget => [...widget.classList].find(name => name.startsWith('bg-')))).toEqual([
-      'bg-primary',
-      'bg-info',
-      'bg-warning',
-      'bg-danger'
-    ]);
+    expect(
+      widgets().map((widget) => [...widget.classList].find((name) => name.startsWith('bg-'))),
+    ).toEqual(['bg-primary', 'bg-info', 'bg-warning', 'bg-danger']);
     expect(text(widgets()[0])).toContain('1.400');
     expect(text(widgets()[0])).toContain('Produtos ativos');
     expect(text(widgets()[0])).not.toContain('(');
@@ -94,21 +115,28 @@ describe('indicadores da página inicial na tela', () => {
     await render({ problem: { status: 503, detail: 'Serviço fora do ar.' } });
     const retry = vi.fn();
     fixture.componentInstance.retry.subscribe(retry);
-    expect(text(fixture.nativeElement)).toContain('Não foi possível carregar os números do catálogo.');
+    expect(text(fixture.nativeElement)).toContain(
+      'Não foi possível carregar os números do catálogo.',
+    );
     expect(text(fixture.nativeElement)).toContain('Serviço fora do ar.');
     fixture.nativeElement.querySelector('app-error-state button').click();
     expect(retry).toHaveBeenCalled();
   });
 
   it('mantém os números da carga anterior quando a nova falha e avisa a falha com Tentar de novo', async () => {
-    await render({ indicators: INDICATORS, problem: { status: 503, detail: 'Serviço fora do ar.' } });
+    await render({
+      indicators: INDICATORS,
+      problem: { status: 503, detail: 'Serviço fora do ar.' },
+    });
     const retry = vi.fn();
     fixture.componentInstance.retry.subscribe(retry);
 
     expect(widgets()).toHaveLength(4);
     expect(fixture.nativeElement.querySelector('app-error-state')).toBeNull();
     const alert = fixture.nativeElement.querySelector('c-alert') as HTMLElement;
-    expect(text(alert)).toContain('Não foi possível atualizar os números do catálogo. Os números abaixo são da última leitura.');
+    expect(text(alert)).toContain(
+      'Não foi possível atualizar os números do catálogo. Os números abaixo são da última leitura.',
+    );
     expect(text(alert)).toContain('Serviço fora do ar.');
     (alert.querySelector('button') as HTMLButtonElement).click();
     expect(retry).toHaveBeenCalled();

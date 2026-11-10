@@ -1,5 +1,11 @@
 import type { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { type FieldTree, isFieldTree, type SchemaPath, validate, type ValidationError } from '@angular/forms/signals';
+import {
+  type FieldTree,
+  isFieldTree,
+  type SchemaPath,
+  validate,
+  type ValidationError,
+} from '@angular/forms/signals';
 import {
   checkFieldRules,
   type FieldError,
@@ -8,7 +14,7 @@ import {
   type FieldRules,
   type Problem,
   ruleMessage,
-  type RuleViolation
+  type RuleViolation,
 } from '@marketplace/shared-web-util';
 
 /** Chave do erro que veio no 400 do servidor, com a mensagem dele. */
@@ -31,7 +37,7 @@ export interface ServerErrorOptions {
 export function applyServerErrors(
   form: AbstractControl,
   problem: Problem | null | undefined,
-  options: ServerErrorOptions = {}
+  options: ServerErrorOptions = {},
 ): FieldError[] {
   const unmatched: FieldError[] = [];
   for (const [field, message] of Object.entries(fieldErrors(problem))) {
@@ -54,7 +60,7 @@ export function applyServerErrors(
 export function serverFieldErrors(
   form: FieldTree<unknown>,
   problem: Problem | null | undefined,
-  options: ServerErrorOptions = {}
+  options: ServerErrorOptions = {},
 ): ValidationError.WithOptionalFieldTree[] {
   return Object.entries(fieldErrors(problem)).map(([field, message]) => {
     const fieldTree = findField(form, controlPath(field, options));
@@ -64,7 +70,7 @@ export function serverFieldErrors(
 
 /** Validador reativo com os limites do contrato de um campo (`fieldRules`), com o erro `schema`. */
 export function schemaValidator(rules: FieldRules): ValidatorFn {
-  return control => {
+  return (control) => {
     const violation = checkFieldRules(rules, control.value);
     return violation ? { [SCHEMA_ERROR]: violation } : null;
   };
@@ -118,7 +124,10 @@ function controlPath(field: string, options: ServerErrorOptions): string[] {
   return mapped === undefined ? fieldPath(field) : fieldPath(mapped);
 }
 
-function findField(form: FieldTree<unknown>, path: readonly string[]): FieldTree<unknown> | undefined {
+function findField(
+  form: FieldTree<unknown>,
+  path: readonly string[],
+): FieldTree<unknown> | undefined {
   let node: unknown = form;
   for (const segment of path) {
     node = isFieldTree(node) ? (node as unknown as Record<string, unknown>)[segment] : undefined;

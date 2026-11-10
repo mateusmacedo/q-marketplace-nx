@@ -1,12 +1,16 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import {
   type ImportPage,
   type ImportSummaryResponse,
-  provideCatalogInventoryApi
+  provideCatalogInventoryApi,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 
@@ -16,14 +20,18 @@ import { API, importReport, settle } from './testing';
 
 const LIST = `${API}/products/imports`;
 
-function summary(id: string, status: ImportSummaryResponse['status'], failed = 0): ImportSummaryResponse {
+function summary(
+  id: string,
+  status: ImportSummaryResponse['status'],
+  failed = 0,
+): ImportSummaryResponse {
   return {
     id,
     status,
     totalLines: 800,
     processedLines: status === 'COMPLETED' ? 800 : 200,
     counts: { created: 10, updated: 0, unchanged: 0, failed },
-    createdAt: '2026-11-07T12:02:00Z'
+    createdAt: '2026-11-07T12:02:00Z',
   };
 }
 
@@ -35,7 +43,7 @@ describe('ImportsPageComponent', () => {
   const text = () => (page().textContent ?? '').replace(/\s+/g, ' ');
   const button = (label: string) =>
     (Array.from(page().querySelectorAll('button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.replace(/\s+/g, ' ').trim() === label
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const historyRows = () =>
     Array.from(page().querySelectorAll('c-card:last-of-type tbody tr')) as HTMLTableRowElement[];
@@ -47,10 +55,19 @@ describe('ImportsPageComponent', () => {
   }
 
   function list(): TestRequest {
-    return http.expectOne(request => request.method === 'GET' && request.url.startsWith(LIST) && !request.url.startsWith(`${LIST}/`));
+    return http.expectOne(
+      (request) =>
+        request.method === 'GET' &&
+        request.url.startsWith(LIST) &&
+        !request.url.startsWith(`${LIST}/`),
+    );
   }
 
-  async function answer(request: TestRequest, body: object | null, init?: Parameters<TestRequest['flush']>[1]) {
+  async function answer(
+    request: TestRequest,
+    body: object | null,
+    init?: Parameters<TestRequest['flush']>[1],
+  ) {
     request.flush(body, init);
     await settle();
     harness.detectChanges();
@@ -69,12 +86,12 @@ describe('ImportsPageComponent', () => {
       providers: [
         provideRouter([
           { path: 'loja/importacoes', component: ImportsPageComponent },
-          { path: 'loja/importacoes/:id', component: ImportBatchPageComponent }
+          { path: 'loja/importacoes/:id', component: ImportBatchPageComponent },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideCatalogInventoryApi()
-      ]
+        provideCatalogInventoryApi(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -85,13 +102,22 @@ describe('ImportsPageComponent', () => {
     expect(request.request.urlWithParams).toBe(`${LIST}?limit=20`);
     expect(page().querySelector('app-loading-state')).not.toBeNull();
 
-    await answer(request, { items: [summary('b2', 'PROCESSING'), summary('b1', 'COMPLETED', 3)], nextCursor: 'c2' } satisfies ImportPage);
+    await answer(request, {
+      items: [summary('b2', 'PROCESSING'), summary('b1', 'COMPLETED', 3)],
+      nextCursor: 'c2',
+    } satisfies ImportPage);
 
     expect(page().querySelector('h1')?.textContent?.trim()).toBe('Importações');
     const rows = historyRows();
-    expect(rows.map(row => Array.from(row.cells).slice(1, 4).map(cell => cell.textContent?.replace(/\s+/g, ' ').trim()))).toEqual([
+    expect(
+      rows.map((row) =>
+        Array.from(row.cells)
+          .slice(1, 4)
+          .map((cell) => cell.textContent?.replace(/\s+/g, ' ').trim()),
+      ),
+    ).toEqual([
       ['Processando', '200 de 800 linhas', '0'],
-      ['Concluída', '800 linhas', '3']
+      ['Concluída', '800 linhas', '3'],
     ]);
     expect(rows[1].querySelector('a')?.getAttribute('href')).toBe('/loja/importacoes/b1');
     expect(rows[1].cells[0].textContent).toContain('07/11/2026 09:02');
@@ -108,12 +134,14 @@ describe('ImportsPageComponent', () => {
     const done = importReport('COMPLETED', {
       id: 'b2',
       total: 1,
-      lines: [{ lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' }]
+      lines: [{ lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' }],
     });
     await answer(tracked, { ...done, lines: null });
     await answer(http.expectOne(`${LIST}/b2`), done);
 
-    expect(page().querySelector('app-import-batch h2 a')?.getAttribute('href')).toBe('/loja/importacoes/b2');
+    expect(page().querySelector('app-import-batch h2 a')?.getAttribute('href')).toBe(
+      '/loja/importacoes/b2',
+    );
     await settle();
     await answer(list(), { items: [summary('b2', 'COMPLETED'), summary('b1', 'COMPLETED')] });
     expect(page().querySelector('app-import-batch')).not.toBeNull();
@@ -155,7 +183,9 @@ describe('ImportsPageComponent', () => {
     const { createObjectURL, revokeObjectURL } = URL;
     URL.createObjectURL = vi.fn(() => 'blob:modelo');
     URL.revokeObjectURL = vi.fn();
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
     try {
       await open();
       await answer(list(), { items: [] });
@@ -185,7 +215,7 @@ describe('ImportsPageComponent', () => {
     await answer(upload, importReport('PENDING', { id: 'b9', processed: 0 }), {
       status: 202,
       statusText: 'Accepted',
-      headers: { Location: 'http://catalogo:8080/products/imports/b9' }
+      headers: { Location: 'http://catalogo:8080/products/imports/b9' },
     });
 
     const toasts = TestBed.inject(ToastService).toasts();
@@ -193,7 +223,11 @@ describe('ImportsPageComponent', () => {
     expect(toasts.at(-1)?.message).toContain('produtos.csv');
     expect(button('Enviar planilha').disabled).toBe(false);
     await answer(list(), { items: [summary('b9', 'PENDING')] });
-    const done = importReport('COMPLETED', { id: 'b9', total: 1, lines: [{ lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' }] });
+    const done = importReport('COMPLETED', {
+      id: 'b9',
+      total: 1,
+      lines: [{ lineNumber: 2, sellerSku: 'CAM-P', outcome: 'CREATED', productId: 'p1' }],
+    });
     await answer(http.expectOne(`${LIST}/b9?lines=false`), { ...done, lines: null });
     await answer(http.expectOne(`${LIST}/b9`), done);
 
@@ -221,18 +255,21 @@ describe('ImportsPageComponent', () => {
         reasons: ['missing-column:on_hand', 'too-many-rows:5000'],
         reasonDetails: [
           { code: 'missing-column', params: ['on_hand'], message: 'Falta a coluna on_hand.' },
-          { code: 'too-many-rows', params: ['5000'], message: 'O arquivo passa de 5000 linhas de dados.' }
-        ]
+          {
+            code: 'too-many-rows',
+            params: ['5000'],
+            message: 'O arquivo passa de 5000 linhas de dados.',
+          },
+        ],
       },
-      { status: 400, statusText: 'Bad Request' }
+      { status: 400, statusText: 'Bad Request' },
     );
 
     const alert = page().querySelector('app-problem-alert') as HTMLElement;
     expect(alert.textContent).toContain('Não foi possível enviar a planilha');
-    expect(Array.from(alert.querySelectorAll('li')).map(item => item.textContent?.trim())).toEqual([
-      'Falta a coluna on_hand.',
-      'O arquivo passa de 5000 linhas de dados.'
-    ]);
+    expect(
+      Array.from(alert.querySelectorAll('li')).map((item) => item.textContent?.trim()),
+    ).toEqual(['Falta a coluna on_hand.', 'O arquivo passa de 5000 linhas de dados.']);
     expect(alert.textContent).not.toContain('missing-column');
     expect(page().querySelector('app-import-batch')).toBeNull();
     expect(TestBed.inject(ToastService).toasts()).toHaveLength(0);

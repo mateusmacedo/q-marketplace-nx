@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  output,
+  untracked,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   AlertComponent,
@@ -6,19 +14,24 @@ import {
   ButtonDirective,
   ColComponent,
   ProgressComponent,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import type { ImportResponse } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   DateTimePipe,
   ErrorStateComponent,
   LoadingStateComponent,
-  NumberBlockComponent
+  NumberBlockComponent,
 } from '@marketplace/shared-admin-ui';
 import { problemMessages } from '@marketplace/shared-web-util';
 
 import { ImportLinesComponent } from './import-lines.component';
-import { countLines, isImportRunning, progressPercent, statusPresentation } from './import-presentation';
+import {
+  countLines,
+  isImportRunning,
+  progressPercent,
+  statusPresentation,
+} from './import-presentation';
 import { trackImport } from './import-tracking';
 
 /**
@@ -40,7 +53,7 @@ import { trackImport } from './import-tracking';
     NumberBlockComponent,
     ProgressComponent,
     RouterLink,
-    RowComponent
+    RowComponent,
   ],
   styles: '.numeric { font-variant-numeric: tabular-nums; }',
   template: `
@@ -102,7 +115,7 @@ import { trackImport } from './import-tracking';
     } @else {
       <app-loading-state [rows]="4" label="Carregando a importação…" />
     }
-  `
+  `,
 })
 export class ImportBatchComponent {
   readonly importId = input.required<string>();

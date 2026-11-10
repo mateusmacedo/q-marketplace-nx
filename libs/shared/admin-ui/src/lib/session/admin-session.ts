@@ -18,11 +18,19 @@ export interface SessionGrants {
 export const NO_GRANTS: SessionGrants = { capabilities: [], permissions: {} };
 
 /** Indica se as concessões atendem à exigência; exigência ausente ou vazia vale para qualquer usuário. */
-export function allowsAccess(grants: SessionGrants, requirement: AccessRequirement | null | undefined): boolean {
-  if (requirement?.capability !== undefined && !grants.capabilities.includes(requirement.capability)) {
+export function allowsAccess(
+  grants: SessionGrants,
+  requirement: AccessRequirement | null | undefined,
+): boolean {
+  if (
+    requirement?.capability !== undefined &&
+    !grants.capabilities.includes(requirement.capability)
+  ) {
     return false;
   }
-  return requirement?.permission === undefined || grants.permissions[requirement.permission] === true;
+  return (
+    requirement?.permission === undefined || grants.permissions[requirement.permission] === true
+  );
 }
 
 /**

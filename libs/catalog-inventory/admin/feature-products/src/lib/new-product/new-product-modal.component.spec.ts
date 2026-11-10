@@ -1,8 +1,15 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideCatalogInventoryApi, type ProductResponse } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  provideCatalogInventoryApi,
+  type ProductResponse,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 
 import { NewProductModalComponent } from './new-product-modal.component';
@@ -12,7 +19,7 @@ const VESTUARIO = { id: 'c-1', code: 'vestuario', name: 'Vestuário' };
 
 @Component({
   imports: [NewProductModalComponent],
-  template: `<app-new-product-modal (created)="created.push($event)" [(visible)]="visible" />`
+  template: `<app-new-product-modal (created)="created.push($event)" [(visible)]="visible" />`,
 })
 class Host {
   readonly visible = signal(false);
@@ -28,7 +35,9 @@ describe('NewProductModalComponent', () => {
   const paramsOf = (request: TestRequest) =>
     Object.fromEntries(new URL(request.request.urlWithParams, 'http://localhost').searchParams);
   const treeRequest = () =>
-    vi.waitFor(() => http.expectOne(request => request.url.startsWith(`${API}/categories/tree?`)));
+    vi.waitFor(() =>
+      http.expectOne((request) => request.url.startsWith(`${API}/categories/tree?`)),
+    );
   const select = () => element().querySelector('#new-product-category') as HTMLSelectElement;
   const input = (id: string) => element().querySelector(id) as HTMLInputElement;
   const type = (id: string, value: string) => {
@@ -41,7 +50,7 @@ describe('NewProductModalComponent', () => {
   };
   const submit = () =>
     (Array.from(element().querySelectorAll('c-modal-footer button')) as HTMLButtonElement[])
-      .find(button => button.textContent?.trim() === 'Criar produto')
+      .find((button) => button.textContent?.trim() === 'Criar produto')
       ?.click();
   const settle = async () => {
     await fixture.whenStable();
@@ -61,20 +70,35 @@ describe('NewProductModalComponent', () => {
     first.flush({
       items: [
         VESTUARIO,
-        { id: 'c-2', code: 'camisas', name: 'Camisas', ancestors: [{ id: 'c-1', name: 'Vestuário' }], usable: true }
+        {
+          id: 'c-2',
+          code: 'camisas',
+          name: 'Camisas',
+          ancestors: [{ id: 'c-1', name: 'Vestuário' }],
+          usable: true,
+        },
       ],
-      nextCursor: 'k-2'
+      nextCursor: 'k-2',
     });
     const second = await treeRequest();
     expect(paramsOf(second)).toEqual({ usable: 'true', cursor: 'k-2' });
-    second.flush({ items: [{ id: 'c-3', code: 'calcas', name: 'Calças', ancestors: [{ id: 'c-1', name: 'Vestuário' }] }] });
+    second.flush({
+      items: [
+        {
+          id: 'c-3',
+          code: 'calcas',
+          name: 'Calças',
+          ancestors: [{ id: 'c-1', name: 'Vestuário' }],
+        },
+      ],
+    });
     await loaded();
   }
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(Host);
@@ -86,11 +110,11 @@ describe('NewProductModalComponent', () => {
   it('carrega todas as páginas de categorias usáveis e mostra o caminho de cada uma, na ordem da árvore', async () => {
     await openWithCategories();
 
-    expect(Array.from(select().options).map(option => option.textContent?.trim())).toEqual([
+    expect(Array.from(select().options).map((option) => option.textContent?.trim())).toEqual([
       'Escolha a categoria',
       'Vestuário',
       'Vestuário › Calças',
-      'Vestuário › Camisas'
+      'Vestuário › Camisas',
     ]);
   });
 
@@ -100,9 +124,15 @@ describe('NewProductModalComponent', () => {
     submit();
     await settle();
 
-    expect(element().querySelector('#new-product-category-error')?.textContent?.trim()).toBe('Preencha este campo.');
-    expect(element().querySelector('#new-product-title-error')?.textContent?.trim()).toBe('Preencha este campo.');
-    expect(element().querySelector('#new-product-currency-error')?.textContent?.trim()).toBe('Preencha este campo.');
+    expect(element().querySelector('#new-product-category-error')?.textContent?.trim()).toBe(
+      'Preencha este campo.',
+    );
+    expect(element().querySelector('#new-product-title-error')?.textContent?.trim()).toBe(
+      'Preencha este campo.',
+    );
+    expect(element().querySelector('#new-product-currency-error')?.textContent?.trim()).toBe(
+      'Preencha este campo.',
+    );
     http.expectNone(`${API}/products`);
   });
 
@@ -117,8 +147,15 @@ describe('NewProductModalComponent', () => {
     const create = await vi.waitFor(() => http.expectOne(`${API}/products`));
 
     expect(create.request.method).toBe('POST');
-    expect(create.request.body).toEqual({ categoryId: 'c-2', title: 'Camiseta Basic', currency: 'BRL' });
-    create.flush({ id: 'p-1', title: 'Camiseta Basic', status: 'DRAFT', version: 0 }, { status: 201, statusText: 'Created' });
+    expect(create.request.body).toEqual({
+      categoryId: 'c-2',
+      title: 'Camiseta Basic',
+      currency: 'BRL',
+    });
+    create.flush(
+      { id: 'p-1', title: 'Camiseta Basic', status: 'DRAFT', version: 0 },
+      { status: 201, statusText: 'Created' },
+    );
     await vi.waitFor(() => expect(fixture.componentInstance.created).toHaveLength(1));
 
     expect(fixture.componentInstance.created[0].id).toBe('p-1');
@@ -137,14 +174,16 @@ describe('NewProductModalComponent', () => {
       {
         type: 'https://marketplace.dev/problems/validation',
         title: 'Requisição inválida',
-        errors: [{ field: 'currency', message: 'Moeda não reconhecida' }]
+        errors: [{ field: 'currency', message: 'Moeda não reconhecida' }],
       },
-      { status: 400, statusText: 'Bad Request' }
+      { status: 400, statusText: 'Bad Request' },
     );
 
     await vi.waitFor(() => {
       TestBed.tick();
-      expect(element().querySelector('#new-product-currency-error')?.textContent?.trim()).toBe('Moeda não reconhecida');
+      expect(element().querySelector('#new-product-currency-error')?.textContent?.trim()).toBe(
+        'Moeda não reconhecida',
+      );
     });
     expect(text()).not.toContain('Não foi possível criar o produto');
     expect(fixture.componentInstance.visible()).toBe(true);
@@ -162,9 +201,11 @@ describe('NewProductModalComponent', () => {
         type: 'https://marketplace.dev/problems/domain-rule-violation',
         title: 'Regra de negócio violada',
         reasons: ['category-inactive'],
-        reasonDetails: [{ code: 'category-inactive', params: [], message: 'A categoria foi desativada.' }]
+        reasonDetails: [
+          { code: 'category-inactive', params: [], message: 'A categoria foi desativada.' },
+        ],
       },
-      { status: 422, statusText: 'Unprocessable Entity' }
+      { status: 422, statusText: 'Unprocessable Entity' },
     );
 
     await vi.waitFor(() => {
@@ -180,13 +221,13 @@ describe('NewProductModalComponent', () => {
     TestBed.tick();
     (await treeRequest()).flush(
       { type: 'https://marketplace.dev/problems/service-unavailable', title: 'Indisponível' },
-      { status: 503, statusText: 'Service Unavailable' }
+      { status: 503, statusText: 'Service Unavailable' },
     );
     await loaded();
     expect(text()).toContain('Não foi possível carregar as categorias');
 
     (Array.from(element().querySelectorAll('button')) as HTMLButtonElement[])
-      .find(button => button.textContent?.trim() === 'Tentar de novo')
+      .find((button) => button.textContent?.trim() === 'Tentar de novo')
       ?.click();
     (await treeRequest()).flush({ items: [VESTUARIO] });
     await vi.waitFor(() => {

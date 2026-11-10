@@ -15,7 +15,7 @@ export function breadcrumbs(root: ActivatedRouteSnapshot): Crumb[] {
   const crumbs: Crumb[] = [];
   const segments: string[] = [];
   for (let route: ActivatedRouteSnapshot | null = root; route; route = route.firstChild) {
-    segments.push(...route.url.map(segment => segment.path));
+    segments.push(...route.url.map((segment) => segment.path));
     const title: unknown = route.routeConfig?.data?.['title'];
     if (typeof title === 'string' && title && crumbs[crumbs.length - 1]?.label !== title) {
       crumbs.push({ label: title, url: `/${segments.join('/')}` });

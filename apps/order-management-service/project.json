@@ -1,11 +1,7 @@
 {
   "name": "order-management-service",
   "projectType": "application",
-  "tags": [
-    "scope:order-management",
-    "layer:service",
-    "lang:java"
-  ],
+  "tags": ["scope:order-management", "layer:service", "lang:java"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
@@ -21,9 +17,7 @@
     },
     "container": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "native"
-      ],
+      "dependsOn": ["native"],
       "options": {
         "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=order-management-service -t marketplace/order-management:local ."
       }

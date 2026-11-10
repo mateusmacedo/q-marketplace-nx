@@ -5,7 +5,7 @@ services:
     image: redpandadata/console:v3.11.0@sha256:bf5ed3ee83e5b2dd6d1c1f1c8095ba252f384ce9354e7a3d2f780f0b4a486c09
     profiles: [infra, catalog, all]
     depends_on:
-      kafka: {condition: service_healthy}
+      kafka: { condition: service_healthy }
     ports: ["127.0.0.1:${KAFKA_CONSOLE_PORT:-8090}:8080"]
     environment:
       KAFKA_BROKERS: kafka:9092
@@ -17,5 +17,5 @@ services:
     deploy:
       resources:
         # Teto de CPU como disjuntor (ADR 019): com 0,10, até o healthcheck era estrangulado (56% do tempo).
-        limits: {cpus: "0.25", memory: 256M}
-        reservations: {memory: 64M}
+        limits: { cpus: "0.25", memory: 256M }
+        reservations: { memory: 64M }

@@ -30,7 +30,9 @@ function maxOf(samples, name, filter) {
 
 export function sumOf(samples, name, filter) {
   return samples
-    .filter((s) => s.name === name && !Object.keys(filter || {}).some((k) => s.labels[k] !== filter[k]))
+    .filter(
+      (s) => s.name === name && !Object.keys(filter || {}).some((k) => s.labels[k] !== filter[k]),
+    )
     .reduce((acc, s) => acc + s.value, 0);
 }
 
@@ -49,7 +51,10 @@ export function latencyBuckets(samples) {
 // Mesma interpolação do histogram_quantile do Prometheus, sobre o aumento dos buckets durante o teste.
 export function quantileFromDelta(q, before, after) {
   const bounds = Object.keys(after)
-    .map((le) => ({ le: le === '+Inf' ? Infinity : Number(le), count: after[le] - ((before || {})[le] || 0) }))
+    .map((le) => ({
+      le: le === '+Inf' ? Infinity : Number(le),
+      count: after[le] - ((before || {})[le] || 0),
+    }))
     .sort((a, b) => a.le - b.le);
   const total = bounds.length > 0 ? bounds[bounds.length - 1].count : 0;
   if (total <= 0) return null;
@@ -59,7 +64,9 @@ export function quantileFromDelta(q, before, after) {
     if (b.count >= rank) {
       if (b.le === Infinity) return previous.le;
       if (b.count === previous.count) return b.le;
-      return previous.le + ((b.le - previous.le) * (rank - previous.count)) / (b.count - previous.count);
+      return (
+        previous.le + ((b.le - previous.le) * (rank - previous.count)) / (b.count - previous.count)
+      );
     }
     previous = b;
   }
@@ -68,7 +75,9 @@ export function quantileFromDelta(q, before, after) {
 
 export function readMetrics(tags) {
   const requestParams = { tags: Object.assign({ kind: 'metrics', name: 'GET /q/metrics' }, tags) };
-  const responses = http.batch(params.managementUrls.map((url) => ['GET', `${url}/q/metrics`, null, requestParams]));
+  const responses = http.batch(
+    params.managementUrls.map((url) => ['GET', `${url}/q/metrics`, null, requestParams]),
+  );
   const failed = responses.find((res) => res.status !== 200);
   if (failed) return { ok: false, status: failed.status };
   const samples = responses.flatMap((res) => parseMetrics(res.body));

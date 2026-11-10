@@ -5,10 +5,10 @@ import { provideRouter, Router, RouterOutlet, type Routes } from '@angular/route
 import { breadcrumbs } from './breadcrumbs';
 
 @Component({ template: '' })
-class Screen { }
+class Screen {}
 
 @Component({ imports: [RouterOutlet], template: '<router-outlet />' })
-class Shell { }
+class Shell {}
 
 const ROUTES: Routes = [
   {
@@ -31,22 +31,24 @@ const ROUTES: Routes = [
                     path: ':id',
                     component: Shell,
                     data: { title: 'Produto' },
-                    children: [{ path: 'conteudo', component: Screen, data: { title: 'Conteúdo' } }]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+                    children: [
+                      { path: 'conteudo', component: Screen, data: { title: 'Conteúdo' } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
       {
         path: 'categorias',
         component: Shell,
         data: { title: 'Categorias' },
-        children: [{ path: ':id', component: Screen, data: { title: 'Categorias' } }]
-      }
-    ]
-  }
+        children: [{ path: ':id', component: Screen, data: { title: 'Categorias' } }],
+      },
+    ],
+  },
 ];
 
 describe('breadcrumbs', () => {
@@ -61,7 +63,7 @@ describe('breadcrumbs', () => {
     expect(await trail('/loja/produtos/p1/conteudo')).toEqual([
       { label: 'Produtos', url: '/loja/produtos' },
       { label: 'Produto', url: '/loja/produtos/p1' },
-      { label: 'Conteúdo', url: '/loja/produtos/p1/conteudo' }
+      { label: 'Conteúdo', url: '/loja/produtos/p1/conteudo' },
     ]);
   });
 

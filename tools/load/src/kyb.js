@@ -11,7 +11,9 @@ export const VERDICTS = [
 const ROUNDS_SHARE = 0.8;
 
 function hex8(...parts) {
-  return hashSeed(...parts).toString(16).padStart(8, '0');
+  return hashSeed(...parts)
+    .toString(16)
+    .padStart(8, '0');
 }
 
 export function kybStores(params) {
@@ -32,11 +34,14 @@ const verdictOf = (store, round) => VERDICTS[(store + round) % VERDICTS.length];
 export function kybSchedule(params, plan) {
   const stores = kybStores(params);
   return Array.from({ length: kybRounds(params, plan) }, (_, round) =>
-    stores.map((storeId, s) => ({ storeId, eventType: verdictOf(s, round).eventType })));
+    stores.map((storeId, s) => ({ storeId, eventType: verdictOf(s, round).eventType })),
+  );
 }
 
 export function kybExpected(params, plan) {
   const rounds = kybRounds(params, plan);
   if (rounds === 0) return {};
-  return Object.fromEntries(kybStores(params).map((storeId, s) => [storeId, verdictOf(s, rounds - 1).status]));
+  return Object.fromEntries(
+    kybStores(params).map((storeId, s) => [storeId, verdictOf(s, rounds - 1).status]),
+  );
 }

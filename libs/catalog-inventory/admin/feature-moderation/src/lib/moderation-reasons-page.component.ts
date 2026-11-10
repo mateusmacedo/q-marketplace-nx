@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import {
   BadgeComponent,
   ButtonDirective,
@@ -9,7 +17,7 @@ import {
   FormCheckInputDirective,
   FormCheckLabelDirective,
   RowComponent,
-  TableDirective
+  TableDirective,
 } from '@coreui/angular';
 import { cilBan, cilCheckCircle, cilPencil, cilPlus } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -17,7 +25,7 @@ import {
   activateModerationReason,
   deactivateModerationReason,
   listModerationReasonsResource,
-  type ModerationReasonResponse
+  type ModerationReasonResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   type ActionMenuChoice,
@@ -29,22 +37,36 @@ import {
   ErrorStateComponent,
   LoadingStateComponent,
   ProblemAlertComponent,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
-import { apiData, isEditConflict, type Problem, toProblem, versionTag } from '@marketplace/shared-web-util';
+import {
+  apiData,
+  isEditConflict,
+  type Problem,
+  toProblem,
+  versionTag,
+} from '@marketplace/shared-web-util';
 
 import { decisionPresentation } from './moderation-decisions';
-import { ModerationReasonFormComponent, type ReasonSaved } from './moderation-reason-form.component';
+import {
+  ModerationReasonFormComponent,
+  type ReasonSaved,
+} from './moderation-reason-form.component';
 
 type ReasonAction = 'EDIT' | 'DEACTIVATE' | 'ACTIVATE';
 
 const EDIT: ActionMenuItem = { id: 'EDIT', label: 'Editar', icon: cilPencil };
-const DEACTIVATE: ActionMenuItem = { id: 'DEACTIVATE', label: 'Desativar', icon: cilBan, danger: true };
+const DEACTIVATE: ActionMenuItem = {
+  id: 'DEACTIVATE',
+  label: 'Desativar',
+  icon: cilBan,
+  danger: true,
+};
 const ACTIVATE: ActionMenuItem = { id: 'ACTIVATE', label: 'Reativar', icon: cilCheckCircle };
 
 const SAVED_MESSAGES: Readonly<Record<ReasonSaved, string>> = {
   created: 'Motivo criado. Ele já aparece para o moderador.',
-  updated: 'Motivo atualizado.'
+  updated: 'Motivo atualizado.',
 };
 
 /**
@@ -79,7 +101,7 @@ const SAVED_MESSAGES: Readonly<Record<ReasonSaved, string>> = {
     ModerationReasonFormComponent,
     ProblemAlertComponent,
     RowComponent,
-    TableDirective
+    TableDirective,
   ],
   template: `
     <c-card class="mb-4">
@@ -204,7 +226,7 @@ const SAVED_MESSAGES: Readonly<Record<ReasonSaved, string>> = {
         </div>
       }
     </app-confirm-modal>
-  `
+  `,
 })
 export class ModerationReasonsPageComponent {
   readonly #toast = inject(ToastService);
@@ -213,17 +235,21 @@ export class ModerationReasonsPageComponent {
   /** Começa desligado: a lista mostra os ativos, que são os que o moderador vê. */
   readonly showInactive = signal(false);
 
-  readonly all = computed<readonly ModerationReasonResponse[]>(() => (this.reasons.hasValue() ? this.reasons.value() : []));
+  readonly all = computed<readonly ModerationReasonResponse[]>(() =>
+    this.reasons.hasValue() ? this.reasons.value() : [],
+  );
   readonly rows = computed(() =>
     this.all()
-      .filter(reason => this.showInactive() || reason.active !== false)
-      .map(reason => ({
+      .filter((reason) => this.showInactive() || reason.active !== false)
+      .map((reason) => ({
         reason,
         decisions: (reason.decisions ?? []).map(decisionPresentation),
-        menu: [EDIT, reason.active === false ? ACTIVATE : DEACTIVATE]
-      }))
+        menu: [EDIT, reason.active === false ? ACTIVATE : DEACTIVATE],
+      })),
   );
-  readonly loadProblem = computed(() => (this.reasons.error() ? toProblem(this.reasons.error()) : null));
+  readonly loadProblem = computed(() =>
+    this.reasons.error() ? toProblem(this.reasons.error()) : null,
+  );
 
   readonly formOpen = signal(false);
   readonly formCode = signal<string | null>(null);
@@ -232,7 +258,9 @@ export class ModerationReasonsPageComponent {
   readonly deactivateOpen = signal(false);
   readonly #deactivateCode = signal<string | null>(null);
   /** Motivo do modal de desativar, lido da lista atual para gravar com a versão mais recente. */
-  readonly deactivateTarget = computed(() => this.all().find(reason => reason.code === this.#deactivateCode()));
+  readonly deactivateTarget = computed(() =>
+    this.all().find((reason) => reason.code === this.#deactivateCode()),
+  );
   readonly deactivateTitle = computed(() => `Desativar "${this.deactivateTarget()?.label ?? ''}"?`);
   readonly deactivating = signal(false);
   readonly deactivateProblem = signal<Problem | null>(null);
@@ -256,7 +284,9 @@ export class ModerationReasonsPageComponent {
           return;
         }
         if (status === 'resolved') {
-          (this.#clearOnReload === 'action' ? this.actionProblem : this.deactivateProblem).set(null);
+          (this.#clearOnReload === 'action' ? this.actionProblem : this.deactivateProblem).set(
+            null,
+          );
         }
         this.#clearOnReload = null;
       });
@@ -316,7 +346,12 @@ export class ModerationReasonsPageComponent {
     this.deactivating.set(true);
     this.deactivateProblem.set(null);
     try {
-      await apiData(deactivateModerationReason({ path: { code: reason.code }, headers: ifMatch(reason.version) }));
+      await apiData(
+        deactivateModerationReason({
+          path: { code: reason.code },
+          headers: ifMatch(reason.version),
+        }),
+      );
       this.deactivateOpen.set(false);
       this.#toast.success('Motivo desativado. Ele não aparece mais para o moderador.');
       this.reasons.reload();

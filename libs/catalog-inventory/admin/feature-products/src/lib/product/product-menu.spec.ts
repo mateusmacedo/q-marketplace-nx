@@ -9,7 +9,7 @@ import {
   actionMenuItems,
   productActionPresentation,
   refusalIssues,
-  runProductAction
+  runProductAction,
 } from './product-menu';
 
 const API = '/api/catalog-inventory';
@@ -20,16 +20,21 @@ describe('ações do produto na tela', () => {
       productMenu(
         {
           actions: ['ARCHIVE', 'PAUSE', 'EDIT', 'APPROVE'],
-          blockedActions: [{ action: 'SUBMIT', reason: { code: 'product-not-publishable', message: 'Há pendências.' } }]
+          blockedActions: [
+            {
+              action: 'SUBMIT',
+              reason: { code: 'product-not-publishable', message: 'Há pendências.' },
+            },
+          ],
         },
-        'detail'
-      )
+        'detail',
+      ),
     );
 
-    expect(items.map(item => [item.id, item.label, item.danger, item.disabledReason])).toEqual([
+    expect(items.map((item) => [item.id, item.label, item.danger, item.disabledReason])).toEqual([
       ['SUBMIT', 'Enviar para moderação', false, 'Há pendências.'],
       ['PAUSE', 'Pausar', false, undefined],
-      ['ARCHIVE', 'Arquivar', true, undefined]
+      ['ARCHIVE', 'Arquivar', true, undefined],
     ]);
     expect(productActionPresentation('UNBLOCK')?.label).toBe('Desbloquear');
     expect(productActionPresentation('APPROVE')).toBeUndefined();
@@ -43,18 +48,28 @@ describe('ações do produto na tela', () => {
         status: 422,
         reasonDetails: [
           { code: 'missing-offer', params: ['CAM-P'], message: 'Defina o preço do SKU CAM-P.' },
-          { code: 'missing-attribute', params: ['material'], message: 'Preencha Material.' }
-        ]
+          { code: 'missing-attribute', params: ['material'], message: 'Preencha Material.' },
+        ],
       },
       [
         { code: 'missing-offer', params: ['CAM-P'], field: 'skus[CAM-P].offer' },
-        { code: 'missing-offer', params: ['CAM-M'], field: 'skus[CAM-M].offer' }
-      ]
+        { code: 'missing-offer', params: ['CAM-M'], field: 'skus[CAM-M].offer' },
+      ],
     );
 
     expect(issues).toEqual([
-      { code: 'missing-offer', params: ['CAM-P'], message: 'Defina o preço do SKU CAM-P.', field: 'skus[CAM-P].offer' },
-      { code: 'missing-attribute', params: ['material'], message: 'Preencha Material.', field: undefined }
+      {
+        code: 'missing-offer',
+        params: ['CAM-P'],
+        message: 'Defina o preço do SKU CAM-P.',
+        field: 'skus[CAM-P].offer',
+      },
+      {
+        code: 'missing-attribute',
+        params: ['material'],
+        message: 'Preencha Material.',
+        field: undefined,
+      },
     ]);
   });
 
@@ -63,7 +78,7 @@ describe('ações do produto na tela', () => {
 
     beforeEach(() => {
       TestBed.configureTestingModule({
-        providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
       });
       http = TestBed.inject(HttpTestingController);
     });
@@ -75,7 +90,7 @@ describe('ações do produto na tela', () => {
       ['PAUSE', 'POST', `${API}/products/p1/pause`],
       ['RESUME', 'POST', `${API}/products/p1/resume`],
       ['ARCHIVE', 'DELETE', `${API}/products/p1`],
-      ['UNBLOCK', 'POST', `${API}/moderation/products/p1/unblock`]
+      ['UNBLOCK', 'POST', `${API}/moderation/products/p1/unblock`],
     ];
 
     for (const [code, method, url] of cases) {
@@ -95,8 +110,12 @@ describe('ações do produto na tela', () => {
       const request = await vi.waitFor(() => http.expectOne(`${API}/products/p1/pause`));
       expect(request.request.headers.has('If-Match')).toBe(false);
       request.flush(
-        { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão divergente', status: 412 },
-        { status: 412, statusText: 'Precondition Failed' }
+        {
+          type: 'https://marketplace.dev/problems/version-mismatch',
+          title: 'Versão divergente',
+          status: 412,
+        },
+        { status: 412, statusText: 'Precondition Failed' },
       );
 
       await expect(result).rejects.toMatchObject({ status: 412, title: 'Versão divergente' });

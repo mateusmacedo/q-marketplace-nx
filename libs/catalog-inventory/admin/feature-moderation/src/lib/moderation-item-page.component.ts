@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
@@ -13,7 +21,7 @@ import {
   ListGroupItemDirective,
   RowComponent,
   SpinnerComponent,
-  TableDirective
+  TableDirective,
 } from '@coreui/angular';
 import {
   approveProduct,
@@ -23,7 +31,7 @@ import {
   getStoreEligibilityResource,
   type ModerationDecision,
   productHistoryResource,
-  rejectProduct
+  rejectProduct,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import { ProductStatusBadgeComponent } from '@marketplace/catalog-inventory-admin-ui';
 import {
@@ -36,7 +44,7 @@ import {
   NumberBlockComponent,
   ProblemAlertComponent,
   RelativeTimePipe,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import {
   actionState,
@@ -46,11 +54,14 @@ import {
   responseVersion,
   toProblem,
   translateReason,
-  versionTag
+  versionTag,
 } from '@marketplace/shared-web-util';
 import { map } from 'rxjs';
 
-import { type DecisionReason, ModerationDecisionModalComponent } from './moderation-decision-modal.component';
+import {
+  type DecisionReason,
+  ModerationDecisionModalComponent,
+} from './moderation-decision-modal.component';
 import { decisionPresentation, DECISIONS } from './moderation-decisions';
 import { ModerationQueueStore } from './moderation-queue.store';
 import type { ReasonDecision } from './moderation-reasons';
@@ -61,7 +72,7 @@ import {
   sellerStatusLook,
   shortId,
   skusInStock,
-  variantText
+  variantText,
 } from './product-summary';
 
 /** Capacidade que libera a situação de qualquer loja (`GET /stores/{storeId}/eligibility`). */
@@ -107,7 +118,7 @@ const READ_SELLER_ELIGIBILITY = 'READ_SELLER_ELIGIBILITY';
     RouterLink,
     RowComponent,
     SpinnerComponent,
-    TableDirective
+    TableDirective,
   ],
   template: `
     <a class="d-inline-block d-lg-none mb-3" queryParamsHandling="preserve" routerLink="..">‹ Voltar para a fila</a>
@@ -325,7 +336,7 @@ const READ_SELLER_ELIGIBILITY = 'READ_SELLER_ELIGIBILITY';
         </c-card-body>
       </c-card>
     }
-  `
+  `,
 })
 export class ModerationItemPageComponent {
   readonly #route = inject(ActivatedRoute);
@@ -334,7 +345,10 @@ export class ModerationItemPageComponent {
   readonly #session = inject(AdminSession);
   readonly #queue = inject(ModerationQueueStore, { optional: true });
 
-  readonly id = toSignal(this.#route.paramMap.pipe(map(params => params.get('id') ?? undefined)), { requireSync: true });
+  readonly id = toSignal(
+    this.#route.paramMap.pipe(map((params) => params.get('id') ?? undefined)),
+    { requireSync: true },
+  );
 
   readonly product$ = getProductResource(() => {
     const id = this.id();
@@ -345,7 +359,7 @@ export class ModerationItemPageComponent {
   readonly version = computed(() =>
     this.product$.status() === 'resolved' && this.product$.hasValue()
       ? (versionTag(this.product$.value().version) ?? responseVersion(this.product$.headers()))
-      : undefined
+      : undefined,
   );
 
   readonly #categoryId = computed(() => this.item()?.categoryId);
@@ -360,7 +374,9 @@ export class ModerationItemPageComponent {
   });
   readonly eligibility = getStoreEligibilityResource(() => {
     const storeId = this.#storeId();
-    return storeId && this.#session.hasCapability(READ_SELLER_ELIGIBILITY) ? { path: { storeId } } : undefined;
+    return storeId && this.#session.hasCapability(READ_SELLER_ELIGIBILITY)
+      ? { path: { storeId } }
+      : undefined;
   });
 
   readonly saving = signal<ModerationDecision | null>(null);
@@ -370,27 +386,42 @@ export class ModerationItemPageComponent {
   readonly modalProblem = signal<Problem | null>(null);
 
   readonly conflict = computed(() => isEditConflict(this.problem()));
-  readonly loadProblem = computed(() => (this.product$.error() ? toProblem(this.product$.error()) : null));
-  readonly historyProblem = computed(() => (this.history.error() ? toProblem(this.history.error()) : null));
+  readonly loadProblem = computed(() =>
+    this.product$.error() ? toProblem(this.product$.error()) : null,
+  );
+  readonly historyProblem = computed(() =>
+    this.history.error() ? toProblem(this.history.error()) : null,
+  );
 
   readonly #effectiveAttributes = computed(() =>
-    this.category.hasValue() ? this.category.value().effectiveAttributes : undefined
+    this.category.hasValue() ? this.category.value().effectiveAttributes : undefined,
   );
-  readonly path = computed(() => (this.category.hasValue() ? categoryPath(this.category.value()) : ''));
-  readonly attributes = computed(() => attributeRows(this.item()?.attributes, this.#effectiveAttributes()));
+  readonly path = computed(() =>
+    this.category.hasValue() ? categoryPath(this.category.value()) : '',
+  );
+  readonly attributes = computed(() =>
+    attributeRows(this.item()?.attributes, this.#effectiveAttributes()),
+  );
   readonly inStock = computed(() => skusInStock(this.item()?.skus));
-  readonly store = computed(() => (this.eligibility.hasValue() ? this.eligibility.value() : undefined));
+  readonly store = computed(() =>
+    this.eligibility.hasValue() ? this.eligibility.value() : undefined,
+  );
   readonly storeLook = computed(() => sellerStatusLook(this.store()?.status));
-  readonly historyItems = computed(() => historyEntries(this.history.hasValue() ? this.history.value() : []));
-  readonly issues = computed(() => (this.item()?.publishingIssues ?? []).map(issue => translateReason(issue)));
+  readonly historyItems = computed(() =>
+    historyEntries(this.history.hasValue() ? this.history.value() : []),
+  );
+  readonly issues = computed(() =>
+    (this.item()?.publishingIssues ?? []).map((issue) => translateReason(issue)),
+  );
 
   /** Decisões que o servidor libera (`actions`) ou barra com o motivo (`blockedActions`); as demais não aparecem. */
   readonly actions = computed(() =>
-    DECISIONS.map(presentation => ({ ...presentation, state: actionState(this.item(), presentation.code) })).filter(
-      action => action.state.allowed || action.state.blockedReason !== undefined
-    )
+    DECISIONS.map((presentation) => ({
+      ...presentation,
+      state: actionState(this.item(), presentation.code),
+    })).filter((action) => action.state.allowed || action.state.blockedReason !== undefined),
   );
-  readonly blocked = computed(() => this.actions().filter(action => !action.state.allowed));
+  readonly blocked = computed(() => this.actions().filter((action) => !action.state.allowed));
 
   readonly shortId = shortId;
 
@@ -503,7 +534,10 @@ export class ModerationItemPageComponent {
     if (this.#queue) {
       await this.#queue.afterDecision([id]);
     } else {
-      await this.#router.navigate(['..'], { relativeTo: this.#route, queryParamsHandling: 'preserve' });
+      await this.#router.navigate(['..'], {
+        relativeTo: this.#route,
+        queryParamsHandling: 'preserve',
+      });
     }
   }
 }

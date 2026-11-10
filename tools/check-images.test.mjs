@@ -7,8 +7,16 @@ const OTHER = `sha256:${'b'.repeat(64)}`;
 
 describe('parseRef', () => {
   test('separa nome, tag e digest, com registro e porta', () => {
-    assert.deepEqual(parseRef(`registry:5000/org/app:1.2@${DIGEST}`), { name: 'registry:5000/org/app', tag: '1.2', digest: DIGEST });
-    assert.deepEqual(parseRef('"postgres:16-alpine"'), { name: 'postgres', tag: '16-alpine', digest: null });
+    assert.deepEqual(parseRef(`registry:5000/org/app:1.2@${DIGEST}`), {
+      name: 'registry:5000/org/app',
+      tag: '1.2',
+      digest: DIGEST,
+    });
+    assert.deepEqual(parseRef('"postgres:16-alpine"'), {
+      name: 'postgres',
+      tag: '16-alpine',
+      digest: null,
+    });
   });
 
   test('recusa referência sem tag ou com variável', () => {
@@ -29,13 +37,18 @@ describe('isOwnImage', () => {
 describe('extractRefs', () => {
   test('lê image do compose resolvendo âncoras', () => {
     const text = `x-pg: &pg-image postgres:16@${DIGEST}\nservices:\n  db:\n    image: *pg-image\n  kv:\n    image: redis:7\n`;
-    const refs = extractRefs('compose.yml', text).map(ref => `${ref.name}:${ref.tag}:${ref.line}`);
+    const refs = extractRefs('compose.yml', text).map(
+      (ref) => `${ref.name}:${ref.tag}:${ref.line}`,
+    );
     assert.deepEqual(refs, ['postgres:16:1', 'postgres:16:4', 'redis:7:6']);
   });
 
   test('lê bloco repository, tag e digest dos values, pulando comentários', () => {
     const text = `job:\n  image:\n    repository: apache/kafka\n    tag: 4.2.0\n    # comentário\n    digest: ${DIGEST}\n    pullPolicy: IfNotPresent\n`;
-    assert.deepEqual(extractRefs('values.yaml', text).map(ref => ref.digest), [DIGEST]);
+    assert.deepEqual(
+      extractRefs('values.yaml', text).map((ref) => ref.digest),
+      [DIGEST],
+    );
   });
 
   test('lê FROM, image-name, variável de script e lista de imagens', () => {
@@ -46,7 +59,10 @@ describe('extractRefs', () => {
       'DEP_IMAGES=(apache/kafka:4 postgres:16)',
       "const KAFKA_IMAGE = 'apache/kafka-native:4';",
     ].join('\n');
-    assert.deepEqual(extractRefs('f', text).map(ref => ref.name), ['base', 'postgres', 'grafana/k6', 'apache/kafka', 'postgres', 'apache/kafka-native']);
+    assert.deepEqual(
+      extractRefs('f', text).map((ref) => ref.name),
+      ['base', 'postgres', 'grafana/k6', 'apache/kafka', 'postgres', 'apache/kafka-native'],
+    );
   });
 
   test('ignora a imagem construída no repositório', () => {
@@ -58,7 +74,10 @@ describe('findIssues', () => {
   const ref = (name, tag, digest, line = 1) => ({ name, tag, digest, file: 'f', line });
 
   test('aprova digest presente e versão única', () => {
-    assert.deepEqual(findIssues([ref('postgres', '16', DIGEST), ref('postgres', '16', DIGEST, 2)]), []);
+    assert.deepEqual(
+      findIssues([ref('postgres', '16', DIGEST), ref('postgres', '16', DIGEST, 2)]),
+      [],
+    );
   });
 
   test('acusa imagem sem digest', () => {

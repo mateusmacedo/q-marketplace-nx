@@ -10,20 +10,20 @@ import java.util.UUID;
  * {@code eventId} identifica a entrega para deduplicação.
  */
 public record SellerVerdict(UUID eventId, UUID tenantId, UUID storeId, SellerStatus status, Instant decidedAt) {
-    /** Exige todos os campos; campo nulo lança {@link NullPointerException}. */
-    public SellerVerdict {
-        Objects.requireNonNull(eventId, "evento obrigatório");
-        Objects.requireNonNull(tenantId, "tenant obrigatório");
-        Objects.requireNonNull(storeId, "loja obrigatória");
-        Objects.requireNonNull(status, "situação obrigatória");
-        Objects.requireNonNull(decidedAt, "instante da decisão obrigatório");
-    }
+  /** Exige todos os campos; campo nulo lança {@link NullPointerException}. */
+  public SellerVerdict {
+    Objects.requireNonNull(eventId, "evento obrigatório");
+    Objects.requireNonNull(tenantId, "tenant obrigatório");
+    Objects.requireNonNull(storeId, "loja obrigatória");
+    Objects.requireNonNull(status, "situação obrigatória");
+    Objects.requireNonNull(decidedAt, "instante da decisão obrigatório");
+  }
 
-    /**
-     * Resultado da aplicação: duplicado já foi processado; obsoleto é mais antigo
-     * que a decisão já registrada.
-     */
-    public enum Outcome {
-        APPLIED, DUPLICATE, STALE
-    }
+  /**
+   * Resultado da aplicação: duplicado já foi processado; obsoleto é mais antigo
+   * que a decisão já registrada.
+   */
+  public enum Outcome {
+    APPLIED, DUPLICATE, STALE
+  }
 }

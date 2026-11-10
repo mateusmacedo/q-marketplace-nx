@@ -13,7 +13,12 @@ describe('ProductStore', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi(), ProductStore]
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideCatalogInventoryApi(),
+        ProductStore,
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(ProductStore);
@@ -26,7 +31,7 @@ describe('ProductStore', () => {
     expect(store.loading()).toBe(true);
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1`))).flush(
       { id: 'p1', version: 3, actions: ['EDIT', 'ADD_SKU'], saveReturnsToModeration: true },
-      { headers: { ETag: '"3"' } }
+      { headers: { ETag: '"3"' } },
     );
 
     await expect(loaded).resolves.toBe(true);
@@ -60,7 +65,10 @@ describe('ProductStore', () => {
     const read = await vi.waitFor(() => http.expectOne(`${API}/products/p1`));
     expect(store.loading()).toBe(true);
 
-    store.accept({ data: { id: 'p1', version: 4, status: 'PAUSED_BY_SELLER', actions: [] }, version: '"4"' });
+    store.accept({
+      data: { id: 'p1', version: 4, status: 'PAUSED_BY_SELLER', actions: [] },
+      version: '"4"',
+    });
     expect(store.loading()).toBe(false);
     read.flush({ id: 'p1', version: 3, status: 'ACTIVE' }, { headers: { ETag: '"3"' } });
 
@@ -74,7 +82,7 @@ describe('ProductStore', () => {
     const failed = store.load('p1');
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1`))).flush(
       { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', status: 404 },
-      { status: 404, statusText: 'Not Found' }
+      { status: 404, statusText: 'Not Found' },
     );
     await expect(failed).resolves.toBe(false);
     expect(store.problem()).toMatchObject({ status: 404 });
@@ -103,7 +111,7 @@ describe('ProductStore', () => {
 
     (await vi.waitFor(() => http.expectOne(`${API}/products/p1`))).flush(
       { id: 'p1', version: 5, status: 'PENDING_MODERATION', actions: ['ARCHIVE'] },
-      { headers: { ETag: '"5"' } }
+      { headers: { ETag: '"5"' } },
     );
     await vi.waitFor(() => expect(store.product()?.actions).toEqual(['ARCHIVE']));
     expect(store.loading()).toBe(false);

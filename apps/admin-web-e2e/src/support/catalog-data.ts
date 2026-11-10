@@ -68,8 +68,17 @@ export interface Sku {
   readonly sellerSku: string;
   readonly variantAttributes: Readonly<Record<string, string>>;
   readonly physical: boolean;
-  readonly offer?: { readonly salePrice: Money; readonly listPrice?: Money | null; readonly version: number } | null;
-  readonly stock?: { readonly onHand: number; readonly reserved: number; readonly available: number; readonly version: number } | null;
+  readonly offer?: {
+    readonly salePrice: Money;
+    readonly listPrice?: Money | null;
+    readonly version: number;
+  } | null;
+  readonly stock?: {
+    readonly onHand: number;
+    readonly reserved: number;
+    readonly available: number;
+    readonly version: number;
+  } | null;
 }
 
 export interface Rejection {
@@ -108,7 +117,13 @@ export interface ModerationDecisionInput {
 }
 
 /** Atributo de produto obrigatório da categoria padrão; `createReadyProduct` preenche com `Acme`. */
-export const PRODUCT_ATTRIBUTE: Attribute = { code: 'marca', label: 'Marca', type: 'TEXT', required: true, variant: false };
+export const PRODUCT_ATTRIBUTE: Attribute = {
+  code: 'marca',
+  label: 'Marca',
+  type: 'TEXT',
+  required: true,
+  variant: false,
+};
 
 /** Atributo de variação da categoria padrão; cada SKU escolhe uma das opções. */
 export const VARIANT_ATTRIBUTE: Attribute = {
@@ -117,10 +132,15 @@ export const VARIANT_ATTRIBUTE: Attribute = {
   type: 'OPTION',
   required: true,
   variant: true,
-  options: ['P', 'M', 'G']
+  options: ['P', 'M', 'G'],
 };
 
-export const DEFAULT_DIMENSIONS: Dimensions = { heightCm: 3, widthCm: 25, lengthCm: 30, weightGrams: 200 };
+export const DEFAULT_DIMENSIONS: Dimensions = {
+  heightCm: 3,
+  widthCm: 25,
+  lengthCm: 30,
+  weightGrams: 200,
+};
 
 let sequence = 0;
 
@@ -161,7 +181,7 @@ export async function createCategory(spec: CategorySpec = {}): Promise<Category>
     code: spec.code ?? `teste-${suffix}`,
     name: spec.name ?? `Categoria E2E ${suffix}`,
     parentId: spec.parentId,
-    attributes: spec.attributes ?? [PRODUCT_ATTRIBUTE, VARIANT_ATTRIBUTE]
+    attributes: spec.attributes ?? [PRODUCT_ATTRIBUTE, VARIANT_ATTRIBUTE],
   });
 }
 
@@ -173,12 +193,14 @@ export interface ModerationReasonSpec {
 }
 
 /** Motivo pronto ativo criado pelo `admin-demo`; entra no fim da lista do moderador. */
-export async function createModerationReason(spec: ModerationReasonSpec = {}): Promise<ModerationReason> {
+export async function createModerationReason(
+  spec: ModerationReasonSpec = {},
+): Promise<ModerationReason> {
   const suffix = uniqueSuffix();
   return apiAs('admin-demo').post<ModerationReason>('/moderation/reasons', {
     code: spec.code ?? `teste-${suffix}`,
     label: spec.label ?? `Motivo E2E ${suffix}`,
-    decisions: spec.decisions ?? ['REJECT']
+    decisions: spec.decisions ?? ['REJECT'],
   });
 }
 
@@ -188,10 +210,16 @@ export async function createModerationReason(spec: ModerationReasonSpec = {}): P
  */
 export async function deactivateModerationReason(code: string): Promise<ModerationReason> {
   const admin = apiAs('admin-demo');
-  const current = await admin.get<ModerationReason>(`/moderation/reasons/${encodeURIComponent(code)}`);
-  return admin.post<ModerationReason>(`/moderation/reasons/${encodeURIComponent(code)}/deactivate`, undefined, {
-    ifMatch: current.version
-  });
+  const current = await admin.get<ModerationReason>(
+    `/moderation/reasons/${encodeURIComponent(code)}`,
+  );
+  return admin.post<ModerationReason>(
+    `/moderation/reasons/${encodeURIComponent(code)}/deactivate`,
+    undefined,
+    {
+      ifMatch: current.version,
+    },
+  );
 }
 
 export interface DraftProductSpec {
@@ -210,7 +238,7 @@ export async function createDraftProduct(spec: DraftProductSpec): Promise<Produc
     title: spec.title ?? `Produto E2E ${uniqueSuffix()}`,
     description: spec.description,
     attributes: spec.attributes,
-    skus: spec.skus
+    skus: spec.skus,
   });
 }
 
@@ -241,32 +269,43 @@ export async function createReadyProduct(spec: ReadyProductSpec): Promise<Produc
         sellerSku: `E2E-${suffix}`,
         variantAttributes: { [VARIANT_ATTRIBUTE.code]: spec.variant ?? 'P' },
         physical: true,
-        dimensions: DEFAULT_DIMENSIONS
-      }
-    ]
+        dimensions: DEFAULT_DIMENSIONS,
+      },
+    ],
   });
   const sku = draft.skus[0];
   await seller.put(`/offers/${sku.id}`, {
     listPrice: { amount: spec.listPrice ?? 79.9, currency: 'BRL' },
-    salePrice: { amount: spec.salePrice ?? 59.9, currency: 'BRL' }
+    salePrice: { amount: spec.salePrice ?? 59.9, currency: 'BRL' },
   });
-  await seller.put(`/inventory/skus/${sku.id}`, { onHand: spec.onHand ?? 5 }, { ifMatch: sku.stock?.version ?? 0 });
+  await seller.put(
+    `/inventory/skus/${sku.id}`,
+    { onHand: spec.onHand ?? 5 },
+    { ifMatch: sku.stock?.version ?? 0 },
+  );
   const ready = await getProduct(draft.id);
   if (ready.publishingIssues?.length) {
-    throw new Error(`O produto ${ready.id} ficou com pendências: ${ready.publishingIssues.map(issue => issue.message).join('; ')}`);
+    throw new Error(
+      `O produto ${ready.id} ficou com pendências: ${ready.publishingIssues.map((issue) => issue.message).join('; ')}`,
+    );
   }
   return ready;
 }
 
 /** Produto como o usuário o lê agora (padrão `seller-demo`); o moderador e o admin leem o de qualquer loja do tenant. */
-export async function getProduct(product: Product | string, user: DemoUser = 'seller-demo'): Promise<Product> {
+export async function getProduct(
+  product: Product | string,
+  user: DemoUser = 'seller-demo',
+): Promise<Product> {
   return apiAs(user).get<Product>(`/products/${idOf(product)}`);
 }
 
 /** Envia para a moderação pelo `seller-demo`, com a versão atual no `If-Match`. Devolve o produto em PENDING_MODERATION. */
 export async function submitProduct(product: Product | string): Promise<Product> {
   const current = await getProduct(product);
-  return apiAs('seller-demo').post<Product>(`/products/${current.id}/submit`, undefined, { ifMatch: current.version });
+  return apiAs('seller-demo').post<Product>(`/products/${current.id}/submit`, undefined, {
+    ifMatch: current.version,
+  });
 }
 
 /** Produto pronto já enviado: o ponto de partida da fila de moderação. */
@@ -279,27 +318,37 @@ export async function approveProduct(product: Product | string): Promise<Product
   return moderate(product, 'approve');
 }
 
-export async function rejectProduct(product: Product | string, decision: ModerationDecisionInput): Promise<Product> {
+export async function rejectProduct(
+  product: Product | string,
+  decision: ModerationDecisionInput,
+): Promise<Product> {
   return moderate(product, 'reject', decision);
 }
 
-export async function blockProduct(product: Product | string, decision: ModerationDecisionInput): Promise<Product> {
+export async function blockProduct(
+  product: Product | string,
+  decision: ModerationDecisionInput,
+): Promise<Product> {
   return moderate(product, 'block', decision);
 }
 
 /** Elegibilidade da loja, lida pelo `admin-demo`; padrão, a loja do `seller-demo`. */
-export async function getStoreEligibility(storeId: string = E2E_ENV.sellerStoreId): Promise<StoreEligibility> {
+export async function getStoreEligibility(
+  storeId: string = E2E_ENV.sellerStoreId,
+): Promise<StoreEligibility> {
   return apiAs('admin-demo').get<StoreEligibility>(`/stores/${storeId}/eligibility`);
 }
 
 async function moderate(
   product: Product | string,
   action: 'approve' | 'reject' | 'block',
-  decision?: ModerationDecisionInput
+  decision?: ModerationDecisionInput,
 ): Promise<Product> {
   const moderator = apiAs('moderator-demo');
   const current = await getProduct(product, 'moderator-demo');
-  return moderator.post<Product>(`/moderation/products/${current.id}/${action}`, decision, { ifMatch: current.version });
+  return moderator.post<Product>(`/moderation/products/${current.id}/${action}`, decision, {
+    ifMatch: current.version,
+  });
 }
 
 function idOf(entity: { readonly id: string } | string): string {

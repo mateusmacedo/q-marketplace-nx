@@ -14,7 +14,7 @@ import { LoadingStateComponent } from './states/loading-state.component';
 class FakeSession extends AdminSession {
   readonly grants = signal<SessionGrants>({
     capabilities: ['MANAGE_OWN_PRODUCTS', 'CAPACIDADE_NOVA'],
-    permissions: { readTenantCatalog: false }
+    permissions: { readTenantCatalog: false },
   });
   readonly storeId = signal<string | undefined>('22222222-2222-4222-8222-222222222222');
   readonly tenantId = signal<string | undefined>(undefined);
@@ -25,7 +25,9 @@ describe('pipes', () => {
     expect(new DateTimePipe().transform('2026-11-08T17:02:00Z')).toBe('08/11/2026 14:02');
     expect(new DateTimePipe().transform('2026-11-08T17:02:00Z', 'short')).toBe('08/11 14:02');
     expect(new DateTimePipe().transform(null, 'time')).toBe('');
-    expect(new RelativeTimePipe().transform('2026-11-08T14:00:00Z', '2026-11-08T15:00:00Z')).toBe('há 1 hora');
+    expect(new RelativeTimePipe().transform('2026-11-08T14:00:00Z', '2026-11-08T15:00:00Z')).toBe(
+      'há 1 hora',
+    );
     expect(new MoneyPipe().transform('49.9', 'BRL')).toBe('R$ 49,90');
     expect(new MoneyPipe().transform(10, undefined)).toBe('');
   });
@@ -37,7 +39,9 @@ describe('AdminSession', () => {
     expect(session.hasCapability('MANAGE_OWN_PRODUCTS')).toBe(true);
     expect(session.hasCapability('MANAGE_TAXONOMY')).toBe(false);
     expect(session.can('readTenantCatalog')).toBe(false);
-    expect(session.allows({ capability: 'MANAGE_OWN_PRODUCTS', permission: 'readTenantCatalog' })).toBe(false);
+    expect(
+      session.allows({ capability: 'MANAGE_OWN_PRODUCTS', permission: 'readTenantCatalog' }),
+    ).toBe(false);
     expect(session.allows()).toBe(true);
     expect(session.allows({})).toBe(true);
   });
@@ -45,7 +49,12 @@ describe('AdminSession', () => {
   it('não libera nada sem sessão e ignora permissão desconhecida', () => {
     expect(allowsAccess(NO_GRANTS, { capability: 'MANAGE_OWN_PRODUCTS' })).toBe(false);
     expect(allowsAccess(NO_GRANTS, { permission: 'readTenantCatalog' })).toBe(false);
-    expect(allowsAccess({ capabilities: [], permissions: { readTenantCatalog: true } }, { permission: 'outra' })).toBe(false);
+    expect(
+      allowsAccess(
+        { capabilities: [], permissions: { readTenantCatalog: true } },
+        { permission: 'outra' },
+      ),
+    ).toBe(false);
     expect(allowsAccess(NO_GRANTS, null)).toBe(true);
   });
 });
@@ -89,7 +98,10 @@ describe('NavBadgeService', () => {
     it('lê de novo dentro da janela com force, e a resposta atrasada da leitura anterior não sobrescreve', async () => {
       const badges = TestBed.inject(NavBadgeService);
       let answerFirst: (count: number) => void = () => undefined;
-      const first = badges.refresh('moderation-queue', () => new Promise<number>(resolve => (answerFirst = resolve)));
+      const first = badges.refresh(
+        'moderation-queue',
+        () => new Promise<number>((resolve) => (answerFirst = resolve)),
+      );
       const second = badges.refresh('moderation-queue', () => Promise.resolve(3), { force: true });
 
       await second;
@@ -102,7 +114,10 @@ describe('NavBadgeService', () => {
       const badges = TestBed.inject(NavBadgeService);
       const load = vi.fn().mockResolvedValue(5);
 
-      await Promise.all([badges.refresh('moderation-queue', load), badges.refresh('moderation-queue', load)]);
+      await Promise.all([
+        badges.refresh('moderation-queue', load),
+        badges.refresh('moderation-queue', load),
+      ]);
       expect(load).toHaveBeenCalledTimes(1);
     });
 
@@ -129,10 +144,17 @@ describe('blocos e estados', () => {
     await fixture.whenStable();
 
     const block = fixture.nativeElement.firstElementChild as HTMLElement;
-    expect(Array.from(block.classList).sort()).toEqual(
-      ['border-start', 'border-start-4', 'border-start-danger', 'px-3', 'py-1']
-    );
-    expect(Array.from(block.children).map(child => child.textContent?.trim())).toEqual(['Falhas', '5']);
+    expect(Array.from(block.classList).sort()).toEqual([
+      'border-start',
+      'border-start-4',
+      'border-start-danger',
+      'px-3',
+      'py-1',
+    ]);
+    expect(Array.from(block.children).map((child) => child.textContent?.trim())).toEqual([
+      'Falhas',
+      '5',
+    ]);
   });
 
   it('mostra o estado vazio com o texto', async () => {
@@ -147,7 +169,9 @@ describe('blocos e estados', () => {
     fixture.componentRef.setInput('rows', 3);
     await fixture.whenStable();
     expect(fixture.nativeElement.querySelectorAll('.placeholder').length).toBe(3);
-    expect(fixture.nativeElement.querySelector('[role="status"]')?.getAttribute('aria-busy')).toBe('true');
+    expect(fixture.nativeElement.querySelector('[role="status"]')?.getAttribute('aria-busy')).toBe(
+      'true',
+    );
   });
 
   it('oferece Tentar de novo no erro', async () => {
@@ -175,13 +199,23 @@ describe('blocos e estados', () => {
       type: 'https://marketplace.dev/problems/category-too-deep',
       status: 409,
       detail: 'Profundidade 7 acima do máximo',
-      reasonDetails: [{ code: 'category-too-deep', params: ['6'], message: 'A árvore aceita até 6 níveis.' }]
+      reasonDetails: [
+        { code: 'category-too-deep', params: ['6'], message: 'A árvore aceita até 6 níveis.' },
+      ],
     });
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.small')?.textContent?.trim()).toBe('A árvore aceita até 6 níveis.');
+    expect(fixture.nativeElement.querySelector('.small')?.textContent?.trim()).toBe(
+      'A árvore aceita até 6 níveis.',
+    );
 
-    fixture.componentRef.setInput('problem', { type: 'https://marketplace.dev/problems/not-found', status: 404, detail: 'Produto não encontrado' });
+    fixture.componentRef.setInput('problem', {
+      type: 'https://marketplace.dev/problems/not-found',
+      status: 404,
+      detail: 'Produto não encontrado',
+    });
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.small')?.textContent?.trim()).toBe('Produto não encontrado');
+    expect(fixture.nativeElement.querySelector('.small')?.textContent?.trim()).toBe(
+      'Produto não encontrado',
+    );
   });
 });

@@ -13,14 +13,14 @@ export interface Presentation {
 const STATUSES: Readonly<Record<string, Presentation>> = {
   PENDING: { label: 'Na fila', color: 'secondary' },
   PROCESSING: { label: 'Processando', color: 'info' },
-  COMPLETED: { label: 'Concluída', color: 'success' }
+  COMPLETED: { label: 'Concluída', color: 'success' },
 };
 
 const OUTCOMES: Readonly<Record<string, Presentation>> = {
   CREATED: { label: 'Criada', color: 'success' },
   UPDATED: { label: 'Atualizada', color: 'info' },
   UNCHANGED: { label: 'Sem mudança', color: 'secondary' },
-  FAILED: { label: 'Falha', color: 'danger' }
+  FAILED: { label: 'Falha', color: 'danger' },
 };
 
 const FAILED = 'FAILED';
@@ -60,7 +60,9 @@ export interface LineTexts {
 export function lineTexts(line: ImportLineResponse): LineTexts {
   const message = line.message?.trim() || undefined;
   const reasons = line.reasonDetails?.length
-    ? problemMessages({ reasonDetails: line.reasonDetails, detail: message }).filter(text => text !== message)
+    ? problemMessages({ reasonDetails: line.reasonDetails, detail: message }).filter(
+        (text) => text !== message,
+      )
     : [];
   if (!message && !reasons.length && isFailedLine(line)) {
     return { message: GENERIC_REASON_MESSAGE, reasons };
@@ -79,7 +81,10 @@ export function locationId(location: string | null | undefined): string | undefi
  * Andamento em porcentagem inteira, arredondado para baixo para não marcar 100 antes da última linha. Vai como `value`
  * do `c-progress` com o máximo padrão: no CoreUI 5.7.42 a barra interna do `c-progress` não recebe o `max`.
  */
-export function progressPercent(processed: number | null | undefined, total: number | null | undefined): number {
+export function progressPercent(
+  processed: number | null | undefined,
+  total: number | null | undefined,
+): number {
   return total ? Math.min(100, Math.floor(((processed ?? 0) * 100) / total)) : 0;
 }
 
@@ -88,7 +93,10 @@ export function countLines(count: number): string {
   return `${count} ${count === 1 ? 'linha' : 'linhas'}`;
 }
 
-function presentation(table: Readonly<Record<string, Presentation>>, code: string | null | undefined): Presentation {
+function presentation(
+  table: Readonly<Record<string, Presentation>>,
+  code: string | null | undefined,
+): Presentation {
   if (code && Object.prototype.hasOwnProperty.call(table, code)) {
     return table[code];
   }

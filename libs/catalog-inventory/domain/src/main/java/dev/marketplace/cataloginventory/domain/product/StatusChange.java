@@ -10,18 +10,18 @@ import java.util.UUID;
  * a lista é vazia e o complemento, nulo.
  */
 public record StatusChange(UUID id, ProductTransition transition, ProductStatus from, ProductStatus to, String actor,
-        List<ReasonLabel> reasons, String note, Instant at) {
-    public StatusChange {
-        reasons = List.copyOf(reasons);
-    }
+    List<ReasonLabel> reasons, String note, Instant at) {
+  public StatusChange {
+    reasons = List.copyOf(reasons);
+  }
 
-    /** Códigos dos motivos prontos, na ordem do catálogo da época. */
-    public List<String> reasonCodes() {
-        return reasons.stream().map(ReasonLabel::code).toList();
-    }
+  /** Códigos dos motivos prontos, na ordem do catálogo da época. */
+  public List<String> reasonCodes() {
+    return reasons.stream().map(ReasonLabel::code).toList();
+  }
 
-    /** Texto único derivado dos rótulos e do complemento ({@link DecisionReason#compose}); nulo sem os dois. */
-    public String reason() {
-        return DecisionReason.compose(reasons, note);
-    }
+  /** Texto único derivado dos rótulos e do complemento ({@link DecisionReason#compose}); nulo sem os dois. */
+  public String reason() {
+    return DecisionReason.compose(reasons, note);
+  }
 }

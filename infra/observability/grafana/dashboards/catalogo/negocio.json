@@ -2,10 +2,7 @@
   "uid": "marketplace-catalog-business",
   "title": "Marketplace · Catálogo · Negócio",
   "description": "Indicadores do PRD, reservas, eventos da outbox e do KYB/KYC, moderação e importação.",
-  "tags": [
-    "marketplace",
-    "catalogo"
-  ],
+  "tags": ["marketplace", "catalogo"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -20,9 +17,7 @@
     {
       "title": "Painéis do marketplace",
       "type": "dashboards",
-      "tags": [
-        "marketplace"
-      ],
+      "tags": ["marketplace"],
       "asDropdown": true,
       "keepTime": true,
       "includeVars": true
@@ -102,9 +97,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -157,9 +150,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -212,9 +203,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -267,9 +256,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -600,9 +587,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -659,9 +644,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -718,9 +701,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -773,9 +754,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },

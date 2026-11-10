@@ -6,18 +6,24 @@ import {
   CardComponent,
   CardHeaderComponent,
   ProgressComponent,
-  TableDirective
+  TableDirective,
 } from '@coreui/angular';
 import { cilTags } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
-import { listCategories, listProductsResource } from '@marketplace/catalog-inventory-admin-data-access';
-import { ProductStatusBadgeComponent, productStatusLook } from '@marketplace/catalog-inventory-admin-ui';
+import {
+  listCategories,
+  listProductsResource,
+} from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  ProductStatusBadgeComponent,
+  productStatusLook,
+} from '@marketplace/catalog-inventory-admin-ui';
 import {
   EmptyStateComponent,
   ErrorStateComponent,
   LoadingStateComponent,
   MoneyPipe,
-  RelativeTimePipe
+  RelativeTimePipe,
 } from '@marketplace/shared-admin-ui';
 import { apiData, formatInteger, toProblem } from '@marketplace/shared-web-util';
 
@@ -50,7 +56,7 @@ const RECENT_PRODUCTS = 6;
     ProgressComponent,
     RelativeTimePipe,
     RouterLink,
-    TableDirective
+    TableDirective,
   ],
   styles: `
     .numeric {
@@ -144,7 +150,7 @@ const RECENT_PRODUCTS = 6;
         }
       </c-card-body>
     </c-card>
-  `
+  `,
 })
 export class RecentProductsCardComponent {
   readonly links = input.required<HomeLinks>();
@@ -154,7 +160,7 @@ export class RecentProductsCardComponent {
   readonly productsUrl = computed(() => productsLink(this.links()));
 
   readonly products = listProductsResource(() =>
-    this.productsUrl() ? { query: { sort: '-updatedAt', limit: RECENT_PRODUCTS } } : undefined
+    this.productsUrl() ? { query: { sort: '-updatedAt', limit: RECENT_PRODUCTS } } : undefined,
   );
 
   readonly problem = computed(() => {
@@ -162,11 +168,20 @@ export class RecentProductsCardComponent {
     return error ? toProblem(error) : undefined;
   });
 
-  readonly #items = computed(() => (this.products.hasValue() ? (this.products.value().items ?? []) : []));
+  readonly #items = computed(() =>
+    this.products.hasValue() ? (this.products.value().items ?? []) : [],
+  );
 
   readonly #categoryIds = computed(
-    () => [...new Set(this.#items().flatMap(product => (product.categoryId ? [product.categoryId] : [])))],
-    { equal: (left, right) => left.length === right.length && left.every((id, index) => id === right[index]) }
+    () => [
+      ...new Set(
+        this.#items().flatMap((product) => (product.categoryId ? [product.categoryId] : [])),
+      ),
+    ],
+    {
+      equal: (left, right) =>
+        left.length === right.length && left.every((id, index) => id === right[index]),
+    },
   );
 
   /**
@@ -177,14 +192,18 @@ export class RecentProductsCardComponent {
     params: () => (this.#categoryIds().length ? this.#categoryIds() : undefined),
     loader: async ({ params }) => {
       const page = await apiData(listCategories({ query: { ids: params } }));
-      return new Map((page.items ?? []).flatMap(category => (category.id ? [[category.id, category.name] as const] : [])));
-    }
+      return new Map(
+        (page.items ?? []).flatMap((category) =>
+          category.id ? [[category.id, category.name] as const] : [],
+        ),
+      );
+    },
   });
 
   readonly rows = computed<RecentProductRow[]>(() => {
     const names = this.#categoryNames.hasValue() ? this.#categoryNames.value() : undefined;
-    return this.#items().map(product =>
-      recentProductRow(product, product.categoryId ? names?.get(product.categoryId) : undefined)
+    return this.#items().map((product) =>
+      recentProductRow(product, product.categoryId ? names?.get(product.categoryId) : undefined),
     );
   });
 

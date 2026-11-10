@@ -21,7 +21,12 @@ export function apiRequest(data, role, method, path, body, name, expected, extra
   if (body !== null && typeof body !== 'string') headers['Content-Type'] = 'application/json';
   Object.assign(headers, extraHeaders || {});
   const payload = body === null || typeof body === 'string' ? body : JSON.stringify(body);
-  return [method, `${params.baseUrl}${path}`, payload, { headers, tags: { kind: 'api', name }, responseCallback: expected, timeout: TIMEOUT }];
+  return [
+    method,
+    `${params.baseUrl}${path}`,
+    payload,
+    { headers, tags: { kind: 'api', name }, responseCallback: expected, timeout: TIMEOUT },
+  ];
 }
 
 export function api(...args) {
@@ -59,7 +64,9 @@ export function record(res, expected) {
   unexpectedResponses.add(!expected);
   if (!expected && warnings < 3) {
     warnings += 1;
-    console.warn(`resposta inesperada em ${res.request.method} ${res.url}: HTTP ${res.status} ${String(res.body).slice(0, 300)}`);
+    console.warn(
+      `resposta inesperada em ${res.request.method} ${res.url}: HTTP ${res.status} ${String(res.body).slice(0, 300)}`,
+    );
   }
 }
 
@@ -67,7 +74,12 @@ function setupRequest(token, method, path, body, what, extraHeaders) {
   const headers = token === null ? {} : { Authorization: `Bearer ${token}` };
   if (body !== null) headers['Content-Type'] = 'application/json';
   Object.assign(headers, extraHeaders || {});
-  return [method, `${params.baseUrl}${path}`, body === null ? null : JSON.stringify(body), { headers, tags: { kind: 'setup', name: what } }];
+  return [
+    method,
+    `${params.baseUrl}${path}`,
+    body === null ? null : JSON.stringify(body),
+    { headers, tags: { kind: 'setup', name: what } },
+  ];
 }
 
 function requireStatus(res, what, expected) {
@@ -90,7 +102,9 @@ export function setupBatch(calls) {
   const responses = [];
   for (let i = 0; i < calls.length; i += SETUP_CHUNK) {
     const chunk = calls.slice(i, i + SETUP_CHUNK);
-    const results = http.batch(chunk.map((c) => setupRequest(c.token, c.method, c.path, c.body ?? null, c.what, c.headers)));
+    const results = http.batch(
+      chunk.map((c) => setupRequest(c.token, c.method, c.path, c.body ?? null, c.what, c.headers)),
+    );
     results.forEach((res, j) => requireStatus(res, chunk[j].what, chunk[j].expected));
     responses.push(...results);
   }

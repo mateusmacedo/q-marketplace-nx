@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { ButtonDirective, ButtonGroupComponent, ButtonToolbarComponent, SpinnerComponent } from '@coreui/angular';
+import {
+  ButtonDirective,
+  ButtonGroupComponent,
+  ButtonToolbarComponent,
+  SpinnerComponent,
+} from '@coreui/angular';
 import { plural } from '@marketplace/shared-web-util';
 
 /** Botão da barra de lote. */
@@ -50,7 +55,7 @@ export interface BatchAction {
         <span class="visually-hidden" role="status">{{ statusText() }}</span>
       </c-button-toolbar>
     }
-  `
+  `,
 })
 export class BatchBarComponent {
   readonly selectedCount = input.required<number>();
@@ -62,9 +67,11 @@ export class BatchBarComponent {
   readonly run = output<string>();
   readonly clear = output<void>();
 
-  readonly selectedText = computed(() => plural(this.selectedCount(), 'selecionado', 'selecionados'));
+  readonly selectedText = computed(() =>
+    plural(this.selectedCount(), 'selecionado', 'selecionados'),
+  );
   readonly statusText = computed(() => {
-    const action = this.actions().find(item => item.id === this.running());
+    const action = this.actions().find((item) => item.id === this.running());
     return action ? `${action.runningLabel ?? action.label} ${this.selectedText()}…` : '';
   });
 }

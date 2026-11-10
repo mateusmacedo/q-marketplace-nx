@@ -10,7 +10,7 @@ import java.util.List;
  * reservado ou SKU ainda com estoque).
  */
 public class StockConflictException extends DomainRuleViolation {
-    public StockConflictException(ReasonCode code, String message, List<Reason> reasons) {
-        super(code, message, reasons);
-    }
+  public StockConflictException(ReasonCode code, String message, List<Reason> reasons) {
+    super(code, message, reasons);
+  }
 }

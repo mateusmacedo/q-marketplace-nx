@@ -1,9 +1,5 @@
 {
   "name": "catalog-inventory-application",
   "projectType": "library",
-  "tags": [
-    "scope:catalog-inventory",
-    "layer:application",
-    "lang:java"
-  ]
+  "tags": ["scope:catalog-inventory", "layer:application", "lang:java"]
 }

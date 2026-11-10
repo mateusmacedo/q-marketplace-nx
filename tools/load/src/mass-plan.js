@@ -10,14 +10,44 @@ export const VARIANTS = ['c1', 'c2', 'c3', 'c4'];
 export const CATEGORY_CHILDREN = 3;
 export const CATEGORY_GRANDCHILDREN = 2;
 
-export const STATES = ['DRAFT', 'PENDING_MODERATION', 'ACTIVE', 'OUT_OF_STOCK', 'PAUSED_BY_SELLER', 'BLOCKED', 'ARCHIVED'];
+export const STATES = [
+  'DRAFT',
+  'PENDING_MODERATION',
+  'ACTIVE',
+  'OUT_OF_STOCK',
+  'PAUSED_BY_SELLER',
+  'BLOCKED',
+  'ARCHIVED',
+];
 // WHY: OUT_OF_STOCK é ACTIVE sem saldo (status efetivo); o ACTIVE fica com o que sobra da população.
-const STATE_SHARE = { DRAFT: 0.15, PENDING_MODERATION: 0.1, OUT_OF_STOCK: 0.1, PAUSED_BY_SELLER: 0.1, BLOCKED: 0.1, ARCHIVED: 0.05 };
+const STATE_SHARE = {
+  DRAFT: 0.15,
+  PENDING_MODERATION: 0.1,
+  OUT_OF_STOCK: 0.1,
+  PAUSED_BY_SELLER: 0.1,
+  BLOCKED: 0.1,
+  ARCHIVED: 0.05,
+};
 
 // Grupos de SKU, cada um usado por um cenário só, para um não estragar o saldo ou o preço do outro; só o último item
 // (last) tem estoque pequeno de propósito, para a recusa por falta de saldo ser intencional e limitada.
-export const SKU_GROUPS = ['hot', 'last', 'spread', 'adjust', 'reservation', 'expiry', 'pricing', 'import'];
-export const GROUP_STOCK = { adjust: 100, reservation: 100000, expiry: 100000, pricing: 100, import: 50 };
+export const SKU_GROUPS = [
+  'hot',
+  'last',
+  'spread',
+  'adjust',
+  'reservation',
+  'expiry',
+  'pricing',
+  'import',
+];
+export const GROUP_STOCK = {
+  adjust: 100,
+  reservation: 100000,
+  expiry: 100000,
+  pricing: 100,
+  import: 50,
+};
 const POPULATION_STOCK = 10;
 
 function groupSizes(params) {
@@ -65,7 +95,10 @@ export function massPlan(params) {
   const products = [];
   const add = (role, state, skuCount, extra) => {
     const index = products.length;
-    const count = skuCount ?? 1 + Math.floor(createRandom(hashSeed(params.seed, 'mass', index)).fraction() * VARIANTS.length);
+    const count =
+      skuCount ??
+      1 +
+        Math.floor(createRandom(hashSeed(params.seed, 'mass', index)).fraction() * VARIANTS.length);
     products.push({
       index,
       role,
@@ -79,7 +112,8 @@ export function massPlan(params) {
   };
   const sizes = groupSizes(params);
   for (const group of SKU_GROUPS) {
-    for (let left = sizes[group]; left > 0; left -= VARIANTS.length) add(group, 'ACTIVE', Math.min(VARIANTS.length, left));
+    for (let left = sizes[group]; left > 0; left -= VARIANTS.length)
+      add(group, 'ACTIVE', Math.min(VARIANTS.length, left));
   }
   for (let i = 0; i < params.moderationProducts; i += 1) add('moderation', 'PENDING_MODERATION');
   let active = 0;

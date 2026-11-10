@@ -4,7 +4,8 @@ import type { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '',
-    loadComponent: () => import('./store-status-page.component').then(m => m.StoreStatusPageComponent),
-    data: { title: 'Situação da loja' }
-  }
+    loadComponent: () =>
+      import('./store-status-page.component').then((m) => m.StoreStatusPageComponent),
+    data: { title: 'Situação da loja' },
+  },
 ];

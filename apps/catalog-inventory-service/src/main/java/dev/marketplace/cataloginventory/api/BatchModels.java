@@ -13,19 +13,22 @@ import java.util.UUID;
  * quando todos falham.
  */
 public final class BatchModels {
-    private BatchModels() {
-    }
+  private BatchModels() {
+  }
 
-    public record BatchItemRequest(@NotNull UUID id,
-            @Schema(description = "Versão lida do registro; faz o papel do If-Match do endpoint de um item, e ausente dispensa a checagem", nullable = true) Long version) {
-        /** Itens do pedido na ordem recebida. */
-        static List<Batch.Item> toItems(List<BatchItemRequest> requests) {
-            return requests.stream().map(r -> new Batch.Item(r.id(), Optional.ofNullable(r.version()))).toList();
-        }
+  public record BatchItemRequest(@NotNull UUID id,
+      @Schema(
+          description = "Versão lida do registro; faz o papel do If-Match do endpoint de um item, e ausente dispensa a checagem",
+          nullable = true) Long version) {
+    /** Itens do pedido na ordem recebida. */
+    static List<Batch.Item> toItems(List<BatchItemRequest> requests) {
+      return requests.stream().map(r -> new Batch.Item(r.id(), Optional.ofNullable(r.version()))).toList();
     }
+  }
 
-    @Schema(description = "SUCCEEDED quando o item foi gravado; FAILED com o problem que o endpoint de um item responderia")
-    public enum BatchOutcome {
-        SUCCEEDED, FAILED
-    }
+  @Schema(
+      description = "SUCCEEDED quando o item foi gravado; FAILED com o problem que o endpoint de um item responderia")
+  public enum BatchOutcome {
+    SUCCEEDED, FAILED
+  }
 }

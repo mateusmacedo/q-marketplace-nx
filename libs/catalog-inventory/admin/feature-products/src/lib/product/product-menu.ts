@@ -4,7 +4,7 @@ import {
   pauseProduct,
   resumeProduct,
   submitProduct,
-  unblockProduct
+  unblockProduct,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import type { PublishingIssue } from '@marketplace/catalog-inventory-admin-ui';
 import type { ActionMenuItem } from '@marketplace/shared-admin-ui';
@@ -12,25 +12,30 @@ import {
   apiDataWithVersion,
   type Problem,
   problemReasons,
-  type Versioned
+  type Versioned,
 } from '@marketplace/shared-web-util';
 
-import { PRODUCT_ACTIONS, type ProductActionPresentation, type ProductMenuAction, type ProductMenuItem } from '../product-actions';
+import {
+  PRODUCT_ACTIONS,
+  type ProductActionPresentation,
+  type ProductMenuAction,
+  type ProductMenuItem,
+} from '../product-actions';
 
 /** Itens do `app-action-menu` a partir do menu do produto: as barradas vão desabilitadas, com o motivo no tooltip. */
 export function actionMenuItems(items: readonly ProductMenuItem[]): ActionMenuItem[] {
-  return items.map(item => ({
+  return items.map((item) => ({
     id: item.action.code,
     label: item.action.label,
     icon: item.action.icon,
     danger: item.action.color === 'danger',
-    ...(item.blockedReason === undefined ? {} : { disabledReason: item.blockedReason })
+    ...(item.blockedReason === undefined ? {} : { disabledReason: item.blockedReason }),
   }));
 }
 
 /** Apresentação da ação pelo código escolhido no menu; código que o painel não apresenta devolve `undefined`. */
 export function productActionPresentation(code: string): ProductActionPresentation | undefined {
-  return PRODUCT_ACTIONS.find(action => action.code === code);
+  return PRODUCT_ACTIONS.find((action) => action.code === code);
 }
 
 /** Frase antes das mensagens do servidor quando a ação falha: "Não foi possível pausar". */
@@ -45,7 +50,7 @@ export function actionFailureHeading(action: ProductActionPresentation): string 
 export function runProductAction(
   code: ProductMenuAction,
   id: string,
-  version: string | undefined
+  version: string | undefined,
 ): Promise<Versioned<ProductResponse>> {
   const options = { path: { id }, ...(version ? { headers: { 'If-Match': version } } : {}) };
   switch (code) {
@@ -68,12 +73,20 @@ export function runProductAction(
  * Motivos da recusa do envio (422) para o checklist, com o campo de cada um tirado da pendência do produto que tem o
  * mesmo código e os mesmos valores, para levar à aba e ao campo do problema.
  */
-export function refusalIssues(problem: Problem, known: readonly PublishingIssue[] | null | undefined): PublishingIssue[] {
-  return problemReasons(problem).map(reason => {
+export function refusalIssues(
+  problem: Problem,
+  known: readonly PublishingIssue[] | null | undefined,
+): PublishingIssue[] {
+  return problemReasons(problem).map((reason) => {
     const match = (known ?? []).find(
-      issue => issue.code === reason.code && sameParams(issue.params ?? [], reason.params ?? [])
+      (issue) => issue.code === reason.code && sameParams(issue.params ?? [], reason.params ?? []),
     );
-    return { code: reason.code, params: reason.params, message: reason.message ?? match?.message, field: match?.field };
+    return {
+      code: reason.code,
+      params: reason.params,
+      message: reason.message ?? match?.message,
+      field: match?.field,
+    };
   });
 }
 

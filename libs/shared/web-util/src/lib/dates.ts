@@ -23,7 +23,7 @@ const wallTimeFormat = new Intl.DateTimeFormat('en-US', {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
-  hourCycle: 'h23'
+  hourCycle: 'h23',
 });
 
 const relativeFormat = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'always' });
@@ -39,7 +39,9 @@ const DAY = 24 * HOUR;
 /** Data e hora no fuso de São Paulo: "08/11/2026 14:02". Instante inválido vira texto vazio. */
 export function formatDateTime(instant: Instant | null | undefined): string {
   const time = wallTimeOf(instant);
-  return time ? `${pad(time.day)}/${pad(time.month)}/${time.year} ${pad(time.hour)}:${pad(time.minute)}` : '';
+  return time
+    ? `${pad(time.day)}/${pad(time.month)}/${time.year} ${pad(time.hour)}:${pad(time.minute)}`
+    : '';
 }
 
 /** Forma curta, sem o ano, das colunas de lista: "08/11 14:02". */
@@ -64,7 +66,10 @@ export function formatTime(instant: Instant | null | undefined): string {
  * Distância até agora em texto: "agora", "há 5 minutos", "há 1 hora", "ontem", "há 3 dias", "em 2 horas". Abaixo de
  * um minuto, nos dois sentidos, é "agora".
  */
-export function formatRelative(instant: Instant | null | undefined, now: Instant = Date.now()): string {
+export function formatRelative(
+  instant: Instant | null | undefined,
+  now: Instant = Date.now(),
+): string {
   const target = toMillis(instant);
   const reference = toMillis(now);
   if (target === undefined || reference === undefined) {
@@ -102,7 +107,9 @@ export function formatRelative(instant: Instant | null | undefined, now: Instant
  */
 export function toDateTimeLocal(instant: Instant | null | undefined): string {
   const time = wallTimeOf(instant);
-  return time ? `${time.year}-${pad(time.month)}-${pad(time.day)}T${pad(time.hour)}:${pad(time.minute)}` : '';
+  return time
+    ? `${time.year}-${pad(time.month)}-${pad(time.day)}T${pad(time.hour)}:${pad(time.minute)}`
+    : '';
 }
 
 /**
@@ -115,7 +122,14 @@ export function fromDateTimeLocal(value: string | null | undefined): string | un
     return undefined;
   }
   const [, year, month, day, hour, minute, second] = match;
-  const local = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second ?? 0));
+  const local = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second ?? 0),
+  );
   if (Number.isNaN(local)) {
     return undefined;
   }
@@ -143,7 +157,7 @@ function wallTime(millis: number): WallTime {
     day: values['day'],
     hour: values['hour'],
     minute: values['minute'],
-    second: values['second']
+    second: values['second'],
   };
 }
 
@@ -158,7 +172,12 @@ function toMillis(instant: Instant | null | undefined): number | undefined {
   if (instant === null || instant === undefined || instant === '') {
     return undefined;
   }
-  const millis = instant instanceof Date ? instant.getTime() : typeof instant === 'number' ? instant : Date.parse(instant);
+  const millis =
+    instant instanceof Date
+      ? instant.getTime()
+      : typeof instant === 'number'
+        ? instant
+        : Date.parse(instant);
   return Number.isFinite(millis) ? millis : undefined;
 }
 

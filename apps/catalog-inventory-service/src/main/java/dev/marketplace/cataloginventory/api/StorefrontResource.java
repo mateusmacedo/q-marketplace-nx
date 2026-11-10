@@ -30,40 +30,43 @@ import java.util.UUID;
 @Path("/storefront/{tenantId}/products/{productId}")
 @Produces(MediaType.APPLICATION_JSON)
 @PermitAll
-@Tag(name = "Storefront", description = "Consulta pública e autoritativa de produtos, com preço vigente e disponibilidade")
-@APIResponse(responseCode = "4XX", description = "Erro do cliente (RFC 9457)", content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
-@APIResponse(responseCode = "5XX", description = "Erro do servidor (RFC 9457)", content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
+@Tag(name = "Storefront",
+    description = "Consulta pública e autoritativa de produtos, com preço vigente e disponibilidade")
+@APIResponse(responseCode = "4XX", description = "Erro do cliente (RFC 9457)",
+    content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
+@APIResponse(responseCode = "5XX", description = "Erro do servidor (RFC 9457)",
+    content = @Content(mediaType = Problem.MEDIA_TYPE, schema = @Schema(implementation = Problem.class)))
 @Traced(entry = true)
 public class StorefrontResource {
-    private final StorefrontService storefront;
-    private final StorefrontCache cache;
-    private final InventoryService inventory;
-    private final Clock clock;
+  private final StorefrontService storefront;
+  private final StorefrontCache cache;
+  private final InventoryService inventory;
+  private final Clock clock;
 
-    StorefrontResource(StorefrontService storefront, StorefrontCache cache, InventoryService inventory, Clock clock) {
-        this.storefront = storefront;
-        this.cache = cache;
-        this.inventory = inventory;
-        this.clock = clock;
-    }
+  StorefrontResource(StorefrontService storefront, StorefrontCache cache, InventoryService inventory, Clock clock) {
+    this.storefront = storefront;
+    this.cache = cache;
+    this.inventory = inventory;
+    this.clock = clock;
+  }
 
-    /**
-     * Devolve o produto da vitrine pública, sem autenticação. Produto inexistente,
-     * fora de {@code
-     * ACTIVE} e {@code OUT_OF_STOCK}, ou de seller não aprovado responde 404 sem
-     * distinguir os
-     * casos.
-     */
-    @GET
-    @Operation(operationId = "getStorefrontProduct", summary = "Produto público com o preço vigente de cada SKU")
-    @APIResponse(responseCode = "200", description = "Produto visível")
-    public Uni<RestResponse<StorefrontProductResponse>> get(@RestPath UUID tenantId, @RestPath UUID productId) {
-        // WHY: no-cache obriga revalidação, então caches intermediários não mantêm um
-        // produto já bloqueado.
-        return cache.get(tenantId, productId, () -> storefront.get(tenantId, productId))
-                .flatMap(shown -> inventory.stockOf(List.of(shown.product()))
-                        .map(stock -> RestResponse.ResponseBuilder
-                                .ok(StorefrontProductResponse.of(shown, stock, clock.instant()))
-                                .header("Cache-Control", "no-cache").build()));
-    }
+  /**
+   * Devolve o produto da vitrine pública, sem autenticação. Produto inexistente,
+   * fora de {@code
+   * ACTIVE} e {@code OUT_OF_STOCK}, ou de seller não aprovado responde 404 sem
+   * distinguir os
+   * casos.
+   */
+  @GET
+  @Operation(operationId = "getStorefrontProduct", summary = "Produto público com o preço vigente de cada SKU")
+  @APIResponse(responseCode = "200", description = "Produto visível")
+  public Uni<RestResponse<StorefrontProductResponse>> get(@RestPath UUID tenantId, @RestPath UUID productId) {
+    // WHY: no-cache obriga revalidação, então caches intermediários não mantêm um
+    // produto já bloqueado.
+    return cache.get(tenantId, productId, () -> storefront.get(tenantId, productId))
+        .flatMap(shown -> inventory.stockOf(List.of(shown.product()))
+            .map(stock -> RestResponse.ResponseBuilder
+                .ok(StorefrontProductResponse.of(shown, stock, clock.instant()))
+                .header("Cache-Control", "no-cache").build()));
+  }
 }

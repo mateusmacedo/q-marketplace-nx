@@ -7,16 +7,21 @@ describe('CursorPaginationComponent', () => {
   let component: CursorPaginationComponent;
   let requested: (string | undefined)[];
 
-  const buttons = () => Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-  const previousButton = () => buttons().find(button => button.textContent?.trim() === 'Anterior') as HTMLButtonElement;
-  const nextButton = () => buttons().find(button => button.textContent?.trim() === 'Próxima') as HTMLButtonElement;
+  const buttons = () =>
+    Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+  const previousButton = () =>
+    buttons().find((button) => button.textContent?.trim() === 'Anterior') as HTMLButtonElement;
+  const nextButton = () =>
+    buttons().find((button) => button.textContent?.trim() === 'Próxima') as HTMLButtonElement;
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [CursorPaginationComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [CursorPaginationComponent],
+    }).compileComponents();
     fixture = TestBed.createComponent(CursorPaginationComponent);
     component = fixture.componentInstance;
     requested = [];
-    component.cursorChange.subscribe(cursor => requested.push(cursor));
+    component.cursorChange.subscribe((cursor) => requested.push(cursor));
     fixture.componentRef.setInput('nextCursor', 'c2');
     await fixture.whenStable();
   });
@@ -61,12 +66,12 @@ describe('CursorPaginationComponent', () => {
 
   it('oferece 20, 50 e 100 itens e emite o tamanho escolhido', async () => {
     const sizes: number[] = [];
-    component.limitChange.subscribe(size => sizes.push(size));
+    component.limitChange.subscribe((size) => sizes.push(size));
     fixture.componentRef.setInput('limit', '50');
     await fixture.whenStable();
 
     const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
-    expect(Array.from(select.options).map(option => option.value)).toEqual(['20', '50', '100']);
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(['20', '50', '100']);
     expect(select.value).toBe('50');
 
     select.value = '100';
@@ -78,6 +83,8 @@ describe('CursorPaginationComponent', () => {
     fixture.componentRef.setInput('disabled', true);
     await fixture.whenStable();
     expect(nextButton().disabled).toBe(true);
-    expect((fixture.nativeElement.querySelector('select') as HTMLSelectElement).disabled).toBe(true);
+    expect((fixture.nativeElement.querySelector('select') as HTMLSelectElement).disabled).toBe(
+      true,
+    );
   });
 });

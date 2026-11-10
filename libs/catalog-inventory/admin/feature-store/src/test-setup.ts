@@ -11,7 +11,7 @@ if (!('inert' in HTMLElement.prototype)) {
     },
     set(this: HTMLElement, value: boolean) {
       this.toggleAttribute('inert', !!value);
-    }
+    },
   });
 }
 

@@ -20,15 +20,15 @@
 
 ## Sequência sugerida por capacidade
 
-| Etapa | Contextos | Entrega e critério de saída |
-|---|---|---|
-| 1 | Identity & Organization | OIDC e autorização por organização; testes negativos de acesso entre tenants |
-| 2 | Catalog & Inventory | Entregue, com as pendências acima; concorrência não causa saldo negativo |
-| 3 | KYB/KYC | Adaptador de provedor e estados; seller não aprovado não transaciona; publica os vereditos que o catálogo consome |
-| 4 | Cart & Checkout | Revalidação de preço, frete e reserva; valores fecham em centavos |
-| 5 | Order Management + Payment & Split | Contratos de captura, saga e webhook idempotente; repetir callback não duplica pedido nem cobrança |
-| 6 | Fulfillment & Logistics | Etiqueta/rastreio com prova de entrega; evento duplicado não duplica transição |
-| 7 | Settlement & Payout | Ledger imutável, liberação e conciliação; repetição de payout não transfere duas vezes |
+| Etapa | Contextos                          | Entrega e critério de saída                                                                                       |
+| ----- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1     | Identity & Organization            | OIDC e autorização por organização; testes negativos de acesso entre tenants                                      |
+| 2     | Catalog & Inventory                | Entregue, com as pendências acima; concorrência não causa saldo negativo                                          |
+| 3     | KYB/KYC                            | Adaptador de provedor e estados; seller não aprovado não transaciona; publica os vereditos que o catálogo consome |
+| 4     | Cart & Checkout                    | Revalidação de preço, frete e reserva; valores fecham em centavos                                                 |
+| 5     | Order Management + Payment & Split | Contratos de captura, saga e webhook idempotente; repetir callback não duplica pedido nem cobrança                |
+| 6     | Fulfillment & Logistics            | Etiqueta/rastreio com prova de entrega; evento duplicado não duplica transição                                    |
+| 7     | Settlement & Payout                | Ledger imutável, liberação e conciliação; repetição de payout não transfere duas vezes                            |
 
 O catálogo é o primeiro contexto implementado (ADR 004) e usa JWT validado no lugar da identidade que a etapa 1 entregará (ADR 007). Mensageria com outbox, inbox e rastreabilidade segue o padrão do catálogo (ADR 013) em cada nova integração. Implementar armazenamento em cada contexto conforme seu modelo, sem introduzir todos os bancos apenas porque aparecem nas referências.
 

@@ -33,7 +33,7 @@ export default defineConfig({
     command: isCI ? 'npx nx run admin-web:serve-static' : 'npx nx run admin-web:serve',
     url: getReadyUrl('http://localhost:4200'),
     reuseExistingServer: true,
-    cwd: workspaceRoot
+    cwd: workspaceRoot,
   },
   // Só o Chromium, o mesmo navegador dos testes unitários; Firefox e WebKit entram quando houver motivo.
   projects: [

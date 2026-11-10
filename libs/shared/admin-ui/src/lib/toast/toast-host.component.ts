@@ -4,7 +4,7 @@ import {
   ToastBodyComponent,
   ToastComponent,
   ToasterComponent,
-  ToastHeaderComponent
+  ToastHeaderComponent,
 } from '@coreui/angular';
 import { formatTime } from '@marketplace/shared-web-util';
 
@@ -14,7 +14,7 @@ const MARKER_COLORS: Readonly<Record<ToastKind, string>> = {
   success: 'var(--cui-success)',
   info: 'var(--cui-primary)',
   warning: 'var(--cui-warning)',
-  danger: 'var(--cui-danger)'
+  danger: 'var(--cui-danger)',
 };
 
 /**
@@ -24,7 +24,13 @@ const MARKER_COLORS: Readonly<Record<ToastKind, string>> = {
 @Component({
   selector: 'app-toast-host',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProgressComponent, ToastBodyComponent, ToastComponent, ToasterComponent, ToastHeaderComponent],
+  imports: [
+    ProgressComponent,
+    ToastBodyComponent,
+    ToastComponent,
+    ToasterComponent,
+    ToastHeaderComponent,
+  ],
   template: `
     <c-toaster class="p-3" placement="top-end" position="fixed">
       @for (toast of toasts(); track toast.id) {
@@ -49,7 +55,7 @@ const MARKER_COLORS: Readonly<Record<ToastKind, string>> = {
         </c-toast>
       }
     </c-toaster>
-  `
+  `,
 })
 export class ToastHostComponent {
   readonly #service = inject(ToastService);
@@ -67,7 +73,7 @@ export class ToastHostComponent {
 
   tick(id: number, elapsedSeconds: number): void {
     const remaining = Math.max(0, 100 - (elapsedSeconds * 1000 * 100) / this.delay);
-    this.remaining.update(values => ({ ...values, [id]: remaining }));
+    this.remaining.update((values) => ({ ...values, [id]: remaining }));
   }
 
   visibleChange(id: number, visible: boolean): void {
@@ -75,7 +81,7 @@ export class ToastHostComponent {
       return;
     }
     this.#service.dismiss(id);
-    this.remaining.update(values => {
+    this.remaining.update((values) => {
       const next = { ...values };
       delete next[id];
       return next;

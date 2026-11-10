@@ -17,7 +17,9 @@ describe('números da página inicial', () => {
 
   const answer = async (url: string, body: object, status?: number) => {
     TestBed.tick();
-    const request = await vi.waitFor(() => http.expectOne(request => request.urlWithParams === url));
+    const request = await vi.waitFor(() =>
+      http.expectOne((request) => request.urlWithParams === url),
+    );
     if (status) {
       request.flush(body, { status, statusText: 'Erro' });
     } else {
@@ -31,7 +33,7 @@ describe('números da página inicial', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     set = signal<HomeStatsSet | undefined>('store');
@@ -43,10 +45,12 @@ describe('números da página inicial', () => {
 
   it('escolhe o conjunto pela capacidade da sessão, com a loja na frente', () => {
     const session = (...capabilities: string[]) => ({
-      hasCapability: (capability: string) => capabilities.includes(capability)
+      hasCapability: (capability: string) => capabilities.includes(capability),
     });
 
-    expect(homeStatsSet(session('MANAGE_TAXONOMY', 'MANAGE_OWN_PRODUCTS', 'MODERATE_PRODUCTS'))).toBe('store');
+    expect(
+      homeStatsSet(session('MANAGE_TAXONOMY', 'MANAGE_OWN_PRODUCTS', 'MODERATE_PRODUCTS')),
+    ).toBe('store');
     expect(homeStatsSet(session('MANAGE_TAXONOMY', 'MODERATE_PRODUCTS'))).toBe('moderation');
     expect(homeStatsSet(session('MANAGE_TAXONOMY'))).toBe('categories');
     expect(homeStatsSet(session('MANAGE_RESERVATIONS'))).toBeUndefined();
@@ -87,7 +91,7 @@ describe('números da página inicial', () => {
   it('não chama nada sem conjunto', async () => {
     set.set(undefined);
     TestBed.tick();
-    await new Promise(resolve => setTimeout(resolve));
+    await new Promise((resolve) => setTimeout(resolve));
 
     http.expectNone(() => true);
     expect(stats.value()).toBeUndefined();
@@ -99,7 +103,7 @@ describe('números da página inicial', () => {
     await answer(
       `${API}/stats/store?granularity=month`,
       { type: 'https://marketplace.dev/problems/http-503', title: 'Serviço indisponível' },
-      503
+      503,
     );
 
     expect(stats.problem()).toMatchObject({ status: 503, title: 'Serviço indisponível' });

@@ -1,8 +1,15 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { type OfferResponse, provideCatalogInventoryApi } from '@marketplace/catalog-inventory-admin-data-access';
+import {
+  type OfferResponse,
+  provideCatalogInventoryApi,
+} from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 import type { ActionState } from '@marketplace/shared-web-util';
 
@@ -14,7 +21,10 @@ const OFFER_URL = `${API}/offers/s1`;
 const OFFER: OfferResponse = {
   skuId: 's1',
   currency: 'BRL',
-  price: { listPrice: { amount: 59.9, currency: 'BRL' }, salePrice: { amount: 49.9, currency: 'BRL' } },
+  price: {
+    listPrice: { amount: 59.9, currency: 'BRL' },
+    salePrice: { amount: 49.9, currency: 'BRL' },
+  },
   effectivePrice: { salePrice: { amount: 39.9, currency: 'BRL' }, promotionId: 'pr-1' },
   promotions: [
     {
@@ -22,22 +32,22 @@ const OFFER: OfferResponse = {
       salePrice: { amount: 39.9, currency: 'BRL' },
       startsAt: '2026-11-01T13:00:00Z',
       endsAt: '2099-11-15T02:59:00Z',
-      phase: 'ACTIVE'
+      phase: 'ACTIVE',
     },
     {
       id: 'pr-old',
       salePrice: { amount: 29.9, currency: 'BRL' },
       startsAt: '2026-01-01T13:00:00Z',
       endsAt: '2026-01-05T13:00:00Z',
-      phase: 'ENDED'
-    }
+      phase: 'ENDED',
+    },
   ],
-  version: 2
+  version: 2,
 };
 
 @Component({
   imports: [SkuOfferSectionComponent],
-  template: `<app-sku-offer-section (changed)="changes = changes + 1" [editOffer]="editOffer()" currency="BRL" skuId="s1" />`
+  template: `<app-sku-offer-section (changed)="changes = changes + 1" [editOffer]="editOffer()" currency="BRL" skuId="s1" />`,
 })
 class Host {
   readonly editOffer = signal<ActionState>({ allowed: true });
@@ -53,11 +63,11 @@ describe('SkuOfferSectionComponent', () => {
   const render = () => TestBed.tick();
   const button = (root: ParentNode, label: string) =>
     (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.replace(/\s+/g, ' ').trim() === label
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const input = (label: string) => {
     const target = (Array.from(element().querySelectorAll('label')) as HTMLLabelElement[]).find(
-      item => item.textContent?.trim() === label
+      (item) => item.textContent?.trim() === label,
     );
     return element().querySelector(`[id="${target?.htmlFor}"]`) as HTMLInputElement;
   };
@@ -67,8 +77,14 @@ describe('SkuOfferSectionComponent', () => {
     render();
   };
   const offerRequest = (method = 'GET') =>
-    vi.waitFor(() => http.expectOne(request => request.url === OFFER_URL && request.method === method));
-  const flushOffer = async (request: TestRequest, offer: OfferResponse, etag = `"${offer.version}"`) => {
+    vi.waitFor(() =>
+      http.expectOne((request) => request.url === OFFER_URL && request.method === method),
+    );
+  const flushOffer = async (
+    request: TestRequest,
+    offer: OfferResponse,
+    etag = `"${offer.version}"`,
+  ) => {
     request.flush(offer, { headers: { ETag: etag } });
     await vi.waitFor(() => {
       render();
@@ -83,7 +99,7 @@ describe('SkuOfferSectionComponent', () => {
   async function open(editOffer: ActionState = { allowed: true }) {
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(Host);
@@ -117,8 +133,14 @@ describe('SkuOfferSectionComponent', () => {
     submitPrice();
     const request = await offerRequest('PUT');
     expect(request.request.headers.get('If-Match')).toBe('"2"');
-    expect(request.request.body).toEqual({ salePrice: { amount: 45.5, currency: 'BRL' }, listPrice: null });
-    request.flush({ ...OFFER, price: { salePrice: { amount: 45.5, currency: 'BRL' } }, version: 3 }, { headers: { ETag: '"3"' } });
+    expect(request.request.body).toEqual({
+      salePrice: { amount: 45.5, currency: 'BRL' },
+      listPrice: null,
+    });
+    request.flush(
+      { ...OFFER, price: { salePrice: { amount: 45.5, currency: 'BRL' } }, version: 3 },
+      { headers: { ETag: '"3"' } },
+    );
 
     await vi.waitFor(() => expect(success).toHaveBeenCalledWith('Preço salvo.'));
     expect(fixture.componentInstance.changes).toBe(1);
@@ -128,7 +150,7 @@ describe('SkuOfferSectionComponent', () => {
     await open();
     (await offerRequest()).flush(
       { type: 'https://marketplace.dev/problems/not-found', title: 'Não encontrado', status: 404 },
-      { status: 404, statusText: 'Not Found' }
+      { status: 404, statusText: 'Not Found' },
     );
     await vi.waitFor(() => {
       render();
@@ -141,7 +163,12 @@ describe('SkuOfferSectionComponent', () => {
     expect(create.request.headers.has('If-Match')).toBe(false);
     create.flush(null, { status: 201, statusText: 'Created' });
 
-    await flushOffer(await offerRequest(), { ...OFFER, promotions: [], effectivePrice: { salePrice: { amount: 49.9, currency: 'BRL' } }, version: 1 });
+    await flushOffer(await offerRequest(), {
+      ...OFFER,
+      promotions: [],
+      effectivePrice: { salePrice: { amount: 49.9, currency: 'BRL' } },
+      version: 1,
+    });
     await vi.waitFor(() => {
       render();
       expect(text()).toContain('Vigente agora: R$ 49,90');
@@ -155,8 +182,12 @@ describe('SkuOfferSectionComponent', () => {
     type(input('Por'), '10');
     submitPrice();
     (await offerRequest('PUT')).flush(
-      { type: 'https://marketplace.dev/problems/version-mismatch', title: 'Versão divergente', status: 412 },
-      { status: 412, statusText: 'Precondition Failed' }
+      {
+        type: 'https://marketplace.dev/problems/version-mismatch',
+        title: 'Versão divergente',
+        status: 412,
+      },
+      { status: 412, statusText: 'Precondition Failed' },
     );
     await vi.waitFor(() => {
       render();
@@ -184,9 +215,14 @@ describe('SkuOfferSectionComponent', () => {
         type: 'https://marketplace.dev/problems/list-price-below-sale-price',
         title: 'Preço inválido',
         status: 422,
-        reasonDetails: [{ code: 'list-price-below-sale-price', message: 'O preço "de" não pode ser menor que o "por".' }]
+        reasonDetails: [
+          {
+            code: 'list-price-below-sale-price',
+            message: 'O preço "de" não pode ser menor que o "por".',
+          },
+        ],
       },
-      { status: 422, statusText: 'Unprocessable Content' }
+      { status: 422, statusText: 'Unprocessable Content' },
     );
     await vi.waitFor(() => {
       render();
@@ -213,7 +249,7 @@ describe('SkuOfferSectionComponent', () => {
     expect(request.request.body).toEqual({
       salePrice: { amount: 35, currency: 'BRL' },
       startsAt: '2026-11-20T13:00:00.000Z',
-      endsAt: '2026-11-26T02:59:00.000Z'
+      endsAt: '2026-11-26T02:59:00.000Z',
     });
     request.flush(null, { status: 201, statusText: 'Created' });
     await flushOffer(await offerRequest(), { ...OFFER, version: 3 });
@@ -236,9 +272,17 @@ describe('SkuOfferSectionComponent', () => {
     const request = await vi.waitFor(() => http.expectOne(`${OFFER_URL}/promotions/pr-1`));
     expect(request.request.method).toBe('DELETE');
     expect(request.request.headers.get('If-Match')).toBe('"2"');
-    request.flush({ ...OFFER, promotions: [], effectivePrice: { salePrice: { amount: 49.9, currency: 'BRL' } }, version: 3 }, {
-      headers: { ETag: '"3"' }
-    });
+    request.flush(
+      {
+        ...OFFER,
+        promotions: [],
+        effectivePrice: { salePrice: { amount: 49.9, currency: 'BRL' } },
+        version: 3,
+      },
+      {
+        headers: { ETag: '"3"' },
+      },
+    );
     await vi.waitFor(() => {
       render();
       expect(text()).toContain('Nenhuma promoção vigente ou agendada.');
@@ -257,7 +301,10 @@ describe('SkuOfferSectionComponent', () => {
     type(input('Preço'), '35');
     (input('Início').closest('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     render();
-    (await vi.waitFor(() => http.expectOne(`${OFFER_URL}/promotions`))).flush(null, { status: 201, statusText: 'Created' });
+    (await vi.waitFor(() => http.expectOne(`${OFFER_URL}/promotions`))).flush(null, {
+      status: 201,
+      statusText: 'Created',
+    });
     await flushOffer(await offerRequest(), { ...OFFER, version: 3 });
     expect(input('Por').valueAsNumber).toBe(44.9);
 
@@ -267,7 +314,7 @@ describe('SkuOfferSectionComponent', () => {
     button(modal.querySelector('c-modal-footer') as HTMLElement, 'Cancelar promoção').click();
     (await vi.waitFor(() => http.expectOne(`${OFFER_URL}/promotions/pr-1`))).flush(
       { ...OFFER, promotions: [], version: 4 },
-      { headers: { ETag: '"4"' } }
+      { headers: { ETag: '"4"' } },
     );
     await vi.waitFor(() => {
       render();
@@ -279,9 +326,17 @@ describe('SkuOfferSectionComponent', () => {
     const save = await offerRequest('PUT');
     expect(save.request.headers.get('If-Match')).toBe('"4"');
     expect(save.request.body.salePrice).toEqual({ amount: 44.9, currency: 'BRL' });
-    save.flush({ ...OFFER, promotions: [], price: { salePrice: { amount: 44.9, currency: 'BRL' } }, version: 5 }, {
-      headers: { ETag: '"5"' }
-    });
+    save.flush(
+      {
+        ...OFFER,
+        promotions: [],
+        price: { salePrice: { amount: 44.9, currency: 'BRL' } },
+        version: 5,
+      },
+      {
+        headers: { ETag: '"5"' },
+      },
+    );
     await vi.waitFor(() => {
       render();
       expect(fixture.componentInstance.changes).toBe(3);

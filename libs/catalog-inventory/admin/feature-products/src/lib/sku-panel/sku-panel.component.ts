@@ -7,14 +7,14 @@ import {
   input,
   model,
   output,
-  ViewEncapsulation
+  ViewEncapsulation,
 } from '@angular/core';
 import {
   ButtonCloseDirective,
   OffcanvasBodyComponent,
   OffcanvasComponent,
   OffcanvasHeaderComponent,
-  OffcanvasTitleDirective
+  OffcanvasTitleDirective,
 } from '@coreui/angular';
 import type { SkuResponse } from '@marketplace/catalog-inventory-admin-data-access';
 import type { ActionState } from '@marketplace/shared-web-util';
@@ -43,7 +43,7 @@ let nextId = 0;
     OffcanvasHeaderComponent,
     OffcanvasTitleDirective,
     SkuOfferSectionComponent,
-    SkuStockSectionComponent
+    SkuStockSectionComponent,
   ],
   template: `
     <c-offcanvas
@@ -75,7 +75,7 @@ let nextId = 0;
         }
       </c-offcanvas-body>
     </c-offcanvas>
-  `
+  `,
 })
 export class SkuPanelComponent {
   readonly visible = model(false);
@@ -103,7 +103,8 @@ export class SkuPanelComponent {
       const visible = this.visible();
       if (visible && !this.#wasVisible) {
         const active = this.#document.activeElement;
-        this.#opener = active instanceof HTMLElement && active !== this.#document.body ? active : null;
+        this.#opener =
+          active instanceof HTMLElement && active !== this.#document.body ? active : null;
       }
       if (!visible && this.#wasVisible) {
         const target = this.#opener;

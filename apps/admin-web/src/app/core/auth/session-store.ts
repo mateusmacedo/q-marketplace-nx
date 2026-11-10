@@ -5,7 +5,7 @@ import {
   inject,
   makeEnvironmentProviders,
   provideAppInitializer,
-  signal
+  signal,
 } from '@angular/core';
 import { getSession, type SessionResponse } from '@marketplace/catalog-inventory-admin-data-access';
 import { AdminSession, NO_GRANTS, type SessionGrants } from '@marketplace/shared-admin-ui';
@@ -40,7 +40,9 @@ export class SessionStore extends AdminSession {
   readonly problem = computed(() => this.#state().problem);
   override readonly grants = computed<SessionGrants>(() => {
     const session = this.#state().session;
-    return session ? { capabilities: session.capabilities ?? [], permissions: { ...session.can } } : NO_GRANTS;
+    return session
+      ? { capabilities: session.capabilities ?? [], permissions: { ...session.can } }
+      : NO_GRANTS;
   });
   override readonly storeId = computed(() => this.#state().session?.storeId ?? undefined);
   override readonly tenantId = computed(() => this.#state().session?.tenantId);
@@ -61,12 +63,16 @@ export class SessionStore extends AdminSession {
   }
 
   async #fetch(): Promise<void> {
-    this.#state.update(state => ({ ...state, status: 'loading', problem: undefined }));
+    this.#state.update((state) => ({ ...state, status: 'loading', problem: undefined }));
     try {
       this.#state.set({ status: 'ready', session: await this.#request() });
     } catch (error) {
       const problem = toProblem(error);
-      this.#state.update(state => ({ ...state, status: problem.status === 401 ? 'expired' : 'error', problem }));
+      this.#state.update((state) => ({
+        ...state,
+        status: problem.status === 401 ? 'expired' : 'error',
+        problem,
+      }));
     }
   }
 
@@ -103,6 +109,6 @@ export function provideAdminSession(): EnvironmentProviders {
       if (auth.isAuthenticated()) {
         await session.load();
       }
-    })
+    }),
   ]);
 }

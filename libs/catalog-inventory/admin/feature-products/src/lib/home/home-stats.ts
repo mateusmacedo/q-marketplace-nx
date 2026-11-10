@@ -5,7 +5,7 @@ import {
   getModerationStatsResource,
   getStoreStatsResource,
   type ModerationStatsResponse,
-  type StoreStatsResponse
+  type StoreStatsResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import type { AdminSession } from '@marketplace/shared-admin-ui';
 import { type Problem, toProblem } from '@marketplace/shared-web-util';
@@ -24,7 +24,9 @@ export type HomeStatsSet = HomeStatsValue['set'];
  * Conjunto de indicadores pela capacidade da sessão (proposta de design, seção "1. Início"): a loja com
  * `MANAGE_OWN_PRODUCTS`; sem ela, a moderação com `MODERATE_PRODUCTS`; e, sem as duas, a árvore com `MANAGE_TAXONOMY`.
  */
-export function homeStatsSet(session: Pick<AdminSession, 'hasCapability'>): HomeStatsSet | undefined {
+export function homeStatsSet(
+  session: Pick<AdminSession, 'hasCapability'>,
+): HomeStatsSet | undefined {
   if (session.hasCapability('MANAGE_OWN_PRODUCTS')) {
     return 'store';
   }
@@ -51,10 +53,15 @@ interface StatsSnapshot {
  * Carrega os números do conjunto em `/stats/store`, `/stats/moderation` ou `/stats/categories`, com a série de
  * atividade na granularidade escolhida. Chamado num contexto de injeção.
  */
-export function homeStats(set: () => HomeStatsSet | undefined, granularity: () => ActivityGranularity): HomeStats {
+export function homeStats(
+  set: () => HomeStatsSet | undefined,
+  granularity: () => ActivityGranularity,
+): HomeStats {
   const query = () => ({ query: { granularity: granularity() } });
   const store = getStoreStatsResource(() => (set() === 'store' ? query() : undefined));
-  const moderation = getModerationStatsResource(() => (set() === 'moderation' ? query() : undefined));
+  const moderation = getModerationStatsResource(() =>
+    set() === 'moderation' ? query() : undefined,
+  );
   const categories = getCategoryStatsResource(() => (set() === 'categories' ? {} : undefined));
 
   const active = computed(() => {
@@ -89,7 +96,7 @@ export function homeStats(set: () => HomeStatsSet | undefined, granularity: () =
       }
       const kept = previous?.value;
       return kept?.set === next.set ? kept : undefined;
-    }
+    },
   });
 
   return {
@@ -101,6 +108,6 @@ export function homeStats(set: () => HomeStatsSet | undefined, granularity: () =
     }),
     reload: () => {
       active()?.reload();
-    }
+    },
   };
 }

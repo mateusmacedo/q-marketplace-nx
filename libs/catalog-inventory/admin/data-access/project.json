@@ -4,12 +4,7 @@
   "sourceRoot": "libs/catalog-inventory/admin/data-access/src",
   "prefix": "app",
   "projectType": "library",
-  "tags": [
-    "scope:catalog-inventory",
-    "layer:data-access",
-    "framework:angular",
-    "lang:ts"
-  ],
+  "tags": ["scope:catalog-inventory", "layer:data-access", "framework:angular", "lang:ts"],
   "targets": {
     "codegen": {
       "executor": "nx:run-commands",
@@ -19,21 +14,15 @@
         "{projectRoot}/openapi-ts.config.ts",
         "{projectRoot}/src/client-config.ts",
         {
-          "externalDependencies": [
-            "@hey-api/openapi-ts"
-          ]
+          "externalDependencies": ["@hey-api/openapi-ts"]
         }
       ],
-      "outputs": [
-        "{projectRoot}/src/generated"
-      ],
+      "outputs": ["{projectRoot}/src/generated"],
       "options": {
         "command": "openapi-ts -f openapi-ts.config.ts -s",
         "cwd": "{projectRoot}"
       }
     }
   },
-  "implicitDependencies": [
-    "catalog-inventory-contracts"
-  ]
+  "implicitDependencies": ["catalog-inventory-contracts"]
 }

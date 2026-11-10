@@ -5,7 +5,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   type CategoryResponse,
   provideCatalogInventoryApi,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import { ToastService } from '@marketplace/shared-admin-ui';
 
@@ -19,9 +19,16 @@ const CAMISAS: CategoryResponse = {
   name: 'Camisas',
   effectiveAttributes: [
     { code: 'material', label: 'Material', type: 'TEXT' },
-    { code: 'tamanho', label: 'Tamanho', type: 'OPTION', variant: true, required: true, options: ['P', 'M'] },
-    { code: 'cor', label: 'Cor', type: 'TEXT', variant: true }
-  ]
+    {
+      code: 'tamanho',
+      label: 'Tamanho',
+      type: 'OPTION',
+      variant: true,
+      required: true,
+      options: ['P', 'M'],
+    },
+    { code: 'cor', label: 'Cor', type: 'TEXT', variant: true },
+  ],
 };
 
 const PRODUCT: ProductResponse = {
@@ -46,18 +53,25 @@ const PRODUCT: ProductResponse = {
         salePrice: { amount: 49.9, currency: 'BRL' },
         effectivePrice: { amount: 39.9, currency: 'BRL' },
         onPromotion: true,
-        version: 2
+        version: 2,
       },
-      stock: { onHand: 8, reserved: 3, available: 5, sold: 41, version: 1 }
+      stock: { onHand: 8, reserved: 3, available: 5, sold: 41, version: 1 },
     },
-    { id: 's2', sellerSku: 'CAM-M', variantAttributes: { tamanho: 'M' }, physical: false, offer: null, stock: null }
-  ]
+    {
+      id: 's2',
+      sellerSku: 'CAM-M',
+      variantAttributes: { tamanho: 'M' },
+      physical: false,
+      offer: null,
+      stock: null,
+    },
+  ],
 };
 
 @Component({
   imports: [ProductSkusTabComponent],
   providers: [ProductStore],
-  template: '<app-product-skus-tab />'
+  template: '<app-product-skus-tab />',
 })
 class Host {
   readonly store = inject(ProductStore);
@@ -89,14 +103,15 @@ describe('ProductSkusTabComponent', () => {
   const rows = () => Array.from(element().querySelectorAll('tbody tr')) as HTMLTableRowElement[];
   const button = (root: ParentNode, label: string) =>
     (Array.from(root.querySelectorAll('button')) as HTMLButtonElement[]).find(
-      item => item.textContent?.replace(/\s+/g, ' ').trim() === label
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim() === label,
     ) as HTMLButtonElement;
   const offcanvas = () => element().querySelector('app-add-sku-offcanvas') as HTMLElement;
   const input = (label: string) => {
     const target = (Array.from(offcanvas().querySelectorAll('label')) as HTMLLabelElement[]).find(
-      item => item.textContent?.replace(/\s+/g, ' ').trim().startsWith(label)
+      (item) => item.textContent?.replace(/\s+/g, ' ').trim().startsWith(label),
     );
-    return offcanvas().querySelector(`[id="${target?.htmlFor}"]`) as HTMLInputElement & HTMLSelectElement;
+    return offcanvas().querySelector(`[id="${target?.htmlFor}"]`) as HTMLInputElement &
+      HTMLSelectElement;
   };
   const type = (target: HTMLInputElement, value: string) => {
     target.value = value;
@@ -107,7 +122,7 @@ describe('ProductSkusTabComponent', () => {
   async function open(product: ProductResponse = PRODUCT) {
     TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideCatalogInventoryApi()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(Host);
@@ -123,7 +138,10 @@ describe('ProductSkusTabComponent', () => {
 
   beforeAll(() => {
     if (!('IntersectionObserver' in globalThis)) {
-      Object.defineProperty(globalThis, 'IntersectionObserver', { configurable: true, value: InertIntersectionObserver });
+      Object.defineProperty(globalThis, 'IntersectionObserver', {
+        configurable: true,
+        value: InertIntersectionObserver,
+      });
     }
   });
 
@@ -138,7 +156,9 @@ describe('ProductSkusTabComponent', () => {
     expect(text(rows()[0])).toContain('P / Azul');
     expect(text(rows()[0])).toContain('R$ 39,90');
     expect(text(rows()[0])).toContain('de R$ 59,90');
-    expect(rows()[0].querySelectorAll('td')[3].querySelector('strong')?.textContent?.trim()).toBe('5');
+    expect(rows()[0].querySelectorAll('td')[3].querySelector('strong')?.textContent?.trim()).toBe(
+      '5',
+    );
     expect(text(rows()[0])).toContain('de 8 no físico');
     expect(text(rows()[0])).toContain('Em promoção');
     expect(text(rows()[1])).toContain('Sem envio físico');
@@ -190,7 +210,7 @@ describe('ProductSkusTabComponent', () => {
       sellerSku: 'CAM-G',
       variantAttributes: { tamanho: 'M', cor: 'Verde' },
       physical: true,
-      dimensions: { heightCm: 2, widthCm: 30, lengthCm: 40, weightGrams: 300 }
+      dimensions: { heightCm: 2, widthCm: 30, lengthCm: 40, weightGrams: 300 },
     });
     request.flush(null, { status: 201, statusText: 'Created' });
 
@@ -218,9 +238,9 @@ describe('ProductSkusTabComponent', () => {
         type: 'https://marketplace.dev/problems/duplicate-seller-sku',
         title: 'SKU duplicado',
         detail: 'Já existe um SKU CAM-P na loja.',
-        status: 409
+        status: 409,
       },
-      { status: 409, statusText: 'Conflict' }
+      { status: 409, statusText: 'Conflict' },
     );
     await vi.waitFor(() => {
       render();
@@ -233,8 +253,8 @@ describe('ProductSkusTabComponent', () => {
 
     button(rows()[1], 'Remover SKU').click();
     render();
-    const modal = Array.from(element().querySelectorAll('app-confirm-modal')).find(item =>
-      item.textContent?.includes('Remover SKU')
+    const modal = Array.from(element().querySelectorAll('app-confirm-modal')).find((item) =>
+      item.textContent?.includes('Remover SKU'),
     ) as HTMLElement;
     expect(text(modal)).toContain('CAM-M');
 
@@ -242,7 +262,10 @@ describe('ProductSkusTabComponent', () => {
     const request = await vi.waitFor(() => http.expectOne(`${API}/products/p1/skus/s2`));
     expect(request.request.method).toBe('DELETE');
     expect(request.request.headers.get('If-Match')).toBe('"3"');
-    request.flush({ ...PRODUCT, version: 4, skus: PRODUCT.skus?.slice(0, 1) }, { headers: { ETag: '"4"' } });
+    request.flush(
+      { ...PRODUCT, version: 4, skus: PRODUCT.skus?.slice(0, 1) },
+      { headers: { ETag: '"4"' } },
+    );
 
     await vi.waitFor(() => {
       render();
@@ -257,13 +280,21 @@ describe('ProductSkusTabComponent', () => {
       status: 'ARCHIVED',
       actions: [],
       blockedActions: [
-        { action: 'REMOVE_SKU', reason: { code: 'sku-removal-requires-draft', message: 'Só dá para remover SKU no rascunho.' } }
-      ]
+        {
+          action: 'REMOVE_SKU',
+          reason: {
+            code: 'sku-removal-requires-draft',
+            message: 'Só dá para remover SKU no rascunho.',
+          },
+        },
+      ],
     });
 
     const remove = button(rows()[0], 'Remover SKU : Só dá para remover SKU no rascunho.');
     expect(remove.disabled).toBe(true);
-    expect(button(element().querySelector('c-card') as HTMLElement, 'Adicionar SKU')).toBeUndefined();
+    expect(
+      button(element().querySelector('c-card') as HTMLElement, 'Adicionar SKU'),
+    ).toBeUndefined();
   });
 
   it('abre o painel do SKU pelo código, com a oferta e o saldo do SKU', async () => {
@@ -272,17 +303,25 @@ describe('ProductSkusTabComponent', () => {
     button(rows()[0], 'CAM-P').click();
     render();
     (await vi.waitFor(() => http.expectOne(`${API}/offers/s1`))).flush(
-      { skuId: 's1', currency: 'BRL', price: { salePrice: { amount: 49.9, currency: 'BRL' } }, version: 2, promotions: [] },
-      { headers: { ETag: '"2"' } }
+      {
+        skuId: 's1',
+        currency: 'BRL',
+        price: { salePrice: { amount: 49.9, currency: 'BRL' } },
+        version: 2,
+        promotions: [],
+      },
+      { headers: { ETag: '"2"' } },
     );
     (await vi.waitFor(() => http.expectOne(`${API}/inventory/skus/s1`))).flush(
       { skuId: 's1', onHand: 8, reserved: 3, available: 5, sold: 41, version: 1 },
-      { headers: { ETag: '"1"' } }
+      { headers: { ETag: '"1"' } },
     );
     await vi.waitFor(() => {
       render();
       expect(text(element().querySelector('app-sku-panel') as HTMLElement)).toContain('Disponível');
     });
-    expect(element().querySelector('app-sku-panel [cOffcanvasTitle]')?.textContent?.trim()).toBe('CAM-P');
+    expect(element().querySelector('app-sku-panel [cOffcanvasTitle]')?.textContent?.trim()).toBe(
+      'CAM-P',
+    );
   });
 });

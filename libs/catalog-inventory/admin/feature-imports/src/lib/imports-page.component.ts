@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, DOCUMENT, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DOCUMENT,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
@@ -10,14 +19,14 @@ import {
   ProgressComponent,
   RowComponent,
   SpinnerComponent,
-  TableDirective
+  TableDirective,
 } from '@coreui/angular';
 import { cilChevronRight, cilCloudDownload, cilCloudUpload } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
 import {
   importProducts,
   type ImportSummaryResponse,
-  listProductImportsResource
+  listProductImportsResource,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   CursorPaginationComponent,
@@ -27,12 +36,18 @@ import {
   LoadingStateComponent,
   ProblemAlertComponent,
   RelativeTimePipe,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import { apiData, type Problem, toPageSize, toProblem } from '@marketplace/shared-web-util';
 
 import { ImportBatchComponent } from './import-batch.component';
-import { countLines, isImportRunning, locationId, progressPercent, statusPresentation } from './import-presentation';
+import {
+  countLines,
+  isImportRunning,
+  locationId,
+  progressPercent,
+  statusPresentation,
+} from './import-presentation';
 import { downloadTemplate } from './import-template';
 import { headersOf } from './import-tracking';
 
@@ -63,7 +78,7 @@ import { headersOf } from './import-tracking';
     RouterLink,
     RowComponent,
     SpinnerComponent,
-    TableDirective
+    TableDirective,
   ],
   styles: '.numeric { font-variant-numeric: tabular-nums; }',
   template: `
@@ -192,7 +207,7 @@ import { headersOf } from './import-tracking';
         }
       </c-card-body>
     </c-card>
-  `
+  `,
 })
 export class ImportsPageComponent {
   readonly #route = inject(ActivatedRoute);
@@ -207,7 +222,7 @@ export class ImportsPageComponent {
   readonly pageSize = computed(() => toPageSize(this.#query().get('limit')));
 
   readonly history = listProductImportsResource(() => ({
-    query: { cursor: this.cursor(), limit: this.pageSize() }
+    query: { cursor: this.cursor(), limit: this.pageSize() },
   }));
   readonly page = computed(() => (this.history.hasValue() ? this.history.value() : undefined));
   readonly historyProblem = computed(() => {
@@ -220,8 +235,8 @@ export class ImportsPageComponent {
       status: statusPresentation(batch.status),
       running: isImportRunning(batch.status),
       percent: progressPercent(batch.processedLines, batch.totalLines),
-      lines: countLines(batch.totalLines ?? 0)
-    }))
+      lines: countLines(batch.totalLines ?? 0),
+    })),
   );
 
   /**
@@ -234,7 +249,7 @@ export class ImportsPageComponent {
 
   constructor() {
     effect(() => {
-      const running = this.rows().find(row => row.running)?.batch.id;
+      const running = this.rows().find((row) => row.running)?.batch.id;
       if (running) {
         untracked(() => {
           if (!this.current()) {
@@ -261,7 +276,10 @@ export class ImportsPageComponent {
     try {
       const result = await importProducts({ body: file });
       await apiData(Promise.resolve(result));
-      this.#toast.success(`A planilha ${file.name} foi recebida e será processada em instantes.`, 'Planilha enviada');
+      this.#toast.success(
+        `A planilha ${file.name} foi recebida e será processada em instantes.`,
+        'Planilha enviada',
+      );
       this.current.set(locationId(headersOf(result.response)?.get('Location')));
       this.history.reload();
     } catch (error) {
@@ -280,6 +298,10 @@ export class ImportsPageComponent {
   }
 
   #navigate(queryParams: Record<string, string | number | null>): Promise<boolean> {
-    return this.#router.navigate([], { relativeTo: this.#route, queryParams, queryParamsHandling: 'merge' });
+    return this.#router.navigate([], {
+      relativeTo: this.#route,
+      queryParams,
+      queryParamsHandling: 'merge',
+    });
   }
 }

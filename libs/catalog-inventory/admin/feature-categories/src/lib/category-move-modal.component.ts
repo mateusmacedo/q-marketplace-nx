@@ -1,23 +1,32 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, output, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  model,
+  output,
+  resource,
+  signal,
+} from '@angular/core';
 import { FormLabelDirective, FormTextDirective } from '@coreui/angular';
 import {
   type CategoryResponse,
   getCategory,
   listCategoryTree,
-  moveCategory
+  moveCategory,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   buildCategoryOptions,
   CATEGORY_ROOT,
   categoryDescendants,
-  CategorySelectComponent
+  CategorySelectComponent,
 } from '@marketplace/catalog-inventory-admin-ui';
 import {
   ConfirmModalComponent,
   EditConflictAlertComponent,
   ErrorStateComponent,
   LoadingStateComponent,
-  ProblemAlertComponent
+  ProblemAlertComponent,
 } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -25,7 +34,7 @@ import {
   isEditConflict,
   type Problem,
   toProblem,
-  type Versioned
+  type Versioned,
 } from '@marketplace/shared-web-util';
 
 import { loadAllPages, resourceProblem, ROOT_LABEL, toCategoryNode } from './category-model';
@@ -48,7 +57,7 @@ let nextId = 0;
     FormLabelDirective,
     FormTextDirective,
     LoadingStateComponent,
-    ProblemAlertComponent
+    ProblemAlertComponent,
   ],
   template: `
     <app-confirm-modal
@@ -86,7 +95,7 @@ let nextId = 0;
         <div [id]="selectId + '-help'" cFormText>As subcategorias vão junto.</div>
       }
     </app-confirm-modal>
-  `
+  `,
 })
 export class CategoryMoveModalComponent {
   readonly visible = model(false);
@@ -109,17 +118,24 @@ export class CategoryMoveModalComponent {
   /** Árvore inteira do tenant, lida a cada abertura do modal. */
   readonly tree = resource({
     params: () => (this.visible() ? { open: true } : undefined),
-    loader: () => loadAllPages(cursor => apiData(listCategoryTree({ query: cursor ? { cursor } : {} })))
+    loader: () =>
+      loadAllPages((cursor) => apiData(listCategoryTree({ query: cursor ? { cursor } : {} }))),
   });
 
-  readonly #nodes = computed(() => (this.tree.hasValue() ? this.tree.value().map(toCategoryNode) : []));
+  readonly #nodes = computed(() =>
+    this.tree.hasValue() ? this.tree.value().map(toCategoryNode) : [],
+  );
   readonly options = computed(() => buildCategoryOptions(this.#nodes()));
   readonly excluded = computed(() => {
     const current = this.category()?.data;
     if (!current?.id) {
       return [];
     }
-    return [current.id, ...categoryDescendants(this.#nodes(), current.id), ...(current.parentId ? [current.parentId] : [])];
+    return [
+      current.id,
+      ...categoryDescendants(this.#nodes(), current.id),
+      ...(current.parentId ? [current.parentId] : []),
+    ];
   });
   readonly rootLabel = computed(() => (this.category()?.data.parentId ? ROOT_LABEL : null));
   readonly title = computed(() => `Mover ${this.category()?.data.name ?? 'categoria'}`);
@@ -153,8 +169,8 @@ export class CategoryMoveModalComponent {
         moveCategory({
           path: { id: current.data.id },
           body: { parentId: destination === CATEGORY_ROOT ? null : destination },
-          ...(current.version ? { headers: { 'If-Match': current.version } } : {})
-        })
+          ...(current.version ? { headers: { 'If-Match': current.version } } : {}),
+        }),
       );
       this.visible.set(false);
       this.moved.emit(moved);

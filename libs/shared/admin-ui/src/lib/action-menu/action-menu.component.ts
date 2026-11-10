@@ -5,7 +5,7 @@ import {
   DropdownItemDirective,
   DropdownMenuDirective,
   DropdownToggleDirective,
-  TooltipDirective
+  TooltipDirective,
 } from '@coreui/angular';
 import { cilOptions } from '@coreui/icons';
 import { IconDirective } from '@coreui/icons-angular';
@@ -39,14 +39,16 @@ export type ActionPresentation = Omit<ActionMenuItem, 'disabledReason'>;
  */
 export function serverActionMenu(
   source: ServerActions | null | undefined,
-  presentations: readonly ActionPresentation[]
+  presentations: readonly ActionPresentation[],
 ): ActionMenuItem[] {
-  return presentations.flatMap(presentation => {
+  return presentations.flatMap((presentation) => {
     const state = actionState(source, presentation.id);
     if (state.allowed) {
       return [presentation];
     }
-    return state.blockedReason === undefined ? [] : [{ ...presentation, disabledReason: state.blockedReason }];
+    return state.blockedReason === undefined
+      ? []
+      : [{ ...presentation, disabledReason: state.blockedReason }];
   });
 }
 
@@ -64,7 +66,7 @@ export function serverActionMenu(
     DropdownMenuDirective,
     DropdownToggleDirective,
     IconDirective,
-    TooltipDirective
+    TooltipDirective,
   ],
   template: `
     @if (items().length) {
@@ -108,7 +110,7 @@ export function serverActionMenu(
         </ul>
       </c-dropdown>
     }
-  `
+  `,
 })
 export class ActionMenuComponent {
   readonly items = input<readonly ActionMenuItem[]>([]);

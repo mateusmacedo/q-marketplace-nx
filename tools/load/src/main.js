@@ -7,8 +7,20 @@ import { buildOptions } from './profiles.js';
 import { verifyRun } from './verify.js';
 
 export {
-  catalogBrowse, categoryAdmin, hotSku, lastUnit, moderation, offerPricing, outboxProbe, productImport,
-  productLifecycle, reservationExpiry, reservationLifecycle, spreadReserveRelease, stockAdjust, storefront,
+  catalogBrowse,
+  categoryAdmin,
+  hotSku,
+  lastUnit,
+  moderation,
+  offerPricing,
+  outboxProbe,
+  productImport,
+  productLifecycle,
+  reservationExpiry,
+  reservationLifecycle,
+  spreadReserveRelease,
+  stockAdjust,
+  storefront,
 } from './scenarios.js';
 
 if (!params.testid) throw new Error('main: TESTID ausente; rode por tools/load/run.sh');

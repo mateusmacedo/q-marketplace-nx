@@ -7,7 +7,7 @@ tests:
   - interval: 1m
     input_series:
       - series: 'up{job="catalog-inventory",instance="catalog:8080"}'
-        values: '1 1 0 0 0'
+        values: "1 1 0 0 0"
     alert_rule_test:
       - eval_time: 2m
         alertname: CatalogInventoryDown
@@ -15,7 +15,7 @@ tests:
       - eval_time: 4m
         alertname: CatalogInventoryDown
         exp_alerts:
-          - exp_labels: {severity: critical, job: catalog-inventory, instance: "catalog:8080"}
+          - exp_labels: { severity: critical, job: catalog-inventory, instance: "catalog:8080" }
             exp_annotations:
               summary: Instância do catálogo fora do ar
               description: catalog:8080 não responde em /q/metrics há 1 minuto.
@@ -23,7 +23,7 @@ tests:
   - interval: 1m
     input_series:
       - series: 'catalog_outbox_oldest_age_seconds{job="catalog-inventory"}'
-        values: '1 2 15 25 35 45'
+        values: "1 2 15 25 35 45"
     alert_rule_test:
       - eval_time: 3m
         alertname: CatalogOutboxBacklog
@@ -31,7 +31,7 @@ tests:
       - eval_time: 5m
         alertname: CatalogOutboxBacklog
         exp_alerts:
-          - exp_labels: {severity: critical}
+          - exp_labels: { severity: critical }
             exp_annotations:
               summary: Eventos da outbox esperando mais de 10 s
               description: O evento pendente mais antigo espera há 45s; o PRD pede indexação em até 10 s.
@@ -39,7 +39,7 @@ tests:
   - interval: 1m
     input_series:
       - series: 'catalog_outbox_parked{job="catalog-inventory",instance="catalog-worker:9000"}'
-        values: '0 0 2 2 2 2 2 2 2'
+        values: "0 0 2 2 2 2 2 2 2"
     alert_rule_test:
       - eval_time: 5m
         alertname: CatalogOutboxParked
@@ -47,7 +47,7 @@ tests:
       - eval_time: 8m
         alertname: CatalogOutboxParked
         exp_alerts:
-          - exp_labels: {severity: critical}
+          - exp_labels: { severity: critical }
             exp_annotations:
               summary: Eventos da outbox estacionados
               description: 2 evento(s) esgotaram as tentativas de publicação e esperam o reenvio manual; os seguintes da mesma chave ficam retidos.
@@ -55,9 +55,9 @@ tests:
   - interval: 1m
     input_series:
       - series: 'kafka_producer_record_send_total{job="catalog-inventory",client_id="kafka-dead-letter-topic-producer-kafka-consumer-kyb-seller-verdicts"}'
-        values: '0 0 1 1'
+        values: "0 0 1 1"
       - series: 'kafka_producer_record_send_total{job="catalog-inventory",client_id="kafka-producer-catalog-events"}'
-        values: '0+100x3'
+        values: "0+100x3"
     alert_rule_test:
       - eval_time: 1m
         alertname: CatalogKybDeadLetters
@@ -65,7 +65,7 @@ tests:
       - eval_time: 3m
         alertname: CatalogKybDeadLetters
         exp_alerts:
-          - exp_labels: {severity: warning}
+          - exp_labels: { severity: warning }
             exp_annotations:
               summary: Vereditos do KYB/KYC na fila de descarte
               description: 1 mensagem(ns) foram para catalog-inventory.kyb-seller.dlq nos últimos 15 minutos.
@@ -73,12 +73,12 @@ tests:
   - interval: 1m
     input_series:
       - series: 'pg_up{job="postgres",instance="postgres-exporter:9187"}'
-        values: '1 0 0 0'
+        values: "1 0 0 0"
     alert_rule_test:
       - eval_time: 3m
         alertname: PostgresDown
         exp_alerts:
-          - exp_labels: {severity: critical, job: postgres, instance: "postgres-exporter:9187"}
+          - exp_labels: { severity: critical, job: postgres, instance: "postgres-exporter:9187" }
             exp_annotations:
               summary: PostgreSQL fora do ar
               description: O postgres-exporter não consegue conectar ao banco há 1 minuto.
@@ -86,12 +86,12 @@ tests:
   - interval: 1m
     input_series:
       - series: 'redis_up{job="redis",instance="redis-exporter:9121"}'
-        values: '1 0 0 0'
+        values: "1 0 0 0"
     alert_rule_test:
       - eval_time: 3m
         alertname: RedisDown
         exp_alerts:
-          - exp_labels: {severity: warning, job: redis, instance: "redis-exporter:9121"}
+          - exp_labels: { severity: warning, job: redis, instance: "redis-exporter:9121" }
             exp_annotations:
               summary: Redis fora do ar
               description: O redis-exporter não consegue conectar ao Redis há 1 minuto; com o cache ligado, as leituras vão ao banco.

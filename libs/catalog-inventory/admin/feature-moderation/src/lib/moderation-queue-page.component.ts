@@ -9,14 +9,14 @@ import {
   FormCheckLabelDirective,
   ListGroupDirective,
   ListGroupItemDirective,
-  RowComponent
+  RowComponent,
 } from '@coreui/angular';
 import {
   batchModerateProducts,
   type ModerationDecision,
   ModerationBatchRequestSchema,
   type ProductBatchResult,
-  type ProductResponse
+  type ProductResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   abortOnDestroy,
@@ -35,7 +35,7 @@ import {
   ProblemAlertComponent,
   RelativeTimePipe,
   ToastService,
-  warnBeforeUnload
+  warnBeforeUnload,
 } from '@marketplace/shared-admin-ui';
 import {
   apiData,
@@ -45,10 +45,13 @@ import {
   fieldRules,
   plural,
   type Problem,
-  runBatch
+  runBatch,
 } from '@marketplace/shared-web-util';
 
-import { type DecisionReason, ModerationDecisionModalComponent } from './moderation-decision-modal.component';
+import {
+  type DecisionReason,
+  ModerationDecisionModalComponent,
+} from './moderation-decision-modal.component';
 import { decisionPresentation, DECISIONS } from './moderation-decisions';
 import { ModerationQueueStore } from './moderation-queue.store';
 import type { ReasonDecision } from './moderation-reasons';
@@ -88,7 +91,7 @@ const BATCH_SIZE = fieldRules(ModerationBatchRequestSchema, 'items').maxItems ??
     RelativeTimePipe,
     RouterLink,
     RouterOutlet,
-    RowComponent
+    RowComponent,
   ],
   template: `
     <c-row>
@@ -207,18 +210,18 @@ const BATCH_SIZE = fieldRules(ModerationBatchRequestSchema, 'items').maxItems ??
       [problem]="batchDecisionProblem()"
       [subject]="batchDecisionCount()"
     />
-  `
+  `,
 })
 export class ModerationQueuePageComponent implements LeaveGuarded {
   readonly store = inject(ModerationQueueStore);
   readonly #toast = inject(ToastService);
   readonly #abort = abortOnDestroy();
 
-  readonly batchActions: readonly BatchActionPresentation[] = DECISIONS.map(decision => ({
+  readonly batchActions: readonly BatchActionPresentation[] = DECISIONS.map((decision) => ({
     id: decision.code,
     label: decision.label,
     runningLabel: decision.runningLabel,
-    color: decision.color
+    color: decision.color,
   }));
   readonly approveEffect = decisionPresentation('APPROVE').batchEffect;
 
@@ -232,7 +235,9 @@ export class ModerationQueuePageComponent implements LeaveGuarded {
   readonly batchDecision = signal<ReasonDecision | null>(null);
   readonly batchDecisionProblem = signal<Problem | null>(null);
 
-  readonly approveCount = computed(() => plural(this.store.selection.countFor('APPROVE'), 'produto', 'produtos'));
+  readonly approveCount = computed(() =>
+    plural(this.store.selection.countFor('APPROVE'), 'produto', 'produtos'),
+  );
   readonly batchDecisionCount = computed(() => {
     const decision = this.batchDecision();
     return decision ? plural(this.store.selection.countFor(decision), 'produto', 'produtos') : '';
@@ -291,7 +296,7 @@ export class ModerationQueuePageComponent implements LeaveGuarded {
    */
   async #execute(
     action: ModerationDecision,
-    reason?: DecisionReason
+    reason?: DecisionReason,
   ): Promise<{ run: QueueBatchRun; ignored: number; stopped?: Problem } | null> {
     const items = this.store.selection.accepting(action);
     if (!items.length || this.running()) {
@@ -302,15 +307,19 @@ export class ModerationQueuePageComponent implements LeaveGuarded {
     try {
       const run = await runBatch<ProductResponse, ProductBatchResult>({
         items,
-        id: product => product.id ?? '',
+        id: (product) => product.id ?? '',
         size: BATCH_SIZE,
         signal: this.#abort,
-        send: group =>
+        send: (group) =>
           apiData(
             batchModerateProducts({
-              body: { action, items: group.map(product => ({ id: product.id ?? '', version: product.version })), ...reason }
-            })
-          ).then(response => response.results)
+              body: {
+                action,
+                items: group.map((product) => ({ id: product.id ?? '', version: product.version })),
+                ...reason,
+              },
+            }),
+          ).then((response) => response.results),
       });
       const nothingDecided = !run.succeeded.length && !run.failed.length;
       return { run, ignored, stopped: nothingDecided && run.error ? run.error : undefined };
@@ -325,12 +334,18 @@ export class ModerationQueuePageComponent implements LeaveGuarded {
       return;
     }
     this.store.selection.completeBatch(run);
-    this.failures.set(batchFailures(run.failed, product => product.id ?? '', product => product.title || 'Produto sem título'));
+    this.failures.set(
+      batchFailures(
+        run.failed,
+        (product) => product.id ?? '',
+        (product) => product.title || 'Produto sem título',
+      ),
+    );
     this.batchProblem.set(run.error ?? null);
     const counts = batchRunCounts(run, ignored);
     this.#toast.show(batchSummary(counts, decisionPresentation(action).done), {
-      kind: counts.succeeded ? 'success' : 'warning'
+      kind: counts.succeeded ? 'success' : 'warning',
     });
-    await this.store.afterDecision(run.succeeded.map(success => success.item.id ?? ''));
+    await this.store.afterDecision(run.succeeded.map((success) => success.item.id ?? ''));
   }
 }

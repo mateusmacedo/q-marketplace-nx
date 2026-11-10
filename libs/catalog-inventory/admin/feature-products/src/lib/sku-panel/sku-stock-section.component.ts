@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -7,13 +17,13 @@ import {
   FormControlDirective,
   FormLabelDirective,
   RowComponent,
-  SpinnerComponent
+  SpinnerComponent,
 } from '@coreui/angular';
 import {
   adjustStock,
   AdjustStockRequestSchema,
   getStock,
-  type StockResponse
+  type StockResponse,
 } from '@marketplace/catalog-inventory-admin-data-access';
 import {
   applyServerErrors,
@@ -24,7 +34,7 @@ import {
   NumberBlockComponent,
   ProblemAlertComponent,
   schemaValidator,
-  ToastService
+  ToastService,
 } from '@marketplace/shared-admin-ui';
 import {
   type ActionState,
@@ -35,7 +45,7 @@ import {
   type Problem,
   toProblem,
   type Versioned,
-  versionTag
+  versionTag,
 } from '@marketplace/shared-web-util';
 
 import { ifMatch } from '../product/product-store';
@@ -63,7 +73,7 @@ let nextId = 0;
     ProblemAlertComponent,
     ReactiveFormsModule,
     RowComponent,
-    SpinnerComponent
+    SpinnerComponent,
   ],
   template: `
     <section [attr.aria-labelledby]="ids.heading">
@@ -133,7 +143,7 @@ let nextId = 0;
         </form>
       }
     </section>
-  `
+  `,
 })
 export class SkuStockSectionComponent {
   readonly skuId = input.required<string>();
@@ -147,7 +157,7 @@ export class SkuStockSectionComponent {
   readonly ids = {
     heading: `${this.#prefix}-heading`,
     onHand: `${this.#prefix}-on-hand`,
-    warning: `${this.#prefix}-warning`
+    warning: `${this.#prefix}-warning`,
   };
 
   readonly stock = signal<StockResponse | null>(null);
@@ -157,7 +167,9 @@ export class SkuStockSectionComponent {
   readonly reloading = signal(false);
 
   readonly form = new FormGroup({
-    onHand: new FormControl<number | null>(null, [schemaValidator(fieldRules(AdjustStockRequestSchema, 'onHand'))])
+    onHand: new FormControl<number | null>(null, [
+      schemaValidator(fieldRules(AdjustStockRequestSchema, 'onHand')),
+    ]),
   });
   readonly onHand = this.form.controls.onHand;
   readonly #onHandValue = toSignal(this.onHand.valueChanges, { initialValue: this.onHand.value });
@@ -234,14 +246,19 @@ export class SkuStockSectionComponent {
     this.problem.set(null);
     try {
       const result = await apiDataWithVersion(
-        adjustStock({ path: { skuId: this.skuId() }, headers: ifMatch(this.#version()), body: { onHand } })
+        adjustStock({
+          path: { skuId: this.skuId() },
+          headers: ifMatch(this.#version()),
+          body: { onHand },
+        }),
       );
       this.#acceptWrite(result);
       this.#toast.success('Estoque salvo.');
       this.changed.emit();
     } catch (error) {
       const problem = toProblem(error);
-      const unmatched = problem.status === 400 ? applyServerErrors(this.form, problem) : (problem.errors ?? []);
+      const unmatched =
+        problem.status === 400 ? applyServerErrors(this.form, problem) : (problem.errors ?? []);
       this.problem.set({ ...problem, errors: unmatched });
     } finally {
       this.saving.set(false);

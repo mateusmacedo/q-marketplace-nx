@@ -36,7 +36,7 @@ import { type Problem, problemMessages } from '@marketplace/shared-web-util';
         }
       </c-alert>
     }
-  `
+  `,
 })
 export class ProblemAlertComponent {
   readonly problem = input<Problem | null | undefined>();
@@ -54,8 +54,8 @@ export class ProblemAlertComponent {
   /** Campos inválidos com mensagem; o erro sem campo aparece sem o nome do campo. */
   readonly fieldErrors = computed(() =>
     (this.problem()?.errors ?? []).flatMap(({ field, message }) =>
-      message ? [{ label: field ? this.fieldLabel(field) : null, message }] : []
-    )
+      message ? [{ label: field ? this.fieldLabel(field) : null, message }] : [],
+    ),
   );
 
   fieldLabel(field: string): string {

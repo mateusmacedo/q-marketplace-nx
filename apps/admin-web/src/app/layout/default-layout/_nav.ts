@@ -19,18 +19,23 @@ export interface AppNavItem extends INavData, AppAccess {
 export const navItems: readonly AppNavItem[] = [
   { name: 'Início', url: '/inicio', iconComponent: { name: 'cil-home' } },
   { name: 'Minha loja', title: true },
-  { name: 'Produtos', url: '/loja/produtos', iconComponent: { name: 'cil-tags' }, capability: 'MANAGE_OWN_PRODUCTS' },
+  {
+    name: 'Produtos',
+    url: '/loja/produtos',
+    iconComponent: { name: 'cil-tags' },
+    capability: 'MANAGE_OWN_PRODUCTS',
+  },
   {
     name: 'Importações',
     url: '/loja/importacoes',
     iconComponent: { name: 'cil-cloud-upload' },
-    capability: 'MANAGE_OWN_PRODUCTS'
+    capability: 'MANAGE_OWN_PRODUCTS',
   },
   {
     name: 'Situação da loja',
     url: '/loja/situacao',
     iconComponent: { name: 'cil-building' },
-    capability: 'MANAGE_OWN_PRODUCTS'
+    capability: 'MANAGE_OWN_PRODUCTS',
   },
   { name: 'Moderação', title: true },
   {
@@ -38,27 +43,27 @@ export const navItems: readonly AppNavItem[] = [
     url: '/moderacao/fila',
     iconComponent: { name: 'cil-shield-alt' },
     capability: 'MODERATE_PRODUCTS',
-    badgeKey: QUEUE_BADGE
+    badgeKey: QUEUE_BADGE,
   },
   { name: 'Plataforma', title: true },
   {
     name: 'Categorias',
     url: '/plataforma/categorias',
     iconComponent: { name: 'cil-sitemap' },
-    capability: 'MANAGE_TAXONOMY'
+    capability: 'MANAGE_TAXONOMY',
   },
   {
     name: 'Motivos de moderação',
     url: '/plataforma/motivos-de-moderacao',
     iconComponent: { name: 'cil-comment-square' },
-    capability: 'MANAGE_MODERATION_REASONS'
+    capability: 'MANAGE_MODERATION_REASONS',
   },
   {
     name: 'Produtos de todas as lojas',
     url: '/plataforma/produtos',
     iconComponent: { name: 'cil-list' },
-    permission: 'readTenantCatalog'
-  }
+    permission: 'readTenantCatalog',
+  },
 ];
 
 /**
@@ -68,11 +73,13 @@ export const navItems: readonly AppNavItem[] = [
 export function buildNav(
   items: readonly AppNavItem[],
   grants: SessionGrants,
-  badges: Readonly<Record<string, number>> = {}
+  badges: Readonly<Record<string, number>> = {},
 ): AppNavItem[] {
-  const visible = items.filter(item => item.title || allowsAccess(grants, item));
-  const withoutEmptyGroups = visible.filter((item, index) => !item.title || hasEntryBeforeNextTitle(visible, index));
-  return withoutEmptyGroups.map(item => {
+  const visible = items.filter((item) => item.title || allowsAccess(grants, item));
+  const withoutEmptyGroups = visible.filter(
+    (item, index) => !item.title || hasEntryBeforeNextTitle(visible, index),
+  );
+  return withoutEmptyGroups.map((item) => {
     const count = item.badgeKey ? badges[item.badgeKey] : undefined;
     return count ? { ...item, badge: { color: 'info', text: String(count), size: 'sm' } } : item;
   });
