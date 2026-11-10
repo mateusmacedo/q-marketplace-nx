@@ -76,7 +76,8 @@ class ProductActionsResourceTest {
                 .body("items[0].blockedActions[0].action", is("APPROVE"))
                 .body("items[0].blockedActions[0].reason.code", is("seller-not-eligible"))
                 .body("items[0].blockedActions[0].reason.params", contains("PENDING"))
-                .body("items[0].blockedActions[0].reason.message", is("A loja ainda não foi aprovada no KYB/KYC."));
+                .body("items[0].blockedActions[0].reason.message",
+                        is("A loja ainda não foi aprovada no KYB/KYC."));
         api.approve(id).then().statusCode(422).body("type", endsWith("/seller-not-eligible"));
 
         api.approvedStore();
@@ -102,8 +103,10 @@ class ProductActionsResourceTest {
         api.kybVerdict("SellerRejected", "REJECTED");
         as(api.seller).get("/products/" + id).then().statusCode(200)
                 .body("actions", not(hasItem("RESUME")))
-                .body("blockedActions.find { it.action == 'RESUME' }.reason.code", is("seller-not-eligible"))
-                .body("blockedActions.find { it.action == 'RESUME' }.reason.params", contains("REJECTED"));
+                .body("blockedActions.find { it.action == 'RESUME' }.reason.code",
+                        is("seller-not-eligible"))
+                .body("blockedActions.find { it.action == 'RESUME' }.reason.params",
+                        contains("REJECTED"));
         api.post(api.seller, "/products/" + id + "/resume", null).then().statusCode(422)
                 .body("type", endsWith("/seller-not-eligible"));
     }
@@ -114,16 +117,19 @@ class ProductActionsResourceTest {
         String id = api.createProduct(sku("CAM-P", "P", "50"), sku("CAM-M", "M", "50"));
         String etag = api.etag(api.seller, "/products/" + id);
 
-        as(api.seller).body("{\"categoryId\":\"%s\",\"attributes\":{\"cor\":\"azul\"}}".formatted(api.categoryId))
+        as(api.seller).body(
+                "{\"categoryId\":\"%s\",\"attributes\":{\"cor\":\"azul\"}}".formatted(api.categoryId))
                 .post("/products/" + id + "/check").then().statusCode(200)
                 .body("publishingIssues.code", contains("unknown-attribute", "missing-attribute"))
                 .body("publishingIssues.field", contains("attributes.cor", "attributes.marca"))
                 .body("publishingIssues[1].message", is("Preencha o atributo Marca."))
                 .body("categoryChange", nullValue());
 
-        String pants = as(api.admin).body(PANTS).post("/categories").then().statusCode(201).extract().path("id");
+        String pants = as(api.admin).body(PANTS).post("/categories").then().statusCode(201).extract()
+                .path("id");
         JsonPath check = as(api.seller)
-                .body("{\"categoryId\":\"%s\",\"attributes\":{\"marca\":\"Acme\",\"gola\":\"V\"}}".formatted(pants))
+                .body("{\"categoryId\":\"%s\",\"attributes\":{\"marca\":\"Acme\",\"gola\":\"V\"}}"
+                        .formatted(pants))
                 .post("/products/" + id + "/check").then().statusCode(200).extract().jsonPath();
         assertEquals("gola", check.getString("categoryChange.removedAttributes[0].code"));
         assertEquals("V", check.getString("categoryChange.removedAttributes[0].value"));

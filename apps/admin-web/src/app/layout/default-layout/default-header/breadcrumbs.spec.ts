@@ -5,10 +5,10 @@ import { provideRouter, Router, RouterOutlet, type Routes } from '@angular/route
 import { breadcrumbs } from './breadcrumbs';
 
 @Component({ template: '' })
-class Screen {}
+class Screen { }
 
 @Component({ imports: [RouterOutlet], template: '<router-outlet />' })
-class Shell {}
+class Shell { }
 
 const ROUTES: Routes = [
   {

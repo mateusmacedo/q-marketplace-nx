@@ -13,8 +13,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Veredito KYB/KYC aplicado invalida a vitrine de todos os produtos da loja antes de a mensagem ser confirmada; entrega
- * repetida ou veredito obsoleto não mudam a loja e não invalidam. Na falha invalida também (ADR 024).
+ * Veredito KYB/KYC aplicado invalida a vitrine de todos os produtos da loja
+ * antes de a mensagem ser confirmada; entrega
+ * repetida ou veredito obsoleto não mudam a loja e não invalidam. Na falha
+ * invalida também (ADR 024).
  */
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)

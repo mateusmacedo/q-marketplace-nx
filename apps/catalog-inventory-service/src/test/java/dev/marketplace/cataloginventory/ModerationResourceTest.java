@@ -31,7 +31,8 @@ class ModerationResourceTest {
     }
 
     static String item(String id, Object version) {
-        return version == null ? "{\"id\":\"" + id + "\"}" : "{\"id\":\"%s\",\"version\":%s}".formatted(id, version);
+        return version == null ? "{\"id\":\"" + id + "\"}"
+                : "{\"id\":\"%s\",\"version\":%s}".formatted(id, version);
     }
 
     static List<String> queue(Api api, String cursor, int limit) {
@@ -57,7 +58,8 @@ class ModerationResourceTest {
                 .put(path).then().statusCode(200).body("status", is("PENDING_MODERATION"));
         assertEquals(List.of(first, second, third), queue(api, null, 10), "editar na fila não muda a chegada");
 
-        JsonPath page = as(api.moderator).queryParam("limit", 2).get("/moderation/products").then().statusCode(200)
+        JsonPath page = as(api.moderator).queryParam("limit", 2).get("/moderation/products").then()
+                .statusCode(200)
                 .body("items[0].moderationQueuedAt", notNullValue()).extract().jsonPath();
         assertEquals(List.of(first, second), page.getList("items.id"));
         assertEquals(List.of(third), queue(api, page.getString("nextCursor"), 2));
@@ -80,7 +82,8 @@ class ModerationResourceTest {
         as(api.moderator).get("/stores/" + api.store + "/eligibility").then().statusCode(200)
                 .body("status", is("PENDING"));
         as(api.moderator).get("/stores/" + UUID.randomUUID() + "/eligibility").then().statusCode(200);
-        as(TestTokens.reservations(api.tenant)).get("/stores/" + api.store + "/eligibility").then().statusCode(403);
+        as(TestTokens.reservations(api.tenant)).get("/stores/" + api.store + "/eligibility").then()
+                .statusCode(403);
     }
 
     @Test
@@ -89,13 +92,15 @@ class ModerationResourceTest {
         as(api.moderator).get("/moderation/reasons").then().statusCode(200).body("$", empty());
         api.withModerationReasons();
         as(api.moderator).get("/moderation/reasons").then().statusCode(200)
-                .body("code", contains("wrong-category", "misleading-description", "inconsistent-attributes",
+                .body("code", contains("wrong-category", "misleading-description",
+                        "inconsistent-attributes",
                         "price-out-of-range", "prohibited-item"))
                 .body("find { it.code == 'wrong-category' }.label", is("Categoria incorreta"))
                 .body("find { it.code == 'price-out-of-range' }.decisions", contains("REJECT", "BLOCK"))
                 .body("active", everyItem(is(true)));
         as(api.moderator).queryParam("decision", "BLOCK").get("/moderation/reasons").then().statusCode(200)
-                .body("code", contains("misleading-description", "price-out-of-range", "prohibited-item"));
+                .body("code", contains("misleading-description", "price-out-of-range",
+                        "prohibited-item"));
         as(api.moderator).queryParam("decision", "PUBLISH").get("/moderation/reasons").then().statusCode(400);
         as(api.moderator).queryParam("includeInactive", true).get("/moderation/reasons").then().statusCode(403);
         as(api.seller).get("/moderation/reasons").then().statusCode(403);
@@ -107,23 +112,29 @@ class ModerationResourceTest {
         String id = api.createProduct(sku("REJ-P", "P", "50"));
         api.submit(id).then().statusCode(200);
         String path = "/moderation/products/" + id + "/reject";
-        as(api.moderator).body("{\"reasonCodes\":[\"prohibited-item\",\"spam\"]}").post(path).then().statusCode(422)
+        as(api.moderator).body("{\"reasonCodes\":[\"prohibited-item\",\"spam\"]}").post(path).then()
+                .statusCode(422)
                 .body("type", endsWith("/invalid-moderation-reason"))
-                .body("reasons", contains("reason-not-applicable:prohibited-item", "unknown-reason:spam"))
-                .body("reasonDetails[0].message", is("O motivo \"Item proibido na plataforma\" não vale para a rejeição."));
+                .body("reasons", contains("reason-not-applicable:prohibited-item",
+                        "unknown-reason:spam"))
+                .body("reasonDetails[0].message", is(
+                        "O motivo \"Item proibido na plataforma\" não vale para a rejeição."));
         as(api.moderator).body("{}").post(path).then().statusCode(422).body("type", endsWith("/invalid-value"));
         as(api.moderator).body("{\"note\":\"" + "x".repeat(501) + "\"}").post(path).then().statusCode(400)
                 .body("type", endsWith("/validation-failed"));
         String note = "A gola não bate " + "x".repeat(484);
         as(api.moderator)
-                .body("{\"reasonCodes\":[\"inconsistent-attributes\",\"wrong-category\"],\"note\":\"" + note + "\"}")
+                .body("{\"reasonCodes\":[\"inconsistent-attributes\",\"wrong-category\"],\"note\":\""
+                        + note + "\"}")
                 .post(path).then().statusCode(200)
-                .body("lastRejection.reasonCodes", contains("wrong-category", "inconsistent-attributes"))
+                .body("lastRejection.reasonCodes",
+                        contains("wrong-category", "inconsistent-attributes"))
                 .body("lastRejection.reasonLabels.label",
                         contains("Categoria incorreta", "Atributos inconsistentes com os SKUs"))
                 .body("lastRejection.note", is(note))
                 .body("lastRejection.reason",
-                        is("Categoria incorreta. Atributos inconsistentes com os SKUs. " + note));
+                        is("Categoria incorreta. Atributos inconsistentes com os SKUs. "
+                                + note));
         as(api.seller).get("/products/" + id + "/history").then().statusCode(200)
                 .body("find { it.transition == 'REJECT' }.reasonCodes",
                         contains("wrong-category", "inconsistent-attributes"))
@@ -160,7 +171,8 @@ class ModerationResourceTest {
                 .body("results.outcome", contains("SUCCEEDED", "FAILED", "FAILED", "FAILED"))
                 .body("results[0].status", is("OUT_OF_STOCK")).body("results[0].version", is(2))
                 .body("results[0].problem", nullValue())
-                .body("results[1].problem.status", is(412)).body("results[1].problem.type", endsWith("/version-mismatch"))
+                .body("results[1].problem.status", is(412))
+                .body("results[1].problem.type", endsWith("/version-mismatch"))
                 .body("results[1].status", nullValue())
                 .body("results[2].problem.status", is(409))
                 .body("results[2].problem.type", endsWith("/invalid-transition"))
@@ -178,13 +190,16 @@ class ModerationResourceTest {
         as(api.moderator).body(batch("BLOCK", ",\"reasonCodes\":[\"prohibited-item\"],\"note\":\"Réplica\"",
                 item(one, null), item(two, null)))
                 .post("/moderation/products/batch").then().statusCode(200)
-                .body("results.outcome", everyItem(is("SUCCEEDED"))).body("results.status", everyItem(is("BLOCKED")));
+                .body("results.outcome", everyItem(is("SUCCEEDED")))
+                .body("results.status", everyItem(is("BLOCKED")));
         api.storefront(one).then().statusCode(404);
         api.storefront(two).then().statusCode(404);
         for (String id : List.of(one, two))
             as(api.moderator).get("/products/" + id + "/history").then().statusCode(200)
-                    .body("find { it.transition == 'BLOCK' }.reason", is("Item proibido na plataforma. Réplica"))
-                    .body("find { it.transition == 'BLOCK' }.reasonCodes", contains("prohibited-item"));
+                    .body("find { it.transition == 'BLOCK' }.reason",
+                            is("Item proibido na plataforma. Réplica"))
+                    .body("find { it.transition == 'BLOCK' }.reasonCodes",
+                            contains("prohibited-item"));
     }
 
     @Test
@@ -193,20 +208,25 @@ class ModerationResourceTest {
         String id = api.createProduct(sku("REC-P", "P", "50"));
         api.submit(id).then().statusCode(200);
         String path = "/moderation/products/batch";
-        as(api.moderator).body(batch("REJECT", ",\"note\":\"x\"", item(id, null), item(id, 1))).post(path).then()
-                .statusCode(400).body("type", endsWith("/invalid-request")).body("detail", containsString(id));
+        as(api.moderator).body(batch("REJECT", ",\"note\":\"x\"", item(id, null), item(id, 1))).post(path)
+                .then()
+                .statusCode(400).body("type", endsWith("/invalid-request"))
+                .body("detail", containsString(id));
         as(api.moderator).body(batch("REJECT", ",\"note\":\"x\"")).post(path).then().statusCode(400)
                 .body("type", endsWith("/validation-failed"));
         String tooMany = IntStream.rangeClosed(0, 100).mapToObj(i -> item(UUID.randomUUID().toString(), null))
                 .collect(Collectors.joining(","));
         as(api.moderator).body(batch("REJECT", ",\"note\":\"x\"", tooMany)).post(path).then().statusCode(400);
-        as(api.moderator).body(batch("BLOCK", ",\"reasonCodes\":[\"wrong-category\"]", item(id, null))).post(path)
-                .then().statusCode(422).body("reasons", contains("reason-not-applicable:wrong-category"));
+        as(api.moderator).body(batch("BLOCK", ",\"reasonCodes\":[\"wrong-category\"]", item(id, null)))
+                .post(path)
+                .then().statusCode(422)
+                .body("reasons", contains("reason-not-applicable:wrong-category"));
         as(api.moderator).body(batch("APPROVE", ",\"note\":\"sem motivo\"", item(id, null))).post(path).then()
                 .statusCode(400);
         as(api.moderator).body(batch("PUBLISH", "", item(id, null))).post(path).then().statusCode(400);
         as(api.seller).body(batch("APPROVE", "", item(id, null))).post(path).then().statusCode(403);
-        as(api.seller).get("/products/" + id).then().body("status", is("PENDING_MODERATION")).body("version", is(1));
+        as(api.seller).get("/products/" + id).then().body("status", is("PENDING_MODERATION")).body("version",
+                is(1));
     }
 
     private double decisions(String decision) {

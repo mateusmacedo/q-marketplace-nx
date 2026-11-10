@@ -35,7 +35,8 @@ public class PgOutbox {
             INSERT INTO outbox_event (id, tenant_id, topic, message_key, event_type, payload, created_at, trace_parent)
             VALUES ($1, $2, $3, $4, $5, $6::text::json, $7, $8)""";
     private static final String TRY_LOCK = "SELECT pg_try_advisory_xact_lock(hashtextextended('catalog-inventory.outbox-relay', 0))";
-    // WHY: o NOT EXISTS pula o evento cuja chave tem um anterior pendente em espera ou estacionado; publicá-lo faria
+    // WHY: o NOT EXISTS pula o evento cuja chave tem um anterior pendente em espera
+    // ou estacionado; publicá-lo faria
     // o anterior sair depois dele, quebrando a ordem por chave (ADR 013).
     private static final String PENDING = """
             SELECT e.seq, e.id, e.topic, e.message_key, e.event_type, e.payload::text AS payload, e.created_at, e.trace_parent
@@ -47,7 +48,8 @@ public class PgOutbox {
                     AND (b.parked_at IS NOT NULL OR b.next_attempt_at > $2))
             ORDER BY e.seq LIMIT $1 FOR UPDATE OF e""";
     private static final String PUBLISHED = "UPDATE outbox_event SET published_at = $2, attempts = attempts + 1, last_error = NULL WHERE seq = ANY ($1::bigint[])";
-    // WHY: espera de 2^attempts s, com attempts anterior à falha; o expoente limitado impede que o deslocamento
+    // WHY: espera de 2^attempts s, com attempts anterior à falha; o expoente
+    // limitado impede que o deslocamento
     // estoure, e o teto efetivo é $4 (maxBackoff, em ms).
     private static final String FAILED = """
             UPDATE outbox_event SET attempts = attempts + 1, last_error = $2,
@@ -146,10 +148,14 @@ public class PgOutbox {
     }
 
     /**
-     * Publica até {@code batch} eventos na ordem de gravação, numa transação que segura a trava do relay e as
-     * linhas até registrar o resultado; pula estacionados, os que esperam nova tentativa e os de chave retida.
-     * A falha espera {@code 2^tentativas} s, até {@code maxBackoff}, e estaciona na tentativa {@code maxAttempts};
-     * publicado e não marcado (queda no meio) sai de novo, e o consumidor deduplica pelo {@code eventId}.
+     * Publica até {@code batch} eventos na ordem de gravação, numa transação que
+     * segura a trava do relay e as
+     * linhas até registrar o resultado; pula estacionados, os que esperam nova
+     * tentativa e os de chave retida.
+     * A falha espera {@code 2^tentativas} s, até {@code maxBackoff}, e estaciona na
+     * tentativa {@code maxAttempts};
+     * publicado e não marcado (queda no meio) sai de novo, e o consumidor deduplica
+     * pelo {@code eventId}.
      */
     public Uni<RelayRun> relay(int batch, Instant now, Duration maxBackoff, int maxAttempts,
             Function<List<Pending>, Uni<List<Delivery>>> publish) {

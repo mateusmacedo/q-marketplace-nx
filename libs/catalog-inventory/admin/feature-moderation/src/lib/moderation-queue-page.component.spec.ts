@@ -104,7 +104,7 @@ class TestSession extends AdminSession {
 }
 
 @Component({ imports: [RouterOutlet], template: '<router-outlet />' })
-class Shell {}
+class Shell { }
 
 describe('fila de moderação', () => {
   let fixture: ComponentFixture<Shell>;

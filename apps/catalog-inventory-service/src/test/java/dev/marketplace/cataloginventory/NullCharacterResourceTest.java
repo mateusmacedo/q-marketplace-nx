@@ -10,15 +10,20 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * Caractere nulo (U+0000) em texto do corpo JSON, que o PostgreSQL não guarda: toda escrita responde 400
- * {@code validation-failed} com o caminho do campo, como a validação de campo, sem gravar nada.
+ * Caractere nulo (U+0000) em texto do corpo JSON, que o PostgreSQL não guarda:
+ * toda escrita responde 400
+ * {@code validation-failed} com o caminho do campo, como a validação de campo,
+ * sem gravar nada.
  */
 @QuarkusTest
 class NullCharacterResourceTest {
     /** Escape JSON do caractere nulo, como o cliente o envia. */
     static final String NULL = "\\u0000";
 
-    /** Confere a recusa com um único campo e sem o caractere nulo no corpo do problema. */
+    /**
+     * Confere a recusa com um único campo e sem o caractere nulo no corpo do
+     * problema.
+     */
     static void refused(Response response, String field) {
         String body = response.then().statusCode(400).contentType("application/problem+json")
                 .body("type", endsWith("/validation-failed"))
@@ -32,7 +37,8 @@ class NullCharacterResourceTest {
     void productWritesRefuseTheNullCharacterInTextValuesAndKeys() {
         Api api = new Api().withCategory();
         String body = api.productBody("Acme", sku("CAM-P", "P", "10"));
-        refused(as(api.seller).body(body.replace("Camiseta básica", "Camiseta" + NULL)).post("/products"), "title");
+        refused(as(api.seller).body(body.replace("Camiseta básica", "Camiseta" + NULL)).post("/products"),
+                "title");
         refused(as(api.seller).body(body.replace("\"Acme\"", "\"Ac" + NULL + "me\"")).post("/products"),
                 "attributes[marca]");
         refused(as(api.seller).body(body.replace("\"marca\"", "\"mar" + NULL + "ca\"")).post("/products"),
@@ -56,7 +62,8 @@ class NullCharacterResourceTest {
         Api api = new Api();
         refused(as(api.admin).body(Api.CATEGORY.replace("\"Camisetas\"", "\"Camisetas" + NULL + "\""))
                 .post("/categories"), "name");
-        refused(as(api.admin).body(Api.CATEGORY.replace("\"Marca\"", "\"Mar" + NULL + "ca\"")).post("/categories"),
+        refused(as(api.admin).body(Api.CATEGORY.replace("\"Marca\"", "\"Mar" + NULL + "ca\""))
+                .post("/categories"),
                 "attributes[0].label");
         refused(as(api.admin).body(Api.CATEGORY.replace("\"G\"", "\"G" + NULL + "\"")).post("/categories"),
                 "attributes[1].options[2]");
@@ -66,7 +73,8 @@ class NullCharacterResourceTest {
     @Test
     void moderationWritesRefuseTheNullCharacterInLabelsCodesAndNotes() {
         Api api = new Api().withCategory().withModerationReasons();
-        refused(as(api.admin).body("{\"code\":\"spam\",\"label\":\"Spam" + NULL + "\",\"decisions\":[\"REJECT\"]}")
+        refused(as(api.admin)
+                .body("{\"code\":\"spam\",\"label\":\"Spam" + NULL + "\",\"decisions\":[\"REJECT\"]}")
                 .post("/moderation/reasons"), "label");
         as(api.admin).get("/moderation/reasons/spam").then().statusCode(404);
 
@@ -75,7 +83,8 @@ class NullCharacterResourceTest {
         String reject = "/moderation/products/" + id + "/reject";
         refused(as(api.moderator).body("{\"reasonCodes\":[\"wrong-category\"],\"note\":\"Rever" + NULL + "\"}")
                 .post(reject), "note");
-        refused(as(api.moderator).body("{\"reasonCodes\":[\"wrong-category\",\"price" + NULL + "\"]}").post(reject),
+        refused(as(api.moderator).body("{\"reasonCodes\":[\"wrong-category\",\"price" + NULL + "\"]}")
+                .post(reject),
                 "reasonCodes[1]");
         as(api.seller).get("/products/" + id).then().statusCode(200).body("status", is("PENDING_MODERATION"));
     }
@@ -85,7 +94,8 @@ class NullCharacterResourceTest {
         Api api = new Api();
         String body = """
                 {"orderRef":"pedido%s","items":[{"skuId":"%s","quantity":1,
-                 "expectedUnitPrice":{"amount":10.00,"currency":"BRL"}}]}""".formatted(NULL, UUID.randomUUID());
+                 "expectedUnitPrice":{"amount":10.00,"currency":"BRL"}}]}""".formatted(NULL,
+                UUID.randomUUID());
         refused(as(api.checkout).header("Idempotency-Key", UUID.randomUUID().toString()).body(body)
                 .post("/inventory/reservations"), "orderRef");
     }

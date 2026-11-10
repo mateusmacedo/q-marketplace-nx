@@ -133,9 +133,12 @@ public class IntegrationEvents {
     }
 
     /**
-     * O texto único em {@code reason}, que o contrato v1 limita a {@link EventContracts#REASON_MAX_LENGTH} caracteres;
-     * com vários rótulos e o complemento no limite dele, sai abreviado com reticências, e o conteúdo inteiro segue em
-     * {@code reasonLabels} e {@code note}. O corte não separa um par substituto (emoji e outros caracteres fora do
+     * O texto único em {@code reason}, que o contrato v1 limita a
+     * {@link EventContracts#REASON_MAX_LENGTH} caracteres;
+     * com vários rótulos e o complemento no limite dele, sai abreviado com
+     * reticências, e o conteúdo inteiro segue em
+     * {@code reasonLabels} e {@code note}. O corte não separa um par substituto
+     * (emoji e outros caracteres fora do
      * BMP), que viraria {@code ?} na gravação em UTF-8.
      */
     static String legacyReason(String text) {

@@ -28,8 +28,10 @@ import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_TAXO
 import static dev.marketplace.cataloginventory.security.Capabilities.MODERATE_PRODUCTS;
 
 /**
- * Números da página inicial do painel, um endpoint por papel. Fica em {@code /stats}, longe do {@code /q/metrics} do
- * Micrometer (ADR 017), que é outra coisa: contadores do serviço para o Prometheus, sem tenant nem loja.
+ * Números da página inicial do painel, um endpoint por papel. Fica em
+ * {@code /stats}, longe do {@code /q/metrics} do
+ * Micrometer (ADR 017), que é outra coisa: contadores do serviço para o
+ * Prometheus, sem tenant nem loja.
  */
 @Path("/stats")
 @Produces(MediaType.APPLICATION_JSON)
@@ -51,7 +53,9 @@ public class StatsResource {
         this.caller = caller;
     }
 
-    /** Números da loja do token; 400 para granularidade, datas ou período inválidos. */
+    /**
+     * Números da loja do token; 400 para granularidade, datas ou período inválidos.
+     */
     @GET
     @Path("/store")
     @PermissionsAllowed(MANAGE_OWN_PRODUCTS)
@@ -64,11 +68,15 @@ public class StatsResource {
             "month", "year" }, defaultValue = "month")) @RestQuery String granularity,
             @Parameter(description = "Primeiro dia do período (ISO 8601)", schema = @Schema(type = SchemaType.STRING, format = "date")) @RestQuery String from,
             @Parameter(description = "Último dia do período (ISO 8601)", schema = @Schema(type = SchemaType.STRING, format = "date")) @RestQuery String to) {
-        return stats.store(caller.actor(), Optional.ofNullable(granularity), QueryParams.date(from), QueryParams.date(to))
+        return stats
+                .store(caller.actor(), Optional.ofNullable(granularity), QueryParams.date(from), QueryParams.date(to))
                 .map(StoreStatsResponse::of);
     }
 
-    /** Números da moderação no tenant; 400 para granularidade, datas ou período inválidos. */
+    /**
+     * Números da moderação no tenant; 400 para granularidade, datas ou período
+     * inválidos.
+     */
     @GET
     @Path("/moderation")
     @PermissionsAllowed(MODERATE_PRODUCTS)
@@ -82,7 +90,10 @@ public class StatsResource {
                 QueryParams.date(to)).map(ModerationStatsResponse::of);
     }
 
-    /** Só o tamanho atual da fila de moderação no tenant, para a leitura frequente do contador do menu. */
+    /**
+     * Só o tamanho atual da fila de moderação no tenant, para a leitura frequente
+     * do contador do menu.
+     */
     @GET
     @Path("/moderation/queue")
     @PermissionsAllowed(MODERATE_PRODUCTS)

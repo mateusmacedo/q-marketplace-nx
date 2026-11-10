@@ -27,7 +27,8 @@ import java.util.TreeMap;
 public class PgSupport {
     private static final String UNIQUE_VIOLATION = "23505";
     private static final String QUERY_CANCELED = "57014";
-    // WHY: set_config com is_local vale só até o fim da transação, e a conexão volta ao pool como estava.
+    // WHY: set_config com is_local vale só até o fim da transação, e a conexão
+    // volta ao pool como estava.
     private static final String CUSTOM_PLAN_AND_DEADLINE = """
             SELECT set_config('plan_cache_mode', 'force_custom_plan', true), set_config('statement_timeout', $1, true)""";
     private final Duration timeout;

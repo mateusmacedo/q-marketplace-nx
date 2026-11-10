@@ -29,8 +29,8 @@ export type Client<
   request: RequestFn;
   setConfig: (config: Config) => Config;
 } & {
-  [K in HttpMethod]: MethodFn;
-} & ([SseFn] extends [never] ? { sse?: never } : { sse: { [K in HttpMethod]: SseFn } });
+    [K in HttpMethod]: MethodFn;
+  } & ([SseFn] extends [never] ? { sse?: never } : { sse: { [K in HttpMethod]: SseFn } });
 
 export interface Config {
   /**
@@ -50,11 +50,11 @@ export interface Config {
    * {@link https://developer.mozilla.org/docs/Web/API/Headers/Headers#init See more}
    */
   headers?:
-    | RequestInit['headers']
-    | Record<
-        string,
-        string | number | boolean | (string | number | boolean)[] | null | undefined | unknown
-      >;
+  | RequestInit['headers']
+  | Record<
+    string,
+    string | number | boolean | (string | number | boolean)[] | null | undefined | unknown
+  >;
   /**
    * The request method.
    *
@@ -95,15 +95,15 @@ export interface Config {
  * Arbitrary metadata passed through the `meta` request option.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ClientMeta {}
+export interface ClientMeta { }
 
 type IsExactlyNeverOrNeverUndefined<T> = [T] extends [never]
   ? true
   : [T] extends [never | undefined]
-    ? [undefined] extends [T]
-      ? false
-      : true
-    : false;
+  ? [undefined] extends [T]
+  ? false
+  : true
+  : false;
 
 export type OmitNever<T extends Record<string, unknown>> = {
   [K in keyof T as IsExactlyNeverOrNeverUndefined<T[K]> extends true ? never : K]: T[K];

@@ -15,7 +15,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 @Traced
 public class PgCatalogMetrics implements SkuCountsSource {
-    // WHY: loja sem linha em seller_eligibility ainda está PENDING, como na leitura da elegibilidade.
+    // WHY: loja sem linha em seller_eligibility ainda está PENDING, como na leitura
+    // da elegibilidade.
     private static final String SKU_COUNTS = """
             SELECT count(*) AS active,
                    count(*) FILTER (WHERE coalesce(e.status, 'PENDING') = 'APPROVED'
@@ -32,7 +33,10 @@ public class PgCatalogMetrics implements SkuCountsSource {
         this.pool = pool;
     }
 
-    /** Conta os SKUs ativos e os vendáveis de todos os tenants numa única consulta agregada. */
+    /**
+     * Conta os SKUs ativos e os vendáveis de todos os tenants numa única consulta
+     * agregada.
+     */
     @Override
     public Uni<SkuCounts> skuCounts() {
         return pool.query(SKU_COUNTS).execute().map(rows -> {

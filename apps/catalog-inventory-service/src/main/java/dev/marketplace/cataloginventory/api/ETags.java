@@ -72,7 +72,9 @@ final class ETags {
         return created(child(uri, id), body, version);
     }
 
-    /** Como {@link #created(UriInfo, UUID, Object, long)}, para recurso sem ETag. */
+    /**
+     * Como {@link #created(UriInfo, UUID, Object, long)}, para recurso sem ETag.
+     */
     static <T> RestResponse<T> created(UriInfo uri, UUID id, T body) {
         return RestResponse.ResponseBuilder.<T>created(child(uri, id)).entity(body).build();
     }

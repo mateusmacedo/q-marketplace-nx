@@ -35,7 +35,10 @@ final class QueryParams {
                 .orElseThrow(() -> new InvalidInputException("Identificador inválido: " + value))).toList();
     }
 
-    /** Converte a data opcional (ISO 8601, como 2026-11-08); ausente ou em branco resulta em vazio. */
+    /**
+     * Converte a data opcional (ISO 8601, como 2026-11-08); ausente ou em branco
+     * resulta em vazio.
+     */
     static Optional<LocalDate> date(String value) {
         if (value == null || value.isBlank())
             return Optional.empty();

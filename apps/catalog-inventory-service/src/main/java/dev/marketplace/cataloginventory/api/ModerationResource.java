@@ -72,7 +72,10 @@ public class ModerationResource {
                 ModerationDecision.BLOCK, blocked);
     }
 
-    /** Contador {@code catalog.moderation.decisions} da decisão, base da taxa de rejeição (ADR 017). */
+    /**
+     * Contador {@code catalog.moderation.decisions} da decisão, base da taxa de
+     * rejeição (ADR 017).
+     */
     private static Counter decisions(MeterRegistry registry, String decision) {
         return Counter.builder("catalog.moderation.decisions")
                 .description("Decisões de moderação concluídas, por tipo")

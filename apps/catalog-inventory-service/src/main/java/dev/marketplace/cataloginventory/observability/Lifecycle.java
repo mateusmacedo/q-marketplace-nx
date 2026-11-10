@@ -27,9 +27,12 @@ import java.util.function.Supplier;
 import org.jboss.logging.MDC;
 
 /**
- * Spans do ciclo de vida das operações (ADR 021). A operação é o span que recebe as chaves de negócio por
- * {@link Telemetry}: a requisição HTTP, a mensagem consumida, a execução agendada ou uma etapa dela. Dentro da
- * operação, cada passagem por resource, consumidor ou adaptador vira um span filho ({@link Traced}), e as consultas
+ * Spans do ciclo de vida das operações (ADR 021). A operação é o span que
+ * recebe as chaves de negócio por
+ * {@link Telemetry}: a requisição HTTP, a mensagem consumida, a execução
+ * agendada ou uma etapa dela. Dentro da
+ * operação, cada passagem por resource, consumidor ou adaptador vira um span
+ * filho ({@link Traced}), e as consultas
  * SQL ficam penduradas na passagem que as fez.
  */
 @ApplicationScoped
@@ -48,17 +51,24 @@ public class Lifecycle {
         this.tracer = tracer;
     }
 
-    /** Span da operação em curso, que recebe as chaves de negócio; fora de uma operação, o span ativo. */
+    /**
+     * Span da operação em curso, que recebe as chaves de negócio; fora de uma
+     * operação, o span ativo.
+     */
     static Span operation() {
         Span operation = Context.current().get(OPERATION);
         return operation != null ? operation : Span.current();
     }
 
     /**
-     * Roda o trabalho numa etapa: um span filho do ativo, aberto na assinatura, que passa a ser a operação e fica
-     * ativo num contexto próprio ({@link #isolated}) até o {@code Uni} terminar, então as consultas, os logs e os
-     * eventos da etapa entram nele; falha marca o span como erro, e cancelamento só o encerra. Ao fim, o MDC volta ao
-     * que era antes da etapa: as chaves gravadas nela (por {@link Telemetry#tag}) não passam para os logs seguintes.
+     * Roda o trabalho numa etapa: um span filho do ativo, aberto na assinatura, que
+     * passa a ser a operação e fica
+     * ativo num contexto próprio ({@link #isolated}) até o {@code Uni} terminar,
+     * então as consultas, os logs e os
+     * eventos da etapa entram nele; falha marca o span como erro, e cancelamento só
+     * o encerra. Ao fim, o MDC volta ao
+     * que era antes da etapa: as chaves gravadas nela (por {@link Telemetry#tag})
+     * não passam para os logs seguintes.
      */
     public <T> Uni<T> step(String name, Supplier<Uni<T>> work) {
         return Uni.createFrom().deferred(() -> {
@@ -77,9 +87,12 @@ public class Lifecycle {
     }
 
     /**
-     * Mantém o span da execução agendada ativo, como operação, até o {@code Uni} terminar. O agendador fecha o escopo
-     * quando o método devolve o {@code Uni}, e o cliente SQL lê o span do contexto Vert.x; sem isto, cada consulta
-     * viraria raiz de um trace solto. Chamar de dentro do método agendado. Não encerra o span nem o marca como erro:
+     * Mantém o span da execução agendada ativo, como operação, até o {@code Uni}
+     * terminar. O agendador fecha o escopo
+     * quando o método devolve o {@code Uni}, e o cliente SQL lê o span do contexto
+     * Vert.x; sem isto, cada consulta
+     * viraria raiz de um trace solto. Chamar de dentro do método agendado. Não
+     * encerra o span nem o marca como erro:
      * falha que o chamador recupera fica só no log.
      */
     public <T> Uni<T> job(Supplier<Uni<T>> work) {
@@ -101,9 +114,12 @@ public class Lifecycle {
     }
 
     /**
-     * Porta de entrada (resource HTTP ou consumidor Kafka): o span abre na chamada, filho do span da requisição ou da
-     * mensagem, e fica ativo no contexto dela até o {@code Uni} terminar, como no {@code @WithSpan} do Quarkus. A
-     * operação continua a ser o span de fora; uma porta de entrada não tem irmã em paralelo.
+     * Porta de entrada (resource HTTP ou consumidor Kafka): o span abre na chamada,
+     * filho do span da requisição ou da
+     * mensagem, e fica ativo no contexto dela até o {@code Uni} terminar, como no
+     * {@code @WithSpan} do Quarkus. A
+     * operação continua a ser o span de fora; uma porta de entrada não tem irmã em
+     * paralelo.
      */
     public <T> Uni<T> entry(String name, Attributes attributes, Supplier<Uni<T>> work) {
         Context parent = Context.current();
@@ -124,26 +140,35 @@ public class Lifecycle {
     }
 
     /**
-     * Passagem por um adaptador: o span nasce na assinatura, filho do ativo, e fica ativo num contexto próprio
-     * ({@link #isolated}). Assim, chamadas em paralelo ({@code Uni.combine}) não trocam de pai.
+     * Passagem por um adaptador: o span nasce na assinatura, filho do ativo, e fica
+     * ativo num contexto próprio
+     * ({@link #isolated}). Assim, chamadas em paralelo ({@code Uni.combine}) não
+     * trocam de pai.
      */
     public <T> Uni<T> nested(String name, Attributes attributes, Supplier<Uni<T>> work) {
         return Uni.createFrom().deferred(() -> {
             Context parent = Context.current();
             Span span = start(name, attributes, parent);
-            return isolated(parent.with(span).with(OPERATION, operationOf(parent)), work, failure -> end(span, failure));
+            return isolated(parent.with(span).with(OPERATION, operationOf(parent)), work,
+                    failure -> end(span, failure));
         });
     }
 
-    /** {@link #nested} com o nome {@code Classe.método} e os atributos de código, para trecho sem bean próprio. */
+    /**
+     * {@link #nested} com o nome {@code Classe.método} e os atributos de código,
+     * para trecho sem bean próprio.
+     */
     public <T> Uni<T> nested(Class<?> owner, String function, Supplier<Uni<T>> work) {
         return nested(owner.getSimpleName() + "." + function, code(owner, function), work);
     }
 
     /**
-     * Passagem por um adaptador que usa a conexão de quem chama: o span fica ativo no contexto de quem chama até o
-     * {@code Uni} terminar. WHY: o cliente SQL lê o pai no contexto em que a conexão nasceu, e não no da chamada; num
-     * contexto próprio, as consultas desta passagem cairiam no span de quem abriu a transação.
+     * Passagem por um adaptador que usa a conexão de quem chama: o span fica ativo
+     * no contexto de quem chama até o
+     * {@code Uni} terminar. WHY: o cliente SQL lê o pai no contexto em que a
+     * conexão nasceu, e não no da chamada; num
+     * contexto próprio, as consultas desta passagem cairiam no span de quem abriu a
+     * transação.
      */
     public <T> Uni<T> sharing(String name, Attributes attributes, Supplier<Uni<T>> work) {
         return Uni.createFrom().deferred(() -> {
@@ -162,8 +187,10 @@ public class Lifecycle {
     }
 
     /**
-     * Span com pai explícito que não fica ativo: o trabalho recebe o contexto do span, para levar o pai adiante, e o
-     * span termina com o {@code Uni}. O span de quem chama entra como link quando é de outro trace. Serve à publicação
+     * Span com pai explícito que não fica ativo: o trabalho recebe o contexto do
+     * span, para levar o pai adiante, e o
+     * span termina com o {@code Uni}. O span de quem chama entra como link quando é
+     * de outro trace. Serve à publicação
      * de cada evento da outbox, que continua o trace da requisição que o gravou.
      */
     public <T> Uni<T> linked(String name, Context parent, Attributes attributes, Function<Context, Uni<T>> work) {
@@ -185,10 +212,14 @@ public class Lifecycle {
     }
 
     /**
-     * Roda o trabalho num contexto Vert.x aninhado, despachado na mesma thread, com {@code traced} ativo só ali, e
-     * entrega o resultado no contexto de quem chama, onde também roda {@code done}. WHY: o cliente SQL lê o span ativo
-     * do contexto Vert.x, e um contexto só por requisição faria passagens em paralelo trocarem de pai e uma consulta
-     * anterior devolver o contexto OTel que tinha, apagando o da etapa. O contexto aninhado copia os locais (MDC,
+     * Roda o trabalho num contexto Vert.x aninhado, despachado na mesma thread, com
+     * {@code traced} ativo só ali, e
+     * entrega o resultado no contexto de quem chama, onde também roda {@code done}.
+     * WHY: o cliente SQL lê o span ativo
+     * do contexto Vert.x, e um contexto só por requisição faria passagens em
+     * paralelo trocarem de pai e uma consulta
+     * anterior devolver o contexto OTel que tinha, apagando o da etapa. O contexto
+     * aninhado copia os locais (MDC,
      * contexto CDI), então as chaves gravadas aqui chegam ao log da requisição.
      */
     private static <T> Uni<T> isolated(Context traced, Supplier<Uni<T>> work, Consumer<Throwable> done) {
@@ -253,7 +284,8 @@ public class Lifecycle {
     }
 
     /**
-     * Encerra o span. Recusa prevista (resposta 4xx) fica como resultado {@code refused}, com o tipo da exceção; só
+     * Encerra o span. Recusa prevista (resposta 4xx) fica como resultado
+     * {@code refused}, com o tipo da exceção; só
      * falha técnica grava a exceção e marca o span como erro.
      */
     private static void end(Span span, Throwable failure) {
@@ -268,7 +300,8 @@ public class Lifecycle {
     }
 
     /**
-     * WHY: as exceções de domínio e de aplicação, a validação e o corpo ilegível viram 4xx em {@code ProblemMappers};
+     * WHY: as exceções de domínio e de aplicação, a validação e o corpo ilegível
+     * viram 4xx em {@code ProblemMappers};
      * pintar o trace de erro a cada 409 ou 422 esconderia as falhas reais.
      */
     static boolean refusal(Throwable failure) {

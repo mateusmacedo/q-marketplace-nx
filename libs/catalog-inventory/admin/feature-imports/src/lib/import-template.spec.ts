@@ -12,7 +12,7 @@ describe('modelo CSV da importação', () => {
   it('tem só o cabeçalho exato que o servidor aceita, com quebra CRLF', () => {
     expect(templateCsv()).toBe(
       'product_ref,category_code,title,description,attributes,seller_sku,variant_attributes,physical,height_cm,' +
-        'width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand\r\n'
+      'width_cm,length_cm,weight_g,currency,list_price,sale_price,on_hand\r\n'
     );
   });
 

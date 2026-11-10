@@ -12,7 +12,10 @@ import java.util.function.Predicate;
 import org.awaitility.Awaitility;
 import static dev.marketplace.cataloginventory.Kafka.WAIT;
 
-/** Guarda os spans encerrados nos perfis com o OpenTelemetry ligado, para os testes conferirem atributos e pais. */
+/**
+ * Guarda os spans encerrados nos perfis com o OpenTelemetry ligado, para os
+ * testes conferirem atributos e pais.
+ */
 @Singleton
 public class RecordedSpans implements SpanProcessor {
     private final List<SpanData> ended = new CopyOnWriteArrayList<>();

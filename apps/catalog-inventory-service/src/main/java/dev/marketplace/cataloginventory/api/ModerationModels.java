@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-/** Contratos HTTP da moderação: motivo da decisão, catálogo de motivos do tenant e lote. */
+/**
+ * Contratos HTTP da moderação: motivo da decisão, catálogo de motivos do tenant
+ * e lote.
+ */
 public final class ModerationModels {
     private ModerationModels() {
     }
@@ -55,7 +58,8 @@ public final class ModerationModels {
 
     @Schema(description = "Motivo novo, ativo; sem position, entra no fim da lista")
     public record CreateModerationReasonRequest(
-            @Schema(description = "Código estável em kebab-case, só com letras; não muda depois") @NotBlank @Size(max = ModerationReasonDefinition.CODE_MAX_LENGTH) @Pattern(regexp = "^" + ModerationReasonDefinition.CODE_PATTERN + "$") String code,
+            @Schema(description = "Código estável em kebab-case, só com letras; não muda depois") @NotBlank @Size(max = ModerationReasonDefinition.CODE_MAX_LENGTH) @Pattern(regexp = "^"
+                    + ModerationReasonDefinition.CODE_PATTERN + "$") String code,
             @NotBlank @Size(max = ModerationReasonDefinition.LABEL_MAX_LENGTH) String label,
             @Schema(description = "REJECT, BLOCK ou as duas") @NotNull @Size(min = 1, max = 2) List<@NotNull ModerationDecision> decisions,
             @Schema(nullable = true) @Min(0) @Max(ModerationReasonEntry.MAX_POSITION) Integer position) {

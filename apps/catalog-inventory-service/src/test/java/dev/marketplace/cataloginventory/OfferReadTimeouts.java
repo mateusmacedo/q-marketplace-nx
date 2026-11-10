@@ -17,8 +17,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Leitura das ofertas de vários SKUs, a que monta a resposta de um produto, estourando o prazo nos tenants marcados,
- * com a mesma falha do prazo do {@code PgSupport}; os demais tenants e as outras operações seguem para o repositório.
+ * Leitura das ofertas de vários SKUs, a que monta a resposta de um produto,
+ * estourando o prazo nos tenants marcados,
+ * com a mesma falha do prazo do {@code PgSupport}; os demais tenants e as
+ * outras operações seguem para o repositório.
  */
 @Decorator
 @Priority(1)

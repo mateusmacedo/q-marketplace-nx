@@ -55,7 +55,8 @@ public class SellerVerdictConsumer {
     /**
      * Aplica o veredito KYB/KYC à situação da loja e só confirma a leitura no Kafka
      * depois do commit. Mensagem inválida vai direto para a fila de descarte; falha
-     * técnica é retentada com backoff (até {@code consumerRetries}) antes disso. Tipo
+     * técnica é retentada com backoff (até {@code consumerRetries}) antes disso.
+     * Tipo
      * de evento que o catálogo não usa é confirmado sem efeito, e a reentrega é
      * deduplicada pelo inbox. Correlação, tenant, loja e status vão para o span do
      * consumidor e o MDC, o resultado ({@code marketplace.kyb.outcome}) só para o

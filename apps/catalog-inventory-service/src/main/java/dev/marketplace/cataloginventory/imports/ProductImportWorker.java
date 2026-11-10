@@ -51,8 +51,7 @@ public class ProductImportWorker {
      * Falha é registrada; {@code concurrentExecution = SKIP} impede sobreposição
      * no pod.
      */
-    @Scheduled(identity = "product-import", every = "${catalog.imports.interval}", concurrentExecution = SKIP,
-            skipExecutionIf = ApplicationNotRunning.class)
+    @Scheduled(identity = "product-import", every = "${catalog.imports.interval}", concurrentExecution = SKIP, skipExecutionIf = ApplicationNotRunning.class)
     public Uni<Void> run() {
         return lifecycle.job(() -> imports.claimNext(config.imports().lease())
                 .flatMap(claimed -> claimed.map(this::process).orElseGet(() -> Uni.createFrom().voidItem()))
@@ -63,24 +62,27 @@ public class ProductImportWorker {
     }
 
     /**
-     * Processa o lote numa etapa própria da execução, com tenant, loja e lote no span e no MDC (ADR 021); o lote
-     * liga esta etapa à requisição que o enviou, que tem o mesmo {@code marketplace.import.id}. As linhas processadas
+     * Processa o lote numa etapa própria da execução, com tenant, loja e lote no
+     * span e no MDC (ADR 021); o lote
+     * liga esta etapa à requisição que o enviou, que tem o mesmo
+     * {@code marketplace.import.id}. As linhas processadas
      * nesta execução vão no atributo {@code marketplace.import.lines} da etapa.
      */
     private Uni<Void> process(ProductImportRepository.Claimed claimed) {
         ProductImport job = claimed.job();
         return lifecycle.step("product-import process", () -> {
-                    Telemetry.tag(Telemetry.TENANT, job.tenantId());
-                    Telemetry.tag(Telemetry.STORE, job.storeId());
-                    Telemetry.tag("marketplace.import.id", job.id());
-                    return lifecycle.nested(ProductCsv.class, "rows", () -> Offload.cpu(() -> ProductCsv.rows(claimed.content())))
-                            .flatMap(rows -> imports.process(job, rows))
-                            .invoke(results -> {
-                                count(claimed, results);
-                                Span.current().setAttribute("marketplace.import.lines", results.size());
-                            })
-                            .replaceWithVoid();
-                });
+            Telemetry.tag(Telemetry.TENANT, job.tenantId());
+            Telemetry.tag(Telemetry.STORE, job.storeId());
+            Telemetry.tag("marketplace.import.id", job.id());
+            return lifecycle
+                    .nested(ProductCsv.class, "rows", () -> Offload.cpu(() -> ProductCsv.rows(claimed.content())))
+                    .flatMap(rows -> imports.process(job, rows))
+                    .invoke(results -> {
+                        count(claimed, results);
+                        Span.current().setAttribute("marketplace.import.lines", results.size());
+                    })
+                    .replaceWithVoid();
+        });
     }
 
     private void count(ProductImportRepository.Claimed claimed, List<ImportResult> results) {

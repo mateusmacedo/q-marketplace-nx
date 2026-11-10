@@ -41,18 +41,23 @@ class StatsResourceTest {
                 .post("/moderation/products/" + blocked + "/block").then().statusCode(200);
         api.submit(api.createProduct(Api.sku("STA-E", "P", "50"))).then().statusCode(200);
 
-        JsonPath store = as(api.seller).queryParam("granularity", "day").get("/stats/store").then().statusCode(200)
+        JsonPath store = as(api.seller).queryParam("granularity", "day").get("/stats/store").then()
+                .statusCode(200)
                 .body("storeId", is(api.store.toString()))
-                .body("counts.active", is(1)).body("counts.outOfStock", is(1)).body("counts.draft", is(1))
+                .body("counts.active", is(1)).body("counts.outOfStock", is(1))
+                .body("counts.draft", is(1))
                 .body("counts.pendingModeration", is(1)).body("counts.blocked", is(1))
-                .body("counts.pausedBySeller", is(0)).body("counts.archived", is(0)).body("counts.total", is(5))
+                .body("counts.pausedBySeller", is(0)).body("counts.archived", is(0))
+                .body("counts.total", is(5))
                 .body("active.value", is(1)).body("draft.value", is(1)).body("blocked.value", is(1))
                 .body("outOfStock.value", is(1)).body("outOfStock.previous", nullValue())
                 .body("active.months", hasSize(7))
-                .body("active.months[6].month", is(LocalDate.now(SAO_PAULO).withDayOfMonth(1).toString()))
+                .body("active.months[6].month",
+                        is(LocalDate.now(SAO_PAULO).withDayOfMonth(1).toString()))
                 .body("active.months[6].value", is(2)).body("active.previous", nullValue())
                 .body("active.change", nullValue())
-                .body("activity.granularity", is("day")).body("activity.timeZone", is("America/Sao_Paulo"))
+                .body("activity.granularity", is("day"))
+                .body("activity.timeZone", is("America/Sao_Paulo"))
                 .body("activity.points", hasSize(30))
                 .body("activity.to", is(LocalDate.now(SAO_PAULO).toString()))
                 .extract().jsonPath();
@@ -87,7 +92,8 @@ class StatsResourceTest {
         as(api.seller).queryParam("granularity", "week").get("/stats/store").then().statusCode(400)
                 .body("type", endsWith("/invalid-request"));
         as(api.seller).queryParam("from", "2026-01-01").get("/stats/store").then().statusCode(400);
-        as(api.seller).queryParam("from", "2026-13-01").queryParam("to", "2026-12-01").get("/stats/store").then()
+        as(api.seller).queryParam("from", "2026-13-01").queryParam("to", "2026-12-01").get("/stats/store")
+                .then()
                 .statusCode(400);
         as(api.moderator).queryParam("granularity", "day").queryParam("from", "2025-01-01")
                 .queryParam("to", "2026-12-31").get("/stats/moderation").then().statusCode(400);
@@ -100,7 +106,8 @@ class StatsResourceTest {
                 new String[] { "day", "+999999999-12-31" }, new String[] { "year", "-5000-01-01" })) {
             as(api.seller).queryParam("granularity", period[0]).queryParam("from", period[1])
                     .queryParam("to", period[1]).get("/stats/store").then().statusCode(400)
-                    .body("type", endsWith("/invalid-request")).body("detail", containsString("9999-12-31"));
+                    .body("type", endsWith("/invalid-request"))
+                    .body("detail", containsString("9999-12-31"));
             as(api.moderator).queryParam("granularity", period[0]).queryParam("from", period[1])
                     .queryParam("to", period[1]).get("/stats/moderation").then().statusCode(400);
         }
@@ -116,10 +123,11 @@ class StatsResourceTest {
     void bucketsFollowSaoPauloTime() {
         Api api = new Api().withCategory();
         String product = api.draftProduct(Api.sku("FUSO-P", "P", "50"));
-        pool.preparedQuery("""
-                INSERT INTO product_status_change (id, product_id, tenant_id, store_id, transition, from_status, to_status,
-                                                   actor, note, reason_codes, reason_labels, occurred_at)
-                VALUES ($1, $2, $3, $4, 'SUBMIT', 'DRAFT', 'PENDING_MODERATION', 'teste', NULL, '{}', '[]', $5)""")
+        pool.preparedQuery(
+                """
+                        INSERT INTO product_status_change (id, product_id, tenant_id, store_id, transition, from_status, to_status,
+                                                           actor, note, reason_codes, reason_labels, occurred_at)
+                        VALUES ($1, $2, $3, $4, 'SUBMIT', 'DRAFT', 'PENDING_MODERATION', 'teste', NULL, '{}', '[]', $5)""")
                 .execute(Tuple.of(UUID.randomUUID(), UUID.fromString(product), api.tenant, api.store,
                         OffsetDateTime.parse("2020-12-01T02:00:00Z")))
                 .await().atMost(Duration.ofSeconds(20));

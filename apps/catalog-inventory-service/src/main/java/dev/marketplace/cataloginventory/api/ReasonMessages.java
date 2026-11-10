@@ -61,7 +61,8 @@ final class ReasonMessages {
         return reasons.stream().map(reason -> detail(reason, fallback)).toList();
     }
 
-    // WHY: o arquivo é lido como recurso comum, sem ResourceBundle.getBundle, porque a imagem nativa só embute
+    // WHY: o arquivo é lido como recurso comum, sem ResourceBundle.getBundle,
+    // porque a imagem nativa só embute
     // bundles registrados; o recurso entra por quarkus.native.resources.includes.
     private static ResourceBundle load() {
         try (InputStream in = ReasonMessages.class.getClassLoader().getResourceAsStream(BUNDLE)) {

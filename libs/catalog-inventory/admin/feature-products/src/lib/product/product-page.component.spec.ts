@@ -45,10 +45,10 @@ const DRAFT: ProductResponse = {
 };
 
 @Component({ template: '<p>Aba de conteúdo</p>' })
-class ContentStub {}
+class ContentStub { }
 
 @Component({ template: '<p>Aba de SKUs</p>' })
-class SkusStub {}
+class SkusStub { }
 
 class InertIntersectionObserver {
   observe(): void {

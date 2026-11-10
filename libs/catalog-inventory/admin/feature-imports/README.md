@@ -12,16 +12,16 @@ O fluxo é assíncrono: o envio aceito não significa que todas as linhas foram 
 
 A biblioteca é uma feature Angular standalone, identificada no Nx como `catalog-inventory-admin-feature-imports`, com export público de rotas por [`src/index.ts`](./src/index.ts). O projeto declara as tags `scope:catalog-inventory`, `layer:feature`, `framework:angular` e `lang:ts` em [`project.json`](./project.json).
 
-| Arquivo | Responsabilidade |
-|---|---|
-| [`lib.routes.ts`](./src/lib/lib.routes.ts) | Define as rotas locais da listagem e do detalhe, ambas carregadas sob demanda. |
-| [`imports-page.component.ts`](./src/lib/imports-page.component.ts) | Tela de entrada: download do modelo, seleção/envio do CSV, lote acompanhado, histórico e paginação do histórico. |
-| [`import-batch-page.component.ts`](./src/lib/import-batch-page.component.ts) | Página profunda de resultado; lê o `:id` da rota e apresenta o lote. |
-| [`import-batch.component.ts`](./src/lib/import-batch.component.ts) | Bloco reutilizado de acompanhamento: status, progresso, contagens, alertas e linhas. |
-| [`import-lines.component.ts`](./src/lib/import-lines.component.ts) | Tabela local das linhas processadas, filtro de falhas e paginação em memória. |
-| [`import-tracking.ts`](./src/lib/import-tracking.ts) | Cria os sinais de consulta, erro e carregamento e controla o polling de um lote. |
-| [`import-presentation.ts`](./src/lib/import-presentation.ts) | Centraliza rótulos/cores de status e resultado, progresso e apresentação das mensagens por linha. |
-| [`import-template.ts`](./src/lib/import-template.ts) | Gera e baixa o CSV de cabeçalho, sem linhas de dados. |
+| Arquivo                                                                      | Responsabilidade                                                                                                 |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [`lib.routes.ts`](./src/lib/lib.routes.ts)                                   | Define as rotas locais da listagem e do detalhe, ambas carregadas sob demanda.                                   |
+| [`imports-page.component.ts`](./src/lib/imports-page.component.ts)           | Tela de entrada: download do modelo, seleção/envio do CSV, lote acompanhado, histórico e paginação do histórico. |
+| [`import-batch-page.component.ts`](./src/lib/import-batch-page.component.ts) | Página profunda de resultado; lê o `:id` da rota e apresenta o lote.                                             |
+| [`import-batch.component.ts`](./src/lib/import-batch.component.ts)           | Bloco reutilizado de acompanhamento: status, progresso, contagens, alertas e linhas.                             |
+| [`import-lines.component.ts`](./src/lib/import-lines.component.ts)           | Tabela local das linhas processadas, filtro de falhas e paginação em memória.                                    |
+| [`import-tracking.ts`](./src/lib/import-tracking.ts)                         | Cria os sinais de consulta, erro e carregamento e controla o polling de um lote.                                 |
+| [`import-presentation.ts`](./src/lib/import-presentation.ts)                 | Centraliza rótulos/cores de status e resultado, progresso e apresentação das mensagens por linha.                |
+| [`import-template.ts`](./src/lib/import-template.ts)                         | Gera e baixa o CSV de cabeçalho, sem linhas de dados.                                                            |
 
 A feature consome os tipos e operações gerados em [`admin/data-access`](../data-access/src/generated/index.ts). O adaptador HTTP e as regras de aplicação ficam fora da UI: o endpoint está em [`ProductImportResource`](../../../../apps/catalog-inventory-service/src/main/java/dev/marketplace/cataloginventory/api/ProductImportResource.java), e o processamento por linha em [`ProductImportService`](../../../../libs/catalog-inventory/application/src/main/java/dev/marketplace/cataloginventory/application/ProductImportService.java), acionado pelo worker do serviço.
 
@@ -29,10 +29,10 @@ A feature consome os tipos e operações gerados em [`admin/data-access`](../dat
 
 O app administrativo registra `/loja/importacoes` por `loadChildren` e protege a área `/loja` com `capabilityGuard('MANAGE_OWN_PRODUCTS')` em [`app.routes.ts`](../../../../apps/admin-web/src/app/app.routes.ts). A biblioteca exporta as seguintes rotas:
 
-| URL | Tela | Comportamento |
-|---|---|---|
-| `/loja/importacoes` | Listagem e envio | Mantém `cursor` e `limit` da página do histórico nos query params. |
-| `/loja/importacoes/:id` | Resultado do lote | Consulta o lote pelo identificador da rota. |
+| URL                     | Tela              | Comportamento                                                      |
+| ----------------------- | ----------------- | ------------------------------------------------------------------ |
+| `/loja/importacoes`     | Listagem e envio  | Mantém `cursor` e `limit` da página do histórico nos query params. |
+| `/loja/importacoes/:id` | Resultado do lote | Consulta o lote pelo identificador da rota.                        |
 
 A rota local define títulos para a navegação e carrega cada página com `loadComponent`. A página de detalhe converte o `paramMap` da rota em um signal por `toSignal`; a listagem usa `queryParamMap` como fonte de `cursor` e `limit`. Avançar no histórico atualiza o cursor; alterar o tamanho da página limpa o cursor e faz navegação relativa com merge dos demais query params.
 
@@ -104,11 +104,11 @@ O recurso de listagem busca lotes da loja em ordem do mais recente para o mais a
 
 As operações são geradas a partir do contrato OpenAPI em `@marketplace/catalog-inventory-admin-data-access` e usam autenticação Bearer. O serviço também exige `MANAGE_OWN_PRODUCTS`; o escopo do seller/loja é aplicado no backend.
 
-| Operação | Contrato | Uso na feature |
-|---|---|---|
-| `POST /products/imports` | `Content-Type: text/csv`; corpo binário (`File`); HTTP 202 com `Location` apontando para o lote. Arquivo rejeitado: HTTP 400 `invalid-import-file`, com razões estruturadas. | Envio pelo formulário; ID do lote é obtido de `Location`. |
-| `GET /products/imports?cursor={cursor}&limit={limit}` | HTTP 200 com `{ items, nextCursor }`; itens de resumo não incluem linhas. Lotes são ordenados do mais recente ao mais antigo. O cursor é opaco; o limite do serviço deve estar entre 1 e 100. | Recurso Angular reativo ligado a query params da URL. |
-| `GET /products/imports/{id}` | HTTP 200 com ID, status, `totalLines`, `processedLines`, contagens, timestamps e resultados de linhas já processadas, em ordem; com `lines=false`, `lines` vem nulo e o servidor não lê as linhas. | Consulta inicial, polling e retry com `lines=false`; leitura final, com as linhas, no status terminal. |
+| Operação                                              | Contrato                                                                                                                                                                                           | Uso na feature                                                                                         |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `POST /products/imports`                              | `Content-Type: text/csv`; corpo binário (`File`); HTTP 202 com `Location` apontando para o lote. Arquivo rejeitado: HTTP 400 `invalid-import-file`, com razões estruturadas.                       | Envio pelo formulário; ID do lote é obtido de `Location`.                                              |
+| `GET /products/imports?cursor={cursor}&limit={limit}` | HTTP 200 com `{ items, nextCursor }`; itens de resumo não incluem linhas. Lotes são ordenados do mais recente ao mais antigo. O cursor é opaco; o limite do serviço deve estar entre 1 e 100.      | Recurso Angular reativo ligado a query params da URL.                                                  |
+| `GET /products/imports/{id}`                          | HTTP 200 com ID, status, `totalLines`, `processedLines`, contagens, timestamps e resultados de linhas já processadas, em ordem; com `lines=false`, `lines` vem nulo e o servidor não lê as linhas. | Consulta inicial, polling e retry com `lines=false`; leitura final, com as linhas, no status terminal. |
 
 `ImportSummaryResponse` alimenta o histórico e `ImportResponse` o detalhe/acompanhamento. Os resultados de linha carregam `lineNumber`, `sellerSku`, `outcome`, `productId` opcional e dados de recusa (`code`, `message`, `reasonDetails`). A interface compara `processedLines` e `totalLines` recebidos para exibir o progresso; `processedLines` representa as linhas que já têm resultado.
 

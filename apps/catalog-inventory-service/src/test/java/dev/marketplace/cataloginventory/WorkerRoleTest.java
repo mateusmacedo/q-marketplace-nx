@@ -14,8 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * O papel worker (ADR 020) roda as tarefas agendadas sem a porta HTTP de negócio, com o papel real sobre o perfil de
- * teste; os intervalos ganham valor aqui porque o perfil de teste desliga a maioria delas, e uma hora deixa cada
+ * O papel worker (ADR 020) roda as tarefas agendadas sem a porta HTTP de
+ * negócio, com o papel real sobre o perfil de
+ * teste; os intervalos ganham valor aqui porque o perfil de teste desliga a
+ * maioria delas, e uma hora deixa cada
  * tarefa com um único disparo, o primeiro, durante o teste.
  */
 @QuarkusTest

@@ -297,7 +297,10 @@ public final class ProductModels {
         return p.skus().stream().map(s -> stock.get(s.id())).anyMatch(level -> level != null && level.available() > 0);
     }
 
-    /** Estado efetivo do produto com o saldo lido, ou o gravado quando o saldo não pôde ser lido. */
+    /**
+     * Estado efetivo do produto com o saldo lido, ou o gravado quando o saldo não
+     * pôde ser lido.
+     */
     static ProductStatus shownStatus(Product p, Optional<Map<UUID, StockLevel>> stock) {
         return stock.map(levels -> p.effectiveStatus(anyAvailable(p, levels))).orElse(p.status());
     }

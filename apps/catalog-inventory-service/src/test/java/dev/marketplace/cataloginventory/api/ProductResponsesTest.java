@@ -23,7 +23,10 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** Resposta do lote de produtos quando a leitura do saldo, feita depois das gravações, falha ou funciona. */
+/**
+ * Resposta do lote de produtos quando a leitura do saldo, feita depois das
+ * gravações, falha ou funciona.
+ */
 class ProductResponsesTest {
     static final UUID TENANT = UUID.randomUUID();
     static final UUID STORE = UUID.randomUUID();

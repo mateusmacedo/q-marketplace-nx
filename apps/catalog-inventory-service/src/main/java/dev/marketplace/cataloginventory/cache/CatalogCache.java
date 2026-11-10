@@ -24,10 +24,15 @@ import java.util.UUID;
 import org.jboss.logging.Logger;
 
 /**
- * Redis do cache da vitrine, da taxonomia e dos motivos de moderação (ADR 024): conteúdo carimbado com as gerações
- * lidas antes da carga do banco, geração incrementada a cada escrita confirmada. Leitura fora do prazo vira {@link Lookup#BYPASS}, e a gravação sem
- * espera ({@link #detach}) que falha é ignorada; a invalidação tem prazo próprio e nova tentativa, e só a segunda falha
- * vai a log {@code WARN}. Nenhuma falha propaga; cada método é um span ({@link Traced}).
+ * Redis do cache da vitrine, da taxonomia e dos motivos de moderação (ADR 024):
+ * conteúdo carimbado com as gerações
+ * lidas antes da carga do banco, geração incrementada a cada escrita
+ * confirmada. Leitura fora do prazo vira {@link Lookup#BYPASS}, e a gravação
+ * sem
+ * espera ({@link #detach}) que falha é ignorada; a invalidação tem prazo
+ * próprio e nova tentativa, e só a segunda falha
+ * vai a log {@code WARN}. Nenhuma falha propaga; cada método é um span
+ * ({@link Traced}).
  */
 @ApplicationScoped
 @Startup
@@ -43,8 +48,10 @@ public class CatalogCache {
     private static final AttributeKey<String> CACHE = AttributeKey.stringKey("marketplace.cache.name");
     private static final AttributeKey<String> RESULT = AttributeKey.stringKey("marketplace.cache.result");
 
-    // WHY: a geração ausente (expirada ou removida por memória) recomeça pelo relógio do Redis, nunca por 1; assim um
-    // conteúdo carimbado com uma geração antiga não volta a valer. A loja vem do mapa produto→loja, então a chave da
+    // WHY: a geração ausente (expirada ou removida por memória) recomeça pelo
+    // relógio do Redis, nunca por 1; assim um
+    // conteúdo carimbado com uma geração antiga não volta a valer. A loja vem do
+    // mapa produto→loja, então a chave da
     // geração dela só existe dentro do script: por isso o no-cluster (ADR 024).
     static final Script READ = new Script("""
             #!lua flags=no-cluster
@@ -70,7 +77,8 @@ public class CatalogCache {
             return {'miss', stamp}
             """);
 
-    // WHY: INCR criaria a geração ausente com 1, valor que um conteúdo antigo pode carregar; ausente, a próxima
+    // WHY: INCR criaria a geração ausente com 1, valor que um conteúdo antigo pode
+    // carregar; ausente, a próxima
     // leitura já recomeça a geração pelo relógio, então não há o que incrementar.
     static final Script INVALIDATE = new Script("""
             #!lua flags=no-cluster
@@ -97,8 +105,10 @@ public class CatalogCache {
     }
 
     /**
-     * Resultado de uma leitura. {@code HIT} traz o conteúdo; {@code MISS} traz o carimbo das gerações lidas antes da
-     * carga, que acompanha a gravação; {@code UNMAPPED} indica a vitrine sem o mapa produto→loja, que a carga grava sem
+     * Resultado de uma leitura. {@code HIT} traz o conteúdo; {@code MISS} traz o
+     * carimbo das gerações lidas antes da
+     * carga, que acompanha a gravação; {@code UNMAPPED} indica a vitrine sem o mapa
+     * produto→loja, que a carga grava sem
      * guardar o conteúdo; {@code BYPASS} indica o Redis indisponível ou lento.
      */
     public record Lookup(Result result, String content) {
@@ -119,11 +129,14 @@ public class CatalogCache {
     private final MeterRegistry registry;
 
     /**
-     * Desligado, não resolve o cliente Redis, que fica inativo sem {@code quarkus.redis.hosts}; ligado sem o cliente
+     * Desligado, não resolve o cliente Redis, que fica inativo sem
+     * {@code quarkus.redis.hosts}; ligado sem o cliente
      * ativo, a inicialização falha com o motivo dado pelo Quarkus.
      */
-    // WHY: o cliente de baixo nível, e não o ReactiveRedisDataSource: no Quarkus 3.40.1.1, o datasource faz a extensão
-    // criar o cliente duas vezes, e o segundo pool registra de novo o gauge redis.pool.queue.size (ADR 024).
+    // WHY: o cliente de baixo nível, e não o ReactiveRedisDataSource: no Quarkus
+    // 3.40.1.1, o datasource faz a extensão
+    // criar o cliente duas vezes, e o segundo pool registra de novo o gauge
+    // redis.pool.queue.size (ADR 024).
     CatalogCache(CatalogConfig config, InjectableInstance<Redis> redis, MeterRegistry registry) {
         CatalogConfig.Cache settings = config.cache();
         this.enabled = settings.enabled();
@@ -143,16 +156,23 @@ public class CatalogCache {
             }
     }
 
-    /** Indica se o cache está ligado ({@code catalog.cache.enabled}); desligado, os métodos não falam com o Redis. */
+    /**
+     * Indica se o cache está ligado ({@code catalog.cache.enabled}); desligado, os
+     * métodos não falam com o Redis.
+     */
     public boolean enabled() {
         return enabled;
     }
 
     /**
-     * Lê o conteúdo de {@code valueKey} e o aceita só se o carimbo dele bater com as gerações atuais: a de
-     * {@code generationKey} e, com {@code ownerKey}, a da loja cujo id está em {@code ownerKey}, no prefixo
-     * {@code ownerGenerationPrefix}. Geração ausente é criada nesta leitura. Conta o resultado em
-     * {@code catalog.cache.requests} e nunca falha; desligado, devolve {@code BYPASS} sem contar.
+     * Lê o conteúdo de {@code valueKey} e o aceita só se o carimbo dele bater com
+     * as gerações atuais: a de
+     * {@code generationKey} e, com {@code ownerKey}, a da loja cujo id está em
+     * {@code ownerKey}, no prefixo
+     * {@code ownerGenerationPrefix}. Geração ausente é criada nesta leitura. Conta
+     * o resultado em
+     * {@code catalog.cache.requests} e nunca falha; desligado, devolve
+     * {@code BYPASS} sem contar.
      */
     public Uni<Lookup> read(String cache, String valueKey, String generationKey, String ownerKey,
             String ownerGenerationPrefix) {
@@ -176,8 +196,10 @@ public class CatalogCache {
     }
 
     /**
-     * Guarda {@code content} em {@code valueKey} com o carimbo de um {@code MISS} e a validade
-     * {@code catalog.cache.ttl}, contando o resultado em {@code catalog.cache.writes}. Falha, inclusive o prazo, é
+     * Guarda {@code content} em {@code valueKey} com o carimbo de um {@code MISS} e
+     * a validade
+     * {@code catalog.cache.ttl}, contando o resultado em
+     * {@code catalog.cache.writes}. Falha, inclusive o prazo, é
      * ignorada: a próxima leitura só volta ao banco.
      */
     public Uni<Void> write(String cache, String valueKey, String stamp, String content) {
@@ -191,15 +213,19 @@ public class CatalogCache {
     }
 
     /**
-     * Assina a gravação sem esperar por ela: a resposta da falta não espera o {@code SET}. O span dela nasce aqui,
-     * filho do ativo, e pode terminar depois da resposta; o carimbo impede que um retrato gravado tarde valha.
+     * Assina a gravação sem esperar por ela: a resposta da falta não espera o
+     * {@code SET}. O span dela nasce aqui,
+     * filho do ativo, e pode terminar depois da resposta; o carimbo impede que um
+     * retrato gravado tarde valha.
      */
     static void detach(Uni<Void> write) {
         write.subscribe().with(done -> {
         }, failure -> LOG.debugf(failure, "Gravação no cache ignorada"));
     }
 
-    /** Guarda o mapa produto→loja de uma leitura {@code UNMAPPED}; falha é ignorada. */
+    /**
+     * Guarda o mapa produto→loja de uma leitura {@code UNMAPPED}; falha é ignorada.
+     */
     public Uni<Void> remember(UUID tenantId, UUID productId, UUID storeId) {
         Span span = Span.current().setAttribute(CACHE, STOREFRONT);
         return command(Command.SET, CacheKeys.productStore(tenantId, productId), storeId.toString(), "PX",
@@ -208,25 +234,36 @@ public class CatalogCache {
     }
 
     /**
-     * Invalida a vitrine do produto depois de uma escrita no produto ou numa oferta dele, e renova o mapa
-     * produto→loja. Desligado, não faz nada; falha fica em log e em {@code catalog.cache.invalidations}.
+     * Invalida a vitrine do produto depois de uma escrita no produto ou numa oferta
+     * dele, e renova o mapa
+     * produto→loja. Desligado, não faz nada; falha fica em log e em
+     * {@code catalog.cache.invalidations}.
      */
     public Uni<Void> productChanged(UUID tenantId, UUID productId, UUID storeId) {
         return invalidate(STOREFRONT, CacheKeys.productGeneration(tenantId, productId),
                 CacheKeys.productStore(tenantId, productId), storeId.toString());
     }
 
-    /** Invalida a vitrine de todos os produtos da loja depois de um veredito KYB/KYC aplicado. */
+    /**
+     * Invalida a vitrine de todos os produtos da loja depois de um veredito KYB/KYC
+     * aplicado.
+     */
     public Uni<Void> storeChanged(UUID tenantId, UUID storeId) {
         return invalidate(STOREFRONT, CacheKeys.storeGeneration(tenantId, storeId), null, null);
     }
 
-    /** Invalida a taxonomia do tenant depois de criar, revisar ou mover uma categoria. */
+    /**
+     * Invalida a taxonomia do tenant depois de criar, revisar ou mover uma
+     * categoria.
+     */
     public Uni<Void> taxonomyChanged(UUID tenantId) {
         return invalidate(TAXONOMY, CacheKeys.taxonomyGeneration(tenantId), null, null);
     }
 
-    /** Invalida o catálogo de motivos de moderação do tenant depois de criar, revisar, ativar ou desativar um motivo. */
+    /**
+     * Invalida o catálogo de motivos de moderação do tenant depois de criar,
+     * revisar, ativar ou desativar um motivo.
+     */
     public Uni<Void> moderationReasonsChanged(UUID tenantId) {
         return invalidate(MODERATION_REASONS, CacheKeys.moderationReasonsGeneration(tenantId), null, null);
     }
@@ -237,7 +274,8 @@ public class CatalogCache {
         Span span = Span.current().setAttribute(CACHE, cache);
         List<String> keys = ownerKey == null ? List.of(generationKey) : List.of(generationKey, ownerKey);
         List<String> args = ownerKey == null ? List.of() : List.of(owner, generationTtl);
-        // WHY: o script só incrementa e renova o mapa, então repetir depois de um prazo estourado no meio do caminho
+        // WHY: o script só incrementa e renova o mapa, então repetir depois de um prazo
+        // estourado no meio do caminho
         // apenas invalida de novo.
         return run(INVALIDATE, keys, args, invalidationTimeout)
                 .onFailure().recoverWithUni(first -> {
@@ -247,8 +285,10 @@ public class CatalogCache {
                 })
                 .invoke(bumped -> invalidations(cache, "ok").increment()).replaceWithVoid()
                 .onFailure().recoverWithItem(failure -> {
-                    // WHY: a escrita no banco segue valendo, e o conteúdo anterior fica no ar até catalog.cache.ttl;
-                    // sem a pilha, porque com o Redis fora toda escrita cai aqui (a exceção vai ao span).
+                    // WHY: a escrita no banco segue valendo, e o conteúdo anterior fica no ar até
+                    // catalog.cache.ttl;
+                    // sem a pilha, porque com o Redis fora toda escrita cai aqui (a exceção vai ao
+                    // span).
                     LOG.warnf("Falha ao invalidar o cache %s (%s): %s; o conteúdo anterior vale até expirar", cache,
                             generationKey, failure.toString());
                     span.recordException(failure);
@@ -280,7 +320,10 @@ public class CatalogCache {
         return request;
     }
 
-    /** WHY: o Redis esquece os scripts ao reiniciar; o EVAL devolve o script ao cache dele para os próximos EVALSHA. */
+    /**
+     * WHY: o Redis esquece os scripts ao reiniciar; o EVAL devolve o script ao
+     * cache dele para os próximos EVALSHA.
+     */
     private static boolean missingScript(Throwable failure) {
         return failure.getMessage() != null && failure.getMessage().startsWith("NOSCRIPT");
     }
@@ -297,7 +340,8 @@ public class CatalogCache {
 
     private Uni<Void> ignored(String cache, Span span, Throwable failure) {
         LOG.debugf(failure, "Gravação no cache %s ignorada", cache);
-        // WHY: sem status de erro; é falha tolerada, a resposta já saiu do banco, e o trace não deve ficar vermelho.
+        // WHY: sem status de erro; é falha tolerada, a resposta já saiu do banco, e o
+        // trace não deve ficar vermelho.
         span.recordException(failure).setAttribute(RESULT, "failed");
         return Uni.createFrom().voidItem();
     }
@@ -308,7 +352,8 @@ public class CatalogCache {
     }
 
     private Counter writes(String cache, String result) {
-        return Counter.builder(WRITES).description("Gravações do cache depois de uma falta, por resultado (ok ou failed)")
+        return Counter.builder(WRITES)
+                .description("Gravações do cache depois de uma falta, por resultado (ok ou failed)")
                 .tags("cache", cache, "result", result).register(registry);
     }
 

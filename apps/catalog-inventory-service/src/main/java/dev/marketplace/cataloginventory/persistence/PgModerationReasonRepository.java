@@ -24,7 +24,8 @@ public class PgModerationReasonRepository implements ModerationReasonRepository 
             + " version, created_at, updated_at";
     private static final String CATALOG = "SELECT " + COLUMNS
             + " FROM moderation_reason WHERE tenant_id = $1 ORDER BY position, code";
-    private static final String BY_CODE = "SELECT " + COLUMNS + " FROM moderation_reason WHERE tenant_id = $1 AND code = $2";
+    private static final String BY_CODE = "SELECT " + COLUMNS
+            + " FROM moderation_reason WHERE tenant_id = $1 AND code = $2";
     private static final String INSERT = "INSERT INTO moderation_reason (" + COLUMNS
             + ") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
     private static final String UPDATE = """
@@ -57,13 +58,15 @@ public class PgModerationReasonRepository implements ModerationReasonRepository 
     public Uni<Void> insert(ModerationReasonEntry r) {
         ModerationReasonDefinition d = r.definition();
         Tuple values = Tuple.tuple().addUUID(r.tenantId()).addString(d.code()).addString(d.label())
-                .addBoolean(d.appliesTo(ProductTransition.REJECT)).addBoolean(d.appliesTo(ProductTransition.BLOCK))
+                .addBoolean(d.appliesTo(ProductTransition.REJECT))
+                .addBoolean(d.appliesTo(ProductTransition.BLOCK))
                 .addInteger(r.position()).addBoolean(d.active()).addLong(r.version())
                 .addValue(PgSupport.utc(r.createdAt())).addValue(PgSupport.utc(r.updatedAt()));
         return pg.bounded(pool.preparedQuery(INSERT).execute(values))
                 .onFailure().transform(e -> PgSupport.unique(e, "moderation_reason_tenant_code_pk",
                         "duplicate-moderation-reason-code",
-                        "Já existe motivo de moderação com o código " + d.code() + " neste tenant"))
+                        "Já existe motivo de moderação com o código " + d.code()
+                                + " neste tenant"))
                 .replaceWithVoid();
     }
 
@@ -71,7 +74,8 @@ public class PgModerationReasonRepository implements ModerationReasonRepository 
     public Uni<Void> update(ModerationReasonEntry r, long expectedVersion) {
         ModerationReasonDefinition d = r.definition();
         Tuple values = Tuple.tuple().addUUID(r.tenantId()).addString(d.code()).addString(d.label())
-                .addBoolean(d.appliesTo(ProductTransition.REJECT)).addBoolean(d.appliesTo(ProductTransition.BLOCK))
+                .addBoolean(d.appliesTo(ProductTransition.REJECT))
+                .addBoolean(d.appliesTo(ProductTransition.BLOCK))
                 .addInteger(r.position()).addBoolean(d.active()).addLong(r.version())
                 .addValue(PgSupport.utc(r.updatedAt())).addLong(expectedVersion);
         return pg.bounded(pool.preparedQuery(UPDATE).execute(values))
@@ -88,7 +92,8 @@ public class PgModerationReasonRepository implements ModerationReasonRepository 
         return new ModerationReasonEntry(r.getUUID("tenant_id"),
                 new ModerationReasonDefinition(r.getString("code"), r.getString("label"), decisions,
                         r.getBoolean("active")),
-                r.getInteger("position"), r.getLong("version"), PgSupport.instant(r.getOffsetDateTime("created_at")),
+                r.getInteger("position"), r.getLong("version"),
+                PgSupport.instant(r.getOffsetDateTime("created_at")),
                 PgSupport.instant(r.getOffsetDateTime("updated_at")));
     }
 }

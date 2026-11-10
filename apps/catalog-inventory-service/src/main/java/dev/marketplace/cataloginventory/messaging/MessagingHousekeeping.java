@@ -37,11 +37,11 @@ public class MessagingHousekeeping {
     /**
      * Remove os eventos publicados e as entregas consumidas fora da retenção, em
      * lotes repetidos enquanto vêm cheios, até {@code purgeMaxDuration} somando as
-     * duas tabelas. O total removido vai no atributo {@code marketplace.purge.removed}
+     * duas tabelas. O total removido vai no atributo
+     * {@code marketplace.purge.removed}
      * do span da execução. Falha é registrada e a execução seguinte tenta de novo.
      */
-    @Scheduled(identity = "messaging-purge", every = "${catalog.events.purge-interval}", concurrentExecution = SKIP,
-            skipExecutionIf = ApplicationNotRunning.class)
+    @Scheduled(identity = "messaging-purge", every = "${catalog.events.purge-interval}", concurrentExecution = SKIP, skipExecutionIf = ApplicationNotRunning.class)
     public Uni<Void> purge() {
         Instant now = clock.instant();
         Span job = Span.current();

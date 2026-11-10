@@ -93,7 +93,8 @@ public final class StatsModels {
     }
 
     @Schema(description = "Tamanho atual da fila de moderação, sem histórico")
-    public record ModerationQueueResponse(@Schema(description = "Produtos em PENDING_MODERATION no tenant") long count) {
+    public record ModerationQueueResponse(
+            @Schema(description = "Produtos em PENDING_MODERATION no tenant") long count) {
     }
 
     public record CategoryStatsResponse(long total, @Schema(description = "Categorias sem pai") long roots,

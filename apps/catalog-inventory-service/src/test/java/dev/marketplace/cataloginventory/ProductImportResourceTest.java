@@ -49,13 +49,15 @@ class ProductImportResourceTest {
     JsonPath processed(String token, String location) {
         await().atMost(Duration.ofSeconds(60)).until(() -> {
             worker.run().await().atMost(Duration.ofSeconds(30));
-            return "COMPLETED".equals(as(token).get(location).then().statusCode(200).extract().path("status"));
+            return "COMPLETED".equals(
+                    as(token).get(location).then().statusCode(200).extract().path("status"));
         });
         return as(token).get(location).then().statusCode(200).extract().jsonPath();
     }
 
     long events(Api api, String eventType) {
-        return scalar(pool, "SELECT count(*) AS n FROM outbox_event WHERE tenant_id = $1 AND event_type = $2", "n",
+        return scalar(pool, "SELECT count(*) AS n FROM outbox_event WHERE tenant_id = $1 AND event_type = $2",
+                "n",
                 Long.class, api.tenant, eventType);
     }
 
@@ -68,7 +70,8 @@ class ProductImportResourceTest {
         String location = upload(api.seller, HEADER + "\n"
                 + line("basica", "IMP-P", "P", "79.90", "59.90", 5) + "\n"
                 + line("basica", "IMP-M", "M", "", "59.90", 0) + "\n"
-                + line("ignorada", "CAM-G", "P", "120.00", "65.00", 8).replace(",true,", ",talvez,") + "\n"
+                + line("ignorada", "CAM-G", "P", "120.00", "65.00", 8).replace(",true,", ",talvez,")
+                + "\n"
                 + "outra,camisetas,Regata,,marca=Acme,REG-P,tamanho=P,true,3,25,30,200,BRL,,abc,1\n");
 
         JsonPath result = processed(api.seller, location);
@@ -76,7 +79,8 @@ class ProductImportResourceTest {
         assertEquals(List.of(2, 3, 4, 5), result.getList("lines.lineNumber"));
         assertEquals("invalid-row", result.getString("lines[3].code"));
         assertEquals("invalid-row", result.getString("lines[3].reasonDetails[0].code"));
-        assertEquals(result.getString("lines[3].message"), result.getString("lines[3].reasonDetails[0].message"));
+        assertEquals(result.getString("lines[3].message"),
+                result.getString("lines[3].reasonDetails[0].message"));
         assertNull(result.get("lines[0].reasonDetails"));
         assertEquals(4, result.getInt("totalLines"));
         assertEquals(4, result.getInt("processedLines"));
@@ -87,7 +91,8 @@ class ProductImportResourceTest {
         assertEquals(existing, result.getString("lines[2].productId"));
         as(api.seller).queryParam("lines", false).get(location).then().statusCode(200)
                 .body("status", is("COMPLETED")).body("totalLines", is(4)).body("processedLines", is(4))
-                .body("counts.created", is(2)).body("counts.updated", is(1)).body("counts.unchanged", is(0))
+                .body("counts.created", is(2)).body("counts.updated", is(1))
+                .body("counts.unchanged", is(0))
                 .body("counts.failed", is(1)).body("finishedAt", is(result.getString("finishedAt")))
                 .body("$", hasKey("lines")).body("lines", nullValue());
 
@@ -100,7 +105,8 @@ class ProductImportResourceTest {
         as(api.seller).get("/offers/" + p).then().statusCode(200).body("price.listPrice.amount", is(79.90f))
                 .body("price.salePrice.amount", is(59.90f));
         as(api.seller).get("/inventory/skus/" + p).then().statusCode(200).body("onHand", is(5));
-        as(api.seller).get("/offers/" + existingSku).then().statusCode(200).body("price.salePrice.amount", is(65.00f));
+        as(api.seller).get("/offers/" + existingSku).then().statusCode(200).body("price.salePrice.amount",
+                is(65.00f));
         as(api.seller).get("/inventory/skus/" + existingSku).then().statusCode(200).body("onHand", is(8));
 
         assertEquals(2, events(api, "ProductCreated"));
@@ -121,7 +127,8 @@ class ProductImportResourceTest {
         csv(api.seller, HEADER + "\n").post("/products/imports").then().statusCode(400)
                 .body("reasons", contains("no-rows"));
         given().auth().oauth2(api.seller).contentType("text/csv").body(new byte[] { 'a', (byte) 0xC3, 0x28 })
-                .post("/products/imports").then().statusCode(400).body("reasons", contains("invalid-encoding"));
+                .post("/products/imports").then().statusCode(400)
+                .body("reasons", contains("invalid-encoding"));
     }
 
     @Test
@@ -139,7 +146,8 @@ class ProductImportResourceTest {
         assertEquals(List.of(Api.idFrom(third), Api.idFrom(second)), page.getList("items.id"));
         assertNull(page.get("items[0].lines"));
         String cursor = page.getString("nextCursor");
-        JsonPath last = as(api.seller).queryParam("limit", 2).queryParam("cursor", cursor).get("/products/imports")
+        JsonPath last = as(api.seller).queryParam("limit", 2).queryParam("cursor", cursor)
+                .get("/products/imports")
                 .then().statusCode(200).body("nextCursor", nullValue()).extract().jsonPath();
         assertEquals(List.of(Api.idFrom(first)), last.getList("items.id"));
         assertEquals("COMPLETED", last.getString("items[0].status"));
@@ -162,7 +170,8 @@ class ProductImportResourceTest {
         as(api.otherStoreSeller()).queryParam("lines", false).get(location).then().statusCode(404);
         as(api.otherTenantSeller()).get(location).then().statusCode(404);
         as(api.admin).get(location).then().statusCode(403);
-        as(api.seller).queryParam("lines", false).get(location).then().statusCode(200).body("status", is("PENDING"))
+        as(api.seller).queryParam("lines", false).get(location).then().statusCode(200)
+                .body("status", is("PENDING"))
                 .body("processedLines", is(0)).body("counts.created", is(0)).body("lines", nullValue());
         as(api.seller).queryParam("lines", true).get(location).then().statusCode(200).body("lines", empty());
         csv(api.admin, HEADER + "\n" + line("x", "X-1", "P", "", "10", 1)).post("/products/imports").then()

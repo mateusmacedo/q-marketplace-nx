@@ -31,8 +31,8 @@ describe('série de atividade da página inicial', () => {
 
     expect(csv).toBe(
       'Período,Enviados à moderação,Aprovados,Rejeitados,Bloqueados\r\n' +
-        '2026-10-01,3,2,1,0\r\n' +
-        '2026-11-01,0,4,0,0\r\n'
+      '2026-10-01,3,2,1,0\r\n' +
+      '2026-11-01,0,4,0,0\r\n'
     );
   });
 

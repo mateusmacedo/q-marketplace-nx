@@ -34,8 +34,10 @@ import static dev.marketplace.cataloginventory.security.Capabilities.MANAGE_MODE
 import static dev.marketplace.cataloginventory.security.Capabilities.MODERATE_PRODUCTS;
 
 /**
- * Catálogo de motivos de rejeição e bloqueio do tenant: o moderador lê os ativos, e o {@code catalog-admin} mantém o
- * catálogo. Sem exclusão, porque o código fica no histórico e nos eventos; desativar tira o motivo das decisões novas.
+ * Catálogo de motivos de rejeição e bloqueio do tenant: o moderador lê os
+ * ativos, e o {@code catalog-admin} mantém o
+ * catálogo. Sem exclusão, porque o código fica no histórico e nos eventos;
+ * desativar tira o motivo das decisões novas.
  */
 @Path("/moderation/reasons")
 @Produces(MediaType.APPLICATION_JSON)
@@ -54,8 +56,10 @@ public class ModerationReasonResource {
     }
 
     /**
-     * Motivos do tenant na ordem de exibição. O moderador recebe os ativos; {@code includeInactive=true} é só para
-     * quem administra o catálogo (403 aos demais). {@code decision} malformado responde 400.
+     * Motivos do tenant na ordem de exibição. O moderador recebe os ativos;
+     * {@code includeInactive=true} é só para
+     * quem administra o catálogo (403 aos demais). {@code decision} malformado
+     * responde 400.
      */
     @GET
     @PermissionsAllowed({ MODERATE_PRODUCTS, MANAGE_MODERATION_REASONS })
@@ -71,7 +75,10 @@ public class ModerationReasonResource {
                 .map(found -> found.stream().map(ModerationReasonResponse::of).toList());
     }
 
-    /** Devolve o motivo, ativo ou não, com o ETag da versão; 404 se não existe no tenant. */
+    /**
+     * Devolve o motivo, ativo ou não, com o ETag da versão; 404 se não existe no
+     * tenant.
+     */
     @GET
     @Path("/{code}")
     @PermissionsAllowed(MANAGE_MODERATION_REASONS)
@@ -82,8 +89,10 @@ public class ModerationReasonResource {
     }
 
     /**
-     * Cria o motivo ativo e responde 201 com {@code Location} e ETag. Código já usado no tenant: 409
-     * {@code duplicate-moderation-reason-code}; decisão que não leva motivo, teto de ativos ou do catálogo: 422.
+     * Cria o motivo ativo e responde 201 com {@code Location} e ETag. Código já
+     * usado no tenant: 409
+     * {@code duplicate-moderation-reason-code}; decisão que não leva motivo, teto
+     * de ativos ou do catálogo: 422.
      */
     @POST
     @PermissionsAllowed(MANAGE_MODERATION_REASONS)
@@ -102,7 +111,8 @@ public class ModerationReasonResource {
     }
 
     /**
-     * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu. O código e a situação não mudam; as decisões
+     * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu. O código e
+     * a situação não mudam; as decisões
      * passadas guardam o rótulo da época.
      */
     @PUT
@@ -117,7 +127,8 @@ public class ModerationReasonResource {
     }
 
     /**
-     * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu; já ativo, não grava nada. Com o máximo de
+     * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu; já ativo,
+     * não grava nada. Com o máximo de
      * motivos ativos: 422 {@code moderation-reason-limit}.
      */
     @POST
@@ -133,8 +144,10 @@ public class ModerationReasonResource {
     }
 
     /**
-     * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu; já inativo, não grava nada. O motivo inativo
-     * some da lista do moderador e é recusado nas decisões novas com {@code reason-inactive}.
+     * Exige {@code If-Match}: 428 se ausente e 412 se a versão divergiu; já
+     * inativo, não grava nada. O motivo inativo
+     * some da lista do moderador e é recusado nas decisões novas com
+     * {@code reason-inactive}.
      */
     @POST
     @Path("/{code}/deactivate")

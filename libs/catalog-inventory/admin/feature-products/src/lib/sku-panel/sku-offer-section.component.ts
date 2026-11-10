@@ -478,8 +478,8 @@ export class SkuOfferSectionComponent {
       const unmatched =
         problem.status === 400
           ? applyServerErrors(this.priceForm, problem, {
-              fields: { 'salePrice.amount': 'salePrice', 'listPrice.amount': 'listPrice' }
-            })
+            fields: { 'salePrice.amount': 'salePrice', 'listPrice.amount': 'listPrice' }
+          })
           : (problem.errors ?? []);
       this.priceProblem.set({ ...problem, errors: unmatched });
     } finally {

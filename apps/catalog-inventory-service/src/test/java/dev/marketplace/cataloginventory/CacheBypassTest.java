@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Com o Redis fora do ar (ADR 024), a vitrine e a taxonomia respondem do banco e contam o desvio, e as escritas seguem
+ * Com o Redis fora do ar (ADR 024), a vitrine e a taxonomia respondem do banco
+ * e contam o desvio, e as escritas seguem
  * confirmadas, contando a invalidação perdida.
  */
 @QuarkusTest
@@ -24,7 +25,8 @@ class CacheBypassTest {
     public static class RedisDown implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {
-            // WHY: com hosts configurado, os Dev Services não sobem Redis; ninguém escuta na porta 1.
+            // WHY: com hosts configurado, os Dev Services não sobem Redis; ninguém escuta
+            // na porta 1.
             return Map.of("quarkus.redis.hosts", "redis://127.0.0.1:1");
         }
     }

@@ -322,16 +322,16 @@ export class AddSkuOffcanvasComponent {
             physical: value.physical,
             dimensions:
               dimensions &&
-              dimensions.heightCm !== null &&
-              dimensions.widthCm !== null &&
-              dimensions.lengthCm !== null &&
-              dimensions.weightGrams !== null
+                dimensions.heightCm !== null &&
+                dimensions.widthCm !== null &&
+                dimensions.lengthCm !== null &&
+                dimensions.weightGrams !== null
                 ? {
-                    heightCm: dimensions.heightCm,
-                    widthCm: dimensions.widthCm,
-                    lengthCm: dimensions.lengthCm,
-                    weightGrams: dimensions.weightGrams
-                  }
+                  heightCm: dimensions.heightCm,
+                  widthCm: dimensions.widthCm,
+                  lengthCm: dimensions.lengthCm,
+                  weightGrams: dimensions.weightGrams
+                }
                 : null
           }
         })

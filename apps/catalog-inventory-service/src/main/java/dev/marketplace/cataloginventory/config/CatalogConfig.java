@@ -164,7 +164,9 @@ public interface CatalogConfig {
         @WithDefault("5000")
         int maxRows();
 
-        /** Tempo sem progresso após o qual um lote em processamento pode ser retomado. */
+        /**
+         * Tempo sem progresso após o qual um lote em processamento pode ser retomado.
+         */
         @WithDefault("5m")
         Duration lease();
     }
@@ -177,30 +179,45 @@ public interface CatalogConfig {
         String refreshInterval();
     }
 
-    /** Cache Redis da vitrine, da taxonomia e dos motivos de moderação (ADRs 024 e 030). */
+    /**
+     * Cache Redis da vitrine, da taxonomia e dos motivos de moderação (ADRs 024 e
+     * 030).
+     */
     interface Cache {
         /**
-         * Liga o cache; desligado, nenhuma leitura nem invalidação passa pelo Redis e o serviço lê tudo do banco.
+         * Liga o cache; desligado, nenhuma leitura nem invalidação passa pelo Redis e o
+         * serviço lê tudo do banco.
          * Ligado, exige o cliente Redis configurado ({@code QUARKUS_REDIS_HOSTS}).
          */
         @WithDefault("true")
         boolean enabled();
 
-        /** Validade de cada conteúdo guardado, o teto de conteúdo velho quando uma invalidação se perde. */
+        /**
+         * Validade de cada conteúdo guardado, o teto de conteúdo velho quando uma
+         * invalidação se perde.
+         */
         @WithDefault("60s")
         Duration ttl();
 
-        /** Validade das gerações e do mapa produto→loja; ao expirar, a próxima leitura recomeça a geração. */
+        /**
+         * Validade das gerações e do mapa produto→loja; ao expirar, a próxima leitura
+         * recomeça a geração.
+         */
         @WithDefault("24h")
         Duration generationTtl();
 
-        /** Prazo de cada leitura e gravação no Redis; estourado, a leitura vai ao banco e a gravação é ignorada. */
+        /**
+         * Prazo de cada leitura e gravação no Redis; estourado, a leitura vai ao banco
+         * e a gravação é ignorada.
+         */
         @WithDefault("100ms")
         Duration timeout();
 
         /**
-         * Prazo de cada tentativa de invalidação, maior que o da leitura porque a perda deixa conteúdo velho até
-         * {@link #ttl()}; a invalidação tenta de novo uma vez e só então conta como falha.
+         * Prazo de cada tentativa de invalidação, maior que o da leitura porque a perda
+         * deixa conteúdo velho até
+         * {@link #ttl()}; a invalidação tenta de novo uma vez e só então conta como
+         * falha.
          */
         @WithDefault("1s")
         Duration invalidationTimeout();

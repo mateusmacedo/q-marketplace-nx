@@ -50,7 +50,10 @@ final class Api {
         return given().auth().oauth2(token).contentType("application/json");
     }
 
-    /** Último segmento da URL, o id do recurso criado, como no cabeçalho {@code Location}. */
+    /**
+     * Último segmento da URL, o id do recurso criado, como no cabeçalho
+     * {@code Location}.
+     */
     static String idFrom(String location) {
         return location.substring(location.lastIndexOf('/') + 1);
     }
@@ -113,7 +116,10 @@ final class Api {
         return this;
     }
 
-    /** Catálogo de motivos do tenant, criado pelo admin como num tenant real; o tenant novo não tem nenhum. */
+    /**
+     * Catálogo de motivos do tenant, criado pelo admin como num tenant real; o
+     * tenant novo não tem nenhum.
+     */
     Api withModerationReasons() {
         reason("wrong-category", "Categoria incorreta", "REJECT");
         reason("misleading-description", "Descrição incompleta ou enganosa", "REJECT", "BLOCK");
@@ -207,7 +213,9 @@ final class Api {
         return TestTokens.seller(UUID.randomUUID(), store);
     }
 
-    /** Envia o rascunho do produto à moderação, como o seller, sem {@code If-Match}. */
+    /**
+     * Envia o rascunho do produto à moderação, como o seller, sem {@code If-Match}.
+     */
     Response submit(String productId) {
         return post(seller, "/products/" + productId + "/submit", null);
     }

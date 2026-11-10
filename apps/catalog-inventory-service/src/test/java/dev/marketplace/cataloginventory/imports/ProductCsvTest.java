@@ -95,7 +95,8 @@ class ProductCsvTest {
         assertEquals(List.of("column-order"), reasons(HEADER.replace("title,description", "description,title")
                 + "\nx"));
         List<String> unknown = reasons("sku,price\nA,1");
-        assertTrue(unknown.containsAll(List.of("unknown-column:sku", "missing-column:product_ref")), unknown.toString());
+        assertTrue(unknown.containsAll(List.of("unknown-column:sku", "missing-column:product_ref")),
+                unknown.toString());
         assertEquals(List.of("too-many-rows:2"), reasons((HEADER + "\n" + "a\n".repeat(3)).getBytes(UTF_8), 2));
         assertEquals(List.of("malformed-csv:2"), reasons(HEADER + "\n\"aberto\n"));
         assertEquals(List.of("invalid-encoding"), reasons(new byte[] { 'a', (byte) 0xC3, 0x28 }, 10));

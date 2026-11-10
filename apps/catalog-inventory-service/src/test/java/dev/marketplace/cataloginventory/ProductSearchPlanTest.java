@@ -19,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Busca por texto com o plano genérico como padrão da sessão e uma conexão só no pool, para o teste enxergar os
+ * Busca por texto com o plano genérico como padrão da sessão e uma conexão só
+ * no pool, para o teste enxergar os
  * statements que a API preparou e a conexão que ela ocupa.
  */
 @QuarkusTest
@@ -46,9 +47,11 @@ class ProductSearchPlanTest {
         api.createProduct(Api.sku("PLAN-1", "P", "10"));
         for (int run = 0; run < 7; run++)
             as(api.seller).queryParam("q", "plan").get("/products").then().statusCode(200).body("items", hasSize(1));
-        Row plans = pool.query("""
-                SELECT coalesce(sum(generic_plans), 0)::bigint AS generic, coalesce(sum(custom_plans), 0)::bigint AS custom
-                FROM pg_prepared_statements WHERE statement LIKE '%lower(s.seller_sku) LIKE%'""").execute()
+        Row plans = pool
+                .query("""
+                        SELECT coalesce(sum(generic_plans), 0)::bigint AS generic, coalesce(sum(custom_plans), 0)::bigint AS custom
+                        FROM pg_prepared_statements WHERE statement LIKE '%lower(s.seller_sku) LIKE%'""")
+                .execute()
                 .await().atMost(Duration.ofSeconds(20)).iterator().next();
         assertEquals(0L, plans.getLong("generic"));
         assertTrue(plans.getLong("custom") >= 7, "planos customizados: " + plans.getLong("custom"));

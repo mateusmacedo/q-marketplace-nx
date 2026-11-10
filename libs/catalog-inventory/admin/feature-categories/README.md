@@ -433,4 +433,3 @@ A feature de categorias foi implementada como uma gestão de taxonomia completa,
 - sincronização de estado entre lista e detalhe
 
 A organização atual facilita a compreensão da funcionalidade, a manutenção futura e a evolução do painel administrativo do marketplace.
-
