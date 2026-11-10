@@ -191,9 +191,9 @@ export const createClient = (config: Config = {}): Client => {
       return responseStyle === 'data'
         ? undefined
         : {
-            error: finalError,
-            ...result,
-          };
+          error: finalError,
+          ...result,
+        };
     }
   };
 
