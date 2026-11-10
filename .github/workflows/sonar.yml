@@ -1,0 +1,112 @@
+name: SonarQube
+
+# Análise do SonarQube Cloud com a cobertura dos testes (ADR 032). Fica fora do check obrigatório `CI`: o quality gate
+# chega ao PR pelo app do SonarQube Cloud, e uma indisponibilidade do serviço não bloqueia o merge. No PR, só os
+# projetos afetados rodam os testes; a análise completa da `main` é semanal ou sob demanda.
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  schedule:
+    - cron: "41 9 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # WHY: a cobertura sai da execução dos testes; um acerto do cache remoto devolveria o resultado sem os relatórios.
+  NX_NO_CLOUD: true
+
+jobs:
+  analysis:
+    name: Análise
+    # WHY: o PR vindo de fork não recebe o SONAR_TOKEN, e o scan falharia sem ele.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # O SonarQube usa o histórico para separar o código novo e atribuir os achados; o affected, para achar a base.
+          fetch-depth: 0
+
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
+      - name: Node, Java e Gradle
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Projetos a testar
+        id: projects
+        env:
+          NX_BASE: ${{ github.event.pull_request.base.sha }}
+          NX_HEAD: HEAD
+          PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          scope=()
+          if [[ "$PULL_REQUEST" == "true" ]]; then scope=(--affected); fi
+          list() { npx nx show projects "${scope[@]}" --withTarget test "$@" --json | jq -r 'join(",")'; }
+          {
+            echo "java=$(list -p 'tag:lang:java')"
+            echo "web=$(list -p 'tag:lang:ts' --exclude admin-web)"
+            echo "admin=$(list -p admin-web)"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      # WHY: a análise do Java exige o bytecode de todos os módulos, inclusive dos que o PR não toca.
+      - name: Compilação Java
+        run: ./gradlew --no-daemon classes testClasses
+
+      # WHY: o Gradle direto, porque o @nx/gradle em lote repassa o -Pcoverage como opção desconhecida.
+      - name: Testes Java com cobertura
+        if: steps.projects.outputs.java != ''
+        env:
+          PROJECTS: ${{ steps.projects.outputs.java }}
+        run: ./gradlew --no-daemon -Pcoverage $(tr ',' '\n' <<<"$PROJECTS" | sed 's/.*/:&:test/')
+
+      - name: Testes das libs do painel com cobertura
+        if: steps.projects.outputs.web != ''
+        env:
+          PROJECTS: ${{ steps.projects.outputs.web }}
+        run: npx nx run-many -t test -p "$PROJECTS" -- --coverage.enabled --coverage.reporter=lcov
+
+      - name: Testes do admin-web com cobertura
+        if: steps.projects.outputs.admin != ''
+        run: npx nx test admin-web --coverage --coverage-reporters=lcov
+
+      - name: Caminhos da análise
+        id: paths
+        run: |
+          set -euo pipefail
+          # WHY: o Vitest grava no lcov os caminhos relativos à lib, e o SonarQube os resolve a partir da raiz. A pasta
+          # só existe quando alguma lib rodou os testes.
+          if [[ -d coverage/libs ]]; then
+            find coverage/libs -name lcov.info | while read -r report; do
+              root="${report#coverage/}"
+              sed -i "s#^SF:src/#SF:${root%/lcov.info}/src/#" "$report"
+            done
+          fi
+          {
+            echo "binaries=$(find apps libs -type d -path '*/build/classes/java/main' | sort | paste -sd, -)"
+            echo "test-binaries=$(find apps libs -type d -path '*/build/classes/java/test' | sort | paste -sd, -)"
+            echo "libraries=${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/**/*.jar"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      - name: Análise do SonarQube
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >-
+            -Dsonar.java.binaries=${{ steps.paths.outputs.binaries }}
+            -Dsonar.java.test.binaries=${{ steps.paths.outputs.test-binaries }}
+            -Dsonar.java.libraries=${{ steps.paths.outputs.libraries }}
+            -Dsonar.java.test.libraries=${{ steps.paths.outputs.libraries }}
