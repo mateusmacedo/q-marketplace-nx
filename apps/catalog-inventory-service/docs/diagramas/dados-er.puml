@@ -22,8 +22,8 @@ package "V1 — catálogo" #F6FBF6 {
     * tenant_id : uuid
     parent_id : uuid <<FK tenant_id+parent_id → category>>
     * ancestry : uuid[]
-    * code : varchar(60) <<UK tenant_id+code>>
-    * name : varchar(120)
+    * code : text (até 60) <<UK tenant_id+code>>
+    * name : text (até 120)
     * attributes : jsonb
     * active : boolean
     * version : bigint
@@ -34,12 +34,12 @@ package "V1 — catálogo" #F6FBF6 {
     * tenant_id : uuid
     * store_id : uuid
     * category_id : uuid <<FK tenant_id+category_id → category>>
-    * currency : char(3)
-    * title : varchar(200)
+    * currency : text (3 letras)
+    * title : text (até 200)
     * title_key : text COLLATE "C" (busca e ordem, com índice trigram)
-    * description : varchar(5000)
+    * description : text (até 5000)
     * attributes : jsonb
-    * status : varchar(30) <<CHECK sem OUT_OF_STOCK>>
+    * status : text <<CHECK sem OUT_OF_STOCK>>
     * version : bigint
     * created_at, updated_at : timestamptz
     moderation_queued_at : timestamptz <<CHECK só em PENDING_MODERATION>>
@@ -50,7 +50,7 @@ package "V1 — catálogo" #F6FBF6 {
     * product_id : uuid <<FK product>>
     * tenant_id, store_id : uuid
     * position : integer
-    * seller_sku : varchar(64) <<UK tenant+store+seller_sku>>
+    * seller_sku : text (até 64) <<UK tenant+store+seller_sku>>
     * variant_attributes : jsonb
     * physical : boolean
     height_cm, width_cm, length_cm : numeric(6,2)
@@ -61,25 +61,25 @@ package "V1 — catálogo" #F6FBF6 {
     --
     * product_id : uuid <<FK product>>
     * tenant_id, store_id : uuid
-    * transition, from_status, to_status : varchar(30)
-    * actor : varchar(255)
+    * transition, from_status, to_status : text (até 30)
+    * actor : text (até 255)
     * reason_codes : text[]
     * reason_labels : jsonb [{code, label}] (rótulos da época)
-    note : varchar(500)
+    note : text (até 500)
     * occurred_at : timestamptz
   }
   entity "<$id_card,scale=0.8,color=#2E7D32> <b>seller_eligibility</b>" as seller_eligibility <<dominio>> {
     * tenant_id : uuid <<PK>>
     * store_id : uuid <<PK>>
     --
-    * status : varchar(20)
+    * status : text
     * decided_at : timestamptz
   }
   entity "<$gavel,scale=0.8,color=#2E7D32> <b>moderation_reason</b>" as moderation_reason <<dominio>> {
     * tenant_id : uuid <<PK>>
-    * code : varchar(60) <<PK>> (kebab-case)
+    * code : text (até 60) <<PK>> (kebab-case)
     --
-    * label : varchar(120)
+    * label : text (até 120)
     * applies_to_reject, applies_to_block : boolean
     * position : integer (0 a 9999)
     * active : boolean
@@ -94,7 +94,7 @@ package "V2 — oferta" #FFFCF2 {
     --
     * product_id : uuid <<FK product>>
     * tenant_id, store_id : uuid
-    * currency : char(3)
+    * currency : text (3 letras)
     list_price : numeric
     * sale_price : numeric
     * price_version : bigint
@@ -125,17 +125,17 @@ package "V3 — estoque e reservas" #F5FAFF {
     --
     * sku_id : uuid <<sem FK>>
     * previous_on_hand, new_on_hand : integer
-    * actor : varchar(255)
+    * actor : text (até 255)
     * occurred_at : timestamptz
   }
   entity "<$bookmark,scale=0.8,color=#1565C0> <b>inventory_reservation</b>" as inventory_reservation <<serviço>> {
     * id : uuid <<PK>>
     --
     * tenant_id : uuid
-    * idempotency_key : varchar(255) <<UK tenant_id+key>>
-    * request_hash : char(64)
-    order_ref : varchar(100)
-    * status : varchar(20)
+    * idempotency_key : text (até 255) <<UK tenant_id+key>>
+    * request_hash : text (64)
+    order_ref : text (até 100)
+    * status : text
     * created_at, expires_at : timestamptz
     closed_at : timestamptz
   }
@@ -145,7 +145,7 @@ package "V3 — estoque e reservas" #F5FAFF {
     --
     * product_id, store_id : uuid
     * quantity : integer
-    * currency : char(3)
+    * currency : text (3 letras)
     * unit_price : numeric(19,2)
     * price_version : bigint
   }
@@ -157,20 +157,20 @@ package "V4 — mensageria" #FBF6FC {
     --
     * id : uuid <<UK>>
     * tenant_id : uuid
-    * topic : varchar(200)
-    * message_key : varchar(100)
-    * event_type : varchar(60)
+    * topic : text (até 200)
+    * message_key : text (até 100)
+    * event_type : text (até 60)
     * payload : json
-    trace_parent : varchar(55)
+    trace_parent : text (até 55)
     * created_at : timestamptz
     published_at : timestamptz
     * attempts : integer
-    last_error : varchar(500)
+    last_error : text (até 500)
     next_attempt_at : timestamptz <<V6>>
     parked_at : timestamptz <<V6>>
   }
   entity "<$inbox,scale=0.8,color=#6A1B9A> <b>inbox_message</b>" as inbox_message <<saida>> {
-    * consumer : varchar(100) <<PK>>
+    * consumer : text (até 100) <<PK>>
     * event_id : uuid <<PK>>
     --
     * processed_at : timestamptz

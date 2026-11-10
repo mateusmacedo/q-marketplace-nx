@@ -56,7 +56,7 @@ opt #FFEBEE sem MODERATE_PRODUCTS
 end
 svc -> svc : Page.fetch: requireSize(limit); cursorKey vira QueuePosition(queuedAt, id)
 svc -> repo : moderationQueue(tenant, after, limit + 1)
-repo -> pg : SELECT product WHERE tenant_id AND status = 'PENDING_MODERATION'\n[AND (moderation_queued_at, id) > cursor] ORDER BY moderation_queued_at, id\nLIMIT limit + 1 (índice parcial da fila), com os SKUs
+repo -> pg : SELECT product WHERE tenant_id AND moderation_queued_at IS NOT NULL\n[AND (moderation_queued_at, id) > cursor] ORDER BY moderation_queued_at, id\nLIMIT limit + 1 (índice parcial da fila), com os SKUs
 svc -> svc : Page.of: o item excedente só indica próxima página;\nnextCursor = entrada na fila e id do último item
 res -> resp : ProductResponses.page(actor, page)
 resp -> pg : SELECT ... FROM inventory_level WHERE sku_id = ANY (SKUs da página)\n(página sem SKUs não consulta)

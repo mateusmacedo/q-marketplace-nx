@@ -45,9 +45,10 @@ public class PgProductRepository implements ProductRepository {
       UPDATE product SET category_id = $3, title = $4, description = $5, attributes = $6, status = $7,
                          version = version + 1, updated_at = $8, title_key = $10, moderation_queued_at = $11
       WHERE tenant_id = $1 AND id = $2 AND version = $9""";
-  // WHY: o estado vai literal para o planejador usar o índice parcial da fila, que só cobre PENDING_MODERATION.
+  // WHY: o filtro repete o predicado do índice parcial da fila para o planejador usá-lo; pela restrição product_status,
+  // só o produto em PENDING_MODERATION tem moderation_queued_at.
   private static final String SELECT_QUEUE = "SELECT " + PRODUCT_COLUMNS + """
-       FROM product WHERE tenant_id = $1 AND status = 'PENDING_MODERATION'%s
+       FROM product WHERE tenant_id = $1 AND moderation_queued_at IS NOT NULL%s
       ORDER BY moderation_queued_at, id LIMIT $%d""";
   // WHY: só some o saldo zerado; se restar estoque ou reserva, a FK sem cascata
   // barra a remoção do SKU. A oferta do SKU
