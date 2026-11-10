@@ -19,7 +19,7 @@ const TRANSITION_LABELS: Readonly<Record<ProductTransition, string>> = {
 };
 
 /** Decisões de moderação que o histórico mostra em destaque, com os motivos marcados e o complemento. */
-const DECISIONS: readonly string[] = ['REJECT', 'BLOCK'];
+const DECISIONS: ReadonlySet<string> = new Set(['REJECT', 'BLOCK']);
 
 /** Rótulo da transição ("Rejeitado"). */
 export function transitionLabel(transition: string | null | undefined): string {
@@ -40,7 +40,7 @@ export interface ModerationDecision {
 export function moderationDecision(
   change: Pick<StatusChangeResponse, 'transition' | 'reasonLabels' | 'note'> | null | undefined,
 ): ModerationDecision | null {
-  if (!change?.transition || !DECISIONS.includes(change.transition)) {
+  if (!change?.transition || !DECISIONS.has(change.transition)) {
     return null;
   }
   return decisionOf(change.reasonLabels, change.note);

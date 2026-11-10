@@ -30,14 +30,13 @@ export function plural(count: number, one: string, many: string): string {
 
 /** Resumo do lote para o toast: "6 pausados, 2 com falha, 1 ignorado". As partes zeradas ficam de fora. */
 export function batchSummary(counts: BatchCounts, verb: BatchVerb): string {
+  const [ignoredOne, ignoredMany] = verb.feminine
+    ? ['ignorada', 'ignoradas']
+    : ['ignorado', 'ignorados'];
   const parts = [
     counts.succeeded ? plural(counts.succeeded, verb.one, verb.many) : '',
     counts.failed ? `${counts.failed} com falha` : '',
-    counts.ignored
-      ? verb.feminine
-        ? plural(counts.ignored, 'ignorada', 'ignoradas')
-        : plural(counts.ignored, 'ignorado', 'ignorados')
-      : '',
+    counts.ignored ? plural(counts.ignored, ignoredOne, ignoredMany) : '',
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : plural(0, verb.one, verb.many);
 }

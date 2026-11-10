@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, type Signal } from '@angular/core';
 import { BadgeComponent } from '@coreui/angular';
 
-import { type ProductStatus, type ProductStatusLook, productStatusLook } from './product-status';
+import { type ProductStatusLook, productStatusLook } from './product-status';
 
 /** Badge sólido do status do produto, sempre com o texto, nunca só a cor. */
 @Component({
@@ -11,7 +11,7 @@ import { type ProductStatus, type ProductStatusLook, productStatusLook } from '.
   template: `<c-badge [color]="look().color" [textColor]="look().textColor ?? ''">{{ look().label }}</c-badge>`,
 })
 export class ProductStatusBadgeComponent {
-  readonly status = input.required<ProductStatus | string>();
+  readonly status = input.required<string>();
 
   readonly look: Signal<ProductStatusLook> = computed(() => productStatusLook(this.status()));
 }

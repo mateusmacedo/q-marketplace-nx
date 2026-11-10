@@ -87,7 +87,7 @@ describe('ProblemAlertComponent', () => {
     await fixture.whenStable();
 
     expect(texts('li')).toEqual(['Confira os dados.', 'Título: obrigatório']);
-    expect(fixture.nativeElement.querySelectorAll('li strong').length).toBe(1);
+    expect(fixture.nativeElement.querySelectorAll('li strong')).toHaveLength(1);
   });
 
   it('cai no title e nunca mostra o código cru', async () => {

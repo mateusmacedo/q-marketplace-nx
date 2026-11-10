@@ -137,7 +137,7 @@ describe('ModerationReasonsPageComponent', () => {
     showInactive().click();
     await settle();
 
-    expect(rows().length).toBe(3);
+    expect(rows()).toHaveLength(3);
     expect(
       Array.from(rows()[2].cells[1].querySelectorAll('c-badge')).map((badge) =>
         badge.textContent?.trim(),
@@ -245,7 +245,7 @@ describe('ModerationReasonsPageComponent', () => {
       'Já existe um motivo com o código price-out-of-range, talvez inativo.',
     );
     expect(showInactive().checked).toBe(true);
-    expect(rows().length).toBe(3);
+    expect(rows()).toHaveLength(3);
   });
 
   it('põe embaixo de cada campo os erros do 400 e mostra a recusa de limite do 422', async () => {

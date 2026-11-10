@@ -146,8 +146,9 @@ export function rejectionSummary(rejection: RejectionResponse | null | undefined
     .map((reason) => reason.label?.trim() ?? '')
     .filter(Boolean);
   const note = rejection.note?.trim();
+  const heading = labels.length === 1 ? 'Motivo' : 'Motivos';
   const parts = [
-    labels.length ? `${labels.length === 1 ? 'Motivo' : 'Motivos'}: ${labels.join(', ')}` : '',
+    labels.length ? `${heading}: ${labels.join(', ')}` : '',
     note ? `Complemento: ${note}` : '',
   ].filter(Boolean);
   return parts.length ? parts.join('. ') : 'Rejeitado na moderação, sem motivo informado.';

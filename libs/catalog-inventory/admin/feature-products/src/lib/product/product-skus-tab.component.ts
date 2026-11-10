@@ -309,11 +309,12 @@ export class ProductSkusTabComponent {
           this.openPanel(sku, true);
           return;
         }
-        const target = sku
-          ? this.rowId(sku)
-          : this.store.rules().addSku.allowed
-            ? ADD_SKU_BUTTON
-            : 'product-skus-heading';
+        let target = 'product-skus-heading';
+        if (sku) {
+          target = this.rowId(sku);
+        } else if (this.store.rules().addSku.allowed) {
+          target = ADD_SKU_BUTTON;
+        }
         this.#document.getElementById(target)?.focus();
       });
     });

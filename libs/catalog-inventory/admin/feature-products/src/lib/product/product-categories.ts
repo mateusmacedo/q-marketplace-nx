@@ -37,10 +37,10 @@ export function categoryPath(
 }
 
 /**
- * Opções do seletor com as categorias que aceitam produtos (`usable=true`), na ordem da árvore. Lê todas as páginas de
- * `GET /categories/tree`, com o tamanho de página padrão do servidor.
+ * Categorias que aceitam produtos (`usable=true`), de todas as páginas de `GET /categories/tree`, com o tamanho de
+ * página padrão do servidor. Abortada, devolve a lista vazia.
  */
-export async function loadUsableCategories(signal?: AbortSignal): Promise<CategoryOption[]> {
+export async function loadUsableCategoryNodes(signal?: AbortSignal): Promise<CategorySummary[]> {
   const items: CategorySummary[] = [];
   let cursor: string | undefined;
   do {
@@ -53,7 +53,12 @@ export async function loadUsableCategories(signal?: AbortSignal): Promise<Catego
     items.push(...(page.items ?? []));
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
-  return buildCategoryOptions(items.map(categoryNode));
+  return items;
+}
+
+/** Opções do seletor com as categorias que aceitam produtos (`usable=true`), na ordem da árvore. */
+export async function loadUsableCategories(signal?: AbortSignal): Promise<CategoryOption[]> {
+  return buildCategoryOptions((await loadUsableCategoryNodes(signal)).map(categoryNode));
 }
 
 function ancestorNode(ancestor: CategoryAncestor): { id: string; name: string } {

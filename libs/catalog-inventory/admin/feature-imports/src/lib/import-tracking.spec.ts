@@ -148,6 +148,7 @@ describe('acompanhamento do lote', () => {
     await settle();
     http.expectOne(B1).flush(importReport('COMPLETED'));
     await settle();
+    expect(tracking.running()).toBe(false);
     http.verify();
   });
 
@@ -173,6 +174,7 @@ describe('acompanhamento do lote', () => {
     await advance(1);
     http.expectOne(B1_PROGRESS).flush(importProgress('PROCESSING', { processed: 30 }));
     await settle();
+    expect(tracking.report()?.processedLines).toBe(30);
     http.verify();
   });
 
@@ -184,6 +186,7 @@ describe('acompanhamento do lote', () => {
     await advance(POLL_INTERVAL_MS * 3);
     visibility(false);
     await settle();
+    expect(http.match(() => true)).toHaveLength(0);
     http.verify();
   });
 

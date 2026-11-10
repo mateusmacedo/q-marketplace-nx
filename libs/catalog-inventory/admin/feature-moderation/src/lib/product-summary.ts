@@ -39,7 +39,7 @@ export function attributeRows(
     return index < 0 ? Number.MAX_SAFE_INTEGER : index;
   };
   return filled
-    .sort(([a], [b]) => position(a) - position(b))
+    .toSorted(([a], [b]) => position(a) - position(b))
     .map(([code, value]) => {
       const attribute = known.get(code);
       return { code, label: attribute?.label || code, value: displayValue(value, attribute) };
@@ -127,9 +127,7 @@ const SELLER_LOOKS: Readonly<Record<SellerStatus, SellerStatusLook>> = {
 };
 
 /** Situação da loja; status desconhecido aparece como veio, em cinza. */
-export function sellerStatusLook(
-  status: SellerStatus | string | null | undefined,
-): SellerStatusLook {
+export function sellerStatusLook(status: string | null | undefined): SellerStatusLook {
   return (
     SELLER_LOOKS[status as SellerStatus] ?? { label: status || 'Sem situação', color: 'secondary' }
   );

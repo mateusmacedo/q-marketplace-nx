@@ -16,7 +16,7 @@ const LOOKS: Readonly<Record<SellerStatus, SellerStatusLook>> = {
 };
 
 /** Rótulo e cor do status da loja no KYB/KYC; status desconhecido aparece como veio, em cinza. */
-export function sellerStatusLook(status: SellerStatus | string | undefined): SellerStatusLook {
+export function sellerStatusLook(status: string | undefined): SellerStatusLook {
   return LOOKS[status as SellerStatus] ?? { label: status ?? 'Sem situação', color: 'secondary' };
 }
 

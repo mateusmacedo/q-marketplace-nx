@@ -51,7 +51,10 @@ export function toControlValue(
       return Number.isFinite(number) ? number : null;
     }
     case 'BOOLEAN':
-      return raw === 'true' ? true : raw === 'false' ? false : null;
+      if (raw === 'true') {
+        return true;
+      }
+      return raw === 'false' ? false : null;
     default:
       return raw;
   }
@@ -123,7 +126,12 @@ export function displayAttributeValue(
     return '';
   }
   if (field?.type === 'BOOLEAN') {
-    return raw === 'true' ? `${field.label}: sim` : raw === 'false' ? `${field.label}: não` : raw;
+    if (raw === 'true') {
+      return `${field.label}: sim`;
+    }
+    if (raw === 'false') {
+      return `${field.label}: não`;
+    }
   }
   return raw;
 }
@@ -136,7 +144,7 @@ export function variationLabel(
   fields: readonly AttributeField[],
   variantAttributes: Readonly<Record<string, string>> | null | undefined,
 ): string {
-  const values = { ...(variantAttributes ?? {}) };
+  const values = { ...variantAttributes };
   const parts: string[] = [];
   for (const field of fields) {
     if (values[field.code] !== undefined) {

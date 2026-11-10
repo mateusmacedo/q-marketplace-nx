@@ -53,6 +53,19 @@ const DIMENSIONS: readonly { key: DimensionKey; label: string; step: string }[] 
   { key: 'weightGrams', label: 'Peso (g)', step: '1' },
 ];
 
+/** Medidas do SKU físico no corpo da API: só quando as quatro foram preenchidas. */
+function completeDimensions(
+  dimensions: Readonly<Record<DimensionKey, number | null>> | null,
+): Record<DimensionKey, number> | null {
+  if (!dimensions) {
+    return null;
+  }
+  const { heightCm, widthCm, lengthCm, weightGrams } = dimensions;
+  return heightCm !== null && widthCm !== null && lengthCm !== null && weightGrams !== null
+    ? { heightCm, widthCm, lengthCm, weightGrams }
+    : null;
+}
+
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   sellerSku: 'Código do SKU',
   physical: 'SKU físico',
@@ -341,19 +354,7 @@ export class AddSkuOffcanvasComponent {
             sellerSku: value.sellerSku.trim(),
             variantAttributes: attributeMap(this.variantFields(), value.variantAttributes),
             physical: value.physical,
-            dimensions:
-              dimensions &&
-              dimensions.heightCm !== null &&
-              dimensions.widthCm !== null &&
-              dimensions.lengthCm !== null &&
-              dimensions.weightGrams !== null
-                ? {
-                    heightCm: dimensions.heightCm,
-                    widthCm: dimensions.widthCm,
-                    lengthCm: dimensions.lengthCm,
-                    weightGrams: dimensions.weightGrams,
-                  }
-                : null,
+            dimensions: completeDimensions(dimensions),
           },
         }),
       );
