@@ -1,3 +1,18 @@
+## 0.0.2 (2026-11-10)
+
+### 🩹 Fixes
+
+- **tools:** resolve sonarqube findings in the workspace tools ([1867551](https://github.com/mateusmacedo/q-marketplace-nx/commit/1867551))
+
+### 🧱 Updated Dependencies
+
+- Updated identity-organization-domain to 0.0.2
+- Updated identity-organization-application to 0.0.2
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.1 (2026-11-08)
 
 ### 🚀 Features

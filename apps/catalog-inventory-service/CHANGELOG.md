@@ -1,3 +1,21 @@
+## 0.0.3 (2026-11-10)
+
+### 🩹 Fixes
+
+- **catalog-inventory:** deconstruct records in the event and import switches ([0d77384](https://github.com/mateusmacedo/q-marketplace-nx/commit/0d77384))
+- **tools:** resolve sonarqube findings in the workspace tools ([1867551](https://github.com/mateusmacedo/q-marketplace-nx/commit/1867551))
+- **catalog-inventory:** resolve sonarqube findings in java code ([8344512](https://github.com/mateusmacedo/q-marketplace-nx/commit/8344512))
+- **catalog-inventory-service:** resolve sonarqube findings in database migrations ([5d87d23](https://github.com/mateusmacedo/q-marketplace-nx/commit/5d87d23))
+
+### 🧱 Updated Dependencies
+
+- Updated catalog-inventory-domain to 0.0.3
+- Updated catalog-inventory-application to 0.0.3
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.2 (2026-11-09)
 
 ### 🚀 Features

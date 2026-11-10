@@ -1,3 +1,13 @@
+## 0.0.3 (2026-11-10)
+
+### 🩹 Fixes
+
+- **admin-web:** resolve sonarqube findings in the admin panel ([9ce992e](https://github.com/mateusmacedo/q-marketplace-nx/commit/9ce992e))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.0.2 (2026-11-09)
 
 ### 🚀 Features
