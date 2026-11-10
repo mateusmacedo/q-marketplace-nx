@@ -41,19 +41,8 @@ public record DecisionReason(ProductTransition decision, List<ReasonLabel> reaso
     catalog.forEach(reason -> byCode.putIfAbsent(reason.code(), reason));
     Set<String> chosen = new LinkedHashSet<>();
     List<Reason> refused = new ArrayList<>();
-    for (String code : new LinkedHashSet<>(codes)) {
-      ModerationReasonDefinition reason = byCode.get(code);
-      if (reason == null)
-        refused.add(Reason.of(DomainReasons.UNKNOWN_REASON, code));
-      else if (!reason.active())
-        refused.add(Reason.of(DomainReasons.REASON_INACTIVE, code)
-            .withMessage("O motivo \"" + reason.label() + "\" foi desativado. Recarregue a lista de motivos."));
-      else if (!reason.appliesTo(decision))
-        refused.add(Reason.of(DomainReasons.REASON_NOT_APPLICABLE, code)
-            .withMessage("O motivo \"" + reason.label() + "\" não vale para " + name(decision) + "."));
-      else
-        chosen.add(code);
-    }
+    for (String code : new LinkedHashSet<>(codes))
+      refusal(code, byCode.get(code), decision).ifPresentOrElse(refused::add, () -> chosen.add(code));
     if (!refused.isEmpty())
       throw new DomainRuleViolation(DomainReasons.INVALID_MODERATION_REASON,
           "Motivo fora do catálogo de " + decision + "; consulte GET /moderation/reasons", refused);
@@ -88,6 +77,22 @@ public record DecisionReason(ProductTransition decision, List<ReasonLabel> reaso
     if (note != null && !note.isBlank())
       parts.add(note);
     return parts.isEmpty() ? null : String.join(" ", parts);
+  }
+
+  /**
+   * Por que o código não vale para a decisão: ausente do catálogo, desativado ou de outra decisão; vazio quando vale.
+   */
+  private static Optional<Reason> refusal(String code, ModerationReasonDefinition reason,
+      ProductTransition decision) {
+    if (reason == null)
+      return Optional.of(Reason.of(DomainReasons.UNKNOWN_REASON, code));
+    if (!reason.active())
+      return Optional.of(Reason.of(DomainReasons.REASON_INACTIVE, code)
+          .withMessage("O motivo \"" + reason.label() + "\" foi desativado. Recarregue a lista de motivos."));
+    if (!reason.appliesTo(decision))
+      return Optional.of(Reason.of(DomainReasons.REASON_NOT_APPLICABLE, code)
+          .withMessage("O motivo \"" + reason.label() + "\" não vale para " + name(decision) + "."));
+    return Optional.empty();
   }
 
   private static String name(ProductTransition decision) {

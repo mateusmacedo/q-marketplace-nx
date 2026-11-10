@@ -106,7 +106,7 @@ opt #FFEBEE produto ARCHIVED (estoque congelado)
   ir -[#C62828]-> seller : <color:#C62828>409 invalid-transition (ADJUST_STOCK)</color>
 end
 == Persistência transacional ==
-svc -> repo : adjust(tenant, loja, produto, skuId, onHand, versão?, ator, agora)
+svc -> repo : adjust(StockAdjustment(tenant, loja, produto, skuId, onHand), versão?, ator, agora)
 repo -> pg : transação: SELECT ... FOR UPDATE; UPDATE inventory_level; INSERT inventory_adjustment;\nINSERT outbox_event InventoryUpdated (catalog-inventory.inventory.v1, chave skuId)
 alt #FFEBEE SKU sem linha de saldo
   ir -[#C62828]-> seller : <color:#C62828>404 not-found (Estoque)</color>

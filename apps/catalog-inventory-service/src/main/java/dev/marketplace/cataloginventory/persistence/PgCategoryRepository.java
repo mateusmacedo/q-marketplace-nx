@@ -7,6 +7,7 @@ import dev.marketplace.cataloginventory.application.ConcurrentUpdateException;
 import dev.marketplace.cataloginventory.domain.category.AttributeDefinition;
 import dev.marketplace.cataloginventory.domain.category.AttributeType;
 import dev.marketplace.cataloginventory.domain.category.Category;
+import dev.marketplace.cataloginventory.domain.category.CategoryDefinition;
 import dev.marketplace.cataloginventory.domain.category.CategoryNotEmptyException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -41,10 +42,8 @@ public class PgCategoryRepository implements CategoryRepository {
   private static final String SUBTREE_HEIGHT = """
       SELECT coalesce(max(cardinality(ancestry) - array_position(ancestry, $2::uuid) + 1), 0) AS height
       FROM category WHERE tenant_id = $1 AND ancestry @> ARRAY[$2]::uuid[]""";
-  private static final String LOCK_TREE = """
-      SELECT pg_advisory_xact_lock(hashtextextended('catalog-inventory.category-tree:' || $1::uuid::text, 0))""";
-  private static final String PARENT_PATH = """
-      SELECT 1 FROM category WHERE tenant_id = $1 AND id = $2 AND (ancestry || id) = $3::uuid[]""";
+  private static final String LOCK_TREE = "SELECT pg_advisory_xact_lock(hashtextextended('catalog-inventory.category-tree:' || $1::uuid::text, 0))";
+  private static final String PARENT_PATH = "SELECT 1 FROM category WHERE tenant_id = $1 AND id = $2 AND (ancestry || id) = $3::uuid[]";
   private static final String MOVE = """
       UPDATE category SET parent_id = $3, ancestry = $4::uuid[], version = version + 1, updated_at = now()
       WHERE tenant_id = $1 AND id = $2 AND version = $5 AND ancestry = $6::uuid[]""";
@@ -54,8 +53,7 @@ public class PgCategoryRepository implements CategoryRepository {
   private static final String CHILD_COUNTS = """
       SELECT parent_id, count(*) AS children FROM category WHERE tenant_id = $1 AND parent_id = ANY ($2::uuid[])
       GROUP BY parent_id""";
-  private static final String DEPTHS = """
-      SELECT id, cardinality(ancestry) AS depth FROM category WHERE tenant_id = $1 AND id = ANY ($2::uuid[])""";
+  private static final String DEPTHS = "SELECT id, cardinality(ancestry) AS depth FROM category WHERE tenant_id = $1 AND id = ANY ($2::uuid[])";
   // WHY: a recursão desce pelo índice dos filhos montando o caminho de cada categoria, e a chave dos códigos do
   // caminho (CategoryNode.pathKey) dá a ordem da árvore e o cursor; a contagem de filhos roda só na página. Com
   // cursor, ela só desce na categoria que vem depois dele ou é ancestral dele: no COLLATE "C" o espaço vem antes
@@ -238,9 +236,10 @@ public class PgCategoryRepository implements CategoryRepository {
    */
   private static Uni<Void> lockTree(SqlConnection conn, Category c) {
     Uni<RowSet<Row>> locked = conn.preparedQuery(LOCK_TREE).execute(Tuple.of(c.tenantId()));
-    if (c.parentId().isEmpty())
+    Optional<UUID> parent = c.parentId();
+    if (parent.isEmpty())
       return locked.replaceWithVoid();
-    Tuple parentPath = Tuple.of(c.tenantId(), c.parentId().get(), c.ancestry().toArray(UUID[]::new));
+    Tuple parentPath = Tuple.of(c.tenantId(), parent.get(), c.ancestry().toArray(UUID[]::new));
     return locked.flatMap(ignored -> conn.preparedQuery(PARENT_PATH).execute(parentPath))
         .invoke(rows -> {
           if (rows.size() != 1)
@@ -302,9 +301,10 @@ public class PgCategoryRepository implements CategoryRepository {
   }
 
   private static Category category(Row row) {
+    CategoryDefinition definition = new CategoryDefinition(row.getString("code"), row.getString("name"),
+        attributes(row.getJsonArray("attributes")));
     return Category.restore(row.getUUID("id"), row.getUUID("tenant_id"), List.of(row.getArrayOfUUIDs("ancestry")),
-        row.getString("code"), row.getString("name"), attributes(row.getJsonArray("attributes")),
-        row.getBoolean("active"), row.getLong("version"));
+        definition, row.getBoolean("active"), row.getLong("version"));
   }
 
   /**

@@ -34,7 +34,7 @@ import org.jboss.logging.MDC;
  */
 @ApplicationScoped
 public class Lifecycle {
-  static final ContextKey<Span> OPERATION = ContextKey.named("marketplace.operation");
+  static final ContextKey<Span> OPERATION_KEY = ContextKey.named("marketplace.operation");
   static final AttributeKey<String> OUTCOME = AttributeKey.stringKey("marketplace.outcome");
   static final AttributeKey<String> EXCEPTION_TYPE = AttributeKey.stringKey("exception.type");
   private static final AttributeKey<String> NAMESPACE = AttributeKey.stringKey("code.namespace");
@@ -50,7 +50,7 @@ public class Lifecycle {
 
   /** Span da operação em curso, que recebe as chaves de negócio; fora de uma operação, o span ativo. */
   static Span operation() {
-    Span operation = Context.current().get(OPERATION);
+    Span operation = Context.current().get(OPERATION_KEY);
     return operation != null ? operation : Span.current();
   }
 
@@ -64,7 +64,7 @@ public class Lifecycle {
     return Uni.createFrom().deferred(() -> {
       Map<String, Object> outer = MDC.getMap();
       Span span = tracer.spanBuilder(name).startSpan();
-      return isolated(Context.current().with(span).with(OPERATION, span), work, failure -> {
+      return isolated(Context.current().with(span).with(OPERATION_KEY, span), work, failure -> {
         if (failure != null) {
           span.recordException(failure);
           span.setStatus(StatusCode.ERROR);
@@ -83,7 +83,7 @@ public class Lifecycle {
    * falha que o chamador recupera fica só no log.
    */
   public <T> Uni<T> job(Supplier<Uni<T>> work) {
-    Context job = Context.current().with(OPERATION, Span.current());
+    Context job = Context.current().with(OPERATION_KEY, Span.current());
     io.vertx.core.Context current = Vertx.currentContext();
     io.vertx.core.Context vertx = current == null ? null : VertxContext.getOrCreateDuplicatedContext(current);
     Uni<T> traced = Uni.createFrom().deferred(() -> {
@@ -108,7 +108,7 @@ public class Lifecycle {
   public <T> Uni<T> entry(String name, Attributes attributes, Supplier<Uni<T>> work) {
     Context parent = Context.current();
     Span span = start(name, attributes, parent);
-    Scope scope = parent.with(span).with(OPERATION, operationOf(parent)).makeCurrent();
+    Scope scope = parent.with(span).with(OPERATION_KEY, operationOf(parent)).makeCurrent();
     Uni<T> running;
     try {
       running = work.get();
@@ -131,7 +131,7 @@ public class Lifecycle {
     return Uni.createFrom().deferred(() -> {
       Context parent = Context.current();
       Span span = start(name, attributes, parent);
-      return isolated(parent.with(span).with(OPERATION, operationOf(parent)), work, failure -> end(span, failure));
+      return isolated(parent.with(span).with(OPERATION_KEY, operationOf(parent)), work, failure -> end(span, failure));
     });
   }
 
@@ -149,7 +149,7 @@ public class Lifecycle {
     return Uni.createFrom().deferred(() -> {
       Context parent = Context.current();
       Span span = start(name, attributes, parent);
-      Scope scope = parent.with(span).with(OPERATION, operationOf(parent)).makeCurrent();
+      Scope scope = parent.with(span).with(OPERATION_KEY, operationOf(parent)).makeCurrent();
       return call(work).onTermination().invoke((item, failure, cancelled) -> {
         scope.close();
         end(span, failure);
@@ -240,7 +240,7 @@ public class Lifecycle {
   }
 
   private static Span operationOf(Context parent) {
-    Span operation = parent.get(OPERATION);
+    Span operation = parent.get(OPERATION_KEY);
     return operation != null ? operation : Span.fromContext(parent);
   }
 

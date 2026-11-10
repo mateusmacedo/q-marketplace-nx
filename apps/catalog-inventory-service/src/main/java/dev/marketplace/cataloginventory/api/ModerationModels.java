@@ -20,6 +20,13 @@ import java.util.stream.Stream;
 
 /** Contratos HTTP da moderação: motivo da decisão, catálogo de motivos do tenant e lote. */
 public final class ModerationModels {
+  /**
+   * Formato do código do motivo publicado no contrato. WHY: o contrato usa a sintaxe ECMAScript, que os clientes
+   * entendem e que não tem quantificador possessivo; a linguagem aceita é a mesma de
+   * {@link ModerationReasonDefinition#CODE_PATTERN}, que o {@code @Pattern} confere.
+   */
+  private static final String REASON_CODE_SCHEMA = "^[a-z]+(-[a-z]+)*$";
+
   private ModerationModels() {
   }
 
@@ -59,9 +66,10 @@ public final class ModerationModels {
 
   @Schema(description = "Motivo novo, ativo; sem position, entra no fim da lista")
   public record CreateModerationReasonRequest(
-      @Schema(description = "Código estável em kebab-case, só com letras; não muda depois") @NotBlank @Size(
-          max = ModerationReasonDefinition.CODE_MAX_LENGTH) @Pattern(
-              regexp = "^" + ModerationReasonDefinition.CODE_PATTERN + "$") String code,
+      @Schema(description = "Código estável em kebab-case, só com letras; não muda depois",
+          pattern = REASON_CODE_SCHEMA) @NotBlank @Size(
+              max = ModerationReasonDefinition.CODE_MAX_LENGTH) @Pattern(
+                  regexp = "^" + ModerationReasonDefinition.CODE_PATTERN + "$") String code,
       @NotBlank @Size(max = ModerationReasonDefinition.LABEL_MAX_LENGTH) String label,
       @Schema(description = "REJECT, BLOCK ou as duas") @NotNull @Size(min = 1,
           max = 2) List<@NotNull ModerationDecision> decisions,

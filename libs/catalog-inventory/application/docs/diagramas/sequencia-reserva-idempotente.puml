@@ -23,7 +23,7 @@ svc -> repo : findByIdempotencyKey(tenant, chave)
 repo --> svc : vazio
 svc -> inv : candidates(tenant, skuIds)
 inv --> svc : SkuCandidate por SKU
-svc -> policy : open(..., hash, ttl ou defaultTtl, maxTtl)
+svc -> policy : open(ReservationDraft(id, tenant, chave, hash, orderRef, itens),\ncandidatos, agora, ttl ou defaultTtl, maxTtl)
 policy --> svc : Reservation ACTIVE\n(ou ReservationRefusal)
 svc -> repo : insert(reserva)
 repo --> svc : ok (ou insufficient-stock)

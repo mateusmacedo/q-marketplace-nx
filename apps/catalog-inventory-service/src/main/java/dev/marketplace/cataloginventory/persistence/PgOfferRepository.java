@@ -4,6 +4,7 @@ import dev.marketplace.cataloginventory.observability.Traced;
 import dev.marketplace.cataloginventory.application.OfferRepository;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
+import dev.marketplace.cataloginventory.domain.offer.OfferIdentity;
 import dev.marketplace.cataloginventory.domain.offer.Price;
 import dev.marketplace.cataloginventory.domain.offer.Promotion;
 import dev.marketplace.cataloginventory.outbox.EventOrigin;
@@ -30,6 +31,8 @@ import java.util.*;
 public class PgOfferRepository implements OfferRepository {
   static final String OFFER_COLUMNS = "sku_id, product_id, tenant_id, store_id, currency, list_price, sale_price, price_version, "
       + "version, created_at, updated_at";
+  private static final String SKU_ID = "sku_id";
+  private static final String SELECT_OFFERS = "SELECT " + OFFER_COLUMNS + " FROM offer WHERE tenant_id = $1";
   private static final String INSERT = """
       INSERT INTO offer (sku_id, product_id, tenant_id, store_id, currency, list_price, sale_price, price_version, version,
                          created_at, updated_at)
@@ -58,7 +61,7 @@ public class PgOfferRepository implements OfferRepository {
 
   @Override
   public Uni<Optional<Offer>> ofSku(UUID tenantId, UUID skuId) {
-    String sql = "SELECT " + OFFER_COLUMNS + " FROM offer WHERE tenant_id = $1 AND sku_id = $2";
+    String sql = SELECT_OFFERS + " AND sku_id = $2";
     return pg
         .bounded(pool.preparedQuery(sql).execute(Tuple.of(tenantId, skuId))
             .flatMap(rows -> assemble(pool, rows)))
@@ -67,7 +70,7 @@ public class PgOfferRepository implements OfferRepository {
 
   @Override
   public Uni<List<Offer>> ofProduct(UUID tenantId, UUID productId) {
-    String sql = "SELECT " + OFFER_COLUMNS + " FROM offer WHERE tenant_id = $1 AND product_id = $2";
+    String sql = SELECT_OFFERS + " AND product_id = $2";
     return pg
         .bounded(pool.preparedQuery(sql).execute(Tuple.of(tenantId, productId))
             .flatMap(rows -> assemble(pool, rows)))
@@ -78,7 +81,7 @@ public class PgOfferRepository implements OfferRepository {
   public Uni<Map<UUID, Offer>> ofSkus(UUID tenantId, Collection<UUID> skuIds) {
     if (skuIds.isEmpty())
       return Uni.createFrom().item(Map.of());
-    String sql = "SELECT " + OFFER_COLUMNS + " FROM offer WHERE tenant_id = $1 AND sku_id = ANY ($2::uuid[])";
+    String sql = SELECT_OFFERS + " AND sku_id = ANY ($2::uuid[])";
     return pg.bounded(pool.preparedQuery(sql).execute(Tuple.of(tenantId, skuIds.toArray(UUID[]::new)))
         .flatMap(rows -> assemble(pool, rows)));
   }
@@ -125,17 +128,17 @@ public class PgOfferRepository implements OfferRepository {
     offerRows.forEach(rows::add);
     if (rows.isEmpty())
       return Uni.createFrom().item(Map.of());
-    UUID[] skuIds = rows.stream().map(r -> r.getUUID("sku_id")).toArray(UUID[]::new);
-    return client.preparedQuery(SELECT_PROMOTIONS).execute(Tuple.of((Object) skuIds)).map(promotionRows -> {
+    UUID[] skuIds = rows.stream().map(r -> r.getUUID(SKU_ID)).toArray(UUID[]::new);
+    return client.preparedQuery(SELECT_PROMOTIONS).execute(Tuple.of(skuIds)).map(promotionRows -> {
       Map<UUID, String> currencyBySku = new HashMap<>();
-      rows.forEach(r -> currencyBySku.put(r.getUUID("sku_id"), r.getString("currency")));
+      rows.forEach(r -> currencyBySku.put(r.getUUID(SKU_ID), r.getString("currency")));
       Map<UUID, List<Promotion>> promotions = new HashMap<>();
       promotionRows.forEach(p -> promotions
-          .computeIfAbsent(p.getUUID("sku_id"), k -> new ArrayList<>())
-          .add(toPromotion(p, currencyBySku.get(p.getUUID("sku_id")))));
+          .computeIfAbsent(p.getUUID(SKU_ID), k -> new ArrayList<>())
+          .add(toPromotion(p, currencyBySku.get(p.getUUID(SKU_ID)))));
       Map<UUID, Offer> offers = new LinkedHashMap<>();
-      rows.forEach(r -> offers.put(r.getUUID("sku_id"),
-          toOffer(r, promotions.getOrDefault(r.getUUID("sku_id"), List.of()))));
+      rows.forEach(r -> offers.put(r.getUUID(SKU_ID),
+          toOffer(r, promotions.getOrDefault(r.getUUID(SKU_ID), List.of()))));
       return offers;
     });
   }
@@ -150,11 +153,10 @@ public class PgOfferRepository implements OfferRepository {
     BigDecimal list = r.getBigDecimal("list_price");
     Price price = new Price(list == null ? null : new Money(list, currency),
         new Money(r.getBigDecimal("sale_price"), currency));
-    return Offer.restore(r.getUUID("sku_id"), r.getUUID("product_id"), r.getUUID("tenant_id"),
-        r.getUUID("store_id"), currency,
-        price, r.getLong("price_version"), promotions, r.getLong("version"),
-        instant(r, "created_at"),
-        instant(r, "updated_at"));
+    OfferIdentity identity = new OfferIdentity(r.getUUID(SKU_ID), r.getUUID("product_id"), r.getUUID("tenant_id"),
+        r.getUUID("store_id"), currency);
+    return Offer.restore(identity, price, r.getLong("price_version"), promotions, r.getLong("version"),
+        instant(r, "created_at"), instant(r, "updated_at"));
   }
 
   /** Reconstrói a promoção das colunas {@code promotion_*}, na moeda da oferta. */

@@ -77,15 +77,15 @@ public class ModerationReasonCache {
         return reasons.catalog(tenantId);
       }
     }
-  }
 
-  /** A resposta não espera a gravação ({@link CatalogCache#detach}). */
-  private void store(String key, String stamp, List<ModerationReasonEntry> found) {
-    try {
-      CatalogCache.detach(cache.write(CatalogCache.MODERATION_REASONS, key, stamp,
-          json.writeValueAsString(Snapshots.ModerationReasons.of(found))));
-    } catch (JsonProcessingException e) {
-      LOG.debugf(e, "Retrato dos motivos de moderação não serializado; nada é guardado");
+    /** A resposta não espera a gravação ({@link CatalogCache#detach}). */
+    private void store(String key, String stamp, List<ModerationReasonEntry> found) {
+      try {
+        CatalogCache.detach(cache.write(CatalogCache.MODERATION_REASONS, key, stamp,
+            json.writeValueAsString(Snapshots.ModerationReasons.of(found))));
+      } catch (JsonProcessingException e) {
+        LOG.debugf(e, "Retrato dos motivos de moderação não serializado; nada é guardado");
+      }
     }
   }
 }

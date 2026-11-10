@@ -8,6 +8,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.sqlclient.Pool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlConnection;
+import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Clock;
@@ -60,8 +61,7 @@ public class PgOutbox {
              count(*) FILTER (WHERE parked_at IS NOT NULL) AS parked,
              min(created_at) FILTER (WHERE parked_at IS NULL) AS oldest
       FROM outbox_event WHERE published_at IS NULL""";
-  private static final String PURGE_OUTBOX = """
-      DELETE FROM outbox_event WHERE seq IN (SELECT seq FROM outbox_event WHERE published_at < $1 LIMIT $2)""";
+  private static final String PURGE_OUTBOX = "DELETE FROM outbox_event WHERE seq IN (SELECT seq FROM outbox_event WHERE published_at < $1 LIMIT $2)";
   private static final String PURGE_INBOX = """
       DELETE FROM inbox_message WHERE (consumer, event_id) IN
           (SELECT consumer, event_id FROM inbox_message WHERE processed_at < $1 LIMIT $2)""";
@@ -154,7 +154,7 @@ public class PgOutbox {
   public Uni<RelayRun> relay(int batch, Instant now, Duration maxBackoff, int maxAttempts,
       Function<List<Pending>, Uni<List<Delivery>>> publish) {
     return pool.withTransaction(conn -> conn.query(TRY_LOCK).execute().flatMap(lock -> {
-      if (!lock.iterator().next().getBoolean(0))
+      if (!Boolean.TRUE.equals(lock.iterator().next().getBoolean(0)))
         return Uni.createFrom().item(RelayRun.NONE);
       return conn.preparedQuery(PENDING).execute(Tuple.of(batch, PgSupport.utc(now))).flatMap(rows -> {
         List<Pending> pending = new ArrayList<>();
@@ -162,7 +162,7 @@ public class PgOutbox {
         if (pending.isEmpty())
           return Uni.createFrom().item(RelayRun.NONE);
         return publish.apply(pending)
-            .flatMap(deliveries -> record(conn, deliveries, now, maxBackoff, maxAttempts));
+            .flatMap(deliveries -> recordDeliveries(conn, deliveries, now, maxBackoff, maxAttempts));
       });
     }));
   }
@@ -200,7 +200,7 @@ public class PgOutbox {
     return Multi.createBy().repeating()
         .uni(() -> pool.preparedQuery(sql).execute(Tuple.of(PgSupport.utc(before), batch)))
         .whilst(rows -> rows.rowCount() == batch && clock.instant().isBefore(deadline))
-        .map(rows -> rows.rowCount())
+        .map(SqlResult::rowCount)
         .collect().with(Collectors.summingInt(Integer::intValue));
   }
 
@@ -209,7 +209,7 @@ public class PgOutbox {
    * o erro, a tentativa e a espera dos que falharam, estacionando os que chegaram
    * a {@code maxAttempts}, na mesma transação que segura as linhas.
    */
-  private static Uni<RelayRun> record(SqlConnection conn, List<Delivery> deliveries, Instant now,
+  private static Uni<RelayRun> recordDeliveries(SqlConnection conn, List<Delivery> deliveries, Instant now,
       Duration maxBackoff, int maxAttempts) {
     Long[] acked = deliveries.stream().filter(d -> !d.held() && d.error().isEmpty()).map(Delivery::seq)
         .toArray(Long[]::new);

@@ -9,19 +9,21 @@ import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.quarkus.jackson.ObjectMapperCustomizer;
-import jakarta.inject.Singleton;
+import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * Recusa o caractere nulo (U+0000) em todo texto lido de JSON, valor ou chave de mapa, em qualquer nível do corpo,
+ * Recusa o caractere nulo (U+0000) em cada texto lido de JSON, valor ou chave de mapa, em qualquer nível do corpo,
  * antes da validação de campo. O PostgreSQL não guarda esse caractere em {@code text} e recusaria o parâmetro com
  * erro de servidor (SQLSTATE 22021); a recusa sai como 400 {@code validation-failed}, com o caminho do campo em
- * {@code errors} ({@link ProblemMappers#nullCharacter}).
+ * {@code errors} ({@link ProblemMappers#mismatchedBody}).
  */
-@Singleton
+@ApplicationScoped
 public class NullCharacterGuard implements ObjectMapperCustomizer {
   static final String MESSAGE = "não pode ter o caractere nulo (U+0000)";
+  private static final String REJECTION = "Texto com o caractere nulo (U+0000)";
   private static final char NULL = '\u0000';
 
   @Override
@@ -32,34 +34,34 @@ public class NullCharacterGuard implements ObjectMapperCustomizer {
   }
 
   /**
-   * Texto com o caractere nulo. O Jackson acrescenta o caminho a cada nível que a exceção atravessa; ela estende
-   * {@link MismatchedInputException} porque o leitor do Quarkus REST repassa esse tipo sem embrulhar.
+   * Caminho do campo recusado por ter o caractere nulo, no formato da validação de campo, como {@code title},
+   * {@code skus[0].sellerSku} e {@code attributes[cor]}; a chave de mapa recusada fica fora, e o caminho para no mapa
+   * dela. Vazio quando a exceção é outra recusa de leitura do JSON.
    */
-  public static final class Rejected extends MismatchedInputException {
-    private static final long serialVersionUID = 1L;
-
-    Rejected(JsonParser parser) {
-      super(parser, "Texto com o caractere nulo (U+0000)", String.class);
+  static Optional<String> rejectedField(MismatchedInputException e) {
+    if (!REJECTION.equals(e.getOriginalMessage()))
+      return Optional.empty();
+    StringBuilder field = new StringBuilder();
+    for (Reference step : e.getPath()) {
+      if (step.getIndex() >= 0)
+        field.append('[').append(step.getIndex()).append(']');
+      else if (step.getFieldName() == null || step.getFieldName().indexOf(NULL) >= 0)
+        break;
+      else if (step.getFrom() instanceof Map<?, ?>)
+        field.append('[').append(step.getFieldName()).append(']');
+      else
+        field.append(field.isEmpty() ? "" : ".").append(step.getFieldName());
     }
+    return Optional.of(field.toString());
+  }
 
-    /**
-     * Caminho no formato da validação de campo, como {@code title}, {@code skus[0].sellerSku} e
-     * {@code attributes[cor]}; a chave de mapa recusada fica fora, e o caminho para no mapa dela.
-     */
-    String field() {
-      StringBuilder field = new StringBuilder();
-      for (Reference step : getPath()) {
-        if (step.getIndex() >= 0)
-          field.append('[').append(step.getIndex()).append(']');
-        else if (step.getFieldName() == null || step.getFieldName().indexOf(NULL) >= 0)
-          break;
-        else if (step.getFrom() instanceof Map<?, ?>)
-          field.append('[').append(step.getFieldName()).append(']');
-        else
-          field.append(field.isEmpty() ? "" : ".").append(step.getFieldName());
-      }
-      return field.toString();
-    }
+  /**
+   * Recusa do texto com o caractere nulo. WHY: é a exceção do próprio Jackson, que acrescenta o caminho a cada nível
+   * que ela atravessa e que o leitor do Quarkus REST repassa sem embrulhar; {@link #rejectedField} a reconhece pela
+   * mensagem.
+   */
+  private static MismatchedInputException rejection(JsonParser parser) {
+    return MismatchedInputException.from(parser, String.class, REJECTION);
   }
 
   private static final class Text extends StringDeserializer {
@@ -67,7 +69,7 @@ public class NullCharacterGuard implements ObjectMapperCustomizer {
     public String deserialize(JsonParser parser, DeserializationContext context) throws IOException {
       String value = super.deserialize(parser, context);
       if (value != null && value.indexOf(NULL) >= 0)
-        throw new Rejected(parser);
+        throw rejection(parser);
       return value;
     }
   }
@@ -76,7 +78,7 @@ public class NullCharacterGuard implements ObjectMapperCustomizer {
     @Override
     public Object deserializeKey(String key, DeserializationContext context) throws IOException {
       if (key.indexOf(NULL) >= 0)
-        throw new Rejected(context.getParser());
+        throw rejection(context.getParser());
       return key;
     }
   }

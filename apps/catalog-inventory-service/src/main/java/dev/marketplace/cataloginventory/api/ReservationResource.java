@@ -80,8 +80,7 @@ public class ReservationResource {
         Optional.ofNullable(request.ttlSeconds()).map(Duration::ofSeconds),
         request.items().stream().map(ItemRequest::toDomain).toList());
     return latency.timed("reserve", reservations.reserve(caller.actor(), command))
-        .onFailure(ReservationRefusal.class).invoke(e -> registry.counter("catalog.reservations.refused",
-            "reason", ((ReservationRefusal) e).code()).increment())
+        .onFailure().invoke(this::countRefused)
         .map(result -> {
           ReservationResponse body = ReservationResponse.of(result.reservation());
           if (result.replayed())
@@ -89,6 +88,12 @@ public class ReservationResource {
           registry.counter("catalog.reservations.created").increment();
           return ETags.created(uri, result.reservation().id(), body);
         });
+  }
+
+  /** Conta a recusa de negócio pelo código; falha técnica não entra na métrica. */
+  private void countRefused(Throwable failure) {
+    if (failure instanceof ReservationRefusal refusal)
+      registry.counter("catalog.reservations.refused", "reason", refusal.code()).increment();
   }
 
   /** Devolve a reserva; 404 se não existe no tenant. */

@@ -3,7 +3,9 @@ package dev.marketplace.cataloginventory.domain.product;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import org.junit.jupiter.api.Test;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 import static dev.marketplace.cataloginventory.domain.product.ProductTransition.APPROVE;
 import static dev.marketplace.cataloginventory.domain.product.ProductTransition.BLOCK;
 import static dev.marketplace.cataloginventory.domain.product.ProductTransition.REJECT;
@@ -13,10 +15,22 @@ class ModerationReasonDefinitionTest {
   @Test
   void codeIsKebabCaseWithLettersOnly() {
     assertEquals("wrong-category", define("wrong-category").code());
-    for (String code : new String[]{"Wrong", "wrong--category", "-wrong", "wrong1", "wrong_category", "",
+    for (String code : new String[]{"Wrong", "wrong--category", "-wrong", "wrong-", "wrong1", "wrong_category", "",
         "a".repeat(ModerationReasonDefinition.CODE_MAX_LENGTH + 1)})
       assertEquals("invalid-value", assertThrows(DomainRuleViolation.class, () -> define(code)).code(), code);
     assertEquals("invalid-value", assertThrows(DomainRuleViolation.class, () -> define(null)).code());
+  }
+
+  @Test
+  void codePatternKeepsTheLanguageAndSurvivesLongInput() {
+    Pattern code = Pattern.compile("^" + ModerationReasonDefinition.CODE_PATTERN + "$");
+    for (String valid : List.of("spam", "wrong-category", "a-b-c"))
+      assertTrue(code.matcher(valid).matches(), valid);
+    for (String invalid : List.of("", "-spam", "spam-", "wrong--category", "Wrong", "wrong1", "wrong_category"))
+      assertFalse(code.matcher(invalid).matches(), invalid);
+    // WHY: com a repetição de grupo sem quantificador possessivo, entradas assim estouravam a pilha do motor de regex.
+    assertTrue(code.matcher("a-".repeat(100_000) + "a").matches());
+    assertFalse(code.matcher("a-".repeat(100_000)).matches());
   }
 
   @Test

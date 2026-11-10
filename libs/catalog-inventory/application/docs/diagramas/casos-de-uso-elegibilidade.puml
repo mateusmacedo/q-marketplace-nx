@@ -13,7 +13,7 @@ actor "$I_KYB\nKYB/KYC" as kyb <<sistema>>
 
 package "<$user_check,scale=0.8,color=#1565C0> SellerEligibilityService" as SellerEligibilityService <<aplicacao>> {
   usecase "Consultar situação KYB/KYC da loja\n(get)" as UC_get <<leitura>>
-  usecase "Registrar veredito KYB/KYC\n(record)" as UC_record <<sistema>>
+  usecase "Registrar veredito KYB/KYC\n(applyVerdict)" as UC_record <<sistema>>
 }
 
 seller --> UC_get
@@ -32,7 +32,7 @@ package "<$clipboard_list,scale=0.8,color=#455A64> Pré-condições e regras" as
     Loja sem veredito registrado é PENDING.
   end note
   note as N_record
-    **record**
+    **applyVerdict**
     Sem chamador autenticado: SellerVerdictConsumer lê
     o canal kyb-seller-verdicts do Kafka, no papel
     worker. SellerApproved vira APPROVED, SellerRejected

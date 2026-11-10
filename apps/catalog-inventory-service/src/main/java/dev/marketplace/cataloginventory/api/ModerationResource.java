@@ -111,7 +111,7 @@ public class ModerationResource {
   public Uni<RestResponse<ProductResponse>> approve(@RestPath UUID id, @RestHeader("If-Match") String ifMatch) {
     Actor actor = caller.actor();
     return moderation.approve(actor, id, ETags.optional(ifMatch))
-        .invoke(() -> approved.increment())
+        .invoke(product -> approved.increment())
         .flatMap(product -> responses.savedOk(actor, product));
   }
 
@@ -128,7 +128,7 @@ public class ModerationResource {
       @NotNull @Valid DecisionRequest request) {
     Actor actor = caller.actor();
     return moderation.reject(actor, id, ETags.optional(ifMatch), request.codes(), request.noteText())
-        .invoke(() -> rejected.increment())
+        .invoke(product -> rejected.increment())
         .flatMap(product -> responses.savedOk(actor, product));
   }
 
@@ -145,7 +145,7 @@ public class ModerationResource {
       @NotNull @Valid DecisionRequest request) {
     Actor actor = caller.actor();
     return moderation.block(actor, id, ETags.optional(ifMatch), request.codes(), request.noteText())
-        .invoke(() -> blocked.increment())
+        .invoke(product -> blocked.increment())
         .flatMap(product -> responses.savedOk(actor, product));
   }
 
@@ -161,7 +161,7 @@ public class ModerationResource {
   public Uni<RestResponse<ProductResponse>> unblock(@RestPath UUID id, @RestHeader("If-Match") String ifMatch) {
     Actor actor = caller.actor();
     return moderation.unblock(actor, id, ETags.optional(ifMatch))
-        .invoke(() -> unblocked.increment())
+        .invoke(product -> unblocked.increment())
         .flatMap(product -> responses.savedOk(actor, product));
   }
 
@@ -180,7 +180,7 @@ public class ModerationResource {
     Counter counter = byDecision.get(request.action());
     return moderation.batch(caller.actor(), request.action(), request.codes(), request.noteText(),
         BatchItemRequest.toItems(request.items()))
-        .invoke(outcomes -> counter.increment(succeeded(outcomes)))
+        .invoke(outcomes -> counter.increment((double) succeeded(outcomes)))
         .flatMap(outcomes -> responses.batch(outcomes, uri.getPath()));
   }
 

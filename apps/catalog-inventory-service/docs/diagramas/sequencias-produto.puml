@@ -56,7 +56,7 @@ svc -> svc : CategoryView.requireActive
 opt #FFEBEE categoria ou ancestral inativo
   res -[#C62828]-> seller : <color:#C62828>422 category-inactive</color>
 end
-svc -> dom : Product.draft(categoria, atributos efetivos, moeda, texto, SKUs)
+svc -> dom : Product.draft(id, loja, categoria, atributos efetivos,\nProductDefinition(moeda, título, descrição, atributos, SKUs), ator, agora)
 opt #FFEBEE conteúdo recusado pelo domínio
   res -[#C62828]-> seller : <color:#C62828>422 invalid-attributes (reasons), invalid-value, missing-dimensions</color>\n<color:#C62828>ou duplicate-seller-sku (repetido no próprio produto)</color>
 end

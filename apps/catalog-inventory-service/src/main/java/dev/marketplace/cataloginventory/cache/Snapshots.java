@@ -6,12 +6,16 @@ import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.category.AttributeDefinition;
 import dev.marketplace.cataloginventory.domain.category.AttributeType;
 import dev.marketplace.cataloginventory.domain.category.Category;
+import dev.marketplace.cataloginventory.domain.category.CategoryDefinition;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
+import dev.marketplace.cataloginventory.domain.offer.OfferIdentity;
 import dev.marketplace.cataloginventory.domain.offer.Price;
 import dev.marketplace.cataloginventory.domain.offer.Promotion;
 import dev.marketplace.cataloginventory.domain.product.Dimensions;
 import dev.marketplace.cataloginventory.domain.product.ModerationReasonDefinition;
 import dev.marketplace.cataloginventory.domain.product.Product;
+import dev.marketplace.cataloginventory.domain.product.ProductDefinition;
+import dev.marketplace.cataloginventory.domain.product.ProductLifecycle;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
 import dev.marketplace.cataloginventory.domain.product.ProductTransition;
 import dev.marketplace.cataloginventory.domain.product.Sku;
@@ -60,8 +64,10 @@ final class Snapshots {
 
     Product restore() {
       // WHY: só produto visível (ACTIVE) entra no cache, e fora da moderação a entrada na fila é nula.
-      return Product.restore(id, tenantId, storeId, categoryId, currency, title, description, attributes,
-          skus.stream().map(SkuSnapshot::restore).toList(), status, version, createdAt, updatedAt, null);
+      ProductDefinition definition = new ProductDefinition(currency, title, description, attributes,
+          skus.stream().map(SkuSnapshot::restore).toList());
+      return Product.restore(id, tenantId, storeId, categoryId, definition,
+          new ProductLifecycle(status, version, createdAt, updatedAt, null));
     }
   }
 
@@ -104,7 +110,7 @@ final class Snapshots {
     Offer restore() {
       Price price = new Price(listPrice == null ? null : new Money(new BigDecimal(listPrice), currency),
           new Money(new BigDecimal(salePrice), currency));
-      return Offer.restore(skuId, productId, tenantId, storeId, currency, price, priceVersion,
+      return Offer.restore(new OfferIdentity(skuId, productId, tenantId, storeId, currency), price, priceVersion,
           promotions.stream().map(p -> p.restore(currency)).toList(), version, createdAt, updatedAt);
     }
   }
@@ -138,8 +144,9 @@ final class Snapshots {
     }
 
     Category restore() {
-      return Category.restore(id, tenantId, ancestry, code, name,
-          attributes.stream().map(AttributeSnapshot::restore).toList(), active, version);
+      return Category.restore(id, tenantId, ancestry,
+          new CategoryDefinition(code, name, attributes.stream().map(AttributeSnapshot::restore).toList()), active,
+          version);
     }
   }
 

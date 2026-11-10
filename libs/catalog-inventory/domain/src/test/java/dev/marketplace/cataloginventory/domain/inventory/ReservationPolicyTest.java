@@ -3,6 +3,7 @@ package dev.marketplace.cataloginventory.domain.inventory;
 import dev.marketplace.cataloginventory.domain.DomainRuleViolation;
 import dev.marketplace.cataloginventory.domain.Money;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
+import dev.marketplace.cataloginventory.domain.offer.OfferIdentity;
 import dev.marketplace.cataloginventory.domain.offer.Price;
 import dev.marketplace.cataloginventory.domain.offer.Promotion;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
@@ -29,9 +30,8 @@ class ReservationPolicyTest {
   }
 
   static Reservation open(List<RequestedItem> items, Map<UUID, SkuCandidate> candidates) {
-    return ReservationPolicy.open(UUID.randomUUID(), TENANT, "key", "hash", "pedido-1", items, candidates,
-        NOW, TTL,
-        MAX);
+    return ReservationPolicy.open(new ReservationDraft(UUID.randomUUID(), TENANT, "key", "hash", "pedido-1", items),
+        candidates, NOW, TTL, MAX);
   }
 
   static RequestedItem item(Offer offer, int quantity, String price) {
@@ -111,8 +111,8 @@ class ReservationPolicyTest {
         candidate(o, ProductStatus.ACTIVE, SellerStatus.APPROVED));
     var promo = new Promotion(UUID.randomUUID(), Money.of("80", "BRL"), NOW.minusSeconds(60),
         NOW.plusSeconds(60));
-    Offer promoted = Offer.restore(o.skuId(), o.productId(), TENANT, o.storeId(), "BRL", o.price(), 2,
-        List.of(promo), 1, NOW, NOW);
+    OfferIdentity identity = new OfferIdentity(o.skuId(), o.productId(), TENANT, o.storeId(), "BRL");
+    Offer promoted = Offer.restore(identity, o.price(), 2, List.of(promo), 1, NOW, NOW);
     Map<UUID, SkuCandidate> withPromo = Map.of(o.skuId(),
         candidate(promoted, ProductStatus.ACTIVE, SellerStatus.APPROVED));
     Reservation r = open(List.of(item(o, 1, "80")), withPromo);
@@ -130,10 +130,9 @@ class ReservationPolicyTest {
     assertThrows(DomainRuleViolation.class, () -> open(List.of(), c));
     assertEquals(List.of("duplicate-sku:" + o.skuId()),
         assertThrows(ReservationRefusal.class, () -> open(List.of(item, item), c)).reasons());
-    assertThrows(DomainRuleViolation.class,
-        () -> ReservationPolicy.open(UUID.randomUUID(), TENANT, "k", "h", null, List.of(item),
-            c, NOW,
-            Duration.ofHours(3), MAX));
+    ReservationDraft single = new ReservationDraft(UUID.randomUUID(), TENANT, "k", "h", null, List.of(item));
+    Duration tooLong = Duration.ofHours(3);
+    assertThrows(DomainRuleViolation.class, () -> ReservationPolicy.open(single, c, NOW, tooLong, MAX));
     assertThrows(DomainRuleViolation.class, () -> new RequestedItem(o.skuId(), 0, Money.of("10", "BRL")));
   }
 

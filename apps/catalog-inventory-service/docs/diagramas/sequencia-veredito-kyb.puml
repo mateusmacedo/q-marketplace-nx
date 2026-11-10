@@ -30,7 +30,7 @@ else #ECEFF1 eventType desconhecido
   cons -> topico : confirma sem efeito
 else #E8F5E9 SellerApproved | SellerRejected | ReviewRequired
   cons -> cons : status APPROVED | REJECTED | PENDING;\nassocia correlationId
-  cons -> svc : record(veredito)\nretry com backoff 200 ms a 10 s, até 10 vezes
+  cons -> svc : applyVerdict(veredito)\nretry com backoff 200 ms a 10 s, até 10 vezes
   svc -> dec : apply("catalog-inventory.seller-eligibility", veredito)
   dec -> repo : apply
   repo -> pg : BEGIN

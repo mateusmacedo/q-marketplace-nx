@@ -26,8 +26,12 @@ public final class Category {
   public static final int MAX_DEPTH = 6;
   public static final int MAX_ATTRIBUTES = 50;
   public static final int NAME_MAX_LENGTH = 120;
-  public static final String CODE_PATTERN = "[a-z0-9]+(-[a-z0-9]+)*";
-  private static final Pattern CODE = Pattern.compile(CODE_PATTERN);
+  /**
+   * Kebab-case minúsculo com letras e dígitos. WHY: os quantificadores possessivos aceitam a mesma linguagem de
+   * {@code [a-z0-9]+(-[a-z0-9]+)*} sem o retrocesso recursivo que estoura a pilha em entradas longas.
+   */
+  public static final String CODE_PATTERN = "[a-z0-9]++(?:-[a-z0-9]++)*+";
+  private static final Pattern CODE_FORMAT = Pattern.compile(CODE_PATTERN);
   private final UUID id;
   private final UUID tenantId;
   private List<UUID> ancestry;
@@ -42,18 +46,16 @@ public final class Category {
    * {@code category-too-deep} se passar de {@link #MAX_DEPTH} níveis e com
    * {@code invalid-value} para código, nome ou atributos inválidos.
    */
-  private Category(UUID id, UUID tenantId, List<UUID> ancestry, String code, String name,
-      List<AttributeDefinition> attributes, boolean active, long version) {
+  private Category(UUID id, UUID tenantId, List<UUID> ancestry, CategoryDefinition definition, boolean active,
+      long version) {
     this.id = Objects.requireNonNull(id, "id obrigatório");
     this.tenantId = Objects.requireNonNull(tenantId, "tenant obrigatório");
     this.ancestry = List.copyOf(ancestry);
     if (this.ancestry.size() >= MAX_DEPTH)
       throw tooDeep();
-    if (code == null || code.length() > 60 || !CODE.matcher(code).matches())
-      throw invalid("Código da categoria deve ser kebab-case minúsculo com até 60 caracteres");
-    this.code = code;
-    this.name = requireName(name);
-    this.attributes = requireAttributes(attributes);
+    this.code = requireCode(definition.code());
+    this.name = requireName(definition.name());
+    this.attributes = requireAttributes(definition.attributes());
     this.active = active;
     this.version = version;
   }
@@ -64,7 +66,7 @@ public final class Category {
    */
   public static Category root(UUID id, UUID tenantId, String code, String name,
       List<AttributeDefinition> attributes) {
-    return new Category(id, tenantId, List.of(), code, name, attributes, true, 0);
+    return new Category(id, tenantId, List.of(), new CategoryDefinition(code, name, attributes), true, 0);
   }
 
   /** Cria subcategoria; {@code inherited} são os atributos efetivos do pai. */
@@ -76,7 +78,8 @@ public final class Category {
           "Categoria pai " + parent.code + " está inativa");
     List<UUID> ancestry = new ArrayList<>(parent.ancestry);
     ancestry.add(parent.id);
-    Category child = new Category(id, parent.tenantId, ancestry, code, name, attributes, true, 0);
+    Category child = new Category(id, parent.tenantId, ancestry, new CategoryDefinition(code, name, attributes), true,
+        0);
     requireNoConflicts(ownCodes(child.attributes), codes(inherited));
     return child;
   }
@@ -86,9 +89,9 @@ public final class Category {
    * {@code version}. Reaplica só as validações do próprio nó; conflitos de
    * atributos com ancestrais não são rechecados.
    */
-  public static Category restore(UUID id, UUID tenantId, List<UUID> ancestry, String code, String name,
-      List<AttributeDefinition> attributes, boolean active, long version) {
-    return new Category(id, tenantId, ancestry, code, name, attributes, active, version);
+  public static Category restore(UUID id, UUID tenantId, List<UUID> ancestry, CategoryDefinition definition,
+      boolean active, long version) {
+    return new Category(id, tenantId, ancestry, definition, active, version);
   }
 
   /**
@@ -191,6 +194,12 @@ public final class Category {
   /** Adota a versão gravada pelo repositório após persistir a categoria. */
   public void markPersisted(long newVersion) {
     this.version = newVersion;
+  }
+
+  private static String requireCode(String code) {
+    if (code == null || code.length() > 60 || !CODE_FORMAT.matcher(code).matches())
+      throw invalid("Código da categoria deve ser kebab-case minúsculo com até 60 caracteres");
+    return code;
   }
 
   private static String requireName(String name) {

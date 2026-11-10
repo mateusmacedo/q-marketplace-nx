@@ -3,7 +3,7 @@ package dev.marketplace.cataloginventory.observability;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.config.MeterFilter;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Singleton;
+import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Remove os gauges por conexão do cliente SQL reativo, que publicariam valores
@@ -27,7 +27,7 @@ public class SqlClientMetricsFilter {
   }
 
   @Produces
-  @Singleton
+  @ApplicationScoped
   MeterFilter denyPerConnectionSqlGauges() {
     return MeterFilter.deny(SqlClientMetricsFilter::isPerConnectionSqlGauge);
   }

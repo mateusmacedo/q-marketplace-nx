@@ -23,11 +23,14 @@ import java.util.UUID;
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class ProductCacheInvalidation implements ProductRepository {
+  private final ProductRepository delegate;
+  private final CatalogCache cache;
+
   @Inject
-  @Delegate
-  ProductRepository delegate;
-  @Inject
-  CatalogCache cache;
+  ProductCacheInvalidation(@Delegate ProductRepository delegate, CatalogCache cache) {
+    this.delegate = delegate;
+    this.cache = cache;
+  }
 
   @Override
   public Uni<Void> insert(Product product) {

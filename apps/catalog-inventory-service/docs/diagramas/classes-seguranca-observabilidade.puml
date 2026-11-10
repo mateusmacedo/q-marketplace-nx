@@ -30,7 +30,7 @@ package "<$lock,scale=0.55,color=#455A64> security" as security <<infra>> {
   class Capabilities <<final>> {
     {static} MANAGE_OWN_PRODUCTS ... MANAGE_MODERATION_REASONS : String
   }
-  class SecurityConfigCheck <<@Startup, @Singleton>> {
+  class SecurityConfigCheck <<@Startup, @ApplicationScoped>> {
     SecurityConfigCheck(issuer, keyLocation, inlineKey, audiences)
   }
   class TenantNotAuthorizedException <<exceção>>
@@ -41,8 +41,9 @@ package "<$chart_line,scale=0.55,color=#455A64> observability" as observability 
     entry : boolean = false <<@Nonbinding>>
   }
   class TracedInterceptor <<@Traced, @Interceptor, @Priority(LIBRARY_BEFORE)>> {
-    @Inject lifecycle : Lifecycle
+    -lifecycle : Lifecycle
     --
+    <<@Inject>> TracedInterceptor(lifecycle)
     <<@AroundInvoke>> trace(context) : Object
   }
   class Lifecycle <<@ApplicationScoped>> {
@@ -105,11 +106,11 @@ package "<$chart_line,scale=0.55,color=#455A64> observability" as observability 
   }
   class SqlClientMetricsFilter {
     {static} isPerConnectionSqlGauge(id) : boolean
-    <<@Produces @Singleton>> denyPerConnectionSqlGauges() : MeterFilter
+    <<@Produces @ApplicationScoped>> denyPerConnectionSqlGauges() : MeterFilter
   }
   class RedisClientMetricsFilter {
     {static} isPerConnectionRedisGauge(id) : boolean
-    <<@Produces @Singleton>> denyPerConnectionRedisGauges() : MeterFilter
+    <<@Produces @ApplicationScoped>> denyPerConnectionRedisGauges() : MeterFilter
   }
 }
 

@@ -53,10 +53,14 @@ class DecisionReasonTest {
     assertNull(messages.get(1), "o código fora do catálogo não tem rótulo; o texto vem do catálogo de mensagens");
     assertEquals("O motivo \"Possível falsificação\" foi desativado. Recarregue a lista de motivos.",
         messages.get(2));
+    List<String> wrongCategory = List.of("wrong-category");
+    Optional<String> noNote = Optional.empty();
     assertEquals(List.of("reason-not-applicable:wrong-category"), assertThrows(DomainRuleViolation.class,
-        () -> DecisionReason.of(BLOCK, CATALOG, List.of("wrong-category"), Optional.empty())).reasons());
-    assertThrows(IllegalArgumentException.class, () -> DecisionReason.of(ProductTransition.APPROVE, CATALOG,
-        List.of(), Optional.of("aprovar não tem motivo")));
+        () -> DecisionReason.of(BLOCK, CATALOG, wrongCategory, noNote)).reasons());
+    List<String> noCodes = List.of();
+    Optional<String> approvalNote = Optional.of("aprovar não tem motivo");
+    assertThrows(IllegalArgumentException.class,
+        () -> DecisionReason.of(ProductTransition.APPROVE, CATALOG, noCodes, approvalNote));
   }
 
   @Test

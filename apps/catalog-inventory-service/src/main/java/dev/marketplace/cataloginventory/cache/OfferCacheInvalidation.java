@@ -20,11 +20,14 @@ import java.util.UUID;
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class OfferCacheInvalidation implements OfferRepository {
+  private final OfferRepository delegate;
+  private final CatalogCache cache;
+
   @Inject
-  @Delegate
-  OfferRepository delegate;
-  @Inject
-  CatalogCache cache;
+  OfferCacheInvalidation(@Delegate OfferRepository delegate, CatalogCache cache) {
+    this.delegate = delegate;
+    this.cache = cache;
+  }
 
   @Override
   public Uni<Void> insert(Offer offer) {

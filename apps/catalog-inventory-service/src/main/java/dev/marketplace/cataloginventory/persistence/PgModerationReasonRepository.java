@@ -82,9 +82,9 @@ public class PgModerationReasonRepository implements ModerationReasonRepository 
 
   private static ModerationReasonEntry toEntry(Row r) {
     Set<ProductTransition> decisions = EnumSet.noneOf(ProductTransition.class);
-    if (r.getBoolean("applies_to_reject"))
+    if (Boolean.TRUE.equals(r.getBoolean("applies_to_reject")))
       decisions.add(ProductTransition.REJECT);
-    if (r.getBoolean("applies_to_block"))
+    if (Boolean.TRUE.equals(r.getBoolean("applies_to_block")))
       decisions.add(ProductTransition.BLOCK);
     return new ModerationReasonEntry(r.getUUID("tenant_id"),
         new ModerationReasonDefinition(r.getString("code"), r.getString("label"), decisions,

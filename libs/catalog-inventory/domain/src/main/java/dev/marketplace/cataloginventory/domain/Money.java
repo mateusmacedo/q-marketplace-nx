@@ -19,7 +19,7 @@ public record Money(BigDecimal amount, String currency) {
    * de borda.
    */
   public static final String CURRENCY_PATTERN = "[A-Z]{3}";
-  private static final Pattern CURRENCY = Pattern.compile(CURRENCY_PATTERN);
+  private static final Pattern CURRENCY_FORMAT = Pattern.compile(CURRENCY_PATTERN);
 
   /**
    * Normaliza o valor para duas casas; zeros à direita não contam na
@@ -51,7 +51,7 @@ public record Money(BigDecimal amount, String currency) {
 
   /** Código ISO 4217 válido, como {@code BRL}. */
   public static String requireCurrency(String currency) {
-    if (currency == null || !CURRENCY.matcher(currency).matches())
+    if (currency == null || !CURRENCY_FORMAT.matcher(currency).matches())
       throw invalid("Moeda deve seguir a ISO 4217, por exemplo BRL");
     return currency;
   }

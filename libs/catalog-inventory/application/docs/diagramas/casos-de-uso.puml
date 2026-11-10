@@ -94,7 +94,7 @@ package "<$cart_arrow_down,scale=0.8,color=#1565C0> ReservationService" as Reser
 }
 package "<$user_check,scale=0.8,color=#1565C0> SellerEligibilityService" as SellerEligibilityService <<aplicacao>> {
   usecase "Consultar situação KYB/KYC da loja\n(get)" as UC_elig_get <<leitura>>
-  usecase "Registrar veredito KYB/KYC\n(record)" as UC_elig_record <<sistema>>
+  usecase "Registrar veredito KYB/KYC\n(applyVerdict)" as UC_elig_record <<sistema>>
 }
 package "<$store,scale=0.8,color=#1565C0> StorefrontService" as StorefrontService <<aplicacao>> {
   usecase "Ver produto na vitrine\n(get)" as UC_store_get <<leitura>>

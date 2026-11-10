@@ -44,7 +44,7 @@ public final class ProductImportModels {
           + " só em FAILED", nullable = true) List<Problem.ReasonDetail> reasonDetails) {
     static ImportLineResponse of(ImportResult r) {
       return new ImportLineResponse(r.lineNumber(), r.sellerSku(), r.outcome(), r.code(), r.message(),
-          r.productId(), ReasonMessages.details(r.reasons(), r.message()));
+          r.productId(), ReasonMessages.details(r.reasons(), r.message()).orElse(null));
     }
   }
 

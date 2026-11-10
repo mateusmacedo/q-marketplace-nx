@@ -109,16 +109,22 @@ public final class ReservationService {
       Instant now = clock.instant();
       return reservations.commit(actor.tenantId(), id, now).flatMap(committed -> committed.isPresent()
           ? Uni.createFrom().item(committed.get())
-          : load(actor, id).map(current -> {
-            if (current.status() == ReservationStatus.COMMITTED)
-              return current;
-            if (current.status() == ReservationStatus.ACTIVE && current.overdueAt(now))
-              throw expired(current);
-            if (current.status() == ReservationStatus.ACTIVE)
-              throw new ConcurrentUpdateException();
-            throw notActive(current);
-          }));
+          : load(actor, id).map(current -> uncommitted(current, now)));
     });
+  }
+
+  /**
+   * Resolve a baixa que não gravou: devolve a reserva já confirmada (idempotência) e recusa a que não está ativa, a
+   * vencida e a ativa que mudou no meio da baixa.
+   */
+  private static Reservation uncommitted(Reservation current, Instant now) {
+    if (current.status() == ReservationStatus.COMMITTED)
+      return current;
+    if (current.status() != ReservationStatus.ACTIVE)
+      throw notActive(current);
+    if (current.overdueAt(now))
+      throw expired(current);
+    throw new ConcurrentUpdateException();
   }
 
   /**
@@ -176,9 +182,9 @@ public final class ReservationService {
         : request.items().stream().map(RequestedItem::skuId).toList();
     return inventory.candidates(actor.tenantId(), skuIds).flatMap(candidates -> {
       Instant now = clock.instant();
-      Reservation reservation = ReservationPolicy.open(UUID.randomUUID(), actor.tenantId(),
-          request.idempotencyKey(), hash,
-          request.orderRef(), request.items(), candidates, now,
+      ReservationDraft draft = new ReservationDraft(UUID.randomUUID(), actor.tenantId(), request.idempotencyKey(),
+          hash, request.orderRef(), request.items());
+      Reservation reservation = ReservationPolicy.open(draft, candidates, now,
           request.ttl().orElse(settings.defaultTtl()), settings.maxTtl());
       return reservations.insert(reservation).replaceWith(new Result(reservation, false))
           .onFailure(DuplicateException.class)

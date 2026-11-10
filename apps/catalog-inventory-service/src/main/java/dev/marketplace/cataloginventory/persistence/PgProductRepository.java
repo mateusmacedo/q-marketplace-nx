@@ -37,6 +37,7 @@ import java.util.stream.StreamSupport;
 public class PgProductRepository implements ProductRepository {
   private static final String FOREIGN_KEY_VIOLATION = "23503";
   private static final String PRODUCT_COLUMNS = "id, tenant_id, store_id, category_id, currency, title, description, attributes, status, version, created_at, updated_at, moderation_queued_at";
+  private static final String SELECT_PRODUCTS = "SELECT " + PRODUCT_COLUMNS;
   private static final String INSERT_PRODUCT = """
       INSERT INTO product (id, tenant_id, store_id, category_id, currency, title, description, attributes, status, version,
                            created_at, updated_at, title_key, moderation_queued_at)
@@ -47,14 +48,14 @@ public class PgProductRepository implements ProductRepository {
       WHERE tenant_id = $1 AND id = $2 AND version = $9""";
   // WHY: o filtro repete o predicado do índice parcial da fila para o planejador usá-lo; pela restrição product_status,
   // só o produto em PENDING_MODERATION tem moderation_queued_at.
-  private static final String SELECT_QUEUE = "SELECT " + PRODUCT_COLUMNS + """
+  private static final String SELECT_QUEUE = SELECT_PRODUCTS + """
        FROM product WHERE tenant_id = $1 AND moderation_queued_at IS NOT NULL%s
       ORDER BY moderation_queued_at, id LIMIT $%d""";
   // WHY: só some o saldo zerado; se restar estoque ou reserva, a FK sem cascata
   // barra a remoção do SKU. A oferta do SKU
   // removido sai em cascata.
-  private static final String DELETE_EMPTY_INVENTORY = """
-      DELETE FROM inventory_level WHERE product_id = $1 AND sku_id <> ALL ($2::uuid[]) AND on_hand = 0 AND reserved = 0""";
+  private static final String DELETE_EMPTY_INVENTORY = "DELETE FROM inventory_level WHERE product_id = $1 AND sku_id <> ALL ($2::uuid[])"
+      + " AND on_hand = 0 AND reserved = 0";
   private static final String DELETE_REMOVED_SKUS = "DELETE FROM sku WHERE product_id = $1 AND id <> ALL ($2::uuid[])";
   private static final String CREATE_INVENTORY = """
       INSERT INTO inventory_level (sku_id, product_id, tenant_id, store_id) SELECT unnest($1::uuid[]), $2, $3, $4
@@ -93,16 +94,14 @@ public class PgProductRepository implements ProductRepository {
            FROM product_status_change
           WHERE tenant_id = $1 AND product_id = ANY ($2::uuid[]) ORDER BY product_id, occurred_at DESC, id DESC""";
   // WHY: disponível como no ProductResponse (on_hand - reserved > 0); OUT_OF_STOCK é o ACTIVE sem nenhum SKU assim.
-  private static final String HAS_AVAILABLE = """
-      EXISTS (SELECT 1 FROM inventory_level l WHERE l.product_id = p.id AND l.on_hand > l.reserved)""";
+  private static final String HAS_AVAILABLE = "EXISTS (SELECT 1 FROM inventory_level l WHERE l.product_id = p.id AND l.on_hand > l.reserved)";
   // WHY: com o OR, busca seletiva junta os índices trigram (título e, pelo id, o código do SKU) num BitmapOr, e
   // busca ampla percorre o índice da ordem sem calcular os SKUs (o ARRAY só roda se o título não casa); o IN
   // sobre uma união calculava a união inteira, e 200 mil casamentos levavam 1 s.
   private static final String MATCHES_TEXT = """
       (p.title_key LIKE $%1$d OR p.id = ANY (ARRAY(
           SELECT s.product_id FROM sku s WHERE s.tenant_id = $1%2$s AND lower(s.seller_sku) LIKE $%1$d)))""";
-  private static final String SELECT_SKU_IDS = """
-      SELECT seller_sku, id FROM sku WHERE tenant_id = $1 AND store_id = $2 AND seller_sku = ANY ($3::varchar[])""";
+  private static final String SELECT_SKU_IDS = "SELECT seller_sku, id FROM sku WHERE tenant_id = $1 AND store_id = $2 AND seller_sku = ANY ($3::varchar[])";
 
   private final Pool pool;
   private final PgSupport pg;
@@ -118,13 +117,13 @@ public class PgProductRepository implements ProductRepository {
 
   @Override
   public Uni<Optional<Product>> findById(UUID tenantId, UUID productId) {
-    String sql = "SELECT " + PRODUCT_COLUMNS + " FROM product WHERE tenant_id = $1 AND id = $2";
+    String sql = SELECT_PRODUCTS + " FROM product WHERE tenant_id = $1 AND id = $2";
     return query(sql, Tuple.of(tenantId, productId)).map(found -> found.stream().findFirst());
   }
 
   @Override
   public Uni<Optional<Product>> findBySku(UUID tenantId, UUID skuId) {
-    String sql = "SELECT " + PRODUCT_COLUMNS + " FROM product WHERE tenant_id = $1"
+    String sql = SELECT_PRODUCTS + " FROM product WHERE tenant_id = $1"
         + " AND id = (SELECT product_id FROM sku WHERE tenant_id = $1 AND id = $2)";
     return query(sql, Tuple.of(tenantId, skuId)).map(found -> found.stream().findFirst());
   }
@@ -192,7 +191,7 @@ public class PgProductRepository implements ProductRepository {
     });
     params.add(limit);
     String direction = descending ? " DESC" : " ASC";
-    String products = "SELECT " + PRODUCT_COLUMNS + ", title_key FROM product p WHERE "
+    String products = SELECT_PRODUCTS + ", title_key FROM product p WHERE "
         + String.join(" AND ", conditions) + " ORDER BY p." + column + direction + ", p.id"
         + direction + " LIMIT $" + params.size();
     String order = "selected." + column + direction + ", selected.id" + direction;
@@ -388,19 +387,19 @@ public class PgProductRepository implements ProductRepository {
    * Reconstrói o agregado persistido a partir da linha e dos SKUs já carregados.
    */
   private static Product toProduct(Row r, List<Sku> skus) {
-    return Product.restore(r.getUUID("id"), r.getUUID("tenant_id"), r.getUUID("store_id"),
-        r.getUUID("category_id"),
-        r.getString("currency"), r.getString("title"), r.getString("description"),
-        PgSupport.strings(r.getJsonObject("attributes")), skus,
-        ProductStatus.valueOf(r.getString("status")),
+    ProductDefinition definition = new ProductDefinition(r.getString("currency"), r.getString("title"),
+        r.getString("description"), PgSupport.strings(r.getJsonObject("attributes")), skus);
+    ProductLifecycle lifecycle = new ProductLifecycle(ProductStatus.valueOf(r.getString("status")),
         r.getLong("version"), PgSupport.instant(r.getOffsetDateTime("created_at")),
         PgSupport.instant(r.getOffsetDateTime("updated_at")),
         PgSupport.instant(r.getOffsetDateTime("moderation_queued_at")));
+    return Product.restore(r.getUUID("id"), r.getUUID("tenant_id"), r.getUUID("store_id"), r.getUUID("category_id"),
+        definition, lifecycle);
   }
 
   /** Reconstrói o SKU; as dimensões só são lidas quando o SKU é físico. */
   private static Sku toSku(Row r) {
-    Dimensions dimensions = r.getBoolean("physical")
+    Dimensions dimensions = Boolean.TRUE.equals(r.getBoolean("physical"))
         ? new Dimensions(r.getBigDecimal("height_cm"), r.getBigDecimal("width_cm"),
             r.getBigDecimal("length_cm"),
             r.getInteger("weight_g"))

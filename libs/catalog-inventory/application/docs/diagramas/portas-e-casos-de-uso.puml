@@ -23,6 +23,8 @@ package "<$cubes,scale=0.8,color=#1565C0> catalog-inventory-application" <<aplic
     class StorefrontService <<final>>
     class SellerEligibilityService <<final>>
     class ProductImportService <<final>>
+    class ImportedSkuUpdate <<final>>
+    class ImportedProductCreation <<final>>
     class ModerationReasonService <<final>>
     class CatalogStatsService <<final>>
     class ProductActions <<final>>
@@ -71,8 +73,8 @@ package "$I_POSTGRES catalog-inventory-service (adaptadores)" <<saida>> #FBF6FC;
   class CategoryCacheInvalidation <<decorator>>
   class SellerCacheInvalidation <<decorator>>
   class ModerationReasonCacheInvalidation <<decorator>>
-  class "TaxonomyCache.over()" as TaxonomyOver <<wrapper>>
-  class "ModerationReasonCache.over()" as ReasonsOver <<wrapper>>
+  class "@CacheBacked CategoryRepository\n(TaxonomyCache.over())" as TaxonomyOver <<wrapper>>
+  class "@CacheBacked ModerationReasonRepository\n(ModerationReasonCache.over())" as ReasonsOver <<wrapper>>
 }
 
 ProductService --> ProductSupport
@@ -101,12 +103,17 @@ ModerationService --> ModerationReasonRepository : catalog
 ModerationReasonService --> ModerationReasonRepository
 CatalogStatsService --> CatalogStatsRepository
 ProductImportService --> ProductRepository : skuIdsBySellerSku
-ProductImportService --> ProductAccess
-ProductImportService --> CategoryRepository
-ProductImportService --> OfferRepository
-ProductImportService --> ProductService : create
-ProductImportService --> OfferService : define
-ProductImportService --> InventoryService : get / adjust
+ProductImportService ..> ProductAccess : requireSeller
+ProductImportService --> ImportedSkuUpdate : SKU existente
+ProductImportService --> ImportedProductCreation : grupo novo
+ImportedSkuUpdate --> ProductAccess
+ImportedSkuUpdate --> OfferRepository
+ImportedSkuUpdate --> OfferService : define
+ImportedSkuUpdate --> InventoryService : get / adjust
+ImportedProductCreation --> CategoryRepository
+ImportedProductCreation --> ProductService : create
+ImportedProductCreation --> OfferService : define
+ImportedProductCreation --> InventoryService : adjust
 
 ProductRepository <|.. PgProductRepository
 CategoryRepository <|.. PgCategoryRepository
@@ -127,15 +134,15 @@ ModerationReasonRepository <|.. ModerationReasonCacheInvalidation
 ModerationReasonRepository <|.. ReasonsOver
 
 note bottom of TaxonomyOver
-  Montado em CatalogBeans para CategoryService,
+  Produzido em cache.CachedPorts para CategoryService,
   ProductService, ModerationService e
-  ProductImportService. Com o cache ligado,
+  ImportedProductCreation. Com o cache ligado,
   chain e children passam pelo Redis; com ele
   desligado, devolve a própria porta.
 end note
 
 note bottom of ReasonsOver
-  Montado em CatalogBeans para ModerationService
+  Produzido em cache.CachedPorts para ModerationService
   e ModerationReasonService: catalog passa pelo
   Redis, invalidado por geração a cada escrita.
 end note

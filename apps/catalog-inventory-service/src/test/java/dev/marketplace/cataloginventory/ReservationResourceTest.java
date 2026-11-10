@@ -10,6 +10,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import static dev.marketplace.cataloginventory.Api.as;
 import static dev.marketplace.cataloginventory.Api.idFrom;
 import static dev.marketplace.cataloginventory.Api.sku;
 import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -161,7 +163,7 @@ class ReservationResourceTest {
   }
 
   @Test
-  void expiredReservationCannotBeCommittedAndSweeperReturnsStock() throws Exception {
+  void expiredReservationCannotBeCommittedAndSweeperReturnsStock() {
     Scenario s = new Scenario();
     String id = as(s.api.checkout).header("Idempotency-Key", UUID.randomUUID().toString())
         .body("{\"ttlSeconds\":1,\"items\":[" + s.item(s.m, 3, "60") + "]}")
@@ -169,7 +171,7 @@ class ReservationResourceTest {
         .then()
         .statusCode(201).extract().path("id");
     s.inventory(s.m).body("available", is(0));
-    Thread.sleep(1200);
+    awaitTtlElapsed();
     as(s.api.checkout).post("/inventory/reservations/" + id + "/commit").then().statusCode(409)
         .body("type", endsWith("/reservation-expired"));
     sweeper.sweep().await().atMost(java.time.Duration.ofSeconds(10));
@@ -186,13 +188,13 @@ class ReservationResourceTest {
    * reserva, sem esperar a trava, e expira as demais do lote.
    */
   @Test
-  void sweeperSkipsReservationLockedElsewhereAndExpiresItLater() throws Exception {
+  void sweeperSkipsReservationLockedElsewhereAndExpiresItLater() {
     Scenario s = new Scenario();
     String locked = s.reserve("{\"ttlSeconds\":1,\"items\":[" + s.item(s.p, 1, "50") + "]}")
         .statusCode(201).extract().path("id");
     String free = s.reserve("{\"ttlSeconds\":1,\"items\":[" + s.item(s.m, 3, "60") + "]}")
         .statusCode(201).extract().path("id");
-    Thread.sleep(1200);
+    awaitTtlElapsed();
     SqlConnection conn = pool.getConnection().await().atMost(Duration.ofSeconds(10));
     try {
       Transaction tx = conn.begin().await().atMost(Duration.ofSeconds(10));
@@ -243,5 +245,11 @@ class ReservationResourceTest {
         .statusCode(400);
     s.reserve(s.body(s.item(s.p, 1, "50"))).statusCode(201);
     given().get("/q/metrics").then().body(containsString("catalog_reservations_created_total"));
+  }
+
+  /** Espera passar o prazo de 1 s das reservas criadas até aqui, com folga para o relógio do servidor. */
+  private static void awaitTtlElapsed() {
+    Instant elapsed = Instant.now().plusMillis(1200);
+    await().atMost(Kafka.WAIT).until(() -> Instant.now().isAfter(elapsed));
   }
 }

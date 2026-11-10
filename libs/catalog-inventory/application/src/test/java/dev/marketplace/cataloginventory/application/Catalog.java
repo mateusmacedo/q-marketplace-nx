@@ -24,8 +24,9 @@ final class Catalog {
   final ReservationService reservations = new ReservationService(store, store, SETTINGS, clock);
   final SellerEligibilityService eligibility = new SellerEligibilityService(store);
   final StorefrontService storefront = new StorefrontService(store, store, store);
-  final ProductImportService imports = new ProductImportService(store, store, store, store, products, offers,
-      inventory, clock);
+  final ProductImportService imports = new ProductImportService(store, store,
+      new ImportedSkuUpdate(store, store, offers, inventory),
+      new ImportedProductCreation(store, products, offers, inventory), clock);
   final CatalogStatsService stats = new CatalogStatsService(store, clock);
   final UUID storeId = UUID.randomUUID();
   final Actor seller = seller(storeId);
@@ -62,11 +63,11 @@ final class Catalog {
   }
 
   void approveSeller() {
-    item(eligibility.record(verdict(storeId, SellerStatus.APPROVED)));
+    item(eligibility.applyVerdict(verdict(storeId, SellerStatus.APPROVED)));
   }
 
   /**
-   * Envia para moderação e aprova; exige seller aprovado e oferta em todo SKU.
+   * Envia para moderação e aprova; exige seller aprovado e oferta em cada SKU.
    */
   Product publish(Product product) {
     item(products.submit(seller, product.id(), Optional.empty()));

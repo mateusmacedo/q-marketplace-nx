@@ -16,7 +16,7 @@ public record AttributeDefinition(String code, String label, AttributeType type,
   public static final int MAX_OPTIONS = 100;
   public static final int MAX_TEXT_LENGTH = 500;
   public static final int MAX_LABEL_LENGTH = 80;
-  private static final Pattern CODE = Pattern.compile("[a-z][a-z0-9_]{0,39}");
+  private static final Pattern CODE_FORMAT = Pattern.compile("[a-z][a-z0-9_]{0,39}");
   // WHY: os números são conferidos só por regex, sem conversão: new BigDecimal tem custo quadrático no tamanho
   // da entrada e aceita expoente, como 1E999999999.
   private static final Pattern INTEGER_FORMAT = Pattern.compile("-?\\d{1,18}");
@@ -29,7 +29,7 @@ public record AttributeDefinition(String code, String label, AttributeType type,
    * opções em outro tipo.
    */
   public AttributeDefinition {
-    if (code == null || !CODE.matcher(code).matches())
+    if (code == null || !CODE_FORMAT.matcher(code).matches())
       throw invalid("Código de atributo deve ter letras minúsculas, dígitos ou '_' e começar por letra (até 40)");
     label = requireText(label, MAX_LABEL_LENGTH,
         "Rótulo do atributo " + code + " é obrigatório e tem até " + MAX_LABEL_LENGTH + " caracteres");

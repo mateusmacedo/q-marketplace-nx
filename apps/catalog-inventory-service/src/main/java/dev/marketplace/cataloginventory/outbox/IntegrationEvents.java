@@ -56,8 +56,8 @@ public class IntegrationEvents {
    */
   public List<OutboxMessage> fromOffer(UUID tenantId, List<OfferEvent> events, EventOrigin origin) {
     return events.stream().map(event -> switch (event) {
-      case OfferEvent.PriceChanged e -> message(config.offerTopic(), tenantId, "PriceChanged", "offer", e.skuId(),
-          e.occurredAt(), origin,
+      case OfferEvent.PriceChanged e -> message(config.offerTopic(), tenantId, "PriceChanged",
+          new Aggregate("offer", e.skuId()), e.occurredAt(), origin,
           new PriceChangedV1(e.skuId(), e.productId(), e.storeId(), e.price().currency(),
               amount(e.price().listPrice()), amount(e.price().salePrice()), e.priceVersion(),
               e.promotions().stream()
@@ -73,15 +73,15 @@ public class IntegrationEvents {
    */
   public List<OutboxMessage> fromInventory(UUID tenantId, List<InventoryEvent> events, EventOrigin origin) {
     return events.stream().map(event -> switch (event) {
-      case InventoryEvent.InventoryUpdated e -> inventory(tenantId, "InventoryUpdated", "sku", e.stock().skuId(),
-          e.occurredAt(), origin,
+      case InventoryEvent.InventoryUpdated e -> inventory(tenantId, "InventoryUpdated",
+          new Aggregate("sku", e.stock().skuId()), e.occurredAt(), origin,
           new InventoryUpdatedV1(stock(e.stock()), e.cause().name(), e.reservationId()));
-      case InventoryEvent.InventoryReserved e -> inventory(tenantId, "InventoryReserved", "reservation",
-          e.reservationId(),
-          e.occurredAt(), origin, new InventoryReservedV1(e.reservationId(), e.orderRef(), e.expiresAt(),
+      case InventoryEvent.InventoryReserved e -> inventory(tenantId, "InventoryReserved",
+          new Aggregate("reservation", e.reservationId()), e.occurredAt(), origin,
+          new InventoryReservedV1(e.reservationId(), e.orderRef(), e.expiresAt(),
               e.items().stream().map(i -> new ReservedItemV1(i.quantity(), stock(i.stock()))).toList()));
       case InventoryEvent.InventoryDepleted e ->
-        inventory(tenantId, "InventoryDepleted", "sku", e.stock().skuId(),
+        inventory(tenantId, "InventoryDepleted", new Aggregate("sku", e.stock().skuId()),
             e.occurredAt(), origin, new InventoryDepletedV1(stock(e.stock())));
     }).toList();
   }
@@ -93,34 +93,38 @@ public class IntegrationEvents {
   public OutboxMessage fromEligibility(UUID tenantId, UUID storeId, SellerStatus previous, SellerStatus status,
       Instant decidedAt,
       Instant occurredAt, EventOrigin origin) {
-    return message(config.storeTopic(), tenantId, "StoreEligibilityChanged", "store", storeId, occurredAt, origin,
+    return message(config.storeTopic(), tenantId, "StoreEligibilityChanged", new Aggregate("store", storeId),
+        occurredAt, origin,
         new StoreEligibilityChangedV1(storeId, previous.name(), status.name(), status.isEligible(),
             decidedAt));
   }
 
+  /** Agregado de onde o evento sai: o tipo e o id, que também é a chave do registro no Kafka. */
+  private record Aggregate(String type, UUID id) {
+  }
+
   private OutboxMessage product(UUID tenantId, String type, ProductEvent event, EventOrigin origin, Object data) {
-    return message(config.productTopic(), tenantId, type, "product", event.productId(), event.occurredAt(), origin,
+    return message(config.productTopic(), tenantId, type, new Aggregate("product", event.productId()),
+        event.occurredAt(), origin,
         data);
   }
 
-  private OutboxMessage inventory(UUID tenantId, String type, String aggregateType, UUID aggregateId,
-      Instant occurredAt,
+  private OutboxMessage inventory(UUID tenantId, String type, Aggregate aggregate, Instant occurredAt,
       EventOrigin origin, Object data) {
-    return message(config.inventoryTopic(), tenantId, type, aggregateType, aggregateId, occurredAt, origin, data);
+    return message(config.inventoryTopic(), tenantId, type, aggregate, occurredAt, origin, data);
   }
 
   /**
    * WHY: a chave do registro é o id do agregado, para o Kafka manter a ordem dos
    * eventos de um mesmo agregado.
    */
-  private OutboxMessage message(String topic, UUID tenantId, String type, String aggregateType, UUID aggregateId,
-      Instant occurredAt, EventOrigin origin, Object data) {
+  private OutboxMessage message(String topic, UUID tenantId, String type, Aggregate aggregate, Instant occurredAt,
+      EventOrigin origin, Object data) {
     UUID id = UUID.randomUUID();
     Envelope envelope = new Envelope(id, type, EventContracts.VERSION, EventContracts.SOURCE, tenantId,
-        aggregateType,
-        aggregateId, occurredAt, origin.correlationId(), data);
+        aggregate.type(), aggregate.id(), occurredAt, origin.correlationId(), data);
     try {
-      return new OutboxMessage(id, tenantId, topic, aggregateId.toString(), type,
+      return new OutboxMessage(id, tenantId, topic, aggregate.id().toString(), type,
           json.writeValueAsString(envelope), occurredAt,
           origin.traceParent());
     } catch (JsonProcessingException e) {

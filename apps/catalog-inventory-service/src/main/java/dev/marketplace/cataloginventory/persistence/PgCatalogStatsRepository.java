@@ -48,8 +48,7 @@ public class PgCatalogStatsRepository implements CatalogStatsRepository {
       GROUP BY 2, 3, 4, 5""";
   // WHY: os filtros vão literais para o planejador usar os índices parciais da fila e das transições da moderação;
   // a moderação só precisa das entradas e saídas da fila e dos bloqueios.
-  private static final String MODERATED = """
-      ('PENDING_MODERATION' IN (to_status, from_status) OR transition = 'BLOCK')""";
+  private static final String MODERATED = "('PENDING_MODERATION' IN (to_status, from_status) OR transition = 'BLOCK')";
   private static final String MODERATION = """
       SELECT 'queue' AS kind, NULL::date AS period, NULL::text AS transition, NULL::text AS from_status,
              NULL::text AS to_status, count(*) AS n
@@ -65,8 +64,8 @@ public class PgCatalogStatsRepository implements CatalogStatsRepository {
       FROM product_status_change WHERE tenant_id = $1 AND occurred_at >= $7 AND occurred_at < $8 AND %1$s
       GROUP BY 2, 3, 4, 5""".formatted(MODERATED);
   // WHY: com o predicado do índice parcial da fila (product_moderation_queue_idx), a contagem roda só por ele.
-  private static final String QUEUE = """
-      SELECT count(*) AS n FROM product WHERE tenant_id = $1 AND moderation_queued_at IS NOT NULL""";
+  private static final String QUEUE = "SELECT count(*) AS n FROM product"
+      + " WHERE tenant_id = $1 AND moderation_queued_at IS NOT NULL";
   private static final String CATEGORIES = """
       SELECT count(*) AS total, count(*) FILTER (WHERE parent_id IS NULL) AS roots,
              count(*) FILTER (WHERE NOT active) AS inactive, count(*) FILTER (WHERE in_use) AS with_products
@@ -95,6 +94,7 @@ public class PgCatalogStatsRepository implements CatalogStatsRepository {
           case "status" -> statuses.put(ProductStatus.valueOf(row.getString("to_status")), row.getLong("n"));
           case "out-of-stock" -> outOfStock = row.getLong("n");
           default -> {
+            // NOTE: as linhas de transição (months e activity) são lidas em transitions(), abaixo.
           }
         }
       }

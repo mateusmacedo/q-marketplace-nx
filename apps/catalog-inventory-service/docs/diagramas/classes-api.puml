@@ -178,15 +178,17 @@ package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros 
     categoryNotEmpty()
     businessRule() / accessDenied() / tenantNotAuthorized()
     invalidInput() / invalidImportFile()
-    constraintViolation() / nullCharacter()
+    constraintViolation()
     unreadableBody() / mismatchedBody()
     persistenceTimeout() / webApplication() / unexpected()
   }
-  class NullCharacterGuard <<ObjectMapperCustomizer>> <<entrada>> {
+  class NullCharacterGuard <<ObjectMapperCustomizer, @ApplicationScoped>> <<entrada>> {
     customize(mapper)
+    {static} rejectedField(e) : Optional<String>
     --
-    texto e chave de mapa com U+0000
-    lançam Rejected, com o caminho do campo
+    texto e chave de mapa com U+0000 lançam
+    MismatchedInputException do próprio Jackson,
+    com o caminho do campo
   }
   class Problem <<record, RFC 9457>> <<exceção>> {
     type : String
@@ -213,7 +215,7 @@ package "<$filter,scale=0.6,color=#EF6C00> Filtros, OpenAPI e erros" as filtros 
     {static} BUNDLE = "i18n/ReasonMessages.properties"
     --
     {static} resolve(reason, fallback) : String
-    {static} details(reasons, fallback) : List<ReasonDetail>
+    {static} details(reasons, fallback) : Optional<List<ReasonDetail>>
   }
   class CorrelationFilter <<@ServerRequestFilter, @ServerResponseFilter>> <<entrada>> {
     bind(request) <<preMatching>>
@@ -307,7 +309,7 @@ Problem "1" *-- "0..*" FieldError : errors
 Problem "1" *-- "0..*" ReasonDetail : reasonDetails
 ProblemMappers ..> ReasonMessages : texto dos motivos
 ReasonMessages ..> ReasonDetail : produz
-ProblemMappers ..> NullCharacterGuard : Rejected
+ProblemMappers ..> NullCharacterGuard : rejectedField
 
 note right of ProblemMappers
   |= Exceção |= Status |= type |
@@ -323,8 +325,8 @@ note right of ProblemMappers
   | InvalidInputException | 400 | invalid-request |
   | InvalidImportFileException | 400 | invalid-import-file |
   | ConstraintViolationException | 400 | validation-failed |
-  | NullCharacterGuard.Rejected (U+0000 em texto do corpo) | 400 | validation-failed |
-  | JsonProcessingException, MismatchedInputException | 400 | malformed-body |
+  | MismatchedInputException de U+0000 em texto do corpo (NullCharacterGuard) | 400 | validation-failed |
+  | JsonProcessingException, demais MismatchedInputException | 400 | malformed-body |
   | WebApplicationException 400 com causa JSON | 400 | malformed-body |
   | TimeoutException (Mutiny) | 503 + Retry-After: 1 | service-unavailable |
   | WebApplicationException (demais) | status original | http-{status} |

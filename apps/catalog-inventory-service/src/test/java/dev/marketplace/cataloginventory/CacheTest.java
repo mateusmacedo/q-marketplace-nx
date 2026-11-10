@@ -85,7 +85,7 @@ class CacheTest {
 
   /** O retrato guarda as promoções e o preço vigente sai do relógio da leitura: a virada dispensa invalidação. */
   @Test
-  void scheduledPromotionStartsWhileTheProductIsCached() throws InterruptedException {
+  void scheduledPromotionStartsWhileTheProductIsCached() {
     Api api = new Api().withCategory().approvedStore();
     String id = api.activeProduct(sku("CCH-P", "P", "50"));
     String path = "/offers/" + api.skuId(id, "CCH-P");
@@ -94,7 +94,8 @@ class CacheTest {
         .statusCode(201);
     loadedRead(api, id).body("skus[0].price.salePrice.amount", is(50.00f));
     cachedRead(api, id).body("skus[0].price.salePrice.amount", is(50.00f));
-    Thread.sleep(Math.max(0, Duration.between(Instant.now(), start).plusMillis(200).toMillis()));
+    Instant started = start.plusMillis(200);
+    await().atMost(Kafka.WAIT).until(() -> Instant.now().isAfter(started));
     cachedRead(api, id).body("skus[0].price.salePrice.amount", is(30.00f));
   }
 

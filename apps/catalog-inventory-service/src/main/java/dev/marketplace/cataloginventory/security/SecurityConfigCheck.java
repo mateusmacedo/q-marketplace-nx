@@ -1,7 +1,7 @@
 package dev.marketplace.cataloginventory.security;
 
 import io.quarkus.runtime.Startup;
-import jakarta.inject.Singleton;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.util.Optional;
 
@@ -9,10 +9,10 @@ import java.util.Optional;
  * Falha a inicialização quando a validação de tokens não está configurada.
  * WHY: antecipa o erro para o boot; um pod mal configurado não deve ficar
  * "pronto"
- * para depois rejeitar todo tráfego autenticado.
+ * para depois rejeitar qualquer tráfego autenticado.
  */
 @Startup
-@Singleton
+@ApplicationScoped
 public class SecurityConfigCheck {
   /**
    * Interrompe a inicialização com {@link IllegalStateException} se faltar

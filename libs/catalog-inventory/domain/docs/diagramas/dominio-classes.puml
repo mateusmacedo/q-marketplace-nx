@@ -41,12 +41,18 @@ package "<$sitemap,scale=0.5,color=#2E7D32> domain.category" as category #F6FBF6
     --
     {static} root(...)
     {static} childOf(parent, ...)
+    {static} restore(id, tenantId, ancestry, definition, active, version)
     revise(...)
     moveUnder(chain, height, codes)
     activate()
     deactivate()
     requireRemovable(childCount)
     {static} effectiveAttributes(chain)
+  }
+  class CategoryDefinition << (V,#7CB342) VO>> {
+    code : String
+    name : String
+    attributes : List<AttributeDefinition>
   }
   class AttributeDefinition << (V,#7CB342) VO>> {
     code : String
@@ -82,7 +88,8 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     updatedAt : Instant
     moderationQueuedAt : Instant [0..1]
     --
-    {static} draft(...)
+    {static} draft(id, storeId, category, effective, definition, actor, now)
+    {static} restore(id, tenantId, storeId, categoryId, definition, lifecycle)
     reviseContent(...)
     addSku(...) / reviseSku(...) / removeSku(...)
     submit / approve / reject / block / unblock
@@ -109,6 +116,20 @@ package "<$box,scale=0.5,color=#2E7D32> domain.product" as product #F6FBF6;line:
     widthCm : BigDecimal
     lengthCm : BigDecimal
     weightGrams : int
+  }
+  class ProductDefinition << (V,#7CB342) VO>> {
+    currency : String
+    title : String
+    description : String
+    attributes : Map<String, String>
+    skus : List<Sku>
+  }
+  class ProductLifecycle << (V,#7CB342) VO>> {
+    status : ProductStatus
+    version : long
+    createdAt : Instant
+    updatedAt : Instant
+    moderationQueuedAt : Instant [0..1]
   }
   class StatusChange << (V,#7CB342) VO>> {
     id : UUID
@@ -207,10 +228,18 @@ package "<$tag,scale=0.5,color=#2E7D32> domain.offer" as offer #F6FBF6;line:2E7D
     version : long
     --
     {static} create(...)
+    {static} restore(identity, price, priceVersion, promotions, version, createdAt, updatedAt)
     changePrice(price, now)
     schedulePromotion(promotion, now)
     cancelPromotion(id, now)
     effectivePrice(now) : EffectivePrice
+  }
+  class OfferIdentity << (V,#7CB342) VO>> {
+    skuId : UUID
+    productId : UUID
+    tenantId : UUID
+    storeId : UUID
+    currency : String
   }
   class Price << (V,#7CB342) VO>> {
     listPrice : Money [0..1]
@@ -268,6 +297,13 @@ package "<$warehouse,scale=0.5,color=#2E7D32> domain.inventory" as inventory #F6
     unitPrice : Money
     priceVersion : long
   }
+  class ReservationDraft << (V,#7CB342) VO>> {
+    id : UUID
+    tenantId : UUID
+    idempotencyKey : String
+    requestHash : String
+    orderRef : String [0..1]
+  }
   class RequestedItem << (V,#7CB342) VO>> {
     skuId : UUID
     quantity : int
@@ -283,7 +319,7 @@ package "<$warehouse,scale=0.5,color=#2E7D32> domain.inventory" as inventory #F6
   class ReservationPolicy << (P,#00897B) política>> {
     LOCK_ORDER : Comparator<UUID>
     --
-    {static} open(...) : Reservation
+    {static} open(draft, candidates, now, ttl, maxTtl) : Reservation
     {static} inLockOrder(items)
     {static} insufficientStock(skuIds)
   }
@@ -298,6 +334,8 @@ package "<$warehouse,scale=0.5,color=#2E7D32> domain.inventory" as inventory #F6
 Category "1" *-- "0..50" AttributeDefinition : attributes
 AttributeDefinition --> "1" AttributeType : type
 Category "0..*" --> "0..1" Category : pai (último de ancestry)
+Category ..> CategoryDefinition : restore
+CategoryDefinition "1" *-- "0..50" AttributeDefinition : attributes
 
 Product "1" *-- "0..100" Sku : skus
 Sku "1" *-- "0..1" Dimensions : dimensions
@@ -314,10 +352,14 @@ PublishingPolicy ..> PublishingIssue : campo onde se resolve
 Product ..> CategoryChange : prévia da troca, sem gravar
 CategoryChange ..> PublishingPolicy : valueViolations
 Product "0..*" ..> "1" Category : categoryId
+Product ..> ProductDefinition : draft / restore
+Product ..> ProductLifecycle : restore
+ProductDefinition "1" *-- "0..100" Sku : skus
 
 Offer "0..1" ..> "1" Sku : skuId
 Offer "1" *-- "1" Price : price
 Offer "1" *-- "0..20" Promotion : pendentes
+Offer ..> OfferIdentity : restore
 Offer ..> EffectivePrice : calcula
 Promotion ..> PromotionPhase : fase no instante
 Price --> Money
@@ -327,7 +369,8 @@ StockLevel "1" ..> "1" Sku : skuId
 Reservation "1" *-- "1..100" ReservationItem : items
 Reservation --> ReservationStatus : status
 ReservationItem --> Money : unitPrice
-ReservationPolicy ..> RequestedItem : recebe
+ReservationPolicy ..> ReservationDraft : open
+ReservationDraft "1" *-- "0..*" RequestedItem : items (open aceita de 1 a 100)
 ReservationPolicy ..> SkuCandidate : consulta
 ReservationPolicy ..> Reservation : cria ACTIVE
 SkuCandidate --> Offer

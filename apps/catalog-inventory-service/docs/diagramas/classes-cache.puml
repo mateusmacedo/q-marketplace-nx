@@ -16,31 +16,33 @@ interface "application.CategoryRepository" as CategoryRepository <<porta>> #line
 interface "application.SellerEligibilityRepository" as SellerEligibilityRepository <<porta>> #line.dashed
 interface "application.ModerationReasonRepository" as ModerationReasonRepository <<porta>> #line.dashed
 class "application.StorefrontService.StorefrontProduct" as StorefrontProduct <<record>> <<serviço>> #line.dashed
-class "CatalogBeans" as CatalogBeans <<infra>> #line.dashed
 class "api.StorefrontResource" as StorefrontResource <<entrada>> #line.dashed
 interface "config.CatalogConfig" as CatalogConfig <<@ConfigMapping>> <<infra>> #line.dashed
 interface "<$redis,scale=0.4,color=#D82C20> io.vertx.mutiny.redis.client.Redis" as Redis <<infra>> #line.dashed
 
 class "<$broom,scale=0.55,color=#6A1B9A> ProductCacheInvalidation" as ProductCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
-  @Inject @Delegate delegate : ProductRepository
-  @Inject cache : CatalogCache
+  -delegate : ProductRepository
+  -cache : CatalogCache
   --
+  <<@Inject>> ProductCacheInvalidation(@Delegate delegate, cache)
   insert(product) : invalida a vitrine do produto
   update(product, expectedVersion) : invalida a vitrine do produto
   <<demais operações delegam>>
 }
 class "<$broom,scale=0.55,color=#6A1B9A> OfferCacheInvalidation" as OfferCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
-  @Inject @Delegate delegate : OfferRepository
-  @Inject cache : CatalogCache
+  -delegate : OfferRepository
+  -cache : CatalogCache
   --
+  <<@Inject>> OfferCacheInvalidation(@Delegate delegate, cache)
   insert(offer) : invalida a vitrine do produto
   update(offer, expectedVersion) : invalida a vitrine do produto
   <<leituras delegam>>
 }
 class "<$broom,scale=0.55,color=#6A1B9A> CategoryCacheInvalidation" as CategoryCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
-  @Inject @Delegate delegate : CategoryRepository
-  @Inject cache : CatalogCache
+  -delegate : CategoryRepository
+  -cache : CatalogCache
   --
+  <<@Inject>> CategoryCacheInvalidation(@Delegate delegate, cache)
   insert(category) : invalida a taxonomia do tenant
   update(category, expectedVersion) : invalida a taxonomia do tenant
   move(category, previousAncestry, expectedVersion) : invalida a taxonomia do tenant
@@ -48,17 +50,19 @@ class "<$broom,scale=0.55,color=#6A1B9A> CategoryCacheInvalidation" as CategoryC
   <<leituras delegam>>
 }
 class "<$broom,scale=0.55,color=#6A1B9A> SellerCacheInvalidation" as SellerCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
-  @Inject @Delegate delegate : SellerEligibilityRepository
-  @Inject cache : CatalogCache
+  -delegate : SellerEligibilityRepository
+  -cache : CatalogCache
   --
+  <<@Inject>> SellerCacheInvalidation(@Delegate delegate, cache)
   apply(consumer, verdict) : invalida a loja se o veredito for APPLIED ou a escrita falhar
   <<statusOf e statusesOf delegam>>
 }
 
 class "<$broom,scale=0.55,color=#6A1B9A> ModerationReasonCacheInvalidation" as ModerationReasonCacheInvalidation <<@Decorator, @Priority(100)>> <<saida>> {
-  @Inject @Delegate delegate : ModerationReasonRepository
-  @Inject cache : CatalogCache
+  -delegate : ModerationReasonRepository
+  -cache : CatalogCache
   --
+  <<@Inject>> ModerationReasonCacheInvalidation(@Delegate delegate, cache)
   insert(reason) : invalida os motivos do tenant
   update(reason, expectedVersion) : invalida os motivos do tenant
   <<leituras delegam>>
@@ -80,6 +84,7 @@ class "<$redis,scale=0.4,color=#D82C20> CatalogCache" as CatalogCache <<@Applica
   -timeout, invalidationTimeout : Duration
   -ttl, generationTtl : String
   -registry : MeterRegistry
+  -loaded : Map<Script, String>
   --
   enabled() : boolean
   read(cache, valueKey, generationKey, ownerKey, ...) : Uni<Lookup>
@@ -106,7 +111,6 @@ enum "CatalogCache.Lookup.Result" as Result {
 }
 class "CatalogCache.Script" as Script <<record>> {
   source : String
-  sha : String
 }
 class CacheKeys <<utilitário>> {
   {static} PREFIX = "catalog:"
@@ -122,6 +126,11 @@ class CacheKeys <<utilitário>> {
   {static} children(tenantId, parentId, limit, afterCode) : String
 }
 
+annotation CacheBacked <<@Qualifier>> <<saida>>
+class CachedPorts <<produtores CDI>> <<saida>> {
+  <<@Produces @ApplicationScoped @CacheBacked>> categories(categories, taxonomy) : CategoryRepository
+  <<@Produces @ApplicationScoped @CacheBacked>> moderationReasons(reasons, cache) : ModerationReasonRepository
+}
 class "<$store,scale=0.55,color=#6A1B9A> StorefrontCache" as StorefrontCache <<@ApplicationScoped>> <<saida>> {
   -cache : CatalogCache
   -json : ObjectMapper
@@ -212,8 +221,9 @@ Lookup --> Result
 CatalogCache ..> CacheKeys
 
 StorefrontResource ..> StorefrontCache : get(load)
-CatalogBeans ..> TaxonomyCache : over(CategoryRepository)
-CatalogBeans ..> ModerationReasonCache : over(ModerationReasonRepository)
+CachedPorts ..> TaxonomyCache : over(CategoryRepository)
+CachedPorts ..> ModerationReasonCache : over(ModerationReasonRepository)
+CachedPorts ..> CacheBacked : qualifica
 
 ProductRepository -[hidden]right- OfferRepository
 OfferRepository -[hidden]right- CategoryRepository
@@ -223,12 +233,15 @@ note bottom of CatalogCache
   Conteúdo carimbado com as gerações lidas antes da carga do banco; cada escrita confirmada
   incrementa a geração. Leitura fora do prazo vira BYPASS, gravação sem espera (detach) que
   falha é ignorada, e a invalidação tem prazo e nova tentativa próprios. Nenhuma falha propaga.
+  Os scripts rodam por EVALSHA com o identificador que o SCRIPT LOAD devolve no primeiro uso
+  (guardado em loaded); NOSCRIPT, depois de o Redis reiniciar, cai no EVAL do script inteiro.
 end note
 
-note right of CatalogBeans
-  Passa o resultado de TaxonomyCache.over() para CategoryService, ProductService,
-  ModerationService e ProductImportService, e o de ModerationReasonCache.over() para ModerationService e
-  ModerationReasonService. Com o cache desligado, over() devolve a própria porta.
+note right of CachedPorts
+  Produz as portas @CacheBacked: a de categorias, com TaxonomyCache.over(), para CategoryService,
+  ProductService, ModerationService e ImportedProductCreation, e a de motivos, com
+  ModerationReasonCache.over(), para ModerationService e ModerationReasonService. Com o cache
+  desligado, over() devolve a própria porta.
 end note
 
 note bottom of SellerCacheInvalidation

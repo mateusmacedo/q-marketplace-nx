@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static dev.marketplace.cataloginventory.imports.ImportFileReasons.*;
@@ -22,12 +23,17 @@ import static dev.marketplace.cataloginventory.imports.ImportFileReasons.*;
  * arquivo e converte cada registro de dados em {@link ImportRow}.
  */
 public final class ProductCsv {
+  private static final String SELLER_SKU = "seller_sku";
+  private static final String CURRENCY = "currency";
+  private static final String LIST_PRICE = "list_price";
+  private static final String SALE_PRICE = "sale_price";
+  private static final String ON_HAND = "on_hand";
   public static final List<String> COLUMNS = List.of("product_ref", "category_code", "title", "description",
-      "attributes", "seller_sku", "variant_attributes", "physical", "height_cm", "width_cm", "length_cm",
-      "weight_g", "currency", "list_price", "sale_price", "on_hand");
+      "attributes", SELLER_SKU, "variant_attributes", "physical", "height_cm", "width_cm", "length_cm",
+      "weight_g", CURRENCY, LIST_PRICE, SALE_PRICE, ON_HAND);
   /** Colunas que o SKU já existente na loja usa; erro só nas demais não o afeta. */
-  private static final Set<String> PRICE_AND_STOCK_COLUMNS = Set.of("seller_sku", "currency", "list_price",
-      "sale_price", "on_hand");
+  private static final Set<String> PRICE_AND_STOCK_COLUMNS = Set.of(SELLER_SKU, CURRENCY, LIST_PRICE, SALE_PRICE,
+      ON_HAND);
   // WHY: o limite de dígitos vem antes do new BigDecimal, que tem custo quadrático no tamanho da entrada; 17 dígitos
   // inteiros cobrem o Money.MAX.
   private static final Pattern DECIMAL = Pattern.compile("-?\\d{1,17}(\\.\\d{1,4})?");
@@ -119,31 +125,31 @@ public final class ProductCsv {
    * coluna de preço ou estoque viram {@link ImportRow#invalid} com todos os
    * erros, e erro só em coluna de produto vai para {@code productError}.
    */
-  private static ImportRow toRow(CsvParser.Record record) {
-    if (record.fields().size() != COLUMNS.size())
-      return ImportRow.invalid(record.line(), null, null,
-          "Linha com " + record.fields().size() + " colunas; o cabeçalho tem " + COLUMNS.size());
-    Fields f = new Fields(record.fields());
+  private static ImportRow toRow(CsvParser.Record csvRecord) {
+    if (csvRecord.fields().size() != COLUMNS.size())
+      return ImportRow.invalid(csvRecord.line(), null, null,
+          "Linha com " + csvRecord.fields().size() + " colunas; o cabeçalho tem " + COLUMNS.size());
+    Fields f = new Fields(csvRecord.fields());
     String productRef = f.text("product_ref");
     String categoryCode = f.text("category_code");
     String title = f.text("title");
     String description = f.text("description");
     Map<String, String> attributes = f.pairs("attributes");
-    String sellerSku = f.required("seller_sku");
+    String sellerSku = f.required(SELLER_SKU);
     Map<String, String> variantAttributes = f.pairs("variant_attributes");
-    Boolean physical = f.bool("physical");
+    Boolean physical = f.bool("physical").orElse(null);
     BigDecimal heightCm = f.decimal("height_cm", false);
     BigDecimal widthCm = f.decimal("width_cm", false);
     BigDecimal lengthCm = f.decimal("length_cm", false);
     Integer weightGrams = f.integer("weight_g", false);
-    String currency = f.required("currency");
-    BigDecimal listPrice = f.decimal("list_price", false);
-    BigDecimal salePrice = f.decimal("sale_price", true);
-    Integer onHand = f.integer("on_hand", true);
+    String currency = f.required(CURRENCY);
+    BigDecimal listPrice = f.decimal(LIST_PRICE, false);
+    BigDecimal salePrice = f.decimal(SALE_PRICE, true);
+    Integer onHand = f.integer(ON_HAND, true);
     String errors = f.errors.isEmpty() ? null : String.join("; ", f.errors);
     if (f.failed.stream().anyMatch(PRICE_AND_STOCK_COLUMNS::contains))
-      return ImportRow.invalid(record.line(), productRef, sellerSku, errors);
-    return new ImportRow(record.line(), productRef, categoryCode, title, description, attributes, sellerSku,
+      return ImportRow.invalid(csvRecord.line(), productRef, sellerSku, errors);
+    return new ImportRow(csvRecord.line(), productRef, categoryCode, title, description, attributes, sellerSku,
         variantAttributes, physical, heightCm, widthCm, lengthCm, weightGrams, currency, listPrice, salePrice,
         onHand, null, errors);
   }
@@ -200,14 +206,15 @@ public final class ProductCsv {
       return null;
     }
 
-    Boolean bool(String column) {
+    /** Valor {@code true} ou {@code false}, sem diferenciar maiúsculas; vazio quando ausente ou inválido. */
+    Optional<Boolean> bool(String column) {
       String value = text(column);
       if (value == null)
-        return null;
+        return Optional.empty();
       if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false"))
-        return Boolean.valueOf(value);
+        return Optional.of(Boolean.valueOf(value));
       fail(column, "use true ou false, e não '" + shown(value) + "'");
-      return null;
+      return Optional.empty();
     }
 
     /** Pares {@code chave=valor} separados por ';', sem escape; vazio vira mapa vazio. */

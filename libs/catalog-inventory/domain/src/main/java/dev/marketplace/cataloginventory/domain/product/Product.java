@@ -56,24 +56,22 @@ public final class Product {
    * moeda, texto, atributos e conjunto de SKUs. Recusa com
    * {@code invalid-value} ou {@code duplicate-seller-sku}.
    */
-  private Product(UUID id, UUID tenantId, UUID storeId, UUID categoryId, String currency, String title,
-      String description,
-      Map<String, String> attributes, List<Sku> skus, ProductStatus status, long version,
-      Instant createdAt, Instant updatedAt, Instant moderationQueuedAt) {
+  private Product(UUID id, UUID tenantId, UUID storeId, UUID categoryId, ProductDefinition definition,
+      ProductLifecycle lifecycle) {
     this.id = Objects.requireNonNull(id, "id obrigatório");
     this.tenantId = Objects.requireNonNull(tenantId, "tenant obrigatório");
     this.storeId = Objects.requireNonNull(storeId, "loja obrigatória");
-    this.currency = Money.requireCurrency(currency);
+    this.currency = Money.requireCurrency(definition.currency());
     this.categoryId = Objects.requireNonNull(categoryId, "categoria obrigatória");
-    setText(title, description);
-    this.attributes = Attributes.copy(attributes);
-    this.skus = new ArrayList<>(skus);
+    setText(definition.title(), definition.description());
+    this.attributes = Attributes.copy(definition.attributes());
+    this.skus = new ArrayList<>(definition.skus());
     requireSkuSet(this.skus);
-    this.status = Objects.requireNonNull(status, "estado obrigatório");
-    this.version = version;
-    this.createdAt = Objects.requireNonNull(createdAt, "data de criação obrigatória");
-    this.updatedAt = Objects.requireNonNull(updatedAt, "data de atualização obrigatória");
-    this.moderationQueuedAt = moderationQueuedAt;
+    this.status = Objects.requireNonNull(lifecycle.status(), "estado obrigatório");
+    this.version = lifecycle.version();
+    this.createdAt = Objects.requireNonNull(lifecycle.createdAt(), "data de criação obrigatória");
+    this.updatedAt = Objects.requireNonNull(lifecycle.updatedAt(), "data de atualização obrigatória");
+    this.moderationQueuedAt = lifecycle.moderationQueuedAt();
   }
 
   /**
@@ -83,15 +81,12 @@ public final class Product {
    * {@code duplicate-seller-sku} ou {@code invalid-value}.
    */
   public static Product draft(UUID id, UUID storeId, Category category, List<AttributeDefinition> effective,
-      String currency,
-      String title, String description, Map<String, String> attributes, List<Sku> skus, String actor,
-      Instant now) {
+      ProductDefinition definition, String actor, Instant now) {
     requireUsable(category);
-    Product product = new Product(id, category.tenantId(), storeId, category.id(), currency, title, description,
-        attributes,
-        skus, DRAFT, 0, now, now, null);
+    Product product = new Product(id, category.tenantId(), storeId, category.id(), definition,
+        new ProductLifecycle(DRAFT, 0, now, now, null));
     requireValidValues(product.attributes, product.skus, effective);
-    product.record(ProductTransition.CREATE, actor, null, now);
+    product.applyTransition(ProductTransition.CREATE, actor, null, now);
     product.newEvents.add(new ProductEvent.ProductCreated(id, storeId, product.categoryId, product.currency,
         product.title,
         product.skus.stream().map(s -> new ProductEvent.SkuSummary(s.id(), s.sellerSku())).toList(),
@@ -103,14 +98,10 @@ public final class Product {
    * Reconstrói o produto persistido preservando estado e versão, sem
    * registrar transições nem eventos. Reaplica só as validações estruturais
    * (moeda, texto e SKUs), não os valores de atributos contra a categoria.
-   * {@code moderationQueuedAt} é nulo fora de {@code PENDING_MODERATION}.
    */
-  public static Product restore(UUID id, UUID tenantId, UUID storeId, UUID categoryId, String currency, String title,
-      String description, Map<String, String> attributes, List<Sku> skus, ProductStatus status,
-      long version, Instant createdAt, Instant updatedAt, Instant moderationQueuedAt) {
-    return new Product(id, tenantId, storeId, categoryId, currency, title, description, attributes, skus, status,
-        version,
-        createdAt, updatedAt, moderationQueuedAt);
+  public static Product restore(UUID id, UUID tenantId, UUID storeId, UUID categoryId, ProductDefinition definition,
+      ProductLifecycle lifecycle) {
+    return new Product(id, tenantId, storeId, categoryId, definition, lifecycle);
   }
 
   /**
@@ -185,12 +176,12 @@ public final class Product {
       throw new InvalidTransitionException(operation, status.name());
   }
 
-  /** Conteúdo e SKUs aceitam edição: todo estado, menos bloqueado e arquivado. */
+  /** Conteúdo e SKUs aceitam edição: qualquer estado, menos bloqueado e arquivado. */
   public boolean acceptsEdit() {
     return status.isEditable();
   }
 
-  /** Oferta e estoque aceitam mudança: todo estado, menos arquivado. */
+  /** Oferta e estoque aceitam mudança: qualquer estado, menos arquivado. */
   public boolean acceptsOfferAndStockChanges() {
     return status != ARCHIVED;
   }
@@ -224,7 +215,7 @@ public final class Product {
   }
 
   /**
-   * {@code offeredSkus}: SKUs que já têm oferta; todo SKU precisa de uma para o
+   * {@code offeredSkus}: SKUs que já têm oferta; cada SKU precisa de uma para o
    * produto ser publicado.
    */
   public List<Reason> publishingViolations(List<AttributeDefinition> effective, boolean categoryActive,
@@ -269,7 +260,7 @@ public final class Product {
       Instant now) {
     requireFrom(ProductTransition.SUBMIT);
     requirePublishable(effective, categoryActive, offeredSkus);
-    record(ProductTransition.SUBMIT, actor, null, now);
+    applyTransition(ProductTransition.SUBMIT, actor, null, now);
   }
 
   /**
@@ -284,7 +275,7 @@ public final class Product {
     requireFrom(ProductTransition.APPROVE);
     requirePublishable(effective, categoryActive, offeredSkus);
     requireEligible(seller);
-    record(ProductTransition.APPROVE, actor, null, now);
+    applyTransition(ProductTransition.APPROVE, actor, null, now);
   }
 
   /**
@@ -294,7 +285,7 @@ public final class Product {
    */
   public void reject(DecisionReason reason, String actor, Instant now) {
     requireFrom(ProductTransition.REJECT);
-    record(ProductTransition.REJECT, actor, requireDecision(reason, ProductTransition.REJECT), now);
+    applyTransition(ProductTransition.REJECT, actor, requireDecision(reason, ProductTransition.REJECT), now);
   }
 
   /**
@@ -304,7 +295,7 @@ public final class Product {
    */
   public void block(DecisionReason reason, String actor, Instant now) {
     requireFrom(ProductTransition.BLOCK);
-    record(ProductTransition.BLOCK, actor, requireDecision(reason, ProductTransition.BLOCK), now);
+    applyTransition(ProductTransition.BLOCK, actor, requireDecision(reason, ProductTransition.BLOCK), now);
     newEvents.add(new ProductEvent.ProductBlocked(id, storeId, reason.reasons(), reason.note(), now));
   }
 
@@ -315,7 +306,7 @@ public final class Product {
    */
   public void unblock(String actor, Instant now) {
     requireFrom(ProductTransition.UNBLOCK);
-    record(ProductTransition.UNBLOCK, actor, null, now);
+    applyTransition(ProductTransition.UNBLOCK, actor, null, now);
   }
 
   /**
@@ -325,7 +316,7 @@ public final class Product {
    */
   public void pause(String actor, Instant now) {
     requireFrom(ProductTransition.PAUSE);
-    record(ProductTransition.PAUSE, actor, null, now);
+    applyTransition(ProductTransition.PAUSE, actor, null, now);
   }
 
   /**
@@ -336,7 +327,7 @@ public final class Product {
   public void resume(SellerStatus seller, String actor, Instant now) {
     requireFrom(ProductTransition.RESUME);
     requireEligible(seller);
-    record(ProductTransition.RESUME, actor, null, now);
+    applyTransition(ProductTransition.RESUME, actor, null, now);
   }
 
   /**
@@ -346,7 +337,7 @@ public final class Product {
    */
   public void archive(String actor, Instant now) {
     requireFrom(ProductTransition.ARCHIVE);
-    record(ProductTransition.ARCHIVE, actor, null, now);
+    applyTransition(ProductTransition.ARCHIVE, actor, null, now);
   }
 
   /**
@@ -465,7 +456,7 @@ public final class Product {
    */
   private void reviewIfPublished(String actor, Instant now) {
     if (editReturnsToModeration())
-      record(ProductTransition.REVIEW_REQUIRED, actor, null, now);
+      applyTransition(ProductTransition.REVIEW_REQUIRED, actor, null, now);
     else
       touch(now);
   }
@@ -475,7 +466,7 @@ public final class Product {
    * {@code ProductStatusChanged}; leva o produto ao destino da transição,
    * marca a entrada na fila de moderação e atualiza {@code updatedAt}.
    */
-  private void record(ProductTransition transition, String actor, DecisionReason reason, Instant now) {
+  private void applyTransition(ProductTransition transition, String actor, DecisionReason reason, Instant now) {
     ProductStatus from = status;
     ProductStatus to = transition.to();
     List<ReasonLabel> reasons = reason == null ? List.of() : reason.reasons();

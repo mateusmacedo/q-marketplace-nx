@@ -100,7 +100,7 @@ class ProductActionsTest {
   @Test
   void resumeShowsTheEligibilityReasonInsteadOfDisappearing() {
     Product paused = item(products.pause(seller, catalog.active(sku("CAM-P", "P")).id(), Optional.empty()));
-    item(catalog.eligibility.record(verdict(catalog.storeId, SellerStatus.REJECTED)));
+    item(catalog.eligibility.applyVerdict(verdict(catalog.storeId, SellerStatus.REJECTED)));
     ProductActions.Available available = available(seller, paused);
     assertFalse(available.allows(RESUME));
     assertEquals(List.of("REMOVE_SKU=sku-removal-requires-draft", "RESUME=seller-not-eligible:REJECTED"),

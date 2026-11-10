@@ -90,16 +90,16 @@ public final class Kafka {
     return r -> tenant.toString().equals(envelope(r).path("tenantId").asText());
   }
 
-  static JsonNode envelope(ConsumerRecord<String, String> record) {
+  static JsonNode envelope(ConsumerRecord<String, String> message) {
     try {
-      return JSON.readTree(record.value());
+      return JSON.readTree(message.value());
     } catch (IOException e) {
-      throw new AssertionError("Evento não é JSON: " + record.value(), e);
+      throw new AssertionError("Evento não é JSON: " + message.value(), e);
     }
   }
 
-  static String header(ConsumerRecord<String, String> record, String name) {
-    var header = record.headers().lastHeader(name);
+  static String header(ConsumerRecord<String, String> message, String name) {
+    var header = message.headers().lastHeader(name);
     return header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
   }
 }

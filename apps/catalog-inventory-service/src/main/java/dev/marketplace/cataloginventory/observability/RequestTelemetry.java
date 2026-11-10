@@ -23,11 +23,12 @@ public class RequestTelemetry {
   private static final String STARTED = "catalog.telemetry.started";
   // WHY: o Quarkus REST guarda o template da rota nos locais do contexto Vert.x da requisição, com esta chave.
   private static final String ROUTE_TEMPLATE = "UrlPathTemplate";
+  private static final String PRODUCT = "product";
   // WHY: o parâmetro {id} nomeia agregados diferentes conforme o recurso; os demais parâmetros já dizem qual é.
-  private static final Map<String, String> ID_BY_RESOURCE = Map.of("ProductResource", "product",
-      "ModerationResource", "product", "CategoryResource", "category", "ReservationResource", "reservation",
+  private static final Map<String, String> ID_BY_RESOURCE = Map.of("ProductResource", PRODUCT,
+      "ModerationResource", PRODUCT, "CategoryResource", "category", "ReservationResource", "reservation",
       "ProductImportResource", "import");
-  private static final Map<String, String> AGGREGATE_BY_PARAMETER = Map.of("skuId", "sku", "productId", "product",
+  private static final Map<String, String> AGGREGATE_BY_PARAMETER = Map.of("skuId", "sku", "productId", PRODUCT,
       "storeId", "store", "tenantId", "tenant");
   private final JsonWebToken token;
   private final CatalogConfig.Security security;
@@ -77,6 +78,8 @@ public class RequestTelemetry {
 
   private String claim(String name) {
     Object value = token.getClaim(name);
-    return value instanceof JsonString json ? json.getString() : value == null ? null : value.toString();
+    if (value instanceof JsonString json)
+      return json.getString();
+    return value == null ? null : value.toString();
   }
 }
