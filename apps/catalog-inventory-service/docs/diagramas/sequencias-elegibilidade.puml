@@ -46,11 +46,11 @@ end
 res --> cli : 200 {storeId, status, canPublish, visibleInStorefront}\n(efeitos derivados de SellerStatus no servidor)
 note over res, pg : Leitura direta do banco, sem cache e sem outbox: o decorator\nSellerCacheInvalidation só atua na gravação do veredito
 
-newpage record: consumo de kyb-kyc.seller.v1 (SellerEligibilityService.record)
+newpage applyVerdict: consumo de kyb-kyc.seller.v1 (SellerEligibilityService.applyVerdict)
 autonumber 1
 
 topico -> cons : mensagem SellerApproved | SellerRejected | ReviewRequired
-cons -> svc : record(veredito)
+cons -> svc : applyVerdict(veredito)
 note over topico, svc : Fluxo detalhado em sequencia-veredito-kyb.puml (envelope, inbox, upsert por decided_at,\nStoreEligibilityChanged na outbox, invalidação da vitrine e fila de descarte)
 
 legend right

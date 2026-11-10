@@ -27,6 +27,8 @@ import org.jboss.logging.Logger;
 @Traced
 public class PgReservationRepository implements ReservationRepository {
   private static final Logger LOG = Logger.getLogger(PgReservationRepository.class);
+  private static final String RETURNING = " RETURNING ";
+  private static final String TENANT_ID = "tenant_id";
   private static final String COLUMNS = "id, tenant_id, idempotency_key, request_hash, order_ref, status, created_at, expires_at, closed_at";
   private static final String INSERT = """
       INSERT INTO inventory_reservation (id, tenant_id, idempotency_key, request_hash, order_ref, status, created_at, expires_at)
@@ -36,20 +38,20 @@ public class PgReservationRepository implements ReservationRepository {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""";
   private static final String RESERVE_STOCK = """
       UPDATE inventory_level SET reserved = reserved + $3, version = version + 1, updated_at = $4
-      WHERE tenant_id = $1 AND sku_id = $2 AND on_hand - reserved >= $3""" + " RETURNING "
+      WHERE tenant_id = $1 AND sku_id = $2 AND on_hand - reserved >= $3""" + RETURNING
       + PgInventoryRepository.LEVEL_COLUMNS;
   private static final String RETURN_STOCK = """
       UPDATE inventory_level SET reserved = reserved - $2, version = version + 1, updated_at = $3
-      WHERE sku_id = $1""" + " RETURNING " + PgInventoryRepository.LEVEL_COLUMNS;
+      WHERE sku_id = $1""" + RETURNING + PgInventoryRepository.LEVEL_COLUMNS;
   private static final String CONSUME_STOCK = """
       UPDATE inventory_level SET on_hand = on_hand - $2, reserved = reserved - $2, sold = sold + $2, version = version + 1,
                                  updated_at = $3
       WHERE sku_id = $1"""
-      + " RETURNING " + PgInventoryRepository.LEVEL_COLUMNS;
+      + RETURNING + PgInventoryRepository.LEVEL_COLUMNS;
   private static final String CLOSE = "UPDATE inventory_reservation SET status = $3, closed_at = $4"
       + " WHERE tenant_id = $1 AND id = $2 AND status = 'ACTIVE'";
   private static final String COMMIT = CLOSE + " AND expires_at > $4 RETURNING " + COLUMNS;
-  private static final String RELEASE = CLOSE + " RETURNING " + COLUMNS;
+  private static final String RELEASE = CLOSE + RETURNING + COLUMNS;
   private static final String EXTEND = "UPDATE inventory_reservation SET expires_at = $3"
       + " WHERE tenant_id = $1 AND id = $2 AND status = 'ACTIVE' AND expires_at > $4 RETURNING "
       + COLUMNS;
@@ -63,7 +65,7 @@ public class PgReservationRepository implements ReservationRepository {
           WHERE tenant_id = $1 AND id = $2 AND status = 'ACTIVE' AND expires_at <= $4
           FOR UPDATE SKIP LOCKED)
       UPDATE inventory_reservation SET status = $3, closed_at = $4
-      WHERE tenant_id = $1 AND id IN (SELECT id FROM due)""" + " RETURNING " + COLUMNS;
+      WHERE tenant_id = $1 AND id IN (SELECT id FROM due)""" + RETURNING + COLUMNS;
   private static final String ITEMS = """
       SELECT reservation_id, sku_id, product_id, store_id, quantity, currency, unit_price, price_version
       FROM inventory_reservation_item WHERE reservation_id = ANY ($1::uuid[]) ORDER BY reservation_id, sku_id""";
@@ -158,9 +160,9 @@ public class PgReservationRepository implements ReservationRepository {
     return pg.bounded(pool.preparedQuery(DUE).execute(Tuple.of(PgSupport.utc(at), batch)))
         .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
         .onItem().transformToUniAndConcatenate(row -> lifecycle.step("reservation expire", () -> {
-          Telemetry.tag(Telemetry.TENANT, row.getUUID("tenant_id"));
+          Telemetry.tag(Telemetry.TENANT, row.getUUID(TENANT_ID));
           Telemetry.tag("marketplace.reservation.id", row.getUUID("id"));
-          return transition(row.getUUID("tenant_id"), row.getUUID("id"),
+          return transition(row.getUUID(TENANT_ID), row.getUUID("id"),
               EXPIRE, ReservationStatus.EXPIRED, at,
               RETURN_STOCK, EventOrigin.current());
         })
@@ -271,7 +273,7 @@ public class PgReservationRepository implements ReservationRepository {
       if (found.isEmpty())
         return Uni.createFrom().item(List.<Reservation>of());
       UUID[] ids = found.stream().map(r -> r.getUUID("id")).toArray(UUID[]::new);
-      return client.preparedQuery(ITEMS).execute(Tuple.of((Object) ids)).map(itemRows -> {
+      return client.preparedQuery(ITEMS).execute(Tuple.of(ids)).map(itemRows -> {
         Map<UUID, List<ReservationItem>> byReservation = new HashMap<>();
         itemRows.forEach(i -> byReservation
             .computeIfAbsent(i.getUUID("reservation_id"), k -> new ArrayList<>())
@@ -282,7 +284,7 @@ public class PgReservationRepository implements ReservationRepository {
                     i.getString("currency")),
                 i.getLong("price_version"))));
         return found.stream()
-            .map(r -> new Reservation(r.getUUID("id"), r.getUUID("tenant_id"),
+            .map(r -> new Reservation(r.getUUID("id"), r.getUUID(TENANT_ID),
                 r.getString("idempotency_key"),
                 r.getString("request_hash"), r.getString("order_ref"),
                 ReservationStatus.valueOf(r.getString("status")),

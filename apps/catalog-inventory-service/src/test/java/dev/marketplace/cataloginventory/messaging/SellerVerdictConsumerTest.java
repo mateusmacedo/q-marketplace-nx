@@ -10,6 +10,7 @@ import dev.marketplace.cataloginventory.domain.product.SellerStatus;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.test.junit.QuarkusTest;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.groups.UniAwait;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.time.Instant;
@@ -80,8 +81,9 @@ class SellerVerdictConsumerTest {
       }
     };
     var isolated = new SellerVerdictConsumer(new SellerEligibilityService(unavailable), json, config, registry);
-    assertThrows(IllegalStateException.class,
-        () -> isolated.consume(valid("SellerApproved")).await().atMost(Duration.ofSeconds(15)));
+    UniAwait<Void> consumption = isolated.consume(valid("SellerApproved")).await();
+    Duration timeout = Duration.ofSeconds(15);
+    assertThrows(IllegalStateException.class, () -> consumption.atMost(timeout));
     assertEquals(config.events().consumerRetries() + 1, attempts.get(),
         "tentativa original mais as novas tentativas");
   }

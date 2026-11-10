@@ -11,6 +11,7 @@ participant "$I_WORKER\nProductImportWorker\n(worker, a cada 1 s)" as worker <<e
 end box
 box "Aplicação" #F5FAFF
 participant "$I_SERVICO\nProductImportService" as svc <<aplicacao>>
+participant "$I_SERVICO\nImportedSkuUpdate /\nImportedProductCreation" as parts <<aplicacao>>
 participant "$I_SERVICO\nProductService /\nOfferService /\nInventoryService" as uc <<aplicacao>>
 end box
 box "Saída" #FBF6FC
@@ -133,47 +134,50 @@ loop cada unidade, em sequência
   alt #FFEBEE Rejected
     svc -> svc : <color:#C62828>FAILED duplicate-seller-sku (só a primeira linha do SKU é importada)</color>\n<color:#C62828>ou invalid-row (SKU novo sem product_ref; a mensagem traz o erro de leitura da linha, se houver)</color>
   else #FFFFFF ExistingSku (recebe só preço e estoque)
+    svc -> parts : ImportedSkuUpdate.apply(seller, linha, skuId)
     opt #FFEBEE linha com erro nas colunas de preço ou estoque
-      svc -> svc : <color:#C62828>FAILED invalid-row</color>
+      parts -> parts : <color:#C62828>FAILED invalid-row</color>
     end
-    svc -> ctx : ProductAccess.ownedBySku(seller, skuId); offers.ofSku(tenant, skuId)
+    parts -> ctx : ProductAccess.ownedBySku(seller, skuId); offers.ofSku(tenant, skuId)
     ctx -> pg : SELECT product WHERE id = (SELECT product_id FROM sku ...);\nSELECT offer; SELECT offer_promotion
-    svc -> svc : Product.requireNotArchived("IMPORT")
+    parts -> parts : Product.requireNotArchived("IMPORT")
     alt preço igual ao da oferta atual
-      svc -> svc : preço sem mudança
+      parts -> parts : preço sem mudança
     else oferta nova ou preço diferente
-      svc -> uc : OfferService.define(seller, skuId, versão lida como If-Match, preço)\n(PriceChanged em catalog-inventory.offer.v1; invalida a vitrine do produto)
+      parts -> uc : OfferService.define(seller, skuId, versão lida como If-Match, preço)\n(PriceChanged em catalog-inventory.offer.v1; invalida a vitrine do produto)
     end
-    svc -> uc : InventoryService.get(seller, skuId)
+    parts -> uc : InventoryService.get(seller, skuId)
     alt onHand igual ao saldo atual
-      svc -> svc : estoque sem mudança
+      parts -> parts : estoque sem mudança
     else onHand diferente
-      svc -> uc : InventoryService.adjust(seller, skuId, sem If-Match, onHand)\n(InventoryUpdated em catalog-inventory.inventory.v1)
+      parts -> uc : InventoryService.adjust(seller, skuId, sem If-Match, onHand)\n(InventoryUpdated em catalog-inventory.inventory.v1)
     end
-    svc -> svc : UPDATED se preço ou estoque mudou; senão UNCHANGED
+    parts -> parts : UPDATED se preço ou estoque mudou; senão UNCHANGED
   else #FFFFFF NewProduct (grupo por product_ref)
-    svc -> svc : prepare de cada linha, sem gravar: categoria, título e indicador físico obrigatórios;\nSKU, preço e estoque válidos
+    svc -> parts : ImportedProductCreation.create(seller, productRef, linhas)
+    parts -> parts : prepare de cada linha, sem gravar: categoria, título e indicador físico obrigatórios;\nSKU, preço e estoque válidos
     alt #FFEBEE alguma linha do grupo inválida
-      svc -> svc : <color:#C62828>FAILED com o código da linha inválida e group-rejected nas demais;</color>\n<color:#C62828>nenhum produto é criado</color>
+      parts -> parts : <color:#C62828>FAILED com o código da linha inválida e group-rejected nas demais;</color>\n<color:#C62828>nenhum produto é criado</color>
     else #FFEBEE linhas divergem da primeira em categoria, título, descrição, atributos ou moeda
-      svc -> svc : <color:#C62828>FAILED inconsistent-product em todas as linhas</color>
+      parts -> parts : <color:#C62828>FAILED inconsistent-product em todas as linhas</color>
     else #FFFFFF grupo coerente
-      svc -> ctx : categories.idByCode(tenant, category_code)
+      parts -> ctx : categories.idByCode(tenant, category_code)
       ctx -> pg : SELECT id FROM category WHERE tenant_id AND code
       alt #FFEBEE categoria inexistente no tenant
-        svc -> svc : <color:#C62828>FAILED category-not-found em todas as linhas</color>
+        parts -> parts : <color:#C62828>FAILED category-not-found em todas as linhas</color>
       else #E8F5E9 categoria encontrada
-        svc -> uc : ProductService.create(seller, categoria, moeda, título, descrição, atributos, todos os SKUs)\n(DRAFT + ProductCreated em catalog-inventory.product.v1)
+        parts -> uc : ProductService.create(seller, categoria, moeda, título, descrição, atributos, todos os SKUs)\n(DRAFT + ProductCreated em catalog-inventory.product.v1)
         loop cada SKU criado, em sequência
-          svc -> uc : OfferService.define(seller, skuId, sem If-Match, preço);\nInventoryService.adjust(seller, skuId, sem If-Match, onHand), só se onHand > 0
-          svc -> svc : CREATED (ou FAILED com o productId, se a oferta ou o estoque recusar)
+          parts -> uc : OfferService.define(seller, skuId, sem If-Match, preço);\nInventoryService.adjust(seller, skuId, sem If-Match, onHand), só se onHand > 0
+          parts -> parts : CREATED (ou FAILED com o productId, se a oferta ou o estoque recusar)
         end
       end
     end
   end
   opt #FFEBEE recusa de negócio de ProductService, OfferService ou InventoryService
-    svc -> svc : a linha vira FAILED com code igual ao type que a API responderia\n(invalid-attributes, category-inactive, invalid-transition, duplicate-seller-sku,\nversion-mismatch, not-found...); o produto já criado fica em rascunho
+    parts -> parts : a linha vira FAILED com code igual ao type que a API responderia\n(invalid-attributes, category-inactive, invalid-transition, duplicate-seller-sku,\nversion-mismatch, not-found...); o produto já criado fica em rascunho
   end
+  parts --> svc : resultados da unidade (ExistingSku e NewProduct)
   svc -> repo : recordResults(job.id, resultados da unidade)
   repo -> pg : BEGIN; INSERT product_import_line ... ON CONFLICT (import_id, line_number) DO NOTHING;\nUPDATE product_import SET started_at = agora (se PROCESSING; renova a lease),\ncontagens por desfecho += linhas inseridas WHERE id; COMMIT
 end

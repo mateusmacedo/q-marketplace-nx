@@ -141,7 +141,7 @@ class SellerEligibilityService <<final>> {
   SellerEligibilityService(sellers)
   --
   get(actor, storeId) : Uni<SellerStatus>
-  record(verdict) : Uni<SellerVerdict.Outcome>
+  applyVerdict(verdict) : Uni<SellerVerdict.Outcome>
 }
 class ReservationService <<final>> {
   ReservationService(reservations, inventory, settings, clock)
@@ -155,7 +155,7 @@ class ReservationService <<final>> {
   ~{static} hash(request) : String
 }
 class ProductImportService <<final>> {
-  ProductImportService(imports, products, categories, offers, productService, offerService, inventoryService, clock)
+  ProductImportService(imports, products, skuUpdate, productCreation, clock)
   --
   submit(actor, content, totalLines) : Uni<ProductImport>
   get(actor, id) : Uni<Report>
@@ -163,6 +163,16 @@ class ProductImportService <<final>> {
   list(actor, cursorKey, limit) : Uni<Page<Summary>>
   claimNext(lease) : Uni<Optional<Claimed>>
   process(job, rows) : Uni<List<ImportResult>>
+}
+class ImportedSkuUpdate <<final>> {
+  ImportedSkuUpdate(products, offers, offerService, inventoryService)
+  --
+  ~apply(seller, row, skuId) : Uni<ImportResult>
+}
+class ImportedProductCreation <<final>> {
+  ImportedProductCreation(categories, productService, offerService, inventoryService)
+  --
+  ~create(seller, productRef, rows) : Uni<List<ImportResult>>
 }
 
 ProductService --> ProductSupport
@@ -174,10 +184,15 @@ ProductSupport --> ProductAccess
 OfferService --> ProductAccess
 InventoryService --> ProductAccess
 StorefrontService --> ProductAccess
-ProductImportService --> ProductAccess
-ProductImportService --> ProductService : create
-ProductImportService --> OfferService : define
-ProductImportService --> InventoryService : get / adjust
+ProductImportService ..> ProductAccess : requireSeller
+ProductImportService --> ImportedSkuUpdate : SKU existente
+ProductImportService --> ImportedProductCreation : grupo novo
+ImportedSkuUpdate --> ProductAccess
+ImportedSkuUpdate --> OfferService : define
+ImportedSkuUpdate --> InventoryService : get / adjust
+ImportedProductCreation --> ProductService : create
+ImportedProductCreation --> OfferService : define
+ImportedProductCreation --> InventoryService : adjust
 
 ProductService -[hidden]right- ModerationService
 ProductActions -[hidden]down- Available
@@ -194,7 +209,8 @@ SellerEligibilityService -[hidden]right- ProductImportService
 
 note bottom of ProductAccess
   Os casos de uso são Java puro com Mutiny: recebem as portas (repositórios) e o Clock
-  no construtor, montados em CatalogBeans. As operações de usuário recebem o Actor;
+  no construtor, montados nos produtores CatalogBeans, ModerationBeans, ImportBeans e
+  ReservationBeans do serviço. As operações de usuário recebem o Actor;
   as operações de escrita com If-Match recebem a versão esperada como Optional<Long>.
   As setas para as portas estão em portas-e-casos-de-uso.
 end note

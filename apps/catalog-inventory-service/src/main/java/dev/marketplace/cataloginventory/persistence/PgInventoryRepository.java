@@ -5,6 +5,7 @@ import dev.marketplace.cataloginventory.domain.Reason;
 import dev.marketplace.cataloginventory.observability.Traced;
 import dev.marketplace.cataloginventory.application.InventoryRepository;
 import dev.marketplace.cataloginventory.application.NotFoundException;
+import dev.marketplace.cataloginventory.application.StockAdjustment;
 import dev.marketplace.cataloginventory.application.VersionMismatchException;
 import dev.marketplace.cataloginventory.domain.inventory.InventoryEvents;
 import dev.marketplace.cataloginventory.domain.inventory.SkuCandidate;
@@ -51,6 +52,7 @@ public class PgInventoryRepository implements InventoryRepository {
       LEFT JOIN offer o ON o.tenant_id = s.tenant_id AND o.sku_id = s.id
       LEFT JOIN offer_promotion pr ON pr.sku_id = o.sku_id
       WHERE s.tenant_id = $1 AND s.id = ANY ($2::uuid[])""";
+  private static final String SKU_ID = "sku_id";
   private final Pool pool;
   private final PgSupport pg;
   private final PgOutbox outbox;
@@ -70,63 +72,41 @@ public class PgInventoryRepository implements InventoryRepository {
     return pg.bounded(pool.preparedQuery(LEVELS).execute(Tuple.of(tenantId, skuIds.toArray(UUID[]::new))))
         .map(rows -> {
           Map<UUID, StockLevel> levels = new HashMap<>();
-          rows.forEach(r -> levels.put(r.getUUID("sku_id"), level(r)));
+          rows.forEach(r -> levels.put(r.getUUID(SKU_ID), level(r)));
           return levels;
         });
   }
 
   @Override
-  public Uni<StockLevel> adjust(UUID tenantId, UUID storeId, UUID productId, UUID skuId, int onHand,
-      Optional<Long> expectedVersion, String actor, Instant at) {
+  public Uni<StockLevel> adjust(StockAdjustment adjustment, Optional<Long> expectedVersion, String actor,
+      Instant at) {
     EventOrigin origin = EventOrigin.current();
+    UUID skuId = adjustment.skuId();
     // WHY: FOR UPDATE serializa ajustes e reservas do mesmo SKU; o CHECK reserved
     // <= on_hand é a última barreira.
-    return pg.bounded(
-        pool.withTransaction(conn -> conn.preparedQuery(LOCK_LEVEL)
-            .execute(Tuple.of(tenantId, storeId, skuId))
-            .flatMap(rows -> {
-              if (rows.size() == 0)
-                throw new NotFoundException("Estoque");
-              StockLevel current = level(rows.iterator().next());
-              if (expectedVersion.isPresent()
-                  && expectedVersion.get() != current.version())
-                throw new VersionMismatchException(current.version());
-              if (onHand < current.reserved())
-                throw new StockConflictException(
-                    DomainReasons.STOCK_BELOW_RESERVED,
-                    "Estoque físico não pode ficar abaixo do reservado ("
-                        + current.reserved()
-                        + ")",
-                    List.of(Reason.of(
-                        DomainReasons.STOCK_BELOW_RESERVED,
-                        skuId)));
-              return conn.preparedQuery(SET_ON_HAND)
-                  .execute(Tuple.of(skuId, onHand,
-                      PgSupport.utc(at)))
-                  .map(updated -> level(
-                      updated.iterator().next()))
-                  .call(updated -> conn.preparedQuery(AUDIT)
-                      .execute(Tuple.tuple().addUUID(
-                          UUID.randomUUID())
-                          .addUUID(skuId)
-                          .addUUID(tenantId)
-                          .addUUID(storeId)
-                          .addInteger(current
-                              .onHand())
-                          .addInteger(onHand)
-                          .addString(actor)
-                          .addValue(PgSupport
-                              .utc(at))))
-                  .call(updated -> outbox.append(conn,
-                      events.fromInventory(tenantId,
-                          InventoryEvents.adjusted(
-                              current,
-                              updated,
-                              productId,
-                              storeId,
-                              at),
-                          origin)));
-            })));
+    return pg.bounded(pool.withTransaction(conn -> conn.preparedQuery(LOCK_LEVEL)
+        .execute(Tuple.of(adjustment.tenantId(), adjustment.storeId(), skuId))
+        .flatMap(rows -> {
+          if (rows.size() == 0)
+            throw new NotFoundException("Estoque");
+          StockLevel current = level(rows.iterator().next());
+          if (expectedVersion.isPresent() && expectedVersion.get() != current.version())
+            throw new VersionMismatchException(current.version());
+          if (adjustment.onHand() < current.reserved())
+            throw new StockConflictException(DomainReasons.STOCK_BELOW_RESERVED,
+                "Estoque físico não pode ficar abaixo do reservado (" + current.reserved() + ")",
+                List.of(Reason.of(DomainReasons.STOCK_BELOW_RESERVED, skuId)));
+          return conn.preparedQuery(SET_ON_HAND)
+              .execute(Tuple.of(skuId, adjustment.onHand(), PgSupport.utc(at)))
+              .map(updated -> level(updated.iterator().next()))
+              .call(updated -> conn.preparedQuery(AUDIT)
+                  .execute(Tuple.tuple().addUUID(UUID.randomUUID()).addUUID(skuId).addUUID(adjustment.tenantId())
+                      .addUUID(adjustment.storeId()).addInteger(current.onHand()).addInteger(adjustment.onHand())
+                      .addString(actor).addValue(PgSupport.utc(at))))
+              .call(updated -> outbox.append(conn, events.fromInventory(adjustment.tenantId(),
+                  InventoryEvents.adjusted(current, updated, adjustment.productId(), adjustment.storeId(), at),
+                  origin)));
+        })));
   }
 
   @Override
@@ -149,7 +129,7 @@ public class PgInventoryRepository implements InventoryRepository {
           r.getUUID("candidate_product_id"), r.getUUID("candidate_store_id"),
           ProductStatus.valueOf(r.getString("product_status")),
           SellerStatus.valueOf(r.getString("seller_status")),
-          r.getUUID("sku_id") == null
+          r.getUUID(SKU_ID) == null
               ? null
               : PgOfferRepository.toOffer(r,
                   promotions.getOrDefault(skuId, List.of())))));
@@ -158,7 +138,7 @@ public class PgInventoryRepository implements InventoryRepository {
   }
 
   static StockLevel level(Row r) {
-    return new StockLevel(r.getUUID("sku_id"), r.getInteger("on_hand"), r.getInteger("reserved"),
+    return new StockLevel(r.getUUID(SKU_ID), r.getInteger("on_hand"), r.getInteger("reserved"),
         r.getLong("sold"),
         r.getLong("version"));
   }

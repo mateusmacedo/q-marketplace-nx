@@ -1,5 +1,6 @@
 package dev.marketplace.cataloginventory.domain;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -10,7 +11,7 @@ import java.util.stream.Stream;
  * atributo, limite vigente) e, quando quem recusa sabe mais que os parâmetros
  * (o rótulo do atributo), o texto pronto; sem ele, vale o texto do código.
  */
-public record Reason(String code, List<String> params, String message) {
+public record Reason(String code, List<String> params, String message) implements Serializable {
   public Reason {
     Objects.requireNonNull(code, "code");
     params = List.copyOf(params);

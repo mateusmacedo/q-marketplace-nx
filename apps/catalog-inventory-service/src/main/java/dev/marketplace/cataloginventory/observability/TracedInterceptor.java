@@ -19,8 +19,12 @@ import java.util.function.Supplier;
 @Interceptor
 @Priority(Interceptor.Priority.LIBRARY_BEFORE)
 public class TracedInterceptor {
+  private final Lifecycle lifecycle;
+
   @Inject
-  Lifecycle lifecycle;
+  TracedInterceptor(Lifecycle lifecycle) {
+    this.lifecycle = lifecycle;
+  }
 
   @AroundInvoke
   Object trace(ArcInvocationContext context) throws Exception {

@@ -14,13 +14,11 @@ import io.vertx.mutiny.redis.client.Redis;
 import io.vertx.mutiny.redis.client.Request;
 import io.vertx.mutiny.redis.client.Response;
 import jakarta.enterprise.context.ApplicationScoped;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jboss.logging.Logger;
 
 /**
@@ -42,6 +40,9 @@ public class CatalogCache {
   private static final Logger LOG = Logger.getLogger(CatalogCache.class);
   private static final AttributeKey<String> CACHE = AttributeKey.stringKey("marketplace.cache.name");
   private static final AttributeKey<String> RESULT = AttributeKey.stringKey("marketplace.cache.result");
+  private static final String FAILED = "failed";
+  private static final String CACHE_TAG = "cache";
+  private static final String RESULT_TAG = "result";
 
   // WHY: a geração ausente (expirada ou removida por memória) recomeça pelo relógio do Redis, nunca por 1; assim um
   // conteúdo carimbado com uma geração antiga não volta a valer. A loja vem do mapa produto→loja, então a chave da
@@ -80,20 +81,11 @@ public class CatalogCache {
       return bumped
       """);
 
-  /** Script Lua com o SHA-1 que o {@code EVALSHA} usa. */
-  record Script(String source, String sha) {
-    Script(String source) {
-      this(source, sha1(source));
-    }
-
-    private static String sha1(String source) {
-      try {
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1")
-            .digest(source.getBytes(StandardCharsets.UTF_8)));
-      } catch (NoSuchAlgorithmException e) {
-        throw new IllegalStateException(e);
-      }
-    }
+  /**
+   * Script Lua. WHY: o identificador que o {@code EVALSHA} usa vem do próprio Redis, no {@code SCRIPT LOAD}; o serviço
+   * não calcula o resumo do script.
+   */
+  record Script(String source) {
   }
 
   /**
@@ -117,6 +109,7 @@ public class CatalogCache {
   private final String ttl;
   private final String generationTtl;
   private final MeterRegistry registry;
+  private final Map<Script, String> loaded = new ConcurrentHashMap<>();
 
   /**
    * Desligado, não resolve o cliente Redis, que fica inativo sem {@code quarkus.redis.hosts}; ligado sem o cliente
@@ -136,7 +129,7 @@ public class CatalogCache {
     if (enabled)
       for (String cache : List.of(STOREFRONT, TAXONOMY, MODERATION_REASONS)) {
         List.of("hit", "miss", "bypass").forEach(result -> requests(cache, result));
-        List.of("ok", "failed").forEach(result -> {
+        List.of("ok", FAILED).forEach(result -> {
           invalidations(cache, result);
           writes(cache, result);
         });
@@ -186,7 +179,7 @@ public class CatalogCache {
     return command(Command.SET, valueKey, stamp + content, "PX", ttl).replaceWithVoid()
         .invoke(() -> writes(cache, "ok").increment())
         .onFailure().recoverWithUni(failure -> {
-          writes(cache, "failed").increment();
+          writes(cache, FAILED).increment();
           return ignored(cache, span, failure);
         });
   }
@@ -253,16 +246,27 @@ public class CatalogCache {
           LOG.warnf("Falha ao invalidar o cache %s (%s): %s; o conteúdo anterior vale até expirar", cache,
               generationKey, failure.toString());
           span.recordException(failure);
-          invalidations(cache, "failed").increment();
+          invalidations(cache, FAILED).increment();
           return null;
         });
   }
 
   private Uni<Response> run(Script script, List<String> keys, List<String> args, Duration deadline) {
-    return redis.send(request(Command.EVALSHA, script.sha(), keys, args))
+    return sha(script)
+        .flatMap(sha -> redis.send(request(Command.EVALSHA, sha, keys, args)))
         .onFailure(CatalogCache::missingScript)
         .recoverWithUni(() -> redis.send(request(Command.EVAL, script.source(), keys, args)))
         .ifNoItem().after(deadline).fail();
+  }
+
+  /** Identificador do script no Redis, pedido com {@code SCRIPT LOAD} no primeiro uso e guardado. */
+  private Uni<String> sha(Script script) {
+    String known = loaded.get(script);
+    if (known != null)
+      return Uni.createFrom().item(known);
+    return redis.send(Request.cmd(Command.SCRIPT).arg("LOAD").arg(script.source()))
+        .map(Response::toString)
+        .invoke(sha -> loaded.put(script, sha));
   }
 
   private Uni<Response> command(Command command, String... args) {
@@ -299,22 +303,22 @@ public class CatalogCache {
   private Uni<Void> ignored(String cache, Span span, Throwable failure) {
     LOG.debugf(failure, "Gravação no cache %s ignorada", cache);
     // WHY: sem status de erro; é falha tolerada, a resposta já saiu do banco, e o trace não deve ficar vermelho.
-    span.recordException(failure).setAttribute(RESULT, "failed");
+    span.recordException(failure).setAttribute(RESULT, FAILED);
     return Uni.createFrom().voidItem();
   }
 
   private Counter requests(String cache, String result) {
     return Counter.builder(REQUESTS).description("Leituras do cache por resultado (hit, miss ou bypass ao banco)")
-        .tags("cache", cache, "result", result).register(registry);
+        .tags(CACHE_TAG, cache, RESULT_TAG, result).register(registry);
   }
 
   private Counter writes(String cache, String result) {
     return Counter.builder(WRITES).description("Gravações do cache depois de uma falta, por resultado (ok ou failed)")
-        .tags("cache", cache, "result", result).register(registry);
+        .tags(CACHE_TAG, cache, RESULT_TAG, result).register(registry);
   }
 
   private Counter invalidations(String cache, String result) {
     return Counter.builder(INVALIDATIONS).description("Invalidações do cache depois de escritas no banco")
-        .tags("cache", cache, "result", result).register(registry);
+        .tags(CACHE_TAG, cache, RESULT_TAG, result).register(registry);
   }
 }

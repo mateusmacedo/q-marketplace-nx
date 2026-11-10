@@ -18,11 +18,14 @@ import java.util.UUID;
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class ModerationReasonCacheInvalidation implements ModerationReasonRepository {
+  private final ModerationReasonRepository delegate;
+  private final CatalogCache cache;
+
   @Inject
-  @Delegate
-  ModerationReasonRepository delegate;
-  @Inject
-  CatalogCache cache;
+  ModerationReasonCacheInvalidation(@Delegate ModerationReasonRepository delegate, CatalogCache cache) {
+    this.delegate = delegate;
+    this.cache = cache;
+  }
 
   @Override
   public Uni<Void> insert(ModerationReasonEntry reason) {

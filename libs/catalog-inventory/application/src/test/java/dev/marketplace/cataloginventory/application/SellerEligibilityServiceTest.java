@@ -14,11 +14,11 @@ class SellerEligibilityServiceTest {
   @Test
   void verdictsAreAppliedOnceAndOlderDecisionsAreIgnored() {
     SellerVerdict approved = verdict(storeId, SellerStatus.APPROVED);
-    assertEquals(SellerVerdict.Outcome.APPLIED, item(eligibility.record(approved)));
-    assertEquals(SellerVerdict.Outcome.DUPLICATE, item(eligibility.record(approved)));
+    assertEquals(SellerVerdict.Outcome.APPLIED, item(eligibility.applyVerdict(approved)));
+    assertEquals(SellerVerdict.Outcome.DUPLICATE, item(eligibility.applyVerdict(approved)));
     SellerVerdict older = new SellerVerdict(UUID.randomUUID(), TENANT, storeId, SellerStatus.REJECTED,
         NOW.minusSeconds(1));
-    assertEquals(SellerVerdict.Outcome.STALE, item(eligibility.record(older)));
+    assertEquals(SellerVerdict.Outcome.STALE, item(eligibility.applyVerdict(older)));
     assertEquals(SellerStatus.APPROVED, item(eligibility.get(seller(storeId), storeId)));
   }
 

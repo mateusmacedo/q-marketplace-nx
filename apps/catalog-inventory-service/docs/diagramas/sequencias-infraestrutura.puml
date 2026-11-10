@@ -74,7 +74,7 @@ else cache ligado
     dec --> svc : resultado, sem invalidar
   else invalida (também na falha: um prazo estourado não prova que o commit não ocorreu)
     dec -> cc : productChanged(tenant, produto, loja)\n| storeChanged(tenant, loja)\n| taxonomyChanged(tenant)\n| moderationReasonsChanged(tenant)
-    cc -> redis : EVALSHA INVALIDATE (EVAL se NOSCRIPT),\nprazo catalog.cache.invalidation-timeout (1 s)
+    cc -> redis : EVALSHA INVALIDATE (SCRIPT LOAD no primeiro uso; EVAL se NOSCRIPT),\nprazo catalog.cache.invalidation-timeout (1 s)
     note over cc, redis
       Script: INCR da chave de geração se ela existir.
       productChanged renova também
@@ -110,6 +110,10 @@ reader -> cc : read(cache, valueKey, generationKey,\nownerKey?, ownerGenerationP
 alt cache desligado (catalog.cache.enabled=false)
   cc --> reader : BYPASS (sem Redis e sem contar)
 else cache ligado
+  opt primeiro uso do script no processo
+    cc -> redis : SCRIPT LOAD com o código-fonte
+    redis --> cc : identificador do script (SHA-1 calculado pelo Redis),\nguardado em CatalogCache.loaded
+  end
   cc -> redis : EVALSHA READ: chaves [conteúdo, geração,\nmapa produto-loja?], args [generation-ttl = 24 h,\nprefixo da geração da loja?],\nprazo catalog.cache.timeout (100 ms)
   opt NOSCRIPT (o Redis reiniciou e esqueceu o script)
     redis --> cc : erro NOSCRIPT

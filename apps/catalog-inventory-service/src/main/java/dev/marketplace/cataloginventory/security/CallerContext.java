@@ -69,8 +69,7 @@ public class CallerContext {
    * {@link TenantNotAuthorizedException}.
    */
   private Optional<UUID> uuidClaim(String claim) {
-    Object value = token.getClaim(claim);
-    String raw = value instanceof JsonString json ? json.getString() : value == null ? null : value.toString();
+    String raw = text(token.getClaim(claim));
     if (raw == null || raw.isBlank())
       return Optional.empty();
     try {
@@ -78,5 +77,12 @@ public class CallerContext {
     } catch (IllegalArgumentException e) {
       throw new TenantNotAuthorizedException("Claim " + claim + " do token não é um UUID válido");
     }
+  }
+
+  /** Valor do claim como texto: a string JSON sem as aspas ou o {@code toString} do valor; nulo quando ausente. */
+  private static String text(Object value) {
+    if (value instanceof JsonString json)
+      return json.getString();
+    return value == null ? null : value.toString();
   }
 }

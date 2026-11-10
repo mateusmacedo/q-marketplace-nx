@@ -43,7 +43,7 @@ public class ProblemMappers {
 
     Problem toProblem(String instance, List<Problem.FieldError> errors) {
       return new Problem(TYPE_BASE + code, title, status, detail, instance, errors, reasons,
-          ReasonMessages.details(details, detail));
+          ReasonMessages.details(details, detail).orElse(null));
     }
   }
 
@@ -211,16 +211,6 @@ public class ProblemMappers {
     return validationFailed(uri, errors);
   }
 
-  /**
-   * Responde 400 {@code validation-failed}, como {@link #constraintViolation}, quando um texto do corpo traz o
-   * caractere nulo (U+0000), com o caminho dele em {@code errors}. A leitura do corpo para no primeiro, e a
-   * validação dos demais campos não chega a rodar.
-   */
-  @ServerExceptionMapper
-  public RestResponse<Problem> nullCharacter(NullCharacterGuard.Rejected e, UriInfo uri) {
-    return validationFailed(uri, List.of(new Problem.FieldError(e.field(), NullCharacterGuard.MESSAGE)));
-  }
-
   private static RestResponse<Problem> validationFailed(UriInfo uri, List<Problem.FieldError> errors) {
     return builder(new Described(400, "validation-failed", "Dados inválidos", "Um ou mais campos são inválidos",
         null), uri, errors).build();
@@ -239,11 +229,15 @@ public class ProblemMappers {
   /**
    * Como {@link #unreadableBody}, para tipo incompatível ou propriedade
    * obrigatória ausente; sem ele, o mapeador embutido do Quarkus responderia
-   * fora da RFC 9457.
+   * fora da RFC 9457. Texto do corpo com o caractere nulo (U+0000) responde 400 {@code validation-failed}, como
+   * {@link #constraintViolation}, com o caminho dele em {@code errors}; a leitura do corpo para no primeiro, e a
+   * validação dos demais campos não chega a rodar.
    */
   @ServerExceptionMapper
   public RestResponse<Problem> mismatchedBody(MismatchedInputException e, UriInfo uri) {
-    return unreadableBody(e, uri);
+    return NullCharacterGuard.rejectedField(e)
+        .map(field -> validationFailed(uri, List.of(new Problem.FieldError(field, NullCharacterGuard.MESSAGE))))
+        .orElseGet(() -> unreadableBody(e, uri));
   }
 
   /**
@@ -306,7 +300,7 @@ public class ProblemMappers {
 
   /**
    * Monta a resposta RFC 9457 com o tipo {@code application/problem+json};
-   * {@code instance} é o caminho da requisição. Todo problema devolvido passa
+   * {@code instance} é o caminho da requisição. Cada problema devolvido passa
    * por aqui, inclusive 500 e 503, e fica registrado no span e no MDC
    * ({@link Telemetry#problem}).
    */

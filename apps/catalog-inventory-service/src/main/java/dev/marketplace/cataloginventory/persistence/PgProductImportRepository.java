@@ -33,10 +33,12 @@ public class PgProductImportRepository implements ProductImportRepository {
   private static final String INSERT = """
       INSERT INTO product_import (id, tenant_id, store_id, actor, status, content, total_lines, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""";
+  private static final String MESSAGE = "message";
   private static final String COUNTS = "created_lines, updated_lines, unchanged_lines, failed_lines";
-  private static final String FIND = "SELECT " + COLUMNS
+  private static final String SELECT_COLUMNS = "SELECT " + COLUMNS;
+  private static final String FIND = SELECT_COLUMNS
       + " FROM product_import WHERE tenant_id = $1 AND store_id = $2 AND id = $3";
-  private static final String FIND_SUMMARY = "SELECT " + COLUMNS + ", " + COUNTS
+  private static final String FIND_SUMMARY = SELECT_COLUMNS + ", " + COUNTS
       + " FROM product_import WHERE tenant_id = $1 AND store_id = $2 AND id = $3";
   // WHY: SKIP LOCKED faz cada pod reivindicar um lote diferente sem esperar o bloqueio do outro.
   private static final String CLAIM = """
@@ -48,7 +50,7 @@ public class PgProductImportRepository implements ProductImportRepository {
   private static final String RESULTS = """
       SELECT line_number, seller_sku, outcome, code, message, reasons, product_id FROM product_import_line
       WHERE import_id = $1 ORDER BY line_number""";
-  private static final String LIST = "SELECT " + COLUMNS + ", " + COUNTS + " FROM product_import"
+  private static final String LIST = SELECT_COLUMNS + ", " + COUNTS + " FROM product_import"
       + " WHERE tenant_id = $1 AND store_id = $2%s ORDER BY created_at DESC, id DESC LIMIT $%d";
   // WHY: o RETURNING traz só as linhas inseridas; a que já tinha resultado (retomada depois do lease) não soma de
   // novo nas contagens do lote.
@@ -61,8 +63,7 @@ public class PgProductImportRepository implements ProductImportRepository {
           created_lines = created_lines + $3, updated_lines = updated_lines + $4,
           unchanged_lines = unchanged_lines + $5, failed_lines = failed_lines + $6
       WHERE id = $1""";
-  private static final String COMPLETE = """
-      UPDATE product_import SET status = 'COMPLETED', finished_at = $2 WHERE id = $1 AND status = 'PROCESSING'""";
+  private static final String COMPLETE = "UPDATE product_import SET status = 'COMPLETED', finished_at = $2 WHERE id = $1 AND status = 'PROCESSING'";
 
   private final Pool pool;
   private final PgSupport pg;
@@ -117,7 +118,7 @@ public class PgProductImportRepository implements ProductImportRepository {
         .map(rows -> StreamSupport.stream(rows.spliterator(), false)
             .map(r -> new ImportResult(r.getInteger("line_number"), r.getString("seller_sku"),
                 ImportResult.ImportOutcome.valueOf(r.getString("outcome")), r.getString("code"),
-                r.getString("message"), r.getUUID("product_id"), reasons(r.getJsonArray("reasons"))))
+                r.getString(MESSAGE), r.getUUID("product_id"), reasons(r.getJsonArray("reasons"))))
             .toList());
   }
 
@@ -179,7 +180,7 @@ public class PgProductImportRepository implements ProductImportRepository {
       return null;
     JsonArray array = new JsonArray();
     reasons.forEach(r -> array.add(new JsonObject().put("code", r.code())
-        .put("params", new JsonArray(new ArrayList<>(r.params()))).put("message", r.message())));
+        .put("params", new JsonArray(new ArrayList<>(r.params()))).put(MESSAGE, r.message())));
     return array;
   }
 
@@ -190,7 +191,7 @@ public class PgProductImportRepository implements ProductImportRepository {
     for (int i = 0; i < array.size(); i++) {
       JsonObject r = array.getJsonObject(i);
       List<String> params = r.getJsonArray("params").stream().map(String::valueOf).toList();
-      reasons.add(new Reason(r.getString("code"), params, r.getString("message")));
+      reasons.add(new Reason(r.getString("code"), params, r.getString(MESSAGE)));
     }
     return reasons;
   }

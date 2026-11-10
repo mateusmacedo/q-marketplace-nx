@@ -28,7 +28,7 @@ class StorefrontServiceTest {
     failure(storefront.get(TENANT, product.id()), NotFoundException.class);
     item(moderation.unblock(moderator(), product.id(), Optional.empty()));
     item(moderation.approve(moderator(), product.id(), Optional.empty()));
-    item(catalog.eligibility.record(verdict(catalog.storeId, SellerStatus.REJECTED)));
+    item(catalog.eligibility.applyVerdict(verdict(catalog.storeId, SellerStatus.REJECTED)));
     failure(storefront.get(TENANT, product.id()), NotFoundException.class);
     failure(storefront.get(UUID.randomUUID(), product.id()), NotFoundException.class);
   }

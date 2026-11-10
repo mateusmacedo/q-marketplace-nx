@@ -5,6 +5,7 @@ import dev.marketplace.cataloginventory.domain.offer.Offer;
 import dev.marketplace.cataloginventory.domain.product.CategoryChange;
 import dev.marketplace.cataloginventory.domain.product.Dimensions;
 import dev.marketplace.cataloginventory.domain.product.Product;
+import dev.marketplace.cataloginventory.domain.product.ProductDefinition;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
 import dev.marketplace.cataloginventory.domain.product.ProductTransition;
 import dev.marketplace.cataloginventory.domain.product.PublishingIssue;
@@ -57,10 +58,10 @@ public final class ProductService {
       UUID store = ProductAccess.requireSeller(actor);
       return support.category(actor.tenantId(), categoryId).flatMap(view -> {
         view.requireActive();
+        ProductDefinition definition = new ProductDefinition(currency, title, description, attributes,
+            skus.stream().map(ProductService::toSku).toList());
         Product product = Product.draft(UUID.randomUUID(), store, view.category(), view.effectiveAttributes(),
-            currency, title,
-            description, attributes, skus.stream().map(ProductService::toSku).toList(), actor.subject(),
-            support.now());
+            definition, actor.subject(), support.now());
         return support.products().insert(product).replaceWith(product);
       });
     });

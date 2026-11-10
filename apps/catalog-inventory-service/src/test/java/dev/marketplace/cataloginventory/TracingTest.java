@@ -49,8 +49,8 @@ class TracingTest {
     assertNotNull(stored, "a outbox guarda o traceparent da requisição");
     assertTrue(stored.startsWith("00-" + traceId + "-"), stored);
 
-    ConsumerRecord<String, String> record = consume(Kafka.PRODUCT_TOPIC, r -> id.equals(r.key()), 1).get(0);
-    String published = header(record, "traceparent");
+    ConsumerRecord<String, String> message = consume(Kafka.PRODUCT_TOPIC, r -> id.equals(r.key()), 1).get(0);
+    String published = header(message, "traceparent");
     assertNotNull(published, "a mensagem leva o traceparent");
     assertTrue(published.startsWith("00-" + traceId + "-"), published);
   }

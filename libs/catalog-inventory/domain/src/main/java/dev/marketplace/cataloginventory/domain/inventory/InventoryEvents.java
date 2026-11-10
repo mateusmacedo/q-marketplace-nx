@@ -38,7 +38,7 @@ public final class InventoryEvents {
   }
 
   /**
-   * Reserva gravada; todo item reservado tinha saldo, então disponível zero
+   * Reserva gravada; cada item reservado tinha saldo, então disponível zero
    * depois dela é esgotamento novo.
    */
   public static List<InventoryEvent> reserved(Reservation reservation, Map<UUID, StockLevel> after) {

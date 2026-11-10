@@ -1,6 +1,7 @@
 package dev.marketplace.cataloginventory.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import dev.marketplace.cataloginventory.api.CategoryModels.CreateCategoryRequest;
 import dev.marketplace.cataloginventory.api.ModerationModels.DecisionRequest;
 import dev.marketplace.cataloginventory.api.ProductModels.CreateProductRequest;
@@ -30,7 +31,8 @@ class NullCharacterGuardTest {
   }
 
   static String refused(String json, Class<?> type) {
-    return assertThrows(NullCharacterGuard.Rejected.class, () -> JSON.readValue(json, type)).field();
+    MismatchedInputException refusal = assertThrows(MismatchedInputException.class, () -> JSON.readValue(json, type));
+    return NullCharacterGuard.rejectedField(refusal).orElseThrow();
   }
 
   @Test

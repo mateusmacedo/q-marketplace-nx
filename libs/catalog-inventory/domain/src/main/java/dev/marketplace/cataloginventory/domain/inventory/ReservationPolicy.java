@@ -44,47 +44,52 @@ public final class ReservationPolicy {
    * {@code duplicate-sku}, {@code unknown-sku}, {@code product-unavailable},
    * {@code seller-not-eligible} ou {@code price-changed}.
    */
-  public static Reservation open(UUID id, UUID tenantId, String idempotencyKey, String requestHash, String orderRef,
-      List<RequestedItem> requested, Map<UUID, SkuCandidate> candidates, Instant now,
+  public static Reservation open(ReservationDraft draft, Map<UUID, SkuCandidate> candidates, Instant now,
       Duration ttl, Duration maxTtl) {
+    List<RequestedItem> requested = draft.items();
     if (requested == null || requested.isEmpty() || requested.size() > MAX_ITEMS)
       throw invalid("Reserva exige de 1 a " + MAX_ITEMS + " itens");
     if (ttl == null || ttl.isNegative() || ttl.isZero() || ttl.compareTo(maxTtl) > 0)
       throw invalid("Prazo da reserva deve ser positivo e de até " + maxTtl.toMinutes() + " minutos");
-    if (orderRef != null)
-      requireText(orderRef, ORDER_REF_MAX_LENGTH, "orderRef tem até " + ORDER_REF_MAX_LENGTH + " caracteres");
+    if (draft.orderRef() != null)
+      requireText(draft.orderRef(), ORDER_REF_MAX_LENGTH, "orderRef tem até " + ORDER_REF_MAX_LENGTH + " caracteres");
     Set<UUID> seen = new HashSet<>();
     List<Reason> reasons = new ArrayList<>();
     List<ReservationItem> items = new ArrayList<>();
     for (RequestedItem item : requested) {
-      if (!seen.add(item.skuId())) {
+      if (seen.add(item.skuId()))
+        priced(item, candidates.get(item.skuId()), now, reasons).ifPresent(items::add);
+      else
         reasons.add(Reason.of(DUPLICATE_SKU, item.skuId()));
-        continue;
-      }
-      SkuCandidate candidate = candidates.get(item.skuId());
-      if (candidate == null) {
-        reasons.add(Reason.of(UNKNOWN_SKU, item.skuId()));
-        continue;
-      }
-      if (candidate.productStatus() != ProductStatus.ACTIVE) {
-        reasons.add(Reason.of(PRODUCT_UNAVAILABLE, item.skuId()));
-        continue;
-      }
-      if (!candidate.seller().isEligible())
-        reasons.add(Reason.of(SELLER_NOT_ELIGIBLE, item.skuId()));
-      // INVARIANT: produto ativo tem oferta em todo SKU; a publicação exige.
-      EffectivePrice price = candidate.offer().effectivePrice(now);
-      if (!price.salePrice().equals(item.expectedUnitPrice()))
-        reasons.add(Reason.of(PRICE_CHANGED, item.skuId()));
-      items.add(new ReservationItem(item.skuId(), candidate.productId(), candidate.storeId(), item.quantity(),
-          price.salePrice(), price.priceVersion()));
     }
     if (!reasons.isEmpty())
       throw refusal(reasons);
-    return new Reservation(id, tenantId, idempotencyKey, requestHash, orderRef, ReservationStatus.ACTIVE,
-        inLockOrder(items),
-        now,
-        now.plus(ttl), null);
+    return new Reservation(draft.id(), draft.tenantId(), draft.idempotencyKey(), draft.requestHash(),
+        draft.orderRef(), ReservationStatus.ACTIVE, inLockOrder(items), now, now.plus(ttl), null);
+  }
+
+  /**
+   * Item com o preço vigente da oferta, ou vazio quando o SKU não existe ou o produto não está ativo. Anota em
+   * {@code reasons} cada motivo que impede reservar o item, inclusive os do item devolvido.
+   */
+  private static Optional<ReservationItem> priced(RequestedItem item, SkuCandidate candidate, Instant now,
+      List<Reason> reasons) {
+    if (candidate == null) {
+      reasons.add(Reason.of(UNKNOWN_SKU, item.skuId()));
+      return Optional.empty();
+    }
+    if (candidate.productStatus() != ProductStatus.ACTIVE) {
+      reasons.add(Reason.of(PRODUCT_UNAVAILABLE, item.skuId()));
+      return Optional.empty();
+    }
+    if (!candidate.seller().isEligible())
+      reasons.add(Reason.of(SELLER_NOT_ELIGIBLE, item.skuId()));
+    // INVARIANT: produto ativo tem oferta em cada SKU; a publicação exige.
+    EffectivePrice price = candidate.offer().effectivePrice(now);
+    if (!price.salePrice().equals(item.expectedUnitPrice()))
+      reasons.add(Reason.of(PRICE_CHANGED, item.skuId()));
+    return Optional.of(new ReservationItem(item.skuId(), candidate.productId(), candidate.storeId(), item.quantity(),
+        price.salePrice(), price.priceVersion()));
   }
 
   /** Recusa por falta de saldo, detectada atomicamente na gravação. */

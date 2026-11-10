@@ -40,9 +40,9 @@ class ProductTest {
   }
 
   static Product draft(Map<String, String> attributes, Sku... skus) {
-    return Product.draft(UUID.randomUUID(), UUID.randomUUID(), T_SHIRTS, ATTRS, "BRL", "Camiseta básica",
-        "Algodão",
-        attributes, List.of(skus), "seller-1", NOW);
+    ProductDefinition definition = new ProductDefinition("BRL", "Camiseta básica", "Algodão", attributes,
+        List.of(skus));
+    return Product.draft(UUID.randomUUID(), UUID.randomUUID(), T_SHIRTS, ATTRS, definition, "seller-1", NOW);
   }
 
   static Set<UUID> offered(Product product) {
@@ -101,9 +101,11 @@ class ProductTest {
 
   @Test
   void currencyMustBeIso4217() {
+    ProductDefinition definition = new ProductDefinition("real", "t", "", Map.of("marca", "Acme"), List.of());
+    UUID id = UUID.randomUUID();
+    UUID store = UUID.randomUUID();
     assertThrows(DomainRuleViolation.class,
-        () -> Product.draft(UUID.randomUUID(), UUID.randomUUID(), T_SHIRTS, ATTRS, "real",
-            "t", "", Map.of("marca", "Acme"), List.of(), "s", NOW));
+        () -> Product.draft(id, store, T_SHIRTS, ATTRS, definition, "s", NOW));
   }
 
   @Test
@@ -146,8 +148,8 @@ class ProductTest {
     assertEquals("Fotos ausentes", rejection.note());
     assertEquals("Categoria incorreta. Fotos ausentes", rejection.reason());
     assertEquals(List.of("wrong-category"), rejection.reasonCodes());
-    assertThrows(IllegalArgumentException.class,
-        () -> product.block(because(ProductTransition.REJECT, "motivo de outra decisão"), "mod", NOW));
+    DecisionReason otherDecision = because(ProductTransition.REJECT, "motivo de outra decisão");
+    assertThrows(IllegalArgumentException.class, () -> product.block(otherDecision, "mod", NOW));
   }
 
   @Test
@@ -328,8 +330,11 @@ class ProductTest {
   void inactiveCategoryCannotReceiveNewProducts() {
     Category inactive = Category.root(UUID.randomUUID(), TENANT, "inativa", "Inativa", ATTRS);
     inactive.deactivate();
-    assertEquals("category-inactive", assertThrows(DomainRuleViolation.class, () -> Product.draft(UUID.randomUUID(),
-        UUID.randomUUID(), inactive, ATTRS, "BRL", "t", "", Map.of(), List.of(), "s", NOW)).code());
+    ProductDefinition definition = new ProductDefinition("BRL", "t", "", Map.of(), List.of());
+    UUID id = UUID.randomUUID();
+    UUID store = UUID.randomUUID();
+    assertEquals("category-inactive", assertThrows(DomainRuleViolation.class,
+        () -> Product.draft(id, store, inactive, ATTRS, definition, "s", NOW)).code());
   }
 
   @Test

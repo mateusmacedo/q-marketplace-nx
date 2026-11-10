@@ -114,7 +114,7 @@ EventOrigin ..> Correlation : current()
 OutboxRelay --> PgOutbox : relay(batch, now, maxBackoff, maxAttempts, publish)
 OutboxRelay ..> EventOrigin : context(traceParent)
 MessagingHousekeeping --> PgOutbox : purge
-SellerVerdictConsumer --> SellerEligibilityService : record(verdict)
+SellerVerdictConsumer --> SellerEligibilityService : applyVerdict(verdict)
 SellerVerdictConsumer ..> SellerVerdict : cria
 SellerVerdictConsumer ..> Correlation : bind / accept
 SellerVerdictConsumer +-- InvalidMessageException

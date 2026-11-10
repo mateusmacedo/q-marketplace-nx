@@ -244,7 +244,7 @@ public final class CatalogStatsService {
    */
   private static Indicator withStock(long current, Indicator recordedActive) {
     // WHY: o saldo não guarda passado; comparar o com saldo de agora com o gravado do mês anterior mostraria os
-    // produtos sem saldo como queda, todo mês.
+    // produtos sem saldo como queda, a cada mês.
     return new Indicator(current, Optional.empty(), recordedActive.months());
   }
 
@@ -294,6 +294,7 @@ public final class CatalogStatsService {
         case REJECT -> values[2] += count.count();
         case BLOCK -> values[3] += count.count();
         default -> {
+          // NOTE: as demais transições só contam como entrada na fila, acima.
         }
       }
     }

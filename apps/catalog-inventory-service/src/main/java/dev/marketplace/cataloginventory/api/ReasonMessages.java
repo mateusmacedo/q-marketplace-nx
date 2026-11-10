@@ -52,13 +52,12 @@ final class ReasonMessages {
   }
 
   /**
-   * Lista dos motivos com o texto resolvido; vazia vira nula, para o campo
-   * ficar fora do corpo.
+   * Lista dos motivos com o texto resolvido; sem motivos, vazio, para quem monta o corpo deixar o campo de fora.
    */
-  static List<Problem.ReasonDetail> details(List<Reason> reasons, String fallback) {
+  static Optional<List<Problem.ReasonDetail>> details(List<Reason> reasons, String fallback) {
     if (reasons == null || reasons.isEmpty())
-      return null;
-    return reasons.stream().map(reason -> detail(reason, fallback)).toList();
+      return Optional.empty();
+    return Optional.of(reasons.stream().map(reason -> detail(reason, fallback)).toList());
   }
 
   // WHY: o arquivo é lido como recurso comum, sem ResourceBundle.getBundle, porque a imagem nativa só embute

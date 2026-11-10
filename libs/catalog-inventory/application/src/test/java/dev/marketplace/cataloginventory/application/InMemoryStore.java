@@ -2,9 +2,11 @@ package dev.marketplace.cataloginventory.application;
 
 import dev.marketplace.cataloginventory.domain.DomainReasons;
 import dev.marketplace.cataloginventory.domain.category.Category;
+import dev.marketplace.cataloginventory.domain.category.CategoryDefinition;
 import dev.marketplace.cataloginventory.domain.category.CategoryNotEmptyException;
 import dev.marketplace.cataloginventory.domain.inventory.*;
 import dev.marketplace.cataloginventory.domain.offer.Offer;
+import dev.marketplace.cataloginventory.domain.offer.OfferIdentity;
 import dev.marketplace.cataloginventory.domain.product.*;
 import io.smallrye.mutiny.Uni;
 import java.time.Instant;
@@ -115,7 +117,7 @@ final class InMemoryStore
     int kept = previousAncestry.size() + 1;
     categories.replaceAll((id, c) -> c.ancestry().contains(category.id())
         ? Category.restore(c.id(), c.tenantId(), concat(prefix, c.ancestry().subList(kept, c.ancestry().size())),
-            c.code(), c.name(), c.attributes(), c.active(), c.version())
+            new CategoryDefinition(c.code(), c.name(), c.attributes()), c.active(), c.version())
         : c);
     return Uni.createFrom().voidItem();
   }
@@ -364,8 +366,10 @@ final class InMemoryStore
     return Uni.createFrom().item(found);
   }
 
-  public synchronized Uni<StockLevel> adjust(UUID tenantId, UUID storeId, UUID productId, UUID skuId, int onHand,
-      Optional<Long> expectedVersion, String actor, Instant at) {
+  public synchronized Uni<StockLevel> adjust(StockAdjustment adjustment, Optional<Long> expectedVersion, String actor,
+      Instant at) {
+    UUID skuId = adjustment.skuId();
+    int onHand = adjustment.onHand();
     StockLevel current = stock.get(skuId);
     if (current == null)
       return Uni.createFrom().failure(new NotFoundException("Estoque"));
@@ -625,8 +629,8 @@ final class InMemoryStore
   }
 
   static Category copy(Category c) {
-    return Category.restore(c.id(), c.tenantId(), c.ancestry(), c.code(), c.name(), c.attributes(), c.active(),
-        c.version());
+    return Category.restore(c.id(), c.tenantId(), c.ancestry(), new CategoryDefinition(c.code(), c.name(),
+        c.attributes()), c.active(), c.version());
   }
 
   static Product copy(Product p) {
@@ -634,15 +638,16 @@ final class InMemoryStore
         .map(s -> Sku.create(s.id(), s.sellerSku(), s.variantAttributes(), s.physical(),
             s.dimensions().orElse(null)))
         .toList();
-    return Product.restore(p.id(), p.tenantId(), p.storeId(), p.categoryId(), p.currency(), p.title(),
-        p.description(),
-        p.attributes(), skus, p.status(), p.version(), p.createdAt(), p.updatedAt(),
+    ProductDefinition definition = new ProductDefinition(p.currency(), p.title(), p.description(), p.attributes(),
+        skus);
+    ProductLifecycle lifecycle = new ProductLifecycle(p.status(), p.version(), p.createdAt(), p.updatedAt(),
         p.moderationQueuedAt().orElse(null));
+    return Product.restore(p.id(), p.tenantId(), p.storeId(), p.categoryId(), definition, lifecycle);
   }
 
   static Offer copy(Offer o) {
-    return Offer.restore(o.skuId(), o.productId(), o.tenantId(), o.storeId(), o.currency(), o.price(),
-        o.priceVersion(),
-        o.promotions(), o.version(), o.createdAt(), o.updatedAt());
+    OfferIdentity identity = new OfferIdentity(o.skuId(), o.productId(), o.tenantId(), o.storeId(), o.currency());
+    return Offer.restore(identity, o.price(), o.priceVersion(), o.promotions(), o.version(), o.createdAt(),
+        o.updatedAt());
   }
 }

@@ -43,7 +43,7 @@ interface "application.CategoryRepository" as CategoryRepository <<porta>> #line
 }
 interface "application.InventoryRepository" as InventoryRepository <<porta>> #line.dashed {
   levels(tenantId, skuIds) : Uni<Map<UUID, StockLevel>>
-  adjust(tenantId, storeId, productId, skuId, onHand, expectedVersion, actor, at) : Uni<StockLevel>
+  adjust(adjustment, expectedVersion, actor, at) : Uni<StockLevel>
   candidates(tenantId, skuIds) : Uni<Map<UUID, SkuCandidate>>
 }
 interface "application.ReservationRepository" as ReservationRepository <<porta>> #line.dashed {

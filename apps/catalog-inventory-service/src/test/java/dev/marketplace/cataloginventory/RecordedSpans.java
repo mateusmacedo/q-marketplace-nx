@@ -5,20 +5,22 @@ import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.data.SpanData;
-import jakarta.inject.Singleton;
+import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 import org.awaitility.Awaitility;
 import static dev.marketplace.cataloginventory.Kafka.WAIT;
 
 /** Guarda os spans encerrados nos perfis com o OpenTelemetry ligado, para os testes conferirem atributos e pais. */
-@Singleton
+@ApplicationScoped
 public class RecordedSpans implements SpanProcessor {
   private final List<SpanData> ended = new CopyOnWriteArrayList<>();
 
   @Override
   public void onStart(Context parentContext, ReadWriteSpan span) {
+    // NOTE: os testes conferem só os spans encerrados, e isStartRequired() avisa o SDK para nem chamar este método.
   }
 
   @Override
@@ -39,7 +41,7 @@ public class RecordedSpans implements SpanProcessor {
   /** Espera o primeiro span encerrado que satisfaz o filtro. */
   SpanData await(Predicate<SpanData> filter) {
     return Awaitility.await().atMost(WAIT).until(() -> ended.stream().filter(filter).findFirst().orElse(null),
-        span -> span != null);
+        Objects::nonNull);
   }
 
   /** Spans encerrados até agora que satisfazem o filtro. */

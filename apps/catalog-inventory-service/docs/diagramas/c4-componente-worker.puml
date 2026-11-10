@@ -28,7 +28,7 @@ Container_Boundary(worker, "catalog-inventory-worker") {
   Component(purge, "MessagingHousekeeping", "@Scheduled messaging-purge, 1 h", "Apaga outbox publicada há 7 dias e inbox com 30 dias", $sprite="broom", $tags="entrada")
   Component(gauges, "SkuGauges", "@Scheduled sku-gauges, 60 s", "Atualiza catalog.skus.active e catalog.skus.sellable", $sprite="chart_line", $tags="entrada")
   Component(consumer, "SellerVerdictConsumer", "@Incoming kyb-seller-verdicts", "Valida envelope v1, retry 200 ms..10 s até 10 vezes; falha vai à DLQ", $sprite="id_card", $tags="entrada")
-  Component(casos, "Casos de uso", "ReservationService, ProductImportService, ProductService, OfferService, InventoryService, SellerEligibilityService", "Mesmas classes da api, montadas em CatalogBeans", $sprite="cogs", $tags="aplicacao")
+  Component(casos, "Casos de uso", "ReservationService, ProductImportService (com ImportedSkuUpdate e ImportedProductCreation), ProductService, OfferService, InventoryService, SellerEligibilityService", "Mesmas classes da api, montadas nos produtores CatalogBeans, ModerationBeans, ImportBeans e ReservationBeans", $sprite="cogs", $tags="aplicacao")
   Component(decorators, "Decorators de invalidação", "ProductCacheInvalidation, OfferCacheInvalidation, SellerCacheInvalidation", "Incrementam gerações no Redis", $sprite="bolt", $tags="saida")
   Component(repos, "Repositórios Pg*", "PgReservationRepository, PgProductImportRepository, PgSellerEligibilityRepository, PgProductRepository, PgOfferRepository, PgInventoryRepository", "SQL reativo; transações por unidade", $sprite="database", $tags="saida")
   Component(outbox, "PgOutbox", "persistence", "Advisory lock do relay, leitura de pendentes, marcação, purge", $sprite="envelope", $tags="saida")
@@ -37,7 +37,7 @@ Container_Boundary(worker, "catalog-inventory-worker") {
 
 Rel(sweeper, casos, "expireDue")
 Rel(importer, casos, "claimNext, process")
-Rel(consumer, casos, "SellerEligibilityService.record")
+Rel(consumer, casos, "SellerEligibilityService.applyVerdict")
 Rel(casos, decorators, "Portas com cache")
 Rel(decorators, repos, "Delega")
 Rel(casos, repos, "Portas sem cache")

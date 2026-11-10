@@ -19,11 +19,14 @@ import java.util.UUID;
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class SellerCacheInvalidation implements SellerEligibilityRepository {
+  private final SellerEligibilityRepository delegate;
+  private final CatalogCache cache;
+
   @Inject
-  @Delegate
-  SellerEligibilityRepository delegate;
-  @Inject
-  CatalogCache cache;
+  SellerCacheInvalidation(@Delegate SellerEligibilityRepository delegate, CatalogCache cache) {
+    this.delegate = delegate;
+    this.cache = cache;
+  }
 
   @Override
   public Uni<SellerVerdict.Outcome> apply(String consumer, SellerVerdict verdict) {

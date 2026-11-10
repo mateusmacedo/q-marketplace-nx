@@ -121,37 +121,37 @@ public class TaxonomyCache {
     public Uni<Void> delete(Category category, long expectedVersion) {
       return categories.delete(category, expectedVersion);
     }
-  }
 
-  private Uni<List<Category>> cached(UUID tenantId, String key, Supplier<Uni<List<Category>>> load,
-      boolean keepEmpty) {
-    return cache.read(CatalogCache.TAXONOMY, key, CacheKeys.taxonomyGeneration(tenantId), null, null)
-        .flatMap(lookup -> switch (lookup.result()) {
-          case HIT -> decode(lookup.content(), load);
-          case MISS -> load.get().invoke(found -> {
-            if (keepEmpty || !found.isEmpty())
-              store(key, lookup.content(), found);
+    private Uni<List<Category>> cached(UUID tenantId, String key, Supplier<Uni<List<Category>>> load,
+        boolean keepEmpty) {
+      return cache.read(CatalogCache.TAXONOMY, key, CacheKeys.taxonomyGeneration(tenantId), null, null)
+          .flatMap(lookup -> switch (lookup.result()) {
+            case HIT -> decode(lookup.content(), load);
+            case MISS -> load.get().invoke(found -> {
+              if (keepEmpty || !found.isEmpty())
+                store(key, lookup.content(), found);
+            });
+            case UNMAPPED, BYPASS -> load.get();
           });
-          case UNMAPPED, BYPASS -> load.get();
-        });
-  }
-
-  private Uni<List<Category>> decode(String content, Supplier<Uni<List<Category>>> load) {
-    try {
-      return Uni.createFrom().item(json.readValue(content, Snapshots.Categories.class).restore());
-    } catch (JsonProcessingException | RuntimeException e) {
-      LOG.debugf(e, "Retrato da taxonomia ilegível; a consulta vai ao banco");
-      return load.get();
     }
-  }
 
-  /** A resposta não espera a gravação ({@link CatalogCache#detach}). */
-  private void store(String key, String stamp, List<Category> found) {
-    try {
-      CatalogCache.detach(cache.write(CatalogCache.TAXONOMY, key, stamp,
-          json.writeValueAsString(Snapshots.Categories.of(found))));
-    } catch (JsonProcessingException e) {
-      LOG.debugf(e, "Retrato da taxonomia não serializado; nada é guardado");
+    private Uni<List<Category>> decode(String content, Supplier<Uni<List<Category>>> load) {
+      try {
+        return Uni.createFrom().item(json.readValue(content, Snapshots.Categories.class).restore());
+      } catch (JsonProcessingException | RuntimeException e) {
+        LOG.debugf(e, "Retrato da taxonomia ilegível; a consulta vai ao banco");
+        return load.get();
+      }
+    }
+
+    /** A resposta não espera a gravação ({@link CatalogCache#detach}). */
+    private void store(String key, String stamp, List<Category> found) {
+      try {
+        CatalogCache.detach(cache.write(CatalogCache.TAXONOMY, key, stamp,
+            json.writeValueAsString(Snapshots.Categories.of(found))));
+      } catch (JsonProcessingException e) {
+        LOG.debugf(e, "Retrato da taxonomia não serializado; nada é guardado");
+      }
     }
   }
 }

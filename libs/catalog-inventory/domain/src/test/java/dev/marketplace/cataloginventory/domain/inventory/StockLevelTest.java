@@ -13,8 +13,9 @@ class StockLevelTest {
 
   @Test
   void neverNegativeNorReservedAboveOnHand() {
-    assertThrows(IllegalStateException.class, () -> new StockLevel(UUID.randomUUID(), 1, 2, 0, 0));
-    assertThrows(IllegalStateException.class, () -> new StockLevel(UUID.randomUUID(), -1, 0, 0, 0));
+    UUID skuId = UUID.randomUUID();
+    assertThrows(IllegalStateException.class, () -> new StockLevel(skuId, 1, 2, 0, 0));
+    assertThrows(IllegalStateException.class, () -> new StockLevel(skuId, -1, 0, 0, 0));
   }
 
   @Test

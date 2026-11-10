@@ -42,9 +42,9 @@ svc -> repo : resultados já gravados (retomada)
 svc -> svc : plan: SKU existente | novo produto por product_ref | rejeitado
 loop cada unidade
   alt #E8F5E9 SKU existente
-    svc -> uc : OfferService.define e InventoryService.adjust,\nsó se preço ou estoque mudou
+    svc -> uc : ImportedSkuUpdate: OfferService.define e InventoryService.adjust,\nsó se preço ou estoque mudou
   else #E8F5E9 grupo novo e válido
-    svc -> uc : ProductService.create; por SKU,\nOfferService.define e InventoryService.adjust
+    svc -> uc : ImportedProductCreation: ProductService.create; por SKU,\nOfferService.define e InventoryService.adjust
   else #FFEBEE grupo inválido
     svc -> svc : <color:#C62828>FAILED (invalid-row, inconsistent-product,</color>\n<color:#C62828>category-not-found, group-rejected)</color>
   end

@@ -3,7 +3,7 @@ package dev.marketplace.cataloginventory.observability;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.config.MeterFilter;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Singleton;
+import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Remove os gauges por conexão do cliente Redis do cache (ADR 024), como {@link SqlClientMetricsFilter} faz com o
@@ -19,7 +19,7 @@ public class RedisClientMetricsFilter {
   }
 
   @Produces
-  @Singleton
+  @ApplicationScoped
   MeterFilter denyPerConnectionRedisGauges() {
     return MeterFilter.deny(RedisClientMetricsFilter::isPerConnectionRedisGauge);
   }

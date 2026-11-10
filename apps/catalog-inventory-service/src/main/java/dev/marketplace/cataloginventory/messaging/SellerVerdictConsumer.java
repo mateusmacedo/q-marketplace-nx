@@ -80,7 +80,7 @@ public class SellerVerdictConsumer {
     Telemetry.tag(Telemetry.TENANT, received.tenantId());
     Telemetry.tag(Telemetry.STORE, received.storeId());
     Telemetry.tag("marketplace.kyb.status", received.status());
-    return eligibility.record(received)
+    return eligibility.applyVerdict(received)
         .onFailure().retry().withBackOff(Duration.ofMillis(200), Duration.ofSeconds(10)).atMost(retries)
         .invoke(outcome -> {
           registry.counter("catalog.kyb.verdicts", "outcome", outcome.name().toLowerCase()).increment();

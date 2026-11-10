@@ -48,27 +48,35 @@ public final class CsvParser {
     List<Record> records = new ArrayList<>();
     while (pos < text.length()) {
       int start = line;
-      List<String> fields = new ArrayList<>();
-      boolean blank = true;
-      while (true) {
-        boolean quoted = pos < text.length() && text.charAt(pos) == '"';
-        String value = quoted ? quotedField() : plainField();
-        blank &= !quoted && value.isEmpty();
-        fields.add(value);
-        if (pos >= text.length())
-          break;
-        if (text.charAt(pos) == ',') {
-          pos++;
-          blank = false;
-          continue;
-        }
-        newline();
-        break;
-      }
-      if (!blank)
+      List<String> fields = fields();
+      if (!fields.isEmpty())
         records.add(new Record(start, List.copyOf(fields)));
     }
     return records;
+  }
+
+  /**
+   * Lê os campos do registro até a quebra de linha, que consome, ou o fim do texto. Linha em branco, com um só campo
+   * vazio e sem aspas, devolve lista vazia.
+   */
+  private List<String> fields() {
+    List<String> fields = new ArrayList<>();
+    boolean blank = true;
+    boolean more = true;
+    while (more) {
+      boolean quoted = pos < text.length() && text.charAt(pos) == '"';
+      String value = quoted ? quotedField() : plainField();
+      blank &= !quoted && value.isEmpty();
+      fields.add(value);
+      more = pos < text.length() && text.charAt(pos) == ',';
+      if (more) {
+        pos++;
+        blank = false;
+      } else if (pos < text.length()) {
+        newline();
+      }
+    }
+    return blank ? List.of() : fields;
   }
 
   private String plainField() {
@@ -90,21 +98,34 @@ public final class CsvParser {
     StringBuilder value = new StringBuilder();
     while (pos < text.length()) {
       char c = text.charAt(pos++);
-      if (c == '"') {
-        if (pos < text.length() && text.charAt(pos) == '"') {
-          value.append('"');
-          pos++;
-          continue;
-        }
-        if (pos < text.length() && !isDelimiter(text.charAt(pos)))
-          throw new SyntaxException(line, "texto depois das aspas de fechamento");
+      if (c == '"' && !skipEscapedQuote()) {
+        requireDelimiterAfterClosingQuote();
         return value.toString();
       }
-      if (c == '\n' || c == '\r' && (pos >= text.length() || text.charAt(pos) != '\n'))
+      if (endsLine(c))
         line++;
       value.append(c);
     }
     throw new SyntaxException(opened, "aspas sem fechamento");
+  }
+
+  /** Aspas duplicadas dentro do campo valem uma aspa: consome a segunda e devolve se ela estava lá. */
+  private boolean skipEscapedQuote() {
+    if (pos < text.length() && text.charAt(pos) == '"') {
+      pos++;
+      return true;
+    }
+    return false;
+  }
+
+  private void requireDelimiterAfterClosingQuote() {
+    if (pos < text.length() && !isDelimiter(text.charAt(pos)))
+      throw new SyntaxException(line, "texto depois das aspas de fechamento");
+  }
+
+  /** Quebra de linha dentro do campo: {@code \n}, ou {@code \r} que não abre um {@code \r\n}. */
+  private boolean endsLine(char c) {
+    return c == '\n' || c == '\r' && (pos >= text.length() || text.charAt(pos) != '\n');
   }
 
   private void newline() {

@@ -35,13 +35,13 @@ partition #F5FAFF "<$play_circle,scale=0.6,color=#1565C0> Executa cada unidade e
       if (Linha com error?) then (sim)
         #FFEBEE:FAILED invalid-row;
       else (não)
-        :ownedBySku + requireNotArchived(IMPORT);
+        :ImportedSkuUpdate.apply:\nownedBySku + requireNotArchived(IMPORT);
         :Preço diferente? OfferService.define\n(versão lida como If-Match; sem oferta, cria);
         :Estoque diferente? InventoryService.adjust\n(sem If-Match);
         #E8F5E9:UPDATED se algo mudou, senão UNCHANGED\n(recusa de negócio: FAILED);
       endif
     case (NewProduct)
-      :prepare de cada linha (sem gravar);
+      :ImportedProductCreation.create:\nprepare de cada linha (sem gravar);
       if (Alguma linha inválida?) then (sim)
         #FFEBEE:invalid-row (ou código do domínio) nela,\ngroup-rejected nas demais;
       elseif (Campos de produto divergem da 1ª linha?) then (sim)

@@ -8,6 +8,8 @@ import dev.marketplace.cataloginventory.application.InventoryService;
 import dev.marketplace.cataloginventory.application.NotFoundException;
 import dev.marketplace.cataloginventory.application.ProductRepository;
 import dev.marketplace.cataloginventory.domain.product.Product;
+import dev.marketplace.cataloginventory.domain.product.ProductDefinition;
+import dev.marketplace.cataloginventory.domain.product.ProductLifecycle;
 import dev.marketplace.cataloginventory.domain.product.ProductStatus;
 import dev.marketplace.cataloginventory.domain.product.Sku;
 import io.smallrye.mutiny.TimeoutException;
@@ -43,9 +45,10 @@ class ProductResponsesTest {
 
   static Product product(ProductStatus status, String sellerSku) {
     Instant now = Instant.parse("2026-11-08T12:00:00Z");
-    return Product.restore(UUID.randomUUID(), TENANT, STORE, UUID.randomUUID(), "BRL", "Camiseta", "Algodão",
-        Map.of(), List.of(Sku.create(UUID.randomUUID(), sellerSku, Map.of(), false, null)), status, 3, now,
-        now, null);
+    ProductDefinition definition = new ProductDefinition("BRL", "Camiseta", "Algodão", Map.of(),
+        List.of(Sku.create(UUID.randomUUID(), sellerSku, Map.of(), false, null)));
+    return Product.restore(UUID.randomUUID(), TENANT, STORE, UUID.randomUUID(), definition,
+        new ProductLifecycle(status, 3, now, now, null));
   }
 
   static List<ProductBatchResult> batch(ProductResponses responses, Product active, UUID missing, Product paused) {

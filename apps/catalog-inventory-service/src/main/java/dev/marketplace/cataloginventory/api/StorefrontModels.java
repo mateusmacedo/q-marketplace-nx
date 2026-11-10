@@ -27,7 +27,7 @@ public final class StorefrontModels {
       EffectivePriceDto price,
       @Schema(description = "Há saldo disponível; a quantidade exata não é exposta") boolean inStock) {
     /**
-     * INVARIANT: produto visível tem oferta e saldo em todo SKU; a publicação e a
+     * INVARIANT: produto visível tem oferta e saldo em cada SKU; a publicação e a
      * criação do SKU garantem.
      */
     static StorefrontSkuResponse of(Sku s, Offer offer, StockLevel level, Instant now) {

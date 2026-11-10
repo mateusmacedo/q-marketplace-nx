@@ -56,9 +56,8 @@ public final class InventoryService {
     return access.ownedBySku(actor, skuId).flatMap(product -> {
       int requested = StockLevel.requireOnHand(onHand);
       product.requireNotArchived("ADJUST_STOCK");
-      return inventory.adjust(product.tenantId(), product.storeId(), product.id(), skuId, requested, ifMatch,
-          actor.subject(),
-          clock.instant());
+      return inventory.adjust(new StockAdjustment(product.tenantId(), product.storeId(), product.id(), skuId,
+          requested), ifMatch, actor.subject(), clock.instant());
     });
   }
 }

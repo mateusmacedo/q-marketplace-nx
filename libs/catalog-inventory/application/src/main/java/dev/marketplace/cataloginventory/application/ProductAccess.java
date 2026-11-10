@@ -43,7 +43,7 @@ final class ProductAccess {
    */
   Uni<Product> inTenant(UUID tenantId, UUID productId) {
     return products.findById(tenantId, productId)
-        .map(found -> found.orElseThrow(() -> new NotFoundException("Produto")));
+        .map(found -> found.orElseThrow(ProductAccess::productNotFound));
   }
 
   /**
@@ -96,16 +96,20 @@ final class ProductAccess {
   }
 
   private static Product requireVisible(Actor actor, Optional<Product> found) {
-    return found.filter(p -> canSee(actor, p)).orElseThrow(() -> new NotFoundException("Produto"));
+    return found.filter(p -> canSee(actor, p)).orElseThrow(ProductAccess::productNotFound);
   }
 
   private static Product requireOwned(UUID store, Optional<Product> found) {
-    return found.filter(p -> p.storeId().equals(store)).orElseThrow(() -> new NotFoundException("Produto"));
+    return found.filter(p -> p.storeId().equals(store)).orElseThrow(ProductAccess::productNotFound);
   }
 
   private static boolean canSee(Actor actor, Product product) {
     if (actor.canReadTenantCatalog())
       return true;
     return actor.can(Capability.MANAGE_OWN_PRODUCTS) && actor.ownsStore(product.storeId());
+  }
+
+  private static NotFoundException productNotFound() {
+    return new NotFoundException("Produto");
   }
 }

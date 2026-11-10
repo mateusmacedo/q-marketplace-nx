@@ -76,35 +76,45 @@ public final class ProductActions {
     SellerStatus seller = eligibility.getOrDefault(product.storeId(), SellerStatus.PENDING);
     Optional<Reason> incomplete = issues.filter(found -> !found.isEmpty())
         .map(found -> Reason.of(DomainReasons.PRODUCT_NOT_PUBLISHABLE));
-    if (owns(actor, product)) {
-      if (product.acceptsEdit()) {
-        allowed.addAll(List.of(EDIT, CHANGE_CATEGORY));
-        add(allowed, blocked, ADD_SKU, product.skuAdditionRefusal());
-        add(allowed, blocked, REMOVE_SKU, product.skuRemovalRefusal());
-      }
-      if (product.acceptsOfferAndStockChanges())
-        allowed.addAll(List.of(EDIT_OFFER, EDIT_STOCK));
-      if (accepts(product, ProductTransition.SUBMIT))
-        add(allowed, blocked, SUBMIT, incomplete);
-      if (accepts(product, ProductTransition.PAUSE))
-        allowed.add(PAUSE);
-      if (accepts(product, ProductTransition.RESUME))
-        add(allowed, blocked, RESUME, Product.ineligibility(seller));
-      if (accepts(product, ProductTransition.ARCHIVE))
-        allowed.add(ARCHIVE);
-    }
-    if (actor.can(Capability.MODERATE_PRODUCTS)) {
-      // WHY: mesma ordem de Product.approve, que confere a completude antes da loja.
-      if (accepts(product, ProductTransition.APPROVE))
-        add(allowed, blocked, APPROVE, incomplete.or(() -> Product.ineligibility(seller)));
-      if (accepts(product, ProductTransition.REJECT))
-        allowed.add(REJECT);
-      if (accepts(product, ProductTransition.BLOCK))
-        allowed.add(BLOCK);
-      if (accepts(product, ProductTransition.UNBLOCK))
-        allowed.add(UNBLOCK);
-    }
+    if (owns(actor, product))
+      addSellerActions(product, seller, incomplete, allowed, blocked);
+    if (actor.can(Capability.MODERATE_PRODUCTS))
+      addModeratorActions(product, seller, incomplete, allowed, blocked);
     return new Available(allowed, blocked, allowed.contains(EDIT) && product.editReturnsToModeration());
+  }
+
+  /** Ações do seller dono do produto, na ordem em que o painel as mostra. */
+  private static void addSellerActions(Product product, SellerStatus seller, Optional<Reason> incomplete,
+      List<ProductAction> allowed, List<Blocked> blocked) {
+    if (product.acceptsEdit()) {
+      allowed.addAll(List.of(EDIT, CHANGE_CATEGORY));
+      add(allowed, blocked, ADD_SKU, product.skuAdditionRefusal());
+      add(allowed, blocked, REMOVE_SKU, product.skuRemovalRefusal());
+    }
+    if (product.acceptsOfferAndStockChanges())
+      allowed.addAll(List.of(EDIT_OFFER, EDIT_STOCK));
+    if (accepts(product, ProductTransition.SUBMIT))
+      add(allowed, blocked, SUBMIT, incomplete);
+    if (accepts(product, ProductTransition.PAUSE))
+      allowed.add(PAUSE);
+    if (accepts(product, ProductTransition.RESUME))
+      add(allowed, blocked, RESUME, Product.ineligibility(seller));
+    if (accepts(product, ProductTransition.ARCHIVE))
+      allowed.add(ARCHIVE);
+  }
+
+  /** Decisões do moderador, depois das ações do seller. */
+  private static void addModeratorActions(Product product, SellerStatus seller, Optional<Reason> incomplete,
+      List<ProductAction> allowed, List<Blocked> blocked) {
+    // WHY: mesma ordem de Product.approve, que confere a completude antes da loja.
+    if (accepts(product, ProductTransition.APPROVE))
+      add(allowed, blocked, APPROVE, incomplete.or(() -> Product.ineligibility(seller)));
+    if (accepts(product, ProductTransition.REJECT))
+      allowed.add(REJECT);
+    if (accepts(product, ProductTransition.BLOCK))
+      allowed.add(BLOCK);
+    if (accepts(product, ProductTransition.UNBLOCK))
+      allowed.add(UNBLOCK);
   }
 
   private static boolean dependsOnEligibility(Actor actor, Product product) {

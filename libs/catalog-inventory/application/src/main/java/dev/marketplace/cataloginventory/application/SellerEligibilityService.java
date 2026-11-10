@@ -40,7 +40,7 @@ public final class SellerEligibilityService {
    * registrada é descartada
    * ({@code STALE}); só {@code APPLIED} altera a situação da loja.
    */
-  public Uni<SellerVerdict.Outcome> record(SellerVerdict verdict) {
+  public Uni<SellerVerdict.Outcome> applyVerdict(SellerVerdict verdict) {
     return Uni.createFrom().deferred(() -> sellers.apply(CONSUMER, verdict));
   }
 }

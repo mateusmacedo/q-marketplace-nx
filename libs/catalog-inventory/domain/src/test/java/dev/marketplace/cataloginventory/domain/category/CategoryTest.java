@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CategoryTest {
@@ -82,6 +83,24 @@ class CategoryTest {
   @CsvSource({"Moda", "moda_feminina", "-moda", "moda-"})
   void rejectsNonKebabCode(String code) {
     assertThrows(DomainRuleViolation.class, () -> root(code));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"moda", "moda-feminina", "celulares-5g", "a-b-c"})
+  void acceptsKebabCode(String code) {
+    assertEquals(code, root(code).code());
+  }
+
+  @Test
+  void codePatternKeepsTheLanguageAndSurvivesLongInput() {
+    Pattern code = Pattern.compile("^" + Category.CODE_PATTERN + "$");
+    for (String valid : List.of("moda", "moda-feminina", "5g", "a-b-c"))
+      assertTrue(code.matcher(valid).matches(), valid);
+    for (String invalid : List.of("", "-moda", "moda-", "moda--feminina", "Moda", "moda_feminina"))
+      assertFalse(code.matcher(invalid).matches(), invalid);
+    // WHY: com a repetição de grupo sem quantificador possessivo, entradas assim estouravam a pilha do motor de regex.
+    assertTrue(code.matcher("a-".repeat(100_000) + "a").matches());
+    assertFalse(code.matcher("a-".repeat(100_000)).matches());
   }
 
   @Test

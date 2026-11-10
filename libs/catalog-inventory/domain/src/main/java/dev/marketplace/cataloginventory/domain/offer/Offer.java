@@ -42,14 +42,13 @@ public final class Offer {
    * preço em outra moeda e {@code invalid-value} moeda fora da ISO 4217, além
    * das promoções incoerentes com o preço.
    */
-  private Offer(UUID skuId, UUID productId, UUID tenantId, UUID storeId, String currency, Price price,
-      long priceVersion,
-      List<Promotion> promotions, long version, Instant createdAt, Instant updatedAt) {
-    this.skuId = Objects.requireNonNull(skuId, "SKU obrigatório");
-    this.productId = Objects.requireNonNull(productId, "produto obrigatório");
-    this.tenantId = Objects.requireNonNull(tenantId, "tenant obrigatório");
-    this.storeId = Objects.requireNonNull(storeId, "loja obrigatória");
-    this.currency = Money.requireCurrency(currency);
+  private Offer(OfferIdentity identity, Price price, long priceVersion, List<Promotion> promotions, long version,
+      Instant createdAt, Instant updatedAt) {
+    this.skuId = Objects.requireNonNull(identity.skuId(), "SKU obrigatório");
+    this.productId = Objects.requireNonNull(identity.productId(), "produto obrigatório");
+    this.tenantId = Objects.requireNonNull(identity.tenantId(), "tenant obrigatório");
+    this.storeId = Objects.requireNonNull(identity.storeId(), "loja obrigatória");
+    this.currency = Money.requireCurrency(identity.currency());
     this.price = requireCurrency(Objects.requireNonNull(price, "preço obrigatório"));
     this.priceVersion = priceVersion;
     this.promotions = sorted(promotions);
@@ -67,7 +66,8 @@ public final class Offer {
    */
   public static Offer create(UUID skuId, UUID productId, UUID tenantId, UUID storeId, String currency, Price price,
       Instant now) {
-    Offer offer = new Offer(skuId, productId, tenantId, storeId, currency, price, 1, List.of(), 0, now, now);
+    OfferIdentity identity = new OfferIdentity(skuId, productId, tenantId, storeId, currency);
+    Offer offer = new Offer(identity, price, 1, List.of(), 0, now, now);
     offer.recordPriceChanged(now);
     return offer;
   }
@@ -76,11 +76,9 @@ public final class Offer {
    * Reconstrói a oferta persistida preservando versões e datas, sem registrar
    * eventos. Reaplica as mesmas validações da criação.
    */
-  public static Offer restore(UUID skuId, UUID productId, UUID tenantId, UUID storeId, String currency, Price price,
-      long priceVersion, List<Promotion> promotions, long version, Instant createdAt, Instant updatedAt) {
-    return new Offer(skuId, productId, tenantId, storeId, currency, price, priceVersion, promotions, version,
-        createdAt,
-        updatedAt);
+  public static Offer restore(OfferIdentity identity, Price price, long priceVersion, List<Promotion> promotions,
+      long version, Instant createdAt, Instant updatedAt) {
+    return new Offer(identity, price, priceVersion, promotions, version, createdAt, updatedAt);
   }
 
   /**

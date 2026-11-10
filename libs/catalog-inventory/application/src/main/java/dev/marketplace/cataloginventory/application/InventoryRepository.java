@@ -23,9 +23,7 @@ public interface InventoryRepository {
    * ou com recusa
    * {@code stock-below-reserved} quando o novo valor é menor que o reservado.
    */
-  Uni<StockLevel> adjust(UUID tenantId, UUID storeId, UUID productId, UUID skuId, int onHand,
-      Optional<Long> expectedVersion,
-      String actor, Instant at);
+  Uni<StockLevel> adjust(StockAdjustment adjustment, Optional<Long> expectedVersion, String actor, Instant at);
 
   /**
    * Leitura autoritativa dos SKUs para a decisão de reserva; SKUs inexistentes no

@@ -1,6 +1,7 @@
 package dev.marketplace.cataloginventory;
 
 import dev.marketplace.cataloginventory.application.InventoryRepository;
+import dev.marketplace.cataloginventory.application.StockAdjustment;
 import dev.marketplace.cataloginventory.domain.inventory.SkuCandidate;
 import dev.marketplace.cataloginventory.domain.inventory.StockLevel;
 import io.smallrye.mutiny.TimeoutException;
@@ -46,9 +47,9 @@ public class StockReadTimeouts implements InventoryRepository {
   }
 
   @Override
-  public Uni<StockLevel> adjust(UUID tenantId, UUID storeId, UUID productId, UUID skuId, int onHand,
-      Optional<Long> expectedVersion, String actor, Instant at) {
-    return delegate.adjust(tenantId, storeId, productId, skuId, onHand, expectedVersion, actor, at);
+  public Uni<StockLevel> adjust(StockAdjustment adjustment, Optional<Long> expectedVersion, String actor,
+      Instant at) {
+    return delegate.adjust(adjustment, expectedVersion, actor, at);
   }
 
   @Override

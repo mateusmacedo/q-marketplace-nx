@@ -40,7 +40,7 @@ public final class PublishingPolicy {
   }
 
   /**
-   * Tudo o que impede o produto de ir para moderação ou de ser aprovado; todo SKU
+   * Tudo o que impede o produto de ir para moderação ou de ser aprovado; cada SKU
    * precisa de oferta.
    */
   public static List<Reason> publishingViolations(Map<String, String> productAttributes, List<Sku> skus,
@@ -63,26 +63,38 @@ public final class PublishingPolicy {
         issues.add(at(PublishingIssue.sku(sku.sellerSku()) + ".offer",
             Reason.of(MISSING_OFFER, sku.sellerSku())));
     issues.addAll(valueIssues(productAttributes, skus, effective));
-    for (AttributeDefinition d : effective) {
-      if (!d.required())
-        continue;
-      if (!d.variant() && !productAttributes.containsKey(d.code()))
-        issues.add(at(PublishingIssue.attribute(d.code()), Reason.of(MISSING_ATTRIBUTE, d.code())
-            .withMessage("Preencha o atributo " + d.label() + ".")));
-      if (d.variant()) {
-        for (Sku sku : skus) {
-          if (!sku.variantAttributes().containsKey(d.code()))
-            issues.add(at(PublishingIssue.variant(sku.sellerSku(), d.code()),
-                Reason.of(MISSING_VARIANT_ATTRIBUTE, sku.sellerSku(), d.code())
-                    .withMessage("Preencha " + d.label() + " no SKU " + sku.sellerSku() + ".")));
-        }
-      }
-    }
+    for (AttributeDefinition d : effective)
+      if (d.required())
+        issues.addAll(missingIssues(d, productAttributes, skus));
+    issues.addAll(duplicateVariantIssues(skus));
+    return issues;
+  }
+
+  /**
+   * Pendências do atributo obrigatório: a falta no produto ou, no atributo de variante, a falta em cada SKU, na
+   * ordem dos SKUs.
+   */
+  private static List<PublishingIssue> missingIssues(AttributeDefinition d, Map<String, String> productAttributes,
+      List<Sku> skus) {
+    if (!d.variant())
+      return productAttributes.containsKey(d.code())
+          ? List.of()
+          : List.of(at(PublishingIssue.attribute(d.code()), Reason.of(MISSING_ATTRIBUTE, d.code())
+              .withMessage("Preencha o atributo " + d.label() + ".")));
+    return skus.stream().filter(sku -> !sku.variantAttributes().containsKey(d.code()))
+        .map(sku -> at(PublishingIssue.variant(sku.sellerSku(), d.code()),
+            Reason.of(MISSING_VARIANT_ATTRIBUTE, sku.sellerSku(), d.code())
+                .withMessage("Preencha " + d.label() + " no SKU " + sku.sellerSku() + ".")))
+        .toList();
+  }
+
+  /** Uma pendência por SKU que repete a combinação de atributos de variante de um SKU anterior. */
+  private static List<PublishingIssue> duplicateVariantIssues(List<Sku> skus) {
     Set<Map<String, String>> combinations = new HashSet<>();
-    for (Sku sku : skus) {
+    List<PublishingIssue> issues = new ArrayList<>();
+    for (Sku sku : skus)
       if (!combinations.add(sku.variantAttributes()))
         issues.add(at(PublishingIssue.variant(sku.sellerSku()), Reason.of(DUPLICATE_VARIANT, sku.sellerSku())));
-    }
     return issues;
   }
 

@@ -23,11 +23,14 @@ import java.util.UUID;
 @Decorator
 @Priority(CacheInvalidation.PRIORITY)
 public class CategoryCacheInvalidation implements CategoryRepository {
+  private final CategoryRepository delegate;
+  private final CatalogCache cache;
+
   @Inject
-  @Delegate
-  CategoryRepository delegate;
-  @Inject
-  CatalogCache cache;
+  CategoryCacheInvalidation(@Delegate CategoryRepository delegate, CatalogCache cache) {
+    this.delegate = delegate;
+    this.cache = cache;
+  }
 
   @Override
   public Uni<Void> insert(Category category) {

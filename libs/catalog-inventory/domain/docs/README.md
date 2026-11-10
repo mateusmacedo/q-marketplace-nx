@@ -59,7 +59,7 @@ O `build.gradle` não declara dependência de produção. O verificador de limit
 
 ### Categoria (`category`)
 
-[`Category`](../src/main/java/dev/marketplace/cataloginventory/domain/category/Category.java) (agregado): `id`, `tenantId`, `ancestry` (ids da raiz até o pai), `code`, `name`, `attributes`, `active`, `version`.
+[`Category`](../src/main/java/dev/marketplace/cataloginventory/domain/category/Category.java) (agregado): `id`, `tenantId`, `ancestry` (ids da raiz até o pai), `code`, `name`, `attributes`, `active`, `version`. A reconstrução (`restore`) recebe `code`, `name` e os atributos próprios em [`CategoryDefinition`](../src/main/java/dev/marketplace/cataloginventory/domain/category/CategoryDefinition.java).
 
 | Invariante                                                                                                                                        | Recusa                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -77,7 +77,7 @@ O `build.gradle` não declara dependência de produção. O verificador de limit
 
 ### Produto (`product`)
 
-[`Product`](../src/main/java/dev/marketplace/cataloginventory/domain/product/Product.java) (agregado raiz): `id`, `tenantId`, `storeId`, `currency`, `categoryId`, `title`, `description`, `attributes`, `skus`, `status`, `version`, `createdAt`, `updatedAt`. Acumula `StatusChange` e `ProductEvent` até o repositório drená-los (`drainChanges`, `drainEvents`).
+[`Product`](../src/main/java/dev/marketplace/cataloginventory/domain/product/Product.java) (agregado raiz): `id`, `tenantId`, `storeId`, `currency`, `categoryId`, `title`, `description`, `attributes`, `skus`, `status`, `version`, `createdAt`, `updatedAt`. Acumula `StatusChange` e `ProductEvent` até o repositório drená-los (`drainChanges`, `drainEvents`). `draft` recebe a moeda, o texto, os atributos e os SKUs em [`ProductDefinition`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ProductDefinition.java); `restore` recebe também a situação gravada (estado, versão, datas e entrada na fila) em [`ProductLifecycle`](../src/main/java/dev/marketplace/cataloginventory/domain/product/ProductLifecycle.java).
 
 | Invariante                                                                                              | Recusa                                                                                    |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -109,7 +109,7 @@ Enums: [`ProductStatus`](../src/main/java/dev/marketplace/cataloginventory/domai
 
 ### Oferta (`offer`)
 
-[`Offer`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/Offer.java) (agregado separado do produto, ADR 014): `skuId` (chave), `productId`, `tenantId`, `storeId`, `currency`, `price`, `priceVersion`, `promotions`, `version`.
+[`Offer`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/Offer.java) (agregado separado do produto, ADR 014): `skuId` (chave), `productId`, `tenantId`, `storeId`, `currency`, `price`, `priceVersion`, `promotions`, `version`. `restore` recebe o que não muda (SKU, produto, tenant, loja e moeda) em [`OfferIdentity`](../src/main/java/dev/marketplace/cataloginventory/domain/offer/OfferIdentity.java).
 
 | Invariante                                                                         | Recusa                                   |
 | ---------------------------------------------------------------------------------- | ---------------------------------------- |
@@ -236,7 +236,7 @@ O enum está no domínio; o consumo dos vereditos fica no serviço ([`SellerVerd
 
 [`ReservationPolicy`](../src/main/java/dev/marketplace/cataloginventory/domain/inventory/ReservationPolicy.java):
 
-- `open` valida limites (`invalid-value`): de 1 a 100 itens, `ttl` positivo e até `maxTtl`, `orderRef` até 100.
+- `open` recebe o pedido já identificado em [`ReservationDraft`](../src/main/java/dev/marketplace/cataloginventory/domain/inventory/ReservationDraft.java) (id, tenant, chave de idempotência, hash da requisição, `orderRef` e itens) e valida limites (`invalid-value`): de 1 a 100 itens, `ttl` positivo e até `maxTtl`, `orderRef` até 100.
 - Por item, acumula motivos: `duplicate-sku:<id>`, `unknown-sku:<id>`, `product-unavailable:<id>` (produto não `ACTIVE`), `seller-not-eligible:<id>`, `price-changed:<id>` (preço vigente diferente do aceito no checkout).
 - Compara o preço vigente, não só a versão, para pegar promoção que começa ou termina sem mudar a definição.
 - Com motivos, lança `ReservationRefusal`. O código é o prefixo comum dos motivos ou `reservation-refused` quando há mais de um tipo.
