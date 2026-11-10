@@ -1,12 +1,17 @@
 name: SonarQube
 
 # Análise do SonarQube Cloud com a cobertura dos testes (ADR 032). Fica fora do check obrigatório `CI`: o quality gate
-# chega ao PR pelo app do SonarQube Cloud, e uma indisponibilidade do serviço não bloqueia o merge.
+# chega ao PR pelo app do SonarQube Cloud, e uma indisponibilidade do serviço não bloqueia o merge. No PR, só os
+# projetos afetados rodam os testes; a análise completa da `main` é semanal ou sob demanda.
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  schedule:
+    - cron: "41 9 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,14 +28,14 @@ jobs:
   analysis:
     name: Análise
     # WHY: o PR vindo de fork não recebe o SONAR_TOKEN, e o scan falharia sem ele.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # O SonarQube usa o histórico para separar o código novo e atribuir os achados.
+          # O SonarQube usa o histórico para separar o código novo e atribuir os achados; o affected, para achar a base.
           fetch-depth: 0
 
       - name: Espelho do Docker Hub
@@ -39,13 +44,42 @@ jobs:
       - name: Node, Java e Gradle
         uses: ./.github/actions/setup-toolchain
 
+      - name: Projetos a testar
+        id: projects
+        env:
+          NX_BASE: ${{ github.event.pull_request.base.sha }}
+          NX_HEAD: HEAD
+          PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          scope=()
+          if [[ "$PULL_REQUEST" == "true" ]]; then scope=(--affected); fi
+          list() { npx nx show projects "${scope[@]}" --withTarget test "$@" --json | jq -r 'join(",")'; }
+          {
+            echo "java=$(list -p 'tag:lang:java')"
+            echo "web=$(list -p 'tag:lang:ts' --exclude admin-web)"
+            echo "admin=$(list -p admin-web)"
+          } | tee -a "$GITHUB_OUTPUT"
+
+      # WHY: a análise do Java exige o bytecode de todos os módulos, inclusive dos que o PR não toca.
+      - name: Compilação Java
+        run: ./gradlew --no-daemon classes testClasses
+
+      # WHY: o Gradle direto, porque o @nx/gradle em lote repassa o -Pcoverage como opção desconhecida.
       - name: Testes Java com cobertura
-        run: ./gradlew --no-daemon -Pcoverage test
+        if: steps.projects.outputs.java != ''
+        env:
+          PROJECTS: ${{ steps.projects.outputs.java }}
+        run: ./gradlew --no-daemon -Pcoverage $(tr ',' '\n' <<<"$PROJECTS" | sed 's/.*/:&:test/')
 
       - name: Testes das libs do painel com cobertura
-        run: npx nx run-many -t test -p 'tag:lang:ts' --exclude admin-web -- --coverage.enabled --coverage.reporter=lcov
+        if: steps.projects.outputs.web != ''
+        env:
+          PROJECTS: ${{ steps.projects.outputs.web }}
+        run: npx nx run-many -t test -p "$PROJECTS" -- --coverage.enabled --coverage.reporter=lcov
 
       - name: Testes do admin-web com cobertura
+        if: steps.projects.outputs.admin != ''
         run: npx nx test admin-web --coverage --coverage-reporters=lcov
 
       - name: Caminhos da análise
@@ -53,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           # WHY: o Vitest grava no lcov os caminhos relativos à lib, e o SonarQube os resolve a partir da raiz.
-          find coverage/libs -name lcov.info | while read -r report; do
+          find coverage/libs -name lcov.info 2>/dev/null | while read -r report; do
             root="${report#coverage/}"
             sed -i "s#^SF:src/#SF:${root%/lcov.info}/src/#" "$report"
           done
