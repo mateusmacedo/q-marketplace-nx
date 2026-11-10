@@ -29,8 +29,8 @@ export async function ensureSellerStoreApproved(timeoutMs = 60_000): Promise<voi
   }
   throw new Error(
     `A loja ${E2E_ENV.sellerStoreId} continua ${current.status} ${timeoutMs / 1000} s depois do SellerApproved em ` +
-      `${SELLER_TOPIC}. Confira se o catalog-worker está no ar e consumindo o tópico (Redpanda Console em ` +
-      `http://localhost:8090, grupo de consumo do catálogo).`
+    `${SELLER_TOPIC}. Confira se o catalog-worker está no ar e consumindo o tópico (Redpanda Console em ` +
+    `http://localhost:8090, grupo de consumo do catálogo).`
   );
 }
 
@@ -68,7 +68,7 @@ export function publishSellerApproved(storeId: string): void {
   if (result.error || result.status !== 0) {
     throw new Error(
       `Não foi possível publicar o SellerApproved da loja ${storeId} em ${SELLER_TOPIC} ` +
-        `(docker ${args.slice(0, 8).join(' ')} ...): ${result.error?.message ?? result.stderr}`
+      `(docker ${args.slice(0, 8).join(' ')} ...): ${result.error?.message ?? result.stderr}`
     );
   }
 }

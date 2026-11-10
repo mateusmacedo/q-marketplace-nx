@@ -31,7 +31,7 @@ interface ModerationFixtures {
 
 const test = base.extend<ModerationFixtures>({
   // eslint-disable-next-line no-empty-pattern
-  createReason: async ({}, use) => {
+  createReason: async ({ }, use) => {
     const created: string[] = [];
     await use(async decisions => {
       const reason = await createModerationReason({ decisions });
@@ -210,7 +210,7 @@ async function walkQueue(
   const empty = page.getByText('Nenhum produto aguardando moderação.');
   const next = page.getByRole('button', { name: 'Próxima' });
   let missing = [...titles];
-  for (;;) {
+  for (; ;) {
     await expect(list.or(empty)).toBeVisible();
     if (await empty.isVisible()) {
       return missing;

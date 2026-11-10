@@ -55,7 +55,7 @@ export class ApiClient {
   constructor(
     readonly user: DemoUser,
     private readonly baseUrl: string = CATALOG_API_URL
-  ) {}
+  ) { }
 
   /** Requisição com status e ETag da resposta; lança `ApiError` fora de 2xx. */
   async request<T>(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
