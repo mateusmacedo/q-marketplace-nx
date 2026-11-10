@@ -97,6 +97,16 @@
         "watch": false
       }
     },
+    "test-ci": {
+      "executor": "@angular/build:unit-test",
+      "options": {
+        "tsConfig": "apps/admin-web/tsconfig.spec.json",
+        "browsers": [
+          "ChromiumHeadless"
+        ],
+        "watch": false
+      }
+    },
     "serve-static": {
       "continuous": true,
       "readyWhen": {
