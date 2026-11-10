@@ -1,0 +1,17 @@
+# Arquivos fora da formatação do Prettier; os quatro primeiros e o lockfile são o padrão do Nx (ADR 033).
+/dist
+/coverage
+/.nx/cache
+/.nx/workspace-data
+package-lock.json
+# WHY: saídas de geradores, que voltariam ao formato deles na próxima geração: o cliente do painel (codegen) e o
+# contrato que o OpenApiContractTest regrava com -Dcontract.update=true.
+**/src/generated/
+contracts/*/openapi.json
+# WHY: templates Go do Helm, que o Prettier lê como YAML inválido.
+infra/helm/*/templates/
+# WHY: fora do git por .gitignore aninhado ou exclusão local, que o nx format não lê: resultados da carga e pastas
+# de ferramentas locais.
+tools/load/results/
+/.remember
+/.serena

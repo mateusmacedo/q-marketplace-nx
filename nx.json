@@ -12,10 +12,7 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
-      "include": [
-        "apps/**/*",
-        "libs/**/*"
-      ],
+      "include": ["apps/**/*", "libs/**/*"],
       "options": {
         "targetName": "lint"
       }
@@ -61,10 +58,7 @@
   "targetDefaults": {
     "assemble": {
       "cache": true,
-      "outputs": [
-        "{projectRoot}/build/libs",
-        "{projectRoot}/build/quarkus-app"
-      ]
+      "outputs": ["{projectRoot}/build/libs", "{projectRoot}/build/quarkus-app"]
     },
     "test": {
       "cache": true
@@ -87,22 +81,20 @@
     "quarkusRun": {
       "cache": false
     },
+    "spotlessApply": {
+      "cache": false
+    },
+    "spotlessJavaApply": {
+      "cache": false
+    },
     "@angular/build:application": {
       "cache": true,
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "production",
-        "^production"
-      ]
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
     },
     "@angular/build:unit-test": {
       "cache": true,
-      "inputs": [
-        "default",
-        "^default"
-      ]
+      "inputs": ["default", "^default"]
     },
     "e2e": {
       "cache": false
@@ -121,9 +113,7 @@
         "{projectRoot}/eslint.config.mjs",
         "{workspaceRoot}/tools/contexts.json",
         {
-          "externalDependencies": [
-            "eslint"
-          ]
+          "externalDependencies": ["eslint"]
         }
       ]
     }
@@ -133,23 +123,15 @@
     "groups": {
       "apps": {
         "projectsRelationship": "independent",
-        "projects": [
-          "tag:layer:service",
-          "tag:layer:web-app"
-        ]
+        "projects": ["tag:layer:service", "tag:layer:web-app"]
       },
       "libs": {
         "projectsRelationship": "independent",
-        "projects": [
-          "tag:layer:domain",
-          "tag:layer:application"
-        ]
+        "projects": ["tag:layer:domain", "tag:layer:application"]
       },
       "contracts": {
         "projectsRelationship": "independent",
-        "projects": [
-          "tag:layer:contract"
-        ]
+        "projects": ["tag:layer:contract"]
       }
     },
     "releaseTag": {
