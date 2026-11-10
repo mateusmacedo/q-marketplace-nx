@@ -114,8 +114,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      # WHY: a execução distribuída termina no assemble; o smoke roda aqui, com os jars do Build e o Docker deste runner.
       - name: Smoke
-        run: npm run smoke
+        run: npm run smoke -- --no-agents
 
       - name: Correção sugerida das falhas
         if: always()

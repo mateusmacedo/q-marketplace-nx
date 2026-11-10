@@ -220,8 +220,9 @@ async function smokeContext(context) {
 
 // WHY: cada serviço tem o próprio alvo smoke, com parallelism: false no Nx, porque os serviços usam as mesmas portas e
 // cada JVM pesa na memória do host; o `npm run smoke` roda todos, um de cada vez.
-const context = process.argv[2];
-if (!contexts.includes(context)) {
+// WHY: o contexto usado é o da lista do workspace, nunca o texto recebido na linha de comando, que só o escolhe.
+const context = contexts.find((known) => known === process.argv[2]);
+if (!context) {
   console.error(`Uso: node tools/smoke.mjs <contexto>, com um de: ${contexts.join(', ')}`);
   process.exit(2);
 }
