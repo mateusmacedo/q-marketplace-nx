@@ -32,11 +32,11 @@ export interface Config<T extends ClientOptions = ClientOptions>
    * {@link https://angular.dev/api/common/http/HttpHeaders#constructor See more}
    */
   headers?:
-  | HttpHeaders
-  | Record<
-    string,
-    string | number | boolean | (string | number | boolean)[] | null | undefined | unknown
-  >;
+    | HttpHeaders
+    | Record<
+        string,
+        string | number | boolean | (string | number | boolean)[] | null | undefined | unknown
+      >;
   /**
    * The HTTP client to use for making requests.
    */
@@ -63,19 +63,19 @@ export interface RequestOptions<
   Url extends string = string,
 >
   extends
-  Config<{
-    responseStyle: TResponseStyle;
-    throwOnError: ThrowOnError;
-  }>,
-  Pick<
-    ServerSentEventsOptions<TData>,
-    | 'onRequest'
-    | 'onSseError'
-    | 'onSseEvent'
-    | 'sseDefaultRetryDelay'
-    | 'sseMaxRetryAttempts'
-    | 'sseMaxRetryDelay'
-  > {
+    Config<{
+      responseStyle: TResponseStyle;
+      throwOnError: ThrowOnError;
+    }>,
+    Pick<
+      ServerSentEventsOptions<TData>,
+      | 'onRequest'
+      | 'onSseError'
+      | 'onSseEvent'
+      | 'sseDefaultRetryDelay'
+      | 'sseMaxRetryAttempts'
+      | 'sseMaxRetryDelay'
+    > {
   /**
    * Any body that you want to add to your request.
    *
@@ -111,34 +111,34 @@ export type RequestResult<
   TResponseStyle extends ResponseStyle = 'fields',
 > = Promise<
   ThrowOnError extends true
-  ? TResponseStyle extends 'data'
-  ? TData extends Record<string, unknown>
-  ? TData[keyof TData]
-  : TData
-  : {
-    data: TData extends Record<string, unknown> ? TData[keyof TData] : TData;
-    request: HttpRequest<unknown>;
-    response: HttpResponse<TData>;
-  }
-  : TResponseStyle extends 'data'
-  ? (TData extends Record<string, unknown> ? TData[keyof TData] : TData) | undefined
-  :
-  | {
-    data: TData extends Record<string, unknown> ? TData[keyof TData] : TData;
-    error: undefined;
-    request: HttpRequest<unknown>;
-    response: HttpResponse<TData>;
-  }
-  | {
-    data: undefined;
-    error: TError[keyof TError];
-    /** request may be undefined, because error may be from building the request object itself */
-    request?: HttpRequest<unknown>;
-    /** response may be undefined, because error may be from building the request object itself or from a network error */
-    response?: HttpErrorResponse & {
-      error: TError[keyof TError] | null;
-    };
-  }
+    ? TResponseStyle extends 'data'
+      ? TData extends Record<string, unknown>
+        ? TData[keyof TData]
+        : TData
+      : {
+          data: TData extends Record<string, unknown> ? TData[keyof TData] : TData;
+          request: HttpRequest<unknown>;
+          response: HttpResponse<TData>;
+        }
+    : TResponseStyle extends 'data'
+      ? (TData extends Record<string, unknown> ? TData[keyof TData] : TData) | undefined
+      :
+          | {
+              data: TData extends Record<string, unknown> ? TData[keyof TData] : TData;
+              error: undefined;
+              request: HttpRequest<unknown>;
+              response: HttpResponse<TData>;
+            }
+          | {
+              data: undefined;
+              error: TError[keyof TError];
+              /** request may be undefined, because error may be from building the request object itself */
+              request?: HttpRequest<unknown>;
+              /** response may be undefined, because error may be from building the request object itself or from a network error */
+              response?: HttpErrorResponse & {
+                error: TError[keyof TError] | null;
+              };
+            }
 >;
 
 export interface ClientOptions {
