@@ -346,31 +346,47 @@ export function buildOptions(params) {
   };
 }
 
+function describeScenario(name, s, params) {
+  if (s.burst) {
+    return [
+      `  ${name}: rajada de ${s.iterations} tentativas com ${s.maxVUs} VUs no começo, estoque ${params.lastUnitStock}, sem liberar`,
+    ];
+  }
+  const lines = [];
+  if (name === 'hot_sku') {
+    lines.push(
+      params.hotMode === 'contend'
+        ? `  hot_sku: disputa contínua (reserva e libera), estoque ${params.hotStock}, no máximo ${s.maxVUs} unidades reservadas ao mesmo tempo (uma por VU)`
+        : `  hot_sku: modo exhaust (reserva sem liberar até esgotar), estoque ${params.hotStock}`,
+    );
+  }
+  lines.push(
+    `  ${name}: pico de ${s.peakPerSecond.toFixed(2)} iterações/s, cerca de ${s.iterations} iterações, ${s.preAllocatedVUs} a ${s.maxVUs} VUs`,
+  );
+  return lines;
+}
+
+function describeLimits(thresholds) {
+  const limits = [];
+  for (const [metric, conditions] of Object.entries(thresholds)) {
+    for (const c of conditions) {
+      const aborts = typeof c !== 'string';
+      const threshold = aborts ? c.threshold : c;
+      const condition = aborts ? `${threshold} (aborta)` : threshold;
+      if (!isProbe(metric, threshold)) limits.push(`${metric} ${condition}`);
+    }
+  }
+  return limits;
+}
+
 export function describePlan(params) {
   const plan = planFor(params);
   const options = buildOptions(params);
   const lines = [
     `perfil ${params.profile}, semente ${params.seed}, ${formatSeconds(plan.totalSeconds)} de carga, reservas com prazo de ${params.reservationTtlS} s`,
     ...describeMass(params),
+    ...Object.entries(plan.scenarios).flatMap(([name, s]) => describeScenario(name, s, params)),
   ];
-  for (const [name, s] of Object.entries(plan.scenarios)) {
-    if (s.burst) {
-      lines.push(
-        `  ${name}: rajada de ${s.iterations} tentativas com ${s.maxVUs} VUs no começo, estoque ${params.lastUnitStock}, sem liberar`,
-      );
-      continue;
-    }
-    if (name === 'hot_sku') {
-      lines.push(
-        params.hotMode === 'contend'
-          ? `  hot_sku: disputa contínua (reserva e libera), estoque ${params.hotStock}, no máximo ${s.maxVUs} unidades reservadas ao mesmo tempo (uma por VU)`
-          : `  hot_sku: modo exhaust (reserva sem liberar até esgotar), estoque ${params.hotStock}`,
-      );
-    }
-    lines.push(
-      `  ${name}: pico de ${s.peakPerSecond.toFixed(2)} iterações/s, cerca de ${s.iterations} iterações, ${s.preAllocatedVUs} a ${s.maxVUs} VUs`,
-    );
-  }
   const rounds = kybRounds(params, plan);
   if (rounds > 0) {
     lines.push(
@@ -381,15 +397,9 @@ export function describePlan(params) {
     (total, s) => total + s.preAllocatedVUs,
     0,
   );
-  lines.push(`  VUs pré-alocados: ${preallocated} (teto ${MAX_PREALLOCATED_VUS})`);
-  const limits = [];
-  for (const [metric, conditions] of Object.entries(options.thresholds)) {
-    for (const c of conditions) {
-      const condition = typeof c === 'string' ? c : `${c.threshold} (aborta)`;
-      if (!isProbe(metric, typeof c === 'string' ? c : c.threshold))
-        limits.push(`${metric} ${condition}`);
-    }
-  }
-  lines.push(`  limites: ${limits.join('; ')}`);
+  lines.push(
+    `  VUs pré-alocados: ${preallocated} (teto ${MAX_PREALLOCATED_VUS})`,
+    `  limites: ${describeLimits(options.thresholds).join('; ')}`,
+  );
   return lines;
 }

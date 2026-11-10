@@ -107,9 +107,11 @@ function reserve(data, label, skuIds, expected) {
     'POST',
     '/inventory/reservations',
     reservationBody(data, label, skuIds),
-    'POST /inventory/reservations',
-    expected ?? EXPECT_RESERVE,
-    { 'Idempotency-Key': `carga-${data.run}-${label}` },
+    {
+      name: 'POST /inventory/reservations',
+      expected: expected ?? EXPECT_RESERVE,
+      headers: { 'Idempotency-Key': `carga-${data.run}-${label}` },
+    },
   );
 }
 
@@ -120,8 +122,7 @@ function release(data, res, label) {
     'POST',
     `/inventory/reservations/${res.json('id')}/release`,
     null,
-    'POST /inventory/reservations/{id}/release',
-    EXPECT_OK,
+    { name: 'POST /inventory/reservations/{id}/release', expected: EXPECT_OK },
   );
   record(released, released.status === 200);
   check(released, { [label]: (r) => r.status === 200 });
@@ -195,8 +196,7 @@ export function stockAdjust(data) {
     'PUT',
     `/inventory/skus/${skuId}`,
     { onHand },
-    'PUT /inventory/skus/{skuId}',
-    EXPECT_OK,
+    { name: 'PUT /inventory/skus/{skuId}', expected: EXPECT_OK },
   );
   record(res, res.status === 200);
   check(res, { 'stock_adjust: 200': (r) => r.status === 200 });
@@ -265,7 +265,9 @@ export function catalogBrowse(data) {
   const product = pick(random, data.products);
   const skuId = pick(random, product.skus);
   const status = pick(random, LIST_STATUSES);
-  const query = `limit=20${status ? `&status=${status}` : ''}${role === 'seller' ? '' : `&storeId=${params.storeId}`}`;
+  const statusFilter = status ? `&status=${status}` : '';
+  const storeFilter = role === 'seller' ? '' : `&storeId=${params.storeId}`;
+  const query = `limit=20${statusFilter}${storeFilter}`;
   const detail = pick(random, [
     [
       `/products/${product.id}/skus/${skuId}`,
@@ -286,10 +288,19 @@ export function catalogBrowse(data) {
   ]);
   const category = categoryRead(data, role, random);
   const [list, item, sub, cat] = apiBatch([
-    apiRequest(data, role, 'GET', `/products?${query}`, null, 'GET /products', EXPECT_OK),
-    apiRequest(data, role, 'GET', `/products/${product.id}`, null, 'GET /products/{id}', EXPECT_OK),
-    apiRequest(data, role, 'GET', detail[0], null, detail[1], EXPECT_OK),
-    apiRequest(data, role, 'GET', category.path, null, category.name, category.expected),
+    apiRequest(data, role, 'GET', `/products?${query}`, null, {
+      name: 'GET /products',
+      expected: EXPECT_OK,
+    }),
+    apiRequest(data, role, 'GET', `/products/${product.id}`, null, {
+      name: 'GET /products/{id}',
+      expected: EXPECT_OK,
+    }),
+    apiRequest(data, role, 'GET', detail[0], null, { name: detail[1], expected: EXPECT_OK }),
+    apiRequest(data, role, 'GET', category.path, null, {
+      name: category.name,
+      expected: category.expected,
+    }),
   ]);
   step(
     list,
@@ -311,8 +322,7 @@ export function catalogBrowse(data) {
       'GET',
       `/products?${query}&cursor=${encodeURIComponent(next)}`,
       null,
-      'GET /products',
-      EXPECT_OK,
+      { name: 'GET /products', expected: EXPECT_OK },
     );
     step(
       page,
@@ -336,15 +346,10 @@ export function storefrontMatches(res, state) {
 export function storefront(data) {
   const product = pick(iterationRandom(), poolsOf(data).storefront);
   const visible = product.state === 'ACTIVE' || product.state === 'OUT_OF_STOCK';
-  const res = api(
-    data,
-    null,
-    'GET',
-    `/storefront/${data.tenantId}/products/${product.id}`,
-    null,
-    'GET /storefront/{tenantId}/products/{productId}',
-    EXPECT_VISIBLE_OR_HIDDEN,
-  );
+  const res = api(data, null, 'GET', `/storefront/${data.tenantId}/products/${product.id}`, null, {
+    name: 'GET /storefront/{tenantId}/products/{productId}',
+    expected: EXPECT_VISIBLE_OR_HIDDEN,
+  });
   if (
     step(
       res,
@@ -356,13 +361,13 @@ export function storefront(data) {
   }
 }
 
-export function productLifecycle(data) {
-  const n = iteration();
-  const leaf = data.categories.leaves[n % data.categories.leaves.length];
-  const sellerSku = (j) => `CARGA-${data.run}-P${n}-${j}`;
-  const seller = (method, path, body, name, expected, headers) =>
-    api(data, 'seller', method, path, body, name, expected, headers);
-  const created = seller(
+function stepStatus(res, status, label) {
+  return step(res, res.status === 200 && jsonOf(res, 'status') === status, label);
+}
+
+function createDraft(flow) {
+  const { data, n, leaf, sellerSku } = flow;
+  const created = flow.seller(
     'POST',
     '/products',
     {
@@ -376,16 +381,20 @@ export function productLifecycle(data) {
     'POST /products',
     EXPECT_CREATED,
   );
-  if (
-    !step(
-      created,
-      created.status === 201 && jsonOf(created, 'status') === 'DRAFT',
-      'product_lifecycle: criação 201',
-    )
-  )
-    return;
-  const id = created.json('id');
-  const skuIds = created.json('skus').map((s) => s.id);
+  const ok = step(
+    created,
+    created.status === 201 && jsonOf(created, 'status') === 'DRAFT',
+    'product_lifecycle: criação 201',
+  );
+  if (ok) {
+    flow.id = created.json('id');
+    flow.skuIds = created.json('skus').map((s) => s.id);
+  }
+  return ok;
+}
+
+function defineOffersAndStock(flow) {
+  const { data, skuIds } = flow;
   const prepared = apiBatch([
     ...skuIds.map((s) =>
       apiRequest(
@@ -394,8 +403,7 @@ export function productLifecycle(data) {
         'PUT',
         `/offers/${s}`,
         { listPrice: LIST_PRICE, salePrice: PRICE },
-        'PUT /offers/{skuId}',
-        EXPECT_CREATED,
+        { name: 'PUT /offers/{skuId}', expected: EXPECT_CREATED },
       ),
     ),
     ...skuIds.map((s) =>
@@ -405,8 +413,7 @@ export function productLifecycle(data) {
         'PUT',
         `/inventory/skus/${s}`,
         { onHand: 10 },
-        'PUT /inventory/skus/{skuId}',
-        EXPECT_OK,
+        { name: 'PUT /inventory/skus/{skuId}', expected: EXPECT_OK },
       ),
     ),
   ]);
@@ -415,9 +422,12 @@ export function productLifecycle(data) {
       ? step(r, r.status === 201, 'product_lifecycle: oferta 201')
       : step(r, r.status === 200, 'product_lifecycle: estoque 200'),
   );
-  if (prepareOk.includes(false)) return;
+  return !prepareOk.includes(false);
+}
 
-  const added = seller(
+function addExtraSku(flow) {
+  const { id, sellerSku } = flow;
+  const added = flow.seller(
     'POST',
     `/products/${id}/skus`,
     skuRequest(sellerSku(3), 'c3', false),
@@ -425,15 +435,21 @@ export function productLifecycle(data) {
     EXPECT_CREATED,
   );
   const extra = (jsonOf(added, 'skus') || []).find((s) => s.sellerSku === sellerSku(3));
-  if (
-    !step(
-      added,
-      added.status === 201 && extra !== undefined && etagOf(added) !== null,
-      'product_lifecycle: SKU extra 201',
-    )
-  )
-    return;
-  const revisedSku = seller(
+  const ok = step(
+    added,
+    added.status === 201 && extra !== undefined && etagOf(added) !== null,
+    'product_lifecycle: SKU extra 201',
+  );
+  if (ok) {
+    flow.added = added;
+    flow.extra = extra;
+  }
+  return ok;
+}
+
+function reviseExtraSku(flow) {
+  const { id, extra, added } = flow;
+  const revisedSku = flow.seller(
     'PUT',
     `/products/${id}/skus/${extra.id}`,
     { physical: false, variantAttributes: { cor: 'c4' } },
@@ -441,25 +457,31 @@ export function productLifecycle(data) {
     EXPECT_OK,
     { 'If-Match': etagOf(added) },
   );
-  if (!step(revisedSku, revisedSku.status === 200, 'product_lifecycle: revisão do SKU 200')) return;
-  const removed = seller(
+  return step(revisedSku, revisedSku.status === 200, 'product_lifecycle: revisão do SKU 200');
+}
+
+function removeExtraSku(flow) {
+  const { id, extra } = flow;
+  const removed = flow.seller(
     'DELETE',
     `/products/${id}/skus/${extra.id}`,
     null,
     'DELETE /products/{id}/skus/{skuId}',
     EXPECT_OK,
   );
-  if (
-    !step(
-      removed,
-      removed.status === 200 &&
-        (jsonOf(removed, 'skus') || []).length === 2 &&
-        etagOf(removed) !== null,
-      'product_lifecycle: remoção do SKU 200',
-    )
-  )
-    return;
-  const revised = seller(
+  flow.removed = removed;
+  return step(
+    removed,
+    removed.status === 200 &&
+      (jsonOf(removed, 'skus') || []).length === 2 &&
+      etagOf(removed) !== null,
+    'product_lifecycle: remoção do SKU 200',
+  );
+}
+
+function reviseProduct(flow) {
+  const { data, n, leaf, id, removed } = flow;
+  const revised = flow.seller(
     'PUT',
     `/products/${id}`,
     {
@@ -472,128 +494,119 @@ export function productLifecycle(data) {
     EXPECT_OK,
     { 'If-Match': etagOf(removed) },
   );
-  if (!step(revised, revised.status === 200, 'product_lifecycle: revisão 200')) return;
-  const submitted = seller(
+  return step(revised, revised.status === 200, 'product_lifecycle: revisão 200');
+}
+
+function submitProduct(flow) {
+  const submitted = flow.seller(
     'POST',
-    `/products/${id}/submit`,
+    `/products/${flow.id}/submit`,
     null,
     'POST /products/{id}/submit',
     EXPECT_OK,
   );
-  if (
-    !step(
-      submitted,
-      submitted.status === 200 && jsonOf(submitted, 'status') === 'PENDING_MODERATION',
-      'product_lifecycle: envio 200',
-    )
-  )
-    return;
+  return stepStatus(submitted, 'PENDING_MODERATION', 'product_lifecycle: envio 200');
+}
 
-  if (n % 2 === 0) {
-    const approved = api(
-      data,
-      'moderator',
-      'POST',
-      `/moderation/products/${id}/approve`,
-      null,
-      'POST /moderation/products/{id}/approve',
-      EXPECT_OK,
-    );
-    if (
-      !step(
-        approved,
-        approved.status === 200 && jsonOf(approved, 'status') === 'ACTIVE',
-        'product_lifecycle: aprovação 200',
-      )
-    )
-      return;
-    const paused = seller(
-      'POST',
-      `/products/${id}/pause`,
-      null,
-      'POST /products/{id}/pause',
-      EXPECT_OK,
-    );
-    if (
-      !step(
-        paused,
-        paused.status === 200 && jsonOf(paused, 'status') === 'PAUSED_BY_SELLER',
-        'product_lifecycle: pausa 200',
-      )
-    )
-      return;
-    const resumed = seller(
-      'POST',
-      `/products/${id}/resume`,
-      null,
-      'POST /products/{id}/resume',
-      EXPECT_OK,
-    );
-    if (
-      !step(
-        resumed,
-        resumed.status === 200 && jsonOf(resumed, 'status') === 'ACTIVE',
-        'product_lifecycle: retomada 200',
-      )
-    )
-      return;
-    outcomes.add(1, { outcome: 'product_approved' });
-  } else {
-    const rejected = api(
-      data,
-      'moderator',
-      'POST',
-      `/moderation/products/${id}/reject`,
-      { note: 'Carga: recusa de teste' },
-      'POST /moderation/products/{id}/reject',
-      EXPECT_OK,
-    );
-    if (
-      !step(
-        rejected,
-        rejected.status === 200 && jsonOf(rejected, 'status') === 'DRAFT',
-        'product_lifecycle: recusa 200',
-      )
-    )
-      return;
-    outcomes.add(1, { outcome: 'product_rejected' });
+function approveAndToggleProduct(flow) {
+  const { data, id } = flow;
+  const approved = api(data, 'moderator', 'POST', `/moderation/products/${id}/approve`, null, {
+    name: 'POST /moderation/products/{id}/approve',
+    expected: EXPECT_OK,
+  });
+  if (!stepStatus(approved, 'ACTIVE', 'product_lifecycle: aprovação 200')) return false;
+  const paused = flow.seller(
+    'POST',
+    `/products/${id}/pause`,
+    null,
+    'POST /products/{id}/pause',
+    EXPECT_OK,
+  );
+  if (!stepStatus(paused, 'PAUSED_BY_SELLER', 'product_lifecycle: pausa 200')) return false;
+  const resumed = flow.seller(
+    'POST',
+    `/products/${id}/resume`,
+    null,
+    'POST /products/{id}/resume',
+    EXPECT_OK,
+  );
+  if (!stepStatus(resumed, 'ACTIVE', 'product_lifecycle: retomada 200')) return false;
+  outcomes.add(1, { outcome: 'product_approved' });
+  return true;
+}
+
+function rejectProduct(flow) {
+  const { data, id } = flow;
+  const rejected = api(
+    data,
+    'moderator',
+    'POST',
+    `/moderation/products/${id}/reject`,
+    { note: 'Carga: recusa de teste' },
+    { name: 'POST /moderation/products/{id}/reject', expected: EXPECT_OK },
+  );
+  if (!stepStatus(rejected, 'DRAFT', 'product_lifecycle: recusa 200')) return false;
+  outcomes.add(1, { outcome: 'product_rejected' });
+  return true;
+}
+
+function moderateProduct(flow) {
+  return flow.n % 2 === 0 ? approveAndToggleProduct(flow) : rejectProduct(flow);
+}
+
+function archiveProduct(flow) {
+  const archived = flow.seller(
+    'DELETE',
+    `/products/${flow.id}`,
+    null,
+    'DELETE /products/{id}',
+    EXPECT_OK,
+  );
+  if (stepStatus(archived, 'ARCHIVED', 'product_lifecycle: arquivamento 200')) {
+    outcomes.add(1, { outcome: 'product_archived' });
   }
-  if (n % 3 === 2) {
-    const archived = seller('DELETE', `/products/${id}`, null, 'DELETE /products/{id}', EXPECT_OK);
-    if (
-      step(
-        archived,
-        archived.status === 200 && jsonOf(archived, 'status') === 'ARCHIVED',
-        'product_lifecycle: arquivamento 200',
-      )
-    ) {
-      outcomes.add(1, { outcome: 'product_archived' });
-    }
+}
+
+const PRODUCT_LIFECYCLE_STAGES = [
+  createDraft,
+  defineOffersAndStock,
+  addExtraSku,
+  reviseExtraSku,
+  removeExtraSku,
+  reviseProduct,
+  submitProduct,
+  moderateProduct,
+];
+
+export function productLifecycle(data) {
+  const n = iteration();
+  const flow = {
+    data,
+    n,
+    leaf: data.categories.leaves[n % data.categories.leaves.length],
+    sellerSku: (j) => `CARGA-${data.run}-P${n}-${j}`,
+    seller: (method, path, body, name, expected, headers) =>
+      api(data, 'seller', method, path, body, { name, expected, headers }),
+  };
+  // WHY: cada etapa depende do que a anterior criou; na primeira verificação que falha, o resto do ciclo é abandonado.
+  for (const stage of PRODUCT_LIFECYCLE_STAGES) {
+    if (!stage(flow)) return;
   }
+  if (n % 3 === 2) archiveProduct(flow);
 }
 
 export function moderation(data) {
   const pool = poolsOf(data).moderation;
   const product = pool[iteration() % pool.length];
   const [queue, current] = apiBatch([
-    apiRequest(
-      data,
-      'moderator',
-      'GET',
-      '/moderation/products?limit=20',
-      null,
-      'GET /moderation/products',
-      EXPECT_OK,
-    ),
-    apiRequest(
-      data,
-      'moderator',
-      'GET',
-      `/products/${product.id}`,
-      null,
-      'GET /products/{id}',
-      EXPECT_OK,
-    ),
+    apiRequest(data, 'moderator', 'GET', '/moderation/products?limit=20', null, {
+      name: 'GET /moderation/products',
+      expected: EXPECT_OK,
+    }),
+    apiRequest(data, 'moderator', 'GET', `/products/${product.id}`, null, {
+      name: 'GET /products/{id}',
+      expected: EXPECT_OK,
+    }),
   ]);
   step(
     queue,
@@ -613,25 +626,18 @@ export function moderation(data) {
   const unblock = status === 'BLOCKED';
   const ifMatch = { 'If-Match': etagOf(current) };
   const res = unblock
-    ? api(
-        data,
-        'moderator',
-        'POST',
-        `/moderation/products/${product.id}/unblock`,
-        null,
-        'POST /moderation/products/{id}/unblock',
-        EXPECT_OK,
-        ifMatch,
-      )
+    ? api(data, 'moderator', 'POST', `/moderation/products/${product.id}/unblock`, null, {
+        name: 'POST /moderation/products/{id}/unblock',
+        expected: EXPECT_OK,
+        headers: ifMatch,
+      })
     : api(
         data,
         'moderator',
         'POST',
         `/moderation/products/${product.id}/block`,
         { note: 'Carga: bloqueio de teste' },
-        'POST /moderation/products/{id}/block',
-        EXPECT_OK,
-        ifMatch,
+        { name: 'POST /moderation/products/{id}/block', expected: EXPECT_OK, headers: ifMatch },
       );
   const expected = unblock ? 'PENDING_MODERATION' : 'BLOCKED';
   if (
@@ -648,15 +654,10 @@ export function moderation(data) {
 export function offerPricing(data) {
   const n = iteration();
   const skuId = data.skus.pricing[n % data.skus.pricing.length];
-  const current = api(
-    data,
-    'seller',
-    'GET',
-    `/offers/${skuId}`,
-    null,
-    'GET /offers/{skuId}',
-    EXPECT_OK,
-  );
+  const current = api(data, 'seller', 'GET', `/offers/${skuId}`, null, {
+    name: 'GET /offers/{skuId}',
+    expected: EXPECT_OK,
+  });
   if (
     !step(current, current.status === 200 && etagOf(current) !== null, 'offer_pricing: oferta 200')
   )
@@ -668,9 +669,7 @@ export function offerPricing(data) {
     'PUT',
     `/offers/${skuId}`,
     { listPrice: LIST_PRICE, salePrice },
-    'PUT /offers/{skuId}',
-    EXPECT_OK,
-    { 'If-Match': etagOf(current) },
+    { name: 'PUT /offers/{skuId}', expected: EXPECT_OK, headers: { 'If-Match': etagOf(current) } },
   );
   if (
     !step(
@@ -692,8 +691,7 @@ export function offerPricing(data) {
       startsAt: iso(startsAt),
       endsAt: iso(startsAt + PROMOTION_LENGTH_MS),
     },
-    'POST /offers/{skuId}/promotions',
-    EXPECT_CREATED,
+    { name: 'POST /offers/{skuId}/promotions', expected: EXPECT_CREATED },
   );
   const promotionId = lastSegment(promotion.headers.Location);
   if (
@@ -710,8 +708,7 @@ export function offerPricing(data) {
     'DELETE',
     `/offers/${skuId}/promotions/${promotionId}`,
     null,
-    'DELETE /offers/{skuId}/promotions/{promotionId}',
-    EXPECT_OK,
+    { name: 'DELETE /offers/{skuId}/promotions/{promotionId}', expected: EXPECT_OK },
   );
   const left = jsonOf(cancelled, 'promotions') || [];
   if (
@@ -722,6 +719,76 @@ export function offerPricing(data) {
     )
   ) {
     outcomes.add(1, { outcome: 'promotion_cancelled' });
+  }
+}
+
+function replayReservation(checkout, { body, key, id }) {
+  const replay = checkout(
+    'POST',
+    '/inventory/reservations',
+    body,
+    'POST /inventory/reservations',
+    EXPECT_OK,
+    { 'Idempotency-Key': key },
+  );
+  const replayed =
+    replay.status === 200 &&
+    replay.headers['Idempotent-Replayed'] === 'true' &&
+    jsonOf(replay, 'id') === id;
+  if (step(replay, replayed, 'reservation_lifecycle: repetição idempotente 200'))
+    outcomes.add(1, { outcome: 'reservation_replayed' });
+}
+
+function readReservation(checkout, id) {
+  const read = checkout(
+    'GET',
+    `/inventory/reservations/${id}`,
+    null,
+    'GET /inventory/reservations/{id}',
+    EXPECT_OK,
+  );
+  step(
+    read,
+    read.status === 200 && jsonOf(read, 'status') === 'ACTIVE',
+    'reservation_lifecycle: consulta 200',
+  );
+}
+
+function extendReservation(checkout, created, id) {
+  const extended = checkout(
+    'POST',
+    `/inventory/reservations/${id}/extend`,
+    { ttlSeconds: RESERVATION_EXTEND_TTL_S },
+    'POST /inventory/reservations/{id}/extend',
+    EXPECT_OK,
+  );
+  step(
+    extended,
+    extended.status === 200 &&
+      Date.parse(jsonOf(extended, 'expiresAt')) > Date.parse(created.json('expiresAt')),
+    'reservation_lifecycle: prorrogação 200',
+  );
+}
+
+function closeReservation(checkout, n, id) {
+  const release = n % 4 === 3;
+  const action = release ? 'release' : 'commit';
+  const closed = checkout(
+    'POST',
+    `/inventory/reservations/${id}/${action}`,
+    null,
+    `POST /inventory/reservations/{id}/${action}`,
+    EXPECT_OK,
+  );
+  const status = release ? 'RELEASED' : 'COMMITTED';
+  if (
+    step(
+      closed,
+      closed.status === 200 && jsonOf(closed, 'status') === status,
+      release ? 'reservation_lifecycle: liberação 200' : 'reservation_lifecycle: confirmação 200',
+    )
+  ) {
+    outcomes.add(1, { outcome: release ? 'reservation_released' : 'reservation_committed' });
   }
 }
 
@@ -736,7 +803,7 @@ export function reservationLifecycle(data) {
       .map((skuId) => ({ skuId, quantity: 1, expectedUnitPrice: PRICE })),
   };
   const checkout = (method, path, payload, name, expected, headers) =>
-    api(data, 'checkout', method, path, payload, name, expected, headers);
+    api(data, 'checkout', method, path, payload, { name, expected, headers });
   const created = checkout(
     'POST',
     '/inventory/reservations',
@@ -754,66 +821,11 @@ export function reservationLifecycle(data) {
   )
     return;
   const id = created.json('id');
-  if (n % 5 === 0) {
-    const replay = checkout(
-      'POST',
-      '/inventory/reservations',
-      body,
-      'POST /inventory/reservations',
-      EXPECT_OK,
-      { 'Idempotency-Key': key },
-    );
-    const replayed =
-      replay.status === 200 &&
-      replay.headers['Idempotent-Replayed'] === 'true' &&
-      jsonOf(replay, 'id') === id;
-    if (step(replay, replayed, 'reservation_lifecycle: repetição idempotente 200'))
-      outcomes.add(1, { outcome: 'reservation_replayed' });
-  }
-  const read = checkout(
-    'GET',
-    `/inventory/reservations/${id}`,
-    null,
-    'GET /inventory/reservations/{id}',
-    EXPECT_OK,
-  );
-  step(
-    read,
-    read.status === 200 && jsonOf(read, 'status') === 'ACTIVE',
-    'reservation_lifecycle: consulta 200',
-  );
-  const extended = checkout(
-    'POST',
-    `/inventory/reservations/${id}/extend`,
-    { ttlSeconds: RESERVATION_EXTEND_TTL_S },
-    'POST /inventory/reservations/{id}/extend',
-    EXPECT_OK,
-  );
-  step(
-    extended,
-    extended.status === 200 &&
-      Date.parse(jsonOf(extended, 'expiresAt')) > Date.parse(created.json('expiresAt')),
-    'reservation_lifecycle: prorrogação 200',
-  );
+  if (n % 5 === 0) replayReservation(checkout, { body, key, id });
+  readReservation(checkout, id);
+  extendReservation(checkout, created, id);
   // WHY: a reserva fecha mesmo se um passo anterior falhou, para o saldo do grupo continuar conferível.
-  const release = n % 4 === 3;
-  const closed = checkout(
-    'POST',
-    `/inventory/reservations/${id}/${release ? 'release' : 'commit'}`,
-    null,
-    `POST /inventory/reservations/{id}/${release ? 'release' : 'commit'}`,
-    EXPECT_OK,
-  );
-  const status = release ? 'RELEASED' : 'COMMITTED';
-  if (
-    step(
-      closed,
-      closed.status === 200 && jsonOf(closed, 'status') === status,
-      release ? 'reservation_lifecycle: liberação 200' : 'reservation_lifecycle: confirmação 200',
-    )
-  ) {
-    outcomes.add(1, { outcome: release ? 'reservation_released' : 'reservation_committed' });
-  }
+  closeReservation(checkout, n, id);
 }
 
 // Mesma requisição na carga e no teardown, que a repete para recuperar a reserva pela Idempotency-Key.
@@ -837,16 +849,11 @@ export function expiryRequest(data, n) {
 
 export function reservationExpiry(data) {
   const { key, body } = expiryRequest(data, iteration());
-  const res = api(
-    data,
-    'checkout',
-    'POST',
-    '/inventory/reservations',
-    body,
-    'POST /inventory/reservations',
-    EXPECT_CREATED,
-    { 'Idempotency-Key': key },
-  );
+  const res = api(data, 'checkout', 'POST', '/inventory/reservations', body, {
+    name: 'POST /inventory/reservations',
+    expected: EXPECT_CREATED,
+    headers: { 'Idempotency-Key': key },
+  });
   if (
     step(
       res,
@@ -869,8 +876,7 @@ export function categoryAdmin(data) {
     'POST',
     '/categories',
     { parentId: from, code: `carga-${data.run}-c${n}`, name: `Categoria ${n}`, attributes: [note] },
-    'POST /categories',
-    EXPECT_CREATED,
+    { name: 'POST /categories', expected: EXPECT_CREATED },
   );
   if (
     !step(
@@ -895,9 +901,7 @@ export function categoryAdmin(data) {
         { code: 'selo', label: 'Selo', type: 'BOOLEAN', required: false, variant: false },
       ],
     },
-    'PUT /categories/{id}',
-    EXPECT_OK,
-    { 'If-Match': etagOf(created) },
+    { name: 'PUT /categories/{id}', expected: EXPECT_OK, headers: { 'If-Match': etagOf(created) } },
   );
   if (
     !step(
@@ -913,9 +917,11 @@ export function categoryAdmin(data) {
     'PUT',
     `/categories/${id}/parent`,
     { parentId: to },
-    'PUT /categories/{id}/parent',
-    EXPECT_OK,
-    { 'If-Match': etagOf(revised) },
+    {
+      name: 'PUT /categories/{id}/parent',
+      expected: EXPECT_OK,
+      headers: { 'If-Match': etagOf(revised) },
+    },
   );
   if (
     step(
@@ -947,7 +953,7 @@ function importCsv(data, n) {
 
 function importMatches(report) {
   const total = IMPORT_NEW_LINES + IMPORT_EXISTING_LINES;
-  const c = report && report.counts;
+  const c = report?.counts;
   return (
     report !== null &&
     report.status === 'COMPLETED' &&
@@ -962,16 +968,11 @@ function importMatches(report) {
 
 export function productImport(data) {
   const n = iteration();
-  const posted = api(
-    data,
-    'seller',
-    'POST',
-    '/products/imports',
-    importCsv(data, n),
-    'POST /products/imports',
-    EXPECT_ACCEPTED,
-    { 'Content-Type': 'text/csv' },
-  );
+  const posted = api(data, 'seller', 'POST', '/products/imports', importCsv(data, n), {
+    name: 'POST /products/imports',
+    expected: EXPECT_ACCEPTED,
+    headers: { 'Content-Type': 'text/csv' },
+  });
   const id = jsonOf(posted, 'id');
   let report = null;
   if (step(posted, posted.status === 202 && id !== null, 'product_import: envio 202')) {
@@ -979,15 +980,10 @@ export function productImport(data) {
     const deadline = Date.now() + params.importWaitS * 1000;
     while (Date.now() < deadline) {
       sleep(1);
-      const res = api(
-        data,
-        'seller',
-        'GET',
-        `/products/imports/${id}`,
-        null,
-        'GET /products/imports/{id}',
-        EXPECT_OK,
-      );
+      const res = api(data, 'seller', 'GET', `/products/imports/${id}`, null, {
+        name: 'GET /products/imports/{id}',
+        expected: EXPECT_OK,
+      });
       if (!step(res, res.status === 200, 'product_import: consulta 200')) break;
       report = jsonOf(res);
       if (report.status === 'COMPLETED') break;

@@ -10,7 +10,7 @@ function parseMetrics(text) {
     const match = /^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{[^}]*\})?\s+(\S+)/.exec(line);
     if (!match) continue;
     const labels = {};
-    const labelPattern = /(\w+)="([^"]*)"/g;
+    const labelPattern = /\b(\w+)="([^"]*)"/g;
     let label;
     while ((label = labelPattern.exec(match[2] || '')) !== null) labels[label[1]] = label[2];
     samples.push({ name: match[1], labels, value: Number(match[3]) });
@@ -53,10 +53,10 @@ export function quantileFromDelta(q, before, after) {
   const bounds = Object.keys(after)
     .map((le) => ({
       le: le === '+Inf' ? Infinity : Number(le),
-      count: after[le] - ((before || {})[le] || 0),
+      count: after[le] - (before?.[le] || 0),
     }))
     .sort((a, b) => a.le - b.le);
-  const total = bounds.length > 0 ? bounds[bounds.length - 1].count : 0;
+  const total = bounds.at(-1)?.count ?? 0;
   if (total <= 0) return null;
   const rank = q * total;
   let previous = { le: 0, count: 0 };
@@ -74,7 +74,7 @@ export function quantileFromDelta(q, before, after) {
 }
 
 export function readMetrics(tags) {
-  const requestParams = { tags: Object.assign({ kind: 'metrics', name: 'GET /q/metrics' }, tags) };
+  const requestParams = { tags: { kind: 'metrics', name: 'GET /q/metrics', ...tags } };
   const responses = http.batch(
     params.managementUrls.map((url) => ['GET', `${url}/q/metrics`, null, requestParams]),
   );

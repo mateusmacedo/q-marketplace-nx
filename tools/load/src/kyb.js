@@ -19,7 +19,7 @@ function hex8(...parts) {
 export function kybStores(params) {
   return Array.from({ length: params.kybStores }, (_, s) => {
     const h = [0, 1, 2, 3].map((part) => hex8(params.testid, 'kyb', s, part)).join('');
-    const variant = '89ab'[parseInt(h[16], 16) % 4];
+    const variant = '89ab'[Number.parseInt(h[16], 16) % 4];
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
   });
 }

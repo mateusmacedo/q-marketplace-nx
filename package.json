@@ -20,7 +20,7 @@
     "build": "nx run-many -t assemble",
     "dev:catalog": "nx run catalog-inventory-service:serve",
     "dev:admin": "nx run admin-web:serve",
-    "smoke": "node tools/smoke.mjs",
+    "smoke": "nx run-many -t smoke -p '*-service'",
     "load": "bash tools/load/run.sh average",
     "load:check": "bash tools/load/run.sh --check",
     "load:smoke": "bash tools/load/run.sh smoke",

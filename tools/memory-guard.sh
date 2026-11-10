@@ -27,7 +27,10 @@ if [[ ${1:-} == "--stop-gradle-daemons" ]]; then
   done
 fi
 
-meminfo() { awk -v key="$1:" '$1 == key {print int($2 / 1024)}' /proc/meminfo; }
+meminfo() {
+  local field=$1
+  awk -v key="$field:" '$1 == key {print int($2 / 1024)}' /proc/meminfo
+}
 available=$(meminfo MemAvailable)
 swap_free=$(meminfo SwapFree)
 
