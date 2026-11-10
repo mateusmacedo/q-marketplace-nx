@@ -17,16 +17,16 @@ Ela não implementa cadastro, edição, exclusão, movimentação, moderação o
 
 ## Estrutura da feature/lib
 
-| Arquivo | Responsabilidade |
-| --- | --- |
-| [`src/index.ts`](./src/index.ts) | API pública: reexporta os componentes, tipos, constantes e funções de apoio. |
-| [`src/lib/product-status/product-status.ts`](./src/lib/product-status/product-status.ts) | Vocabulário de status, ordem canônica, rótulos e aparência do badge. |
-| [`src/lib/product-status/product-status-badge.component.ts`](./src/lib/product-status/product-status-badge.component.ts) | Badge standalone que projeta o status recebido como texto e cor. |
-| [`src/lib/product-status/transition-actor.ts`](./src/lib/product-status/transition-actor.ts) | `transitionActorLabel()`: autor da mudança do histórico a partir de `byCaller` e `actorSide`. |
-| [`src/lib/category-select/category-options.ts`](./src/lib/category-select/category-options.ts) | Tipos próprios de categoria/opção, montagem de caminhos, ordenação e busca de descendentes. |
-| [`src/lib/category-select/category-select.component.ts`](./src/lib/category-select/category-select.component.ts) | Seletor standalone com valor por `model()` e suporte a `ControlValueAccessor`. |
-| [`src/lib/submission/publishing-issues.ts`](./src/lib/submission/publishing-issues.ts) | Tipos próprios para pendências e mapeamento de caminho de campo para aba, SKU e campo. |
-| [`src/lib/submission/submission-checklist.component.ts`](./src/lib/submission/submission-checklist.component.ts) | Checklist standalone que apresenta as pendências e emite a pendência escolhida. |
+| Arquivo                                                                                                                  | Responsabilidade                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| [`src/index.ts`](./src/index.ts)                                                                                         | API pública: reexporta os componentes, tipos, constantes e funções de apoio.                  |
+| [`src/lib/product-status/product-status.ts`](./src/lib/product-status/product-status.ts)                                 | Vocabulário de status, ordem canônica, rótulos e aparência do badge.                          |
+| [`src/lib/product-status/product-status-badge.component.ts`](./src/lib/product-status/product-status-badge.component.ts) | Badge standalone que projeta o status recebido como texto e cor.                              |
+| [`src/lib/product-status/transition-actor.ts`](./src/lib/product-status/transition-actor.ts)                             | `transitionActorLabel()`: autor da mudança do histórico a partir de `byCaller` e `actorSide`. |
+| [`src/lib/category-select/category-options.ts`](./src/lib/category-select/category-options.ts)                           | Tipos próprios de categoria/opção, montagem de caminhos, ordenação e busca de descendentes.   |
+| [`src/lib/category-select/category-select.component.ts`](./src/lib/category-select/category-select.component.ts)         | Seletor standalone com valor por `model()` e suporte a `ControlValueAccessor`.                |
+| [`src/lib/submission/publishing-issues.ts`](./src/lib/submission/publishing-issues.ts)                                   | Tipos próprios para pendências e mapeamento de caminho de campo para aba, SKU e campo.        |
+| [`src/lib/submission/submission-checklist.component.ts`](./src/lib/submission/submission-checklist.component.ts)         | Checklist standalone que apresenta as pendências e emite a pendência escolhida.               |
 
 O projeto é uma biblioteca Nx (`catalog-inventory-admin-ui`), com prefixo Angular `app` e tag `layer:ui`. Seus componentes usam CoreUI e ícones; não há camada de serviços ou módulos de rota nesta lib.
 
@@ -133,13 +133,13 @@ Como a lib é de UI, os fluxos abaixo descrevem a integração real com as featu
 
 Não há endpoint chamado diretamente por `catalog-inventory-admin-ui`. A fronteira de integração é formada por tipos e componentes:
 
-| Dado/contrato | Forma consumida pela UI | Dono da integração |
-| --- | --- | --- |
-| Status de produto | `ProductStatus` ou `string` | A feature obtém a resposta; o backend calcula status derivados, incluindo `OUT_OF_STOCK`. |
-| Categoria | `CategoryNode` e `CategoryOption` | A feature chama `GET /categories/tree`, pagina a resposta e adapta os DTOs. O seletor recebe opções prontas. |
-| Pendência de publicação | `PublishingIssue` | A feature usa `publishingIssues` do produto, a resposta de `POST /products/{id}/check` ou motivos de recusa de envio. |
-| Mudança de categoria | `CategoryChangeResponse` no fluxo consumidor | `POST /products/{id}/check` calcula a prévia; a UI apenas apresenta o resultado fornecido. |
-| Autor de mudança do histórico | `actorSide` e `byCaller` de cada mudança | A feature lê `GET /products/{id}/history`; o servidor informa o lado (`STORE` ou `MODERATION`) e se a mudança foi de quem consulta, sem a pessoa. |
+| Dado/contrato                 | Forma consumida pela UI                      | Dono da integração                                                                                                                                |
+| ----------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status de produto             | `ProductStatus` ou `string`                  | A feature obtém a resposta; o backend calcula status derivados, incluindo `OUT_OF_STOCK`.                                                         |
+| Categoria                     | `CategoryNode` e `CategoryOption`            | A feature chama `GET /categories/tree`, pagina a resposta e adapta os DTOs. O seletor recebe opções prontas.                                      |
+| Pendência de publicação       | `PublishingIssue`                            | A feature usa `publishingIssues` do produto, a resposta de `POST /products/{id}/check` ou motivos de recusa de envio.                             |
+| Mudança de categoria          | `CategoryChangeResponse` no fluxo consumidor | `POST /products/{id}/check` calcula a prévia; a UI apenas apresenta o resultado fornecido.                                                        |
+| Autor de mudança do histórico | `actorSide` e `byCaller` de cada mudança     | A feature lê `GET /products/{id}/history`; o servidor informa o lado (`STORE` ou `MODERATION`) e se a mudança foi de quem consulta, sem a pessoa. |
 
 No detalhe do produto, [`productDraftCheck()`](../feature-products/src/lib/product/product-draft-check.ts) espera 400 ms após a última alteração antes de conferir o rascunho em `POST /products/{id}/check`. A operação não persiste dados. O resultado fornece pendências e, quando relevante, o efeito da mudança de categoria. Enquanto a nova resposta chega, a feature mantém o último resultado disponível; em caso de falha, apresenta um estado de erro separado do checklist.
 

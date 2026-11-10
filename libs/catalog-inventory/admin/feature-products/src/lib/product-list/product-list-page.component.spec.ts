@@ -59,7 +59,7 @@ class FakeSession extends AdminSession {
 }
 
 @Component({ template: '<h1>Conteúdo</h1>' })
-class ContentStub {}
+class ContentStub { }
 
 class InertIntersectionObserver {
   observe(): void {

@@ -49,11 +49,11 @@ Os estados de carregamento, vazio e erro vêm de `shared-admin-ui`, evitando que
 
 O status KYB/KYC é apresentado conforme o mapeamento local:
 
-| Código recebido | Rótulo | Cor |
-| --- | --- | --- |
-| `PENDING` | Em análise | `warning` |
-| `APPROVED` | Aprovada | `success` |
-| `REJECTED` | Reprovada | `danger` |
+| Código recebido | Rótulo     | Cor       |
+| --------------- | ---------- | --------- |
+| `PENDING`       | Em análise | `warning` |
+| `APPROVED`      | Aprovada   | `success` |
+| `REJECTED`      | Reprovada  | `danger`  |
 
 Status desconhecido é mostrado literalmente, em `secondary`; status ausente aparece como `Sem situação`, também em `secondary`. Isso mantém a tela tolerante a um novo valor do servidor sem exibir um rótulo incorreto.
 
@@ -92,12 +92,12 @@ O `storeId` é um UUID obrigatório no caminho. A operação `getStoreEligibilit
 
 A resposta `EligibilityResponse` pode conter:
 
-| Campo | Tipo | Uso na tela |
-| --- | --- | --- |
-| `storeId` | UUID | Não é usado para renderização; o contexto já veio da sessão. |
-| `status` | `PENDING \| APPROVED \| REJECTED` | Seleciona o rótulo e a cor do badge/callout. |
-| `canPublish` | boolean | Alimenta a mensagem sobre aprovação e reativação de produtos. |
-| `visibleInStorefront` | boolean | Alimenta a mensagem de visibilidade dos produtos ativos. |
+| Campo                 | Tipo                              | Uso na tela                                                   |
+| --------------------- | --------------------------------- | ------------------------------------------------------------- |
+| `storeId`             | UUID                              | Não é usado para renderização; o contexto já veio da sessão.  |
+| `status`              | `PENDING \| APPROVED \| REJECTED` | Seleciona o rótulo e a cor do badge/callout.                  |
+| `canPublish`          | boolean                           | Alimenta a mensagem sobre aprovação e reativação de produtos. |
+| `visibleInStorefront` | boolean                           | Alimenta a mensagem de visibilidade dos produtos ativos.      |
 
 O contrato declara respostas `200` com `application/json`, erros de cliente `4XX` e erros de servidor `5XX` como `application/problem+json` (RFC 9457), além de `401` para token inválido/ausente e `403` para falta de permissão. Não há mutação, `If-Match`, versão de recurso ou fluxo de conflito de edição nesta tela; portanto, concorrência de escrita não se aplica.
 

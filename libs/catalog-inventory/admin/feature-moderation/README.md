@@ -15,19 +15,19 @@ As consequências de negócio são diferentes: aprovar publica o produto; rejeit
 
 O projeto Nx é `catalog-inventory-admin-feature-moderation`, do tipo `library`, com tags `scope:catalog-inventory`, `layer:feature`, `framework:angular` e `lang:ts` (ver [project.json](./project.json)). O ponto de entrada [src/index.ts](./src/index.ts) exporta as rotas da fila, as rotas do catálogo de motivos e `MODERATION_QUEUE_BADGE`.
 
-| Arquivo | Responsabilidade |
-|---|---|
-| [lib.routes.ts](./src/lib/lib.routes.ts) | Define `routes` (fila e rota filha do detalhe) e `reasonRoutes` (administração dos motivos); carrega componentes sob demanda. |
-| [moderation-queue-page.component.ts](./src/lib/moderation-queue-page.component.ts) | Lista, seleção, paginação, confirmações, execução e resumo das decisões em lote. |
-| [moderation-queue.store.ts](./src/lib/moderation-queue.store.ts) | Estado da fila compartilhado com o detalhe: consulta, cursor, produtos, seleção, item aberto, erros e badge. |
-| [moderation-item-page.component.ts](./src/lib/moderation-item-page.component.ts) | Carrega o produto e seus dados auxiliares, mostra as decisões permitidas e executa a decisão individual. |
-| [moderation-decision-modal.component.ts](./src/lib/moderation-decision-modal.component.ts) | Seleção de motivos e complemento para rejeição/bloqueio, usada tanto no detalhe quanto em lote. |
-| [moderation-reasons-page.component.ts](./src/lib/moderation-reasons-page.component.ts) | Lista, filtra e aciona as operações administrativas sobre os motivos. |
-| [moderation-reason-form.component.ts](./src/lib/moderation-reason-form.component.ts) | Formulário reativo de criação/edição em offcanvas; carrega a versão do registro e aplica validações. |
-| [moderation-decisions.ts](./src/lib/moderation-decisions.ts) | Apresentação local dos códigos de decisão: rótulos, cores, textos de sucesso e efeitos explicativos. |
-| [moderation-reasons.ts](./src/lib/moderation-reasons.ts) | Resource de motivos por decisão e filtro de motivos aplicáveis. |
-| [product-summary.ts](./src/lib/product-summary.ts) | Projeções de apresentação: atributos, categoria, SKUs, estoque, situação da loja e histórico. |
-| [queue-badge.ts](./src/lib/queue-badge.ts) | Chave estável do badge da fila no menu administrativo. |
+| Arquivo                                                                                    | Responsabilidade                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| [lib.routes.ts](./src/lib/lib.routes.ts)                                                   | Define `routes` (fila e rota filha do detalhe) e `reasonRoutes` (administração dos motivos); carrega componentes sob demanda. |
+| [moderation-queue-page.component.ts](./src/lib/moderation-queue-page.component.ts)         | Lista, seleção, paginação, confirmações, execução e resumo das decisões em lote.                                              |
+| [moderation-queue.store.ts](./src/lib/moderation-queue.store.ts)                           | Estado da fila compartilhado com o detalhe: consulta, cursor, produtos, seleção, item aberto, erros e badge.                  |
+| [moderation-item-page.component.ts](./src/lib/moderation-item-page.component.ts)           | Carrega o produto e seus dados auxiliares, mostra as decisões permitidas e executa a decisão individual.                      |
+| [moderation-decision-modal.component.ts](./src/lib/moderation-decision-modal.component.ts) | Seleção de motivos e complemento para rejeição/bloqueio, usada tanto no detalhe quanto em lote.                               |
+| [moderation-reasons-page.component.ts](./src/lib/moderation-reasons-page.component.ts)     | Lista, filtra e aciona as operações administrativas sobre os motivos.                                                         |
+| [moderation-reason-form.component.ts](./src/lib/moderation-reason-form.component.ts)       | Formulário reativo de criação/edição em offcanvas; carrega a versão do registro e aplica validações.                          |
+| [moderation-decisions.ts](./src/lib/moderation-decisions.ts)                               | Apresentação local dos códigos de decisão: rótulos, cores, textos de sucesso e efeitos explicativos.                          |
+| [moderation-reasons.ts](./src/lib/moderation-reasons.ts)                                   | Resource de motivos por decisão e filtro de motivos aplicáveis.                                                               |
+| [product-summary.ts](./src/lib/product-summary.ts)                                         | Projeções de apresentação: atributos, categoria, SKUs, estoque, situação da loja e histórico.                                 |
+| [queue-badge.ts](./src/lib/queue-badge.ts)                                                 | Chave estável do badge da fila no menu administrativo.                                                                        |
 
 As chamadas e tipos HTTP vêm do projeto irmão [admin/data-access](../data-access/README.md), cujos clientes são gerados a partir do contrato OpenAPI do catálogo. A interface também compõe controles compartilhados de `admin-ui` e utilitários de domínio/HTTP; não há um serviço HTTP específico duplicado dentro da feature. O estado compartilhado próprio da fila fica concentrado no `ModerationQueueStore`.
 
@@ -35,11 +35,11 @@ As chamadas e tipos HTTP vêm do projeto irmão [admin/data-access](../data-acce
 
 O app hospedeiro registra as rotas em [apps/admin-web/src/app/app.routes.ts](../../../../apps/admin-web/src/app/app.routes.ts):
 
-| URL | Conteúdo | Acesso |
-|---|---|---|
-| `/moderacao/fila` | Fila e painel vazio/selecionado | Capacidade `MODERATE_PRODUCTS`, verificada pelo app. |
-| `/moderacao/fila/:id` | Detalhe do produto como rota filha da fila | A mesma capacidade da área de moderação. |
-| `/plataforma/motivos-de-moderacao` | Administração dos motivos | Capacidade `MANAGE_MODERATION_REASONS`, verificada pelo app. |
+| URL                                | Conteúdo                                   | Acesso                                                       |
+| ---------------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
+| `/moderacao/fila`                  | Fila e painel vazio/selecionado            | Capacidade `MODERATE_PRODUCTS`, verificada pelo app.         |
+| `/moderacao/fila/:id`              | Detalhe do produto como rota filha da fila | A mesma capacidade da área de moderação.                     |
+| `/plataforma/motivos-de-moderacao` | Administração dos motivos                  | Capacidade `MANAGE_MODERATION_REASONS`, verificada pelo app. |
 
 `/moderacao` redireciona para `fila`. A lista e o detalhe são duas colunas no mesmo componente de fila em telas largas; a rota filha `:id` alimenta o `RouterOutlet` da coluna de detalhe. Em telas menores, o detalhe oferece navegação de volta à lista. O `ModerationQueueStore` é fornecido no escopo da página da fila e injetado opcionalmente pelo detalhe, permitindo que ambas as rotas compartilhem o mesmo estado sem torná-lo global ao app.
 
@@ -120,18 +120,18 @@ Ativar e desativar são ações separadas da edição. Desativar pede confirmaç
 
 As operações usam funções e resources gerados no data-access, derivados de [contracts/catalog-inventory/openapi.json](../../../../contracts/catalog-inventory/openapi.json). `apiData`/`apiDataWithVersion` concentram a leitura das respostas e metadados; os tipos de request/response não são redefinidos pela feature.
 
-| Operação | Endpoint | Uso |
-|---|---|---|
-| Consultar fila | `GET /moderation/products?cursor=&limit=` | Página e próximo cursor; ordenação de chegada é do servidor. |
-| Decidir lote | `POST /moderation/products/batch` | Ação, itens `{id, version}` e, para rejeitar/bloquear, motivos e complemento. Até 100 itens por chamada conforme schema. |
-| Aprovar produto | `POST /moderation/products/{id}/approve` | Decisão individual com `If-Match`; sem corpo de decisão. |
-| Rejeitar/bloquear produto | `POST /moderation/products/{id}/reject` ou `/block` | `If-Match` e corpo de `DecisionRequest`. |
-| Ler produto/categoria/histórico | `GET /products/{id}`, `GET /categories/{id}`, `GET /products/{id}/history` | Conteúdo, versão, SKUs e ações; metadados de atributos efetivos/categoria; transições e decisões anteriores. |
-| Consultar elegibilidade | `GET /stores/{storeId}/eligibility` | Só quando a sessão tem `READ_SELLER_ELIGIBILITY`. |
-| Badge da fila | `GET /stats/moderation/queue` | Lê `count` para o badge do menu. A leitura vale por 60 s e é compartilhada com o menu (`NavBadgeService.refresh`); depois de uma decisão, é refeita mesmo dentro da janela. |
-| Consultar motivos | `GET /moderation/reasons?decision=...` ou `?includeInactive=true` | Opções aplicáveis ao modal ou catálogo administrativo completo. |
-| Criar/ler/revisar motivo | `POST /moderation/reasons`, `GET /moderation/reasons/{code}`, `PUT /moderation/reasons/{code}` | Criação; leitura com versão; revisão condicionada por `If-Match`. |
-| Ativar/desativar motivo | `POST /moderation/reasons/{code}/activate` ou `/deactivate` | Transição de atividade condicionada por `If-Match`; não há exclusão física na UI. |
+| Operação                        | Endpoint                                                                                       | Uso                                                                                                                                                                         |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Consultar fila                  | `GET /moderation/products?cursor=&limit=`                                                      | Página e próximo cursor; ordenação de chegada é do servidor.                                                                                                                |
+| Decidir lote                    | `POST /moderation/products/batch`                                                              | Ação, itens `{id, version}` e, para rejeitar/bloquear, motivos e complemento. Até 100 itens por chamada conforme schema.                                                    |
+| Aprovar produto                 | `POST /moderation/products/{id}/approve`                                                       | Decisão individual com `If-Match`; sem corpo de decisão.                                                                                                                    |
+| Rejeitar/bloquear produto       | `POST /moderation/products/{id}/reject` ou `/block`                                            | `If-Match` e corpo de `DecisionRequest`.                                                                                                                                    |
+| Ler produto/categoria/histórico | `GET /products/{id}`, `GET /categories/{id}`, `GET /products/{id}/history`                     | Conteúdo, versão, SKUs e ações; metadados de atributos efetivos/categoria; transições e decisões anteriores.                                                                |
+| Consultar elegibilidade         | `GET /stores/{storeId}/eligibility`                                                            | Só quando a sessão tem `READ_SELLER_ELIGIBILITY`.                                                                                                                           |
+| Badge da fila                   | `GET /stats/moderation/queue`                                                                  | Lê `count` para o badge do menu. A leitura vale por 60 s e é compartilhada com o menu (`NavBadgeService.refresh`); depois de uma decisão, é refeita mesmo dentro da janela. |
+| Consultar motivos               | `GET /moderation/reasons?decision=...` ou `?includeInactive=true`                              | Opções aplicáveis ao modal ou catálogo administrativo completo.                                                                                                             |
+| Criar/ler/revisar motivo        | `POST /moderation/reasons`, `GET /moderation/reasons/{code}`, `PUT /moderation/reasons/{code}` | Criação; leitura com versão; revisão condicionada por `If-Match`.                                                                                                           |
+| Ativar/desativar motivo         | `POST /moderation/reasons/{code}/activate` ou `/deactivate`                                    | Transição de atividade condicionada por `If-Match`; não há exclusão física na UI.                                                                                           |
 
 ### Versão, conflitos e erros
 
@@ -161,4 +161,3 @@ Falhas HTTP são convertidas para o modelo `Problem` e exibidas em alertas ou er
 ## Resumo executivo
 
 A lib implementa o fluxo administrativo completo de moderação: localizar produtos em fila, inspecionar contexto suficiente para decidir, aplicar decisões individuais ou em lote e manter o catálogo tenant-scoped de motivos. A separação entre rotas lazy, store de fila, componentes de tela, helpers de apresentação e contratos gerados mantém o estado compartilhado restrito ao que lista e detalhe realmente precisam. Regras de elegibilidade e concorrência permanecem no backend, enquanto a UI oferece validação alinhada aos schemas, feedback de erros e recuperação explícita de conflitos.
-
