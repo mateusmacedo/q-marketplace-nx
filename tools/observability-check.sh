@@ -7,7 +7,10 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 OBS="$ROOT/infra/observability"
 COMPOSE="$ROOT/infra/local/compose"
-image_of() { sed -n 's/^ *image: *//p' "$COMPOSE/$1" | head -1; }
+image_of() {
+  local compose_file=$1
+  sed -n 's/^ *image: *//p' "$COMPOSE/$compose_file" | head -1
+}
 PROMETHEUS_IMAGE=$(image_of prometheus.yml)
 OTELCOL_IMAGE=$(image_of otel-collector.yml)
 WORK=$(mktemp -d)

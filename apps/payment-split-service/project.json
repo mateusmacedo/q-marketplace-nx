@@ -21,6 +21,14 @@
       "options": {
         "command": "docker build -f infra/docker/Dockerfile.native --build-arg APP=payment-split-service -t marketplace/payment-split:local ."
       }
+    },
+    "smoke": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "parallelism": false,
+      "options": {
+        "command": "node tools/smoke.mjs payment-split"
+      }
     }
   }
 }

@@ -2,7 +2,7 @@
 export function hashSeed(...parts) {
   let hash = 2166136261;
   for (const char of parts.join('|')) {
-    hash ^= char.charCodeAt(0);
+    hash ^= char.codePointAt(0);
     hash = Math.imul(hash, 16777619) >>> 0;
   }
   return hash;

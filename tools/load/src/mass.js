@@ -33,7 +33,13 @@ const DIMENSIONS = { heightCm: 3, widthCm: 25, lengthCm: 30, weightGrams: 200 };
 const DAY_MS = 86400000;
 const PROMOTION_START_DAYS = 30;
 const PRICING_PROMOTION_START_DAYS = 7;
-const APPROVED_STATES = ['ACTIVE', 'OUT_OF_STOCK', 'PAUSED_BY_SELLER', 'BLOCKED', 'ARCHIVED'];
+const APPROVED_STATES = new Set([
+  'ACTIVE',
+  'OUT_OF_STOCK',
+  'PAUSED_BY_SELLER',
+  'BLOCKED',
+  'ARCHIVED',
+]);
 
 export function stock(token, skuId) {
   return setupCall(
@@ -204,7 +210,7 @@ function transitions(products, tokens) {
     }),
   );
   step(
-    products.filter((p) => APPROVED_STATES.includes(p.state)),
+    products.filter((p) => APPROVED_STATES.has(p.state)),
     (p) => ({
       token: moderator,
       method: 'POST',

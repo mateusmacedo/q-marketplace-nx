@@ -48,41 +48,40 @@ function stocks(token, skuIds) {
   ).map((res) => res.json());
 }
 
-function verifyReservationGroups(data, seller) {
-  const [hot, last] = stocks(seller, [data.skus.hot, data.skus.last]);
-  const initial = data.hotInitial.onHand;
+function verifyHotSku(hot, initial) {
   invariant('hot_non_negative', nonNegative(hot), hot);
   if (params.hotMode === 'contend') {
     invariant('hot_restored', hot.reserved === 0 && hot.sold === 0 && hot.onHand === initial, hot);
-  } else {
-    invariant('hot_on_hand_unchanged', hot.onHand === initial, hot);
-    invariant('hot_no_oversell', hot.reserved + hot.sold <= initial, hot);
-    const hotAttempts = plan.scenarios.hot_sku ? plan.scenarios.hot_sku.iterations : 0;
-    if (hotAttempts >= 2 * initial) {
-      // WHY: com o dobro de tentativas do estoque, sobra só se houve recusa indevida (falso insufficient-stock).
-      invariant('hot_sold_out', hot.reserved === initial, hot);
-    }
+    return;
   }
-  if (selected('last_unit')) {
-    const stockSize = params.lastUnitStock;
-    invariant(
-      'last_unit_taken',
-      last.reserved === stockSize &&
-        last.available === 0 &&
-        last.sold === 0 &&
-        last.onHand === stockSize,
-      last,
-    );
-    invariant(
-      'last_unit_no_oversell',
-      nonNegative(last) && last.reserved + last.sold <= stockSize,
-      last,
-    );
+  invariant('hot_on_hand_unchanged', hot.onHand === initial, hot);
+  invariant('hot_no_oversell', hot.reserved + hot.sold <= initial, hot);
+  const hotAttempts = plan.scenarios.hot_sku ? plan.scenarios.hot_sku.iterations : 0;
+  if (hotAttempts >= 2 * initial) {
+    // WHY: com o dobro de tentativas do estoque, sobra só se houve recusa indevida (falso insufficient-stock).
+    invariant('hot_sold_out', hot.reserved === initial, hot);
   }
-  hotFinalOnHand.add(hot.onHand);
-  hotFinalReserved.add(hot.reserved);
-  hotFinalSold.add(hot.sold);
+}
 
+function verifyLastUnit(last) {
+  if (!selected('last_unit')) return;
+  const stockSize = params.lastUnitStock;
+  invariant(
+    'last_unit_taken',
+    last.reserved === stockSize &&
+      last.available === 0 &&
+      last.sold === 0 &&
+      last.onHand === stockSize,
+    last,
+  );
+  invariant(
+    'last_unit_no_oversell',
+    nonNegative(last) && last.reserved + last.sold <= stockSize,
+    last,
+  );
+}
+
+function verifySpreadAndAdjust(data, seller) {
   for (const s of stocks(seller, data.skus.spread)) {
     invariant('spread_non_negative', nonNegative(s), s);
     invariant(
@@ -93,20 +92,33 @@ function verifyReservationGroups(data, seller) {
   }
   for (const s of stocks(seller, data.skus.adjust))
     invariant('adjust_non_negative', nonNegative(s), s);
+}
 
-  let reservationSold = null;
-  if (selected('reservation_lifecycle')) {
-    reservationSold = 0;
-    for (const s of stocks(seller, data.skus.reservation)) {
-      invariant('reservation_non_negative', nonNegative(s), s);
-      invariant(
-        'reservation_balance',
-        s.reserved === 0 && s.onHand + s.sold === GROUP_STOCK.reservation,
-        s,
-      );
-      reservationSold += s.sold;
-    }
+function verifyReservationCycle(data, seller) {
+  if (!selected('reservation_lifecycle')) return null;
+  let reservationSold = 0;
+  for (const s of stocks(seller, data.skus.reservation)) {
+    invariant('reservation_non_negative', nonNegative(s), s);
+    invariant(
+      'reservation_balance',
+      s.reserved === 0 && s.onHand + s.sold === GROUP_STOCK.reservation,
+      s,
+    );
+    reservationSold += s.sold;
   }
+  return reservationSold;
+}
+
+function verifyReservationGroups(data, seller) {
+  const [hot, last] = stocks(seller, [data.skus.hot, data.skus.last]);
+  verifyHotSku(hot, data.hotInitial.onHand);
+  verifyLastUnit(last);
+  hotFinalOnHand.add(hot.onHand);
+  hotFinalReserved.add(hot.reserved);
+  hotFinalSold.add(hot.sold);
+
+  verifySpreadAndAdjust(data, seller);
+  const reservationSold = verifyReservationCycle(data, seller);
   return { hot, last, reservationSold };
 }
 
@@ -256,6 +268,46 @@ function verifyKyb() {
   };
 }
 
+function waitForOutboxDrain() {
+  const started = Date.now();
+  let m = readMetrics();
+  while (m.ok && m.pending !== 0 && Date.now() - started < params.outboxDrainS * 1000) {
+    sleep(1);
+    m = readMetrics();
+  }
+  return { m, drainSeconds: (Date.now() - started) / 1000 };
+}
+
+function recordServiceLatency(data, samples) {
+  const after = latencyBuckets(samples);
+  const serverP99 = [];
+  for (const op of Object.keys(after).sort((a, b) => a.localeCompare(b))) {
+    const q = quantileFromDelta(0.99, data.metricsBefore.buckets[op], after[op]);
+    if (q === null) continue;
+    if (SERVICE_OPERATIONS.includes(op)) serviceP99.add(q, { operation: op });
+    serverP99.push(`${op}=${(q * 1000).toFixed(1)}ms`);
+  }
+  return serverP99;
+}
+
+function verifyRefusals(data, samples) {
+  const refused =
+    sumOf(samples, 'catalog_reservations_refused_total', { reason: 'insufficient-stock' }) -
+    data.metricsBefore.refused;
+  if (params.hotMode === 'contend') {
+    // WHY: fora do modo exhaust, só a rajada do último item pode recusar por falta de saldo, e exatamente o excedente.
+    const expectedRefusals = selected('last_unit')
+      ? params.lastUnitAttempts - params.lastUnitStock
+      : 0;
+    invariant('insufficient_stock_limited', refused === expectedRefusals, {
+      refused,
+      expectedRefusals,
+    });
+  }
+  serviceRefused.add(refused);
+  return refused;
+}
+
 export function verifyRun(data) {
   const seller = login('seller').access;
   const checkout = login('checkout').access;
@@ -264,13 +316,7 @@ export function verifyRun(data) {
   verifyMass(data, seller);
   const kyb = verifyKyb();
 
-  const started = Date.now();
-  let m = readMetrics();
-  while (m.ok && m.pending !== 0 && Date.now() - started < params.outboxDrainS * 1000) {
-    sleep(1);
-    m = readMetrics();
-  }
-  const drainSeconds = (Date.now() - started) / 1000;
+  const { m, drainSeconds } = waitForOutboxDrain();
   outboxDrained.add(m.ok && m.pending === 0);
   if (!m.ok) {
     console.error(`GET /q/metrics no teardown: HTTP ${m.status}`);
@@ -289,36 +335,20 @@ export function verifyRun(data) {
       { reservationSold, committed },
     );
   }
-  const after = latencyBuckets(m.samples);
-  const serverP99 = [];
-  for (const op of Object.keys(after).sort()) {
-    const q = quantileFromDelta(0.99, data.metricsBefore.buckets[op], after[op]);
-    if (q === null) continue;
-    if (SERVICE_OPERATIONS.includes(op)) serviceP99.add(q, { operation: op });
-    serverP99.push(`${op}=${(q * 1000).toFixed(1)}ms`);
-  }
-  const refused =
-    sumOf(m.samples, 'catalog_reservations_refused_total', { reason: 'insufficient-stock' }) -
-    data.metricsBefore.refused;
-  if (params.hotMode === 'contend') {
-    // WHY: fora do modo exhaust, só a rajada do último item pode recusar por falta de saldo, e exatamente o excedente.
-    const expectedRefusals = selected('last_unit')
-      ? params.lastUnitAttempts - params.lastUnitStock
-      : 0;
-    invariant('insufficient_stock_limited', refused === expectedRefusals, {
-      refused,
-      expectedRefusals,
-    });
-  }
+  const serverP99 = recordServiceLatency(data, m.samples);
+  const refused = verifyRefusals(data, m.samples);
   const expired =
     sumOf(m.samples, 'catalog_reservations_expired_total') - data.metricsBefore.expired;
-  serviceRefused.add(refused);
+  const expiryText = expiry
+    ? `saldo devolvido em ${expiry.waited.toFixed(1)}s, ${expiry.sample} reservas amostradas`
+    : 'fora';
+  const kybText = kyb ? `${kyb.matched}/${kyb.stores} lojas no último veredito` : 'fora';
   console.log(
     `resultado ${data.run}: hot (${params.hotMode}) onHand=${hot.onHand} reserved=${hot.reserved} sold=${hot.sold} (estoque inicial ${data.hotInitial.onHand}); ` +
       `último item onHand=${last.onHand} reserved=${last.reserved} sold=${last.sold}; ` +
       `ciclo de reserva sold=${reservationSold} e ${committed} confirmações no serviço; ` +
-      `expiração ${expiry ? `saldo devolvido em ${expiry.waited.toFixed(1)}s, ${expiry.sample} reservas amostradas` : 'fora'}, ${expired} expiradas pelo varredor; ` +
-      `KYB ${kyb ? `${kyb.matched}/${kyb.stores} lojas no último veredito` : 'fora'}; ` +
+      `expiração ${expiryText}, ${expired} expiradas pelo varredor; ` +
+      `KYB ${kybText}; ` +
       `outbox pending=${m.pending} após ${drainSeconds.toFixed(1)}s, lag max=${m.lagMax.toFixed(3)}s p99=${m.lagP99}s; ` +
       `recusas insufficient-stock no serviço=${refused}; p99 do serviço (catalog.inventory.update.latency): ${serverP99.join(' ') || 'sem amostras'}`,
   );

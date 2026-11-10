@@ -15,7 +15,14 @@ let warnings = 0;
 
 // Requisição ao catálogo no formato do http.batch; role nulo vai sem token, como na vitrine anônima. Corpo em texto vai
 // como está, com o Content-Type de extraHeaders.
-export function apiRequest(data, role, method, path, body, name, expected, extraHeaders) {
+export function apiRequest(
+  data,
+  role,
+  method,
+  path,
+  body,
+  { name, expected, headers: extraHeaders },
+) {
   const headers = { 'X-Correlation-Id': `carga-${data.run}` };
   if (role !== null) headers.Authorization = `Bearer ${bearer(data, role)}`;
   if (body !== null && typeof body !== 'string') headers['Content-Type'] = 'application/json';
@@ -39,12 +46,8 @@ export function apiBatch(requests) {
 }
 
 export function problemCode(res) {
-  try {
-    const type = res.json('type');
-    return typeof type === 'string' ? type.slice(type.lastIndexOf('/') + 1) : null;
-  } catch (e) {
-    return null;
-  }
+  const type = jsonOf(res, 'type');
+  return typeof type === 'string' ? type.slice(type.lastIndexOf('/') + 1) : null;
 }
 
 export function etagOf(res) {

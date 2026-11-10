@@ -21,57 +21,22 @@ const MAIN_CONFIGURATIONS = new Set([
 
 export const packageOf = (context) => context.replaceAll('-', '');
 
-/** Substitui comentários e literais Java por espaços, preservando quebras de linha (e números de linha). */
-export function stripJava(source) {
+const blankOut = (text) => text.replace(/[^\n]/g, ' ');
+
+const lineEnd = (source, from) => {
+  const newline = source.indexOf('\n', from);
+  return newline < 0 ? source.length : newline;
+};
+
+/** Reescreve o fonte trocando cada trecho que `replacement` reconhece e copiando o resto. */
+function rewrite(source, replacement) {
   let out = '';
   let i = 0;
-  const blank = (ch) => (ch === '\n' ? '\n' : ' ');
   while (i < source.length) {
-    if (source.startsWith('//', i)) {
-      while (i < source.length && source[i] !== '\n') {
-        out += ' ';
-        i++;
-      }
-    } else if (source.startsWith('/*', i)) {
-      out += '  ';
-      i += 2;
-      while (i < source.length && !source.startsWith('*/', i)) out += blank(source[i++]);
-      if (i < source.length) {
-        out += '  ';
-        i += 2;
-      }
-    } else if (source.startsWith('"""', i)) {
-      out += '   ';
-      i += 3;
-      while (i < source.length && !source.startsWith('"""', i)) {
-        if (source[i] === '\\') {
-          out += ' ';
-          i++;
-        }
-        if (i < source.length) out += blank(source[i++]);
-      }
-      if (i < source.length) {
-        out += '   ';
-        i += 3;
-      }
-    } else if (source[i] === '"' || source[i] === "'") {
-      const quote = source[i];
-      out += ' ';
-      i++;
-      while (i < source.length && source[i] !== quote && source[i] !== '\n') {
-        if (source[i] === '\\') {
-          out += ' ';
-          i++;
-        }
-        if (i < source.length && source[i] !== '\n') {
-          out += ' ';
-          i++;
-        }
-      }
-      if (source[i] === quote) {
-        out += ' ';
-        i++;
-      }
+    const piece = replacement(source, i);
+    if (piece) {
+      out += piece.text;
+      i = piece.end;
     } else {
       out += source[i++];
     }
@@ -79,39 +44,83 @@ export function stripJava(source) {
   return out;
 }
 
+function textBlockEnd(source, from) {
+  let i = from + 3;
+  while (i < source.length && !source.startsWith('"""', i)) i += source[i] === '\\' ? 2 : 1;
+  return i < source.length ? i + 3 : source.length;
+}
+
+/** Fim de uma string Java; a barra invertida não escapa a quebra de linha, e a string não passa dela. */
+function javaStringEnd(source, from) {
+  const quote = source[from];
+  let i = from + 1;
+  while (i < source.length && source[i] !== quote && source[i] !== '\n') {
+    const escapes = source[i] === '\\' && i + 1 < source.length && source[i + 1] !== '\n';
+    i += escapes ? 2 : 1;
+  }
+  return source[i] === quote ? i + 1 : i;
+}
+
+/** Fim do comentário ou literal Java que começa em `from`; `from` quando ali não começa nenhum. */
+function javaSkippedEnd(source, from) {
+  if (source.startsWith('//', from)) return lineEnd(source, from);
+  if (source.startsWith('/*', from)) {
+    const close = source.indexOf('*/', from + 2);
+    return close < 0 ? source.length : close + 2;
+  }
+  if (source.startsWith('"""', from)) return textBlockEnd(source, from);
+  if (source[from] === '"' || source[from] === "'") return javaStringEnd(source, from);
+  return from;
+}
+
+const javaReplacement = (source, from) => {
+  const end = javaSkippedEnd(source, from);
+  return end > from ? { text: blankOut(source.slice(from, end)), end } : null;
+};
+
+/** Substitui comentários e literais Java por espaços, preservando quebras de linha (e números de linha). */
+export function stripJava(source) {
+  return rewrite(source, javaReplacement);
+}
+
+const GROOVY_TRIPLE_QUOTES = ["'''", '"""'];
+
+/** Fim de uma string Groovy (simples, dupla ou tripla), que o parser copia como está. */
+function groovyLiteralEnd(source, from) {
+  const triple = GROOVY_TRIPLE_QUOTES.find((quote) => source.startsWith(quote, from));
+  if (triple) {
+    const close = source.indexOf(triple, from + 3);
+    return close < 0 ? source.length : close + 3;
+  }
+  if (source[from] !== '"' && source[from] !== "'") return from;
+  const quote = source[from];
+  let i = from + 1;
+  while (i < source.length && source[i] !== quote && source[i] !== '\n')
+    i += source[i] === '\\' ? 2 : 1;
+  return Math.min(i + 1, source.length);
+}
+
+// NOTE: o comentário de bloco perde os delimitadores (só o miolo vira espaço), o que mantém as quebras de linha.
+const groovyReplacement = (source, from) => {
+  if (source.startsWith('//', from)) {
+    const end = lineEnd(source, from);
+    return { text: blankOut(source.slice(from, end)), end };
+  }
+  if (source.startsWith('/*', from)) {
+    const close = source.indexOf('*/', from + 2);
+    const bodyEnd = close < 0 ? source.length : close;
+    return {
+      text: blankOut(source.slice(from + 2, bodyEnd)),
+      end: close < 0 ? bodyEnd : close + 2,
+    };
+  }
+  const end = groovyLiteralEnd(source, from);
+  return end > from ? { text: source.slice(from, end), end } : null;
+};
+
 /** Remove comentários Groovy preservando literais (necessários para ler as coordenadas). */
 export function stripGroovyComments(source) {
-  let out = '';
-  let i = 0;
-  while (i < source.length) {
-    if (source.startsWith('//', i)) {
-      while (i < source.length && source[i] !== '\n') {
-        out += ' ';
-        i++;
-      }
-    } else if (source.startsWith('/*', i)) {
-      i += 2;
-      while (i < source.length && !source.startsWith('*/', i))
-        out += source[i++] === '\n' ? '\n' : ' ';
-      i += 2;
-    } else if (source.startsWith("'''", i) || source.startsWith('"""', i)) {
-      const quote = source.slice(i, i + 3);
-      const end = source.indexOf(quote, i + 3);
-      const stop = end < 0 ? source.length : end + 3;
-      out += source.slice(i, stop);
-      i = stop;
-    } else if (source[i] === '"' || source[i] === "'") {
-      const quote = source[i];
-      let j = i + 1;
-      while (j < source.length && source[j] !== quote && source[j] !== '\n')
-        j += source[j] === '\\' ? 2 : 1;
-      out += source.slice(i, j + 1);
-      i = j + 1;
-    } else {
-      out += source[i++];
-    }
-  }
-  return out;
+  return rewrite(source, groovyReplacement);
 }
 
 const lineAt = (text, index) => text.slice(0, index).split('\n').length;
@@ -181,12 +190,12 @@ export function gradleDependencies(source) {
     externals = [],
     unsupported = [];
   for (const m of code.matchAll(
-    /\b([A-Za-z]+)\s*\(?\s*project\s*\(\s*(?:path\s*:\s*)?['"]:([^'"]+)['"]\s*\)/g,
+    /\b([A-Za-z]+)\s*(?:\(\s*)?project\s*\(\s*(?:path\s*:\s*)?['"]:([^'"]+)['"]\s*\)/g,
   )) {
     projects.push({ configuration: m[1], name: m[2], line: lineAt(code, m.index) });
   }
   for (const m of code.matchAll(
-    /\b([A-Za-z]+)\s*\(?\s*(?:(platform|enforcedPlatform)\s*\(\s*)?(["'])([^"'\n]*:[^"'\n]*)\3/g,
+    /\b([A-Za-z]+)\s*(?:\(\s*)?(?:(platform|enforcedPlatform)\s*\(\s*)?(["'])([^"'\n:]*:[^"'\n]*)\3/g,
   )) {
     if (m[1] === 'project') continue;
     externals.push({
@@ -217,8 +226,112 @@ function javaFiles(dir, fs) {
   if (!fs.exists(dir)) return [];
   return fs.list(dir).flatMap((entry) => {
     const file = path.join(dir, entry.name);
-    return entry.directory ? javaFiles(file, fs) : entry.name.endsWith('.java') ? [file] : [];
+    if (entry.directory) return javaFiles(file, fs);
+    return entry.name.endsWith('.java') ? [file] : [];
   });
+}
+
+function requiredProjects(layer, context) {
+  if (layer === 'domain') return [];
+  if (layer === 'application') return [`${context}-domain`];
+  return [`${context}-application`, `${context}-domain`];
+}
+
+const layerDirectory = (root, context, layer) =>
+  path.join(root, layer === 'service' ? `apps/${context}-service` : `libs/${context}/${layer}`);
+
+const isAllowedExtra = (env, layer, name) => layer === 'service' && env.contractProjects.has(name);
+
+function checkProjectSet(env, unit, file, line, kind, actual) {
+  const { context, layer } = unit;
+  const required = requiredProjects(layer, context);
+  for (const name of required.filter((r) => !actual.includes(r)))
+    env.report(file, line, `${kind}: falta ${name}`);
+  for (const name of actual.filter((a) => !required.includes(a) && !isAllowedExtra(env, layer, a)))
+    env.report(file, line, `${kind}: ${name} não é permitido`);
+}
+
+function checkImplicitDependencies(env, unit, projectFile) {
+  // WHY: o @nx/gradle tira do Gradle as dependências entre módulos (ADR 025); repeti-las aqui recriaria um grafo
+  // mantido à mão. Só o contrato de outro contexto, que o Gradle não enxerga, entra no project.json.
+  for (const name of JSON.parse(env.fs.read(projectFile)).implicitDependencies ?? []) {
+    if (!isAllowedExtra(env, unit.layer, name)) {
+      env.report(
+        projectFile,
+        1,
+        `implicitDependencies: ${name} não é permitido; dependências entre módulos vêm do Gradle (ADR 025)`,
+      );
+    }
+  }
+}
+
+/** Motivo da recusa de uma dependência externa de lib, ou null quando é permitida. */
+function externalViolation(layer, dep) {
+  if (dep.configuration.startsWith('test')) return null;
+  if (!MAIN_CONFIGURATIONS.has(dep.configuration))
+    return `configuração Gradle não reconhecida: ${dep.configuration}`;
+  const allowed = LIB_EXTERNAL_ALLOWED[layer][dep.platform ? 'platforms' : 'coordinates'];
+  return allowed.includes(dep.coordinate)
+    ? null
+    : `dependência externa não permitida em ${layer}: ${dep.coordinate}`;
+}
+
+function checkBuildFile(env, unit, buildFile) {
+  const gradle = gradleDependencies(env.fs.read(buildFile));
+  for (const u of gradle.unsupported)
+    env.report(
+      buildFile,
+      u.line,
+      `formato não suportado pelo verificador: ${u.text}; use project(':nome')`,
+    );
+  const mainProjects = gradle.projects.filter((p) => !p.configuration.startsWith('test'));
+  checkProjectSet(
+    env,
+    unit,
+    buildFile,
+    mainProjects[0]?.line ?? 1,
+    'dependências Gradle',
+    mainProjects.map((p) => p.name),
+  );
+  if (unit.layer === 'service') return;
+  for (const dep of gradle.externals) {
+    const problem = externalViolation(unit.layer, dep);
+    if (problem) env.report(buildFile, dep.line, problem);
+  }
+}
+
+function checkSources(env, unit) {
+  const { context, layer, dir } = unit;
+  for (const other of ['kotlin', 'groovy', 'scala']) {
+    const languageDir = path.join(dir, 'src/main', other);
+    if (env.fs.exists(languageDir))
+      env.report(languageDir, 1, `linguagem não suportada pelo verificador: ${other}`);
+  }
+  for (const file of javaFiles(path.join(dir, 'src/main/java'), env.fs)) {
+    const { packageName, references } = javaReferences(env.fs.read(file));
+    const wrongPackage = packageViolation(layer, context, packageName);
+    if (wrongPackage) env.report(file, 1, wrongPackage);
+    for (const ref of references) {
+      const problem = referenceViolation(layer, context, env.contexts, ref.name);
+      if (problem) env.report(file, ref.line, problem);
+    }
+  }
+}
+
+function checkLayer(env, unit) {
+  const projectFile = path.join(unit.dir, 'project.json');
+  if (!env.fs.exists(projectFile)) {
+    env.report(projectFile, 1, 'project.json ausente');
+    return;
+  }
+  checkImplicitDependencies(env, unit, projectFile);
+  const buildFile = path.join(unit.dir, 'build.gradle');
+  if (!env.fs.exists(buildFile)) {
+    env.report(buildFile, 1, 'build.gradle ausente');
+    return;
+  }
+  checkBuildFile(env, unit, buildFile);
+  checkSources(env, unit);
 }
 
 /** Executa todas as regras e devolve a lista completa de violações (vazia quando tudo está conforme). */
@@ -228,108 +341,13 @@ export function checkWorkspace(root, fs = nodeFileSystem) {
   const report = (file, line, message) => violations.push({ file: relative(file), line, message });
   const contexts = JSON.parse(fs.read(path.join(root, 'tools/contexts.json')));
   const contractProjects = new Set(contexts.map((c) => `${c}-contracts`));
-  let modules = 0;
+  const env = { fs, report, contexts, contractProjects };
   for (const context of contexts) {
     for (const layer of LAYERS) {
-      const dir = path.join(
-        root,
-        layer === 'service' ? `apps/${context}-service` : `libs/${context}/${layer}`,
-      );
-      const required =
-        layer === 'domain'
-          ? []
-          : layer === 'application'
-            ? [`${context}-domain`]
-            : [`${context}-application`, `${context}-domain`];
-      const isAllowedExtra = (name) => layer === 'service' && contractProjects.has(name);
-      const checkSet = (file, line, kind, actual) => {
-        for (const name of required.filter((r) => !actual.includes(r)))
-          report(file, line, `${kind}: falta ${name}`);
-        for (const name of actual.filter((a) => !required.includes(a) && !isAllowedExtra(a)))
-          report(file, line, `${kind}: ${name} não é permitido`);
-      };
-      modules++;
-
-      const projectFile = path.join(dir, 'project.json');
-      if (!fs.exists(projectFile)) {
-        report(projectFile, 1, 'project.json ausente');
-        continue;
-      }
-      // WHY: o @nx/gradle tira do Gradle as dependências entre módulos (ADR 025); repeti-las aqui recriaria um grafo
-      // mantido à mão. Só o contrato de outro contexto, que o Gradle não enxerga, entra no project.json.
-      for (const name of JSON.parse(fs.read(projectFile)).implicitDependencies ?? []) {
-        if (!isAllowedExtra(name)) {
-          report(
-            projectFile,
-            1,
-            `implicitDependencies: ${name} não é permitido; dependências entre módulos vêm do Gradle (ADR 025)`,
-          );
-        }
-      }
-
-      const buildFile = path.join(dir, 'build.gradle');
-      if (!fs.exists(buildFile)) {
-        report(buildFile, 1, 'build.gradle ausente');
-        continue;
-      }
-      const gradle = gradleDependencies(fs.read(buildFile));
-      for (const u of gradle.unsupported)
-        report(
-          buildFile,
-          u.line,
-          `formato não suportado pelo verificador: ${u.text}; use project(':nome')`,
-        );
-      const mainProjects = gradle.projects.filter((p) => !p.configuration.startsWith('test'));
-      checkSet(
-        buildFile,
-        mainProjects[0]?.line ?? 1,
-        'dependências Gradle',
-        mainProjects.map((p) => p.name),
-      );
-      if (layer !== 'service') {
-        const allowed = LIB_EXTERNAL_ALLOWED[layer];
-        for (const dep of gradle.externals) {
-          if (dep.configuration.startsWith('test')) continue;
-          if (!MAIN_CONFIGURATIONS.has(dep.configuration)) {
-            report(
-              buildFile,
-              dep.line,
-              `configuração Gradle não reconhecida: ${dep.configuration}`,
-            );
-            continue;
-          }
-          const ok = dep.platform
-            ? allowed.platforms.includes(dep.coordinate)
-            : allowed.coordinates.includes(dep.coordinate);
-          if (!ok)
-            report(
-              buildFile,
-              dep.line,
-              `dependência externa não permitida em ${layer}: ${dep.coordinate}`,
-            );
-        }
-      }
-
-      for (const other of ['kotlin', 'groovy', 'scala']) {
-        if (fs.exists(path.join(dir, 'src/main', other)))
-          report(
-            path.join(dir, 'src/main', other),
-            1,
-            `linguagem não suportada pelo verificador: ${other}`,
-          );
-      }
-      for (const file of javaFiles(path.join(dir, 'src/main/java'), fs)) {
-        const { packageName, references } = javaReferences(fs.read(file));
-        const wrongPackage = packageViolation(layer, context, packageName);
-        if (wrongPackage) report(file, 1, wrongPackage);
-        for (const ref of references) {
-          const problem = referenceViolation(layer, context, contexts, ref.name);
-          if (problem) report(file, ref.line, problem);
-        }
-      }
+      checkLayer(env, { context, layer, dir: layerDirectory(root, context, layer) });
     }
   }
-  return { modules, contexts: contexts.length, violations };
+  return { modules: contexts.length * LAYERS.length, contexts: contexts.length, violations };
 }
 
 function main() {
