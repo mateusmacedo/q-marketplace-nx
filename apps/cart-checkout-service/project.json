@@ -4,6 +4,10 @@
   "tags": ["scope:cart-checkout", "layer:service", "lang:java"],
   "targets": {
     "serve": {
+      "continuous": true,
+      "readyWhen": {
+        "logMatches": "Listening on"
+      },
       "executor": "nx:run-commands",
       "options": {
         "command": "node tools/gradle.mjs :cart-checkout-service:quarkusDev"

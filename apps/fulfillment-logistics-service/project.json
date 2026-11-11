@@ -4,6 +4,10 @@
   "tags": ["scope:fulfillment-logistics", "layer:service", "lang:java"],
   "targets": {
     "serve": {
+      "continuous": true,
+      "readyWhen": {
+        "logMatches": "Listening on"
+      },
       "executor": "nx:run-commands",
       "options": {
         "command": "node tools/gradle.mjs :fulfillment-logistics-service:quarkusDev"
