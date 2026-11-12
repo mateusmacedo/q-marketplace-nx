@@ -30,7 +30,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: isCI ? 'npx nx run admin-web:serve-static' : 'npx nx run admin-web:serve',
+    command: isCI ? 'npx nx run admin-web:serve-static' : 'npx nx run admin-web:serve-stack',
     url: getReadyUrl('http://localhost:4200'),
     reuseExistingServer: true,
     cwd: workspaceRoot,

@@ -4,6 +4,16 @@
   "tags": ["scope:catalog-inventory", "layer:service", "lang:java"],
   "targets": {
     "serve": {
+      "continuous": true,
+      "readyWhen": {
+        "logMatches": "Listening on"
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-keycloak"
+        }
+      ],
       "executor": "nx:run-commands",
       "options": {
         "command": "node tools/gradle.mjs :catalog-inventory-service:quarkusDev"

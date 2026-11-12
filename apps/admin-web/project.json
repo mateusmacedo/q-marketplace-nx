@@ -77,6 +77,37 @@
       "options": {
         "proxyConfig": "apps/admin-web/proxy.conf.json",
         "port": 4200
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-keycloak"
+        },
+        {
+          "projects": ["catalog-inventory-service"],
+          "target": "serve",
+          "waitFor": "ready"
+        }
+      ]
+    },
+    "serve-stack": {
+      "continuous": true,
+      "readyWhen": {
+        "signal": true
+      },
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "configurations": {
+        "production": {
+          "buildTarget": "admin-web:build:production"
+        },
+        "development": {
+          "buildTarget": "admin-web:build:development"
+        }
+      },
+      "options": {
+        "proxyConfig": "apps/admin-web/proxy.conf.json",
+        "port": 4200
       }
     },
     "test": {

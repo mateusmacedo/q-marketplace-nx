@@ -1,0 +1,153 @@
+{
+  "name": "infra-local",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": ["scope:shared", "type:infra"],
+  "targets": {
+    "up-keycloak": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe o Keycloak da stack local (localhost:8180, realm marketplace) e espera ele ficar saudável."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all up -d --wait keycloak"
+      }
+    },
+    "up-postgres": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe o PostgreSQL da stack local (localhost:5432) e o preparo dos schemas e roles."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all up -d --wait postgres postgres-init"
+      }
+    },
+    "up-redis": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe o Redis da stack local (localhost:6379) e espera ele ficar saudável."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all up -d --wait redis"
+      }
+    },
+    "up-kafka": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe o Kafka da stack local (localhost:9094) e cria os tópicos."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all up -d --wait kafka kafka-init"
+      }
+    },
+    "up-kafka-console": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe o console do Kafka (localhost:8090), com o Kafka que ele usa."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all up -d --wait kafka-console"
+      }
+    },
+    "up-observability": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe a observabilidade da stack local: Grafana (localhost:3000), Prometheus, Tempo, Loki, Alloy, Collector OpenTelemetry e exporters."
+      },
+      "options": {
+        "commands": [
+          { "command": "npm run -s check:memory", "forwardAllArgs": false },
+          "docker compose -f infra/local/docker-compose.yml --profile observability up -d --wait"
+        ],
+        "parallel": false
+      }
+    },
+    "up-catalog": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe a stack completa do catálogo (perfil catalog): infraestrutura, duas instâncias da API, worker e gateway (localhost:8080 e 8083). Exige o executável nativo de catalog-inventory-service:native."
+      },
+      "options": {
+        "commands": [
+          { "command": "npm run -s check:memory", "forwardAllArgs": false },
+          "docker compose -f infra/local/docker-compose.yml --profile catalog up -d --build --wait"
+        ],
+        "parallel": false
+      }
+    },
+    "up-all": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Sobe todos os perfis da stack local: catálogo completo e observabilidade. Exige o executável nativo de catalog-inventory-service:native."
+      },
+      "options": {
+        "commands": [
+          { "command": "npm run -s check:memory", "forwardAllArgs": false },
+          "docker compose -f infra/local/docker-compose.yml --profile all up -d --build --wait"
+        ],
+        "parallel": false
+      }
+    },
+    "stop": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Para os contêineres da stack local sem removê-los; sem configuração, para todos. As configurações param um recurso só."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all stop {args.services}",
+        "services": ""
+      },
+      "configurations": {
+        "keycloak": { "services": "keycloak" },
+        "postgres": { "services": "postgres" },
+        "redis": { "services": "redis" },
+        "kafka": { "services": "kafka-console kafka" },
+        "kafka-console": { "services": "kafka-console" },
+        "observability": {
+          "services": "grafana prometheus tempo loki alloy otel-collector postgres-exporter redis-exporter cadvisor"
+        },
+        "catalog": { "services": "gateway catalog-api-1 catalog-api-2 catalog-worker" }
+      }
+    },
+    "down": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Remove os contêineres e a rede de todos os perfis da stack local; os volumes, com os dados, ficam."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all down"
+      }
+    },
+    "ps": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "metadata": {
+        "description": "Lista os contêineres da stack local, inclusive os parados."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all ps -a"
+      }
+    },
+    "logs": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "cache": false,
+      "metadata": {
+        "description": "Acompanha os logs da stack local; nomes de serviço passados ao alvo filtram (por exemplo, keycloak)."
+      },
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile all logs -f --tail 200"
+      }
+    }
+  }
+}

@@ -15,42 +15,102 @@
       "cache": false,
       "options": {
         "command": "bash tools/load/run.sh smoke"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-catalog"
+        },
+        {
+          "projects": ["infra-local"],
+          "target": "up-observability"
+        }
+      ]
     },
     "average": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
         "command": "bash tools/load/run.sh average"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-catalog"
+        },
+        {
+          "projects": ["infra-local"],
+          "target": "up-observability"
+        }
+      ]
     },
     "stress": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
         "command": "bash tools/load/run.sh stress"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-catalog"
+        },
+        {
+          "projects": ["infra-local"],
+          "target": "up-observability"
+        }
+      ]
     },
     "spike": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
         "command": "bash tools/load/run.sh spike"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-catalog"
+        },
+        {
+          "projects": ["infra-local"],
+          "target": "up-observability"
+        }
+      ]
     },
     "soak": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
         "command": "bash tools/load/run.sh soak"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-catalog"
+        },
+        {
+          "projects": ["infra-local"],
+          "target": "up-observability"
+        }
+      ]
     },
     "breakpoint": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
         "command": "bash tools/load/run.sh breakpoint"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["infra-local"],
+          "target": "up-catalog"
+        },
+        {
+          "projects": ["infra-local"],
+          "target": "up-observability"
+        }
+      ]
     }
   }
 }
